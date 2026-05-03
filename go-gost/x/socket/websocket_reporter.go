@@ -940,12 +940,13 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 func collectForwardMetrics() []ForwardMetric {
 	manager := stats.GetForwardStatsManager()
 	if manager == nil {
-		return nil
+		return []ForwardMetric{}
 	}
 
 	internalMetrics := manager.GetForwardMetrics()
+	// 即使没有指标也返回空数组，而不是 nil（保持 Panel 端缓存）
 	if len(internalMetrics) == 0 {
-		return nil
+		return []ForwardMetric{}
 	}
 
 	// 转换为 socket 包的 ForwardMetric 类型
@@ -962,7 +963,6 @@ func collectForwardMetrics() []ForwardMetric {
 		})
 	}
 
-	fmt.Printf("[forward.metrics] collected %d metrics\n", len(metrics))
 	return metrics
 }
 

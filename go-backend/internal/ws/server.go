@@ -84,6 +84,7 @@ type Server struct {
 	serviceConnUpdateTime map[int64]int64                   // nodeID -> last update time
 	forwardMetrics        map[int64]map[int64]*ForwardMetric // forwardID -> nodeID -> metric
 	forwardMetricsMu      sync.RWMutex
+	nodeOfflineTime       map[int64]int64 // nodeID -> offline timestamp (seconds)
 }
 
 type SystemInfo struct {
@@ -218,7 +219,7 @@ func (s *Server) GetForwardMetric(forwardID int64) *ForwardMetric {
 }
 
 func NewServer(repo *repo.Repository, jwtSecret string) *Server {
-	return &Server{
+	s := &Server{
 		repo:      repo,
 		jwtSecret: jwtSecret,
 		upgrader: websocket.Upgrader{
@@ -231,7 +232,11 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		serviceConnections:    make(map[int64]map[string]int),
 		serviceConnUpdateTime: make(map[int64]int64),
 		forwardMetrics:        make(map[int64]map[int64]*ForwardMetric), // forwardID -> nodeID -> metric
+		nodeOfflineTime:       make(map[int64]int64), // nodeID -> offline timestamp
 	}
+	// 启动后台清理任务（每 2 分钟清理一次过期数据）
+	go s.cleanupStaleMetrics(2 * time.Minute)
+	return s
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -324,6 +329,8 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	ns := &nodeSession{nodeID: nodeID, secret: secret, conn: cw, crypto: nodeCrypto}
 	s.nodes[nodeID] = ns
 	s.byConn[conn] = ns
+	// 节点重新上线，清除离线时间记录
+	delete(s.nodeOfflineTime, nodeID)
 	s.mu.Unlock()
 
 	_ = s.repo.UpdateNodeOnline(nodeID, 1, version, httpVal, tlsVal, socksVal)
@@ -343,6 +350,8 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		current, ok := s.nodes[nodeID]
 		if ok && current.conn.conn == conn {
 			delete(s.nodes, nodeID)
+			// 记录节点离线时间
+			s.nodeOfflineTime[nodeID] = time.Now().Unix()
 			needOfflineBroadcast = true
 		}
 		delete(s.byConn, conn)
@@ -777,5 +786,39 @@ func startKeepalive(cw *connWrap, done <-chan struct{}) {
 				return
 			}
 		}
+	}
+}
+
+// cleanupStaleMetrics 定期清理过期节点的指标数据（离线超过 10 分钟）
+func (s *Server) cleanupStaleMetrics(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		s.mu.Lock()
+		now := time.Now().Unix()
+		offlineTimeout := int64(10 * 60) // 10 分钟
+
+		// 清理离线超过 10 分钟的节点的 forwardMetrics
+		for nodeID, offlineTime := range s.nodeOfflineTime {
+			if now-offlineTime > offlineTimeout {
+				// 清理该节点的所有 forward 指标
+				s.forwardMetricsMu.Lock()
+				for forwardID, nodeMetrics := range s.forwardMetrics {
+					if _, exists := nodeMetrics[nodeID]; exists {
+						delete(nodeMetrics, nodeID)
+						// 如果该 forward 没有其他节点的指标了，删除整个 entry
+						if len(nodeMetrics) == 0 {
+							delete(s.forwardMetrics, forwardID)
+						}
+					}
+				}
+				s.forwardMetricsMu.Unlock()
+
+				// 清理离线时间记录
+				delete(s.nodeOfflineTime, nodeID)
+			}
+		}
+		s.mu.Unlock()
 	}
 }
