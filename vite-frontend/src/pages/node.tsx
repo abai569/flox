@@ -3781,7 +3781,7 @@ export default function NodePage() {
               取消
             </Button>
             <Button color="danger" onPress={handleDeleteLog}>
-              删除
+              确认
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -6649,7 +6649,7 @@ export default function ForwardPage() {
                   isLoading={batchDeleteLoading}
                   onPress={handleBatchDelete}
                 >
-                  确认删除
+                  确认
                 </Button>
               </ModalFooter>
             </>

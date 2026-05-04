@@ -578,7 +578,7 @@ export default function LimitPage() {
                   isLoading={deleteLoading}
                   onPress={confirmDelete}
                 >
-                  确认删除
+                  确认
                 </Button>
               </ModalFooter>
             </>

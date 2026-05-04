@@ -2900,7 +2900,7 @@ export default function UserPage() {
               取消
             </Button>
             <Button color="danger" onPress={handleConfirmDelete}>
-              确认删除
+              确认
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -2947,7 +2947,7 @@ export default function UserPage() {
               取消
             </Button>
             <Button color="danger" onPress={handleConfirmRemoveTunnel}>
-              确认删除
+              确认
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -2996,7 +2996,7 @@ export default function UserPage() {
               isLoading={batchDeleteTunnelLoading}
               onPress={handleConfirmBatchRemoveTunnel}
             >
-              确认删除
+              确认
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -3249,7 +3249,7 @@ export default function UserPage() {
               isLoading={batchOperationLoading.delete}
               onPress={handleConfirmBatchDelete}
             >
-              确认删除
+              确认
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -3406,7 +3406,7 @@ export default function UserPage() {
               取消
             </Button>
             <Button color="danger" onPress={handleDeleteHistory}>
-              删除
+              确认
             </Button>
           </ModalFooter>
         </ModalContent>
