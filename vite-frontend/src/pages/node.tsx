@@ -3522,7 +3522,7 @@ export default function NodePage() {
                     isDisabled={releasesLoading}
                     onPress={handleConfirmUpgrade}
                   >
-                    {!selectedVersion ? "确认更新" : `确认${actionText}`}
+                    {!selectedVersion ? "确认" : `确认${actionText}`}
                   </Button>
                 </ModalFooter>
               </>

@@ -194,15 +194,15 @@ export function VersionFooter({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="text-sm justify-between">
-                      <p className="text-default-500">
+                    <div className="grid grid-cols-2 gap-4 text-sm w-full">
+                      <div className="text-default-500 text-left">
                         当前版本：<span className="font-medium text-default-900 dark:text-white">v{version}</span>
-                      </p>
-                      <p className="text-default-500 mt-1">
+                      </div>
+                      <div className="text-default-500 text-left">
                         目标版本：<span className="font-medium text-default-900 dark:text-white">
                           {selectedVersion || (panelLatestVersion ? `v${panelLatestVersion}` : "最新版本")}
                         </span>
-                      </p>
+                      </div>
                     </div>
                     <Select
                       label="选择版本"
@@ -229,14 +229,14 @@ export function VersionFooter({
                         </SelectItem>
                       ))}
                     </Select>
-                    <div className="text-xs text-default-500">
-                      <p className="font-medium mb-1">升级说明：</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        <li>升级将重启面板服务（backend + frontend + postgres）</li>
-                        <li>升级过程中面板将暂时不可用</li>
-                        <li>升级失败会自动回滚到原版本</li>
-                        <li>请确保服务器网络连接稳定</li>
-                      </ul>
+                    <div className="flex items-center text-center gap-1.5 mb-2 text-default-000">
+                      <span className="text-sm font-semibold">升级说明</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 list-disc list-outside pl-4 text-xs text-danger-600/80 dark:text-danger-400/80">
+                      <p className="list-item">升级将重启面板和后端服务</p>
+                      <p className="list-item">升级过程中面板将暂时不可用</p>
+                      <p className="list-item">升级失败会自动回滚到原版本</p>
+                      <p className="list-item">请确保服务器网络连接稳定</p>
                     </div>
                   </div>
                 )}

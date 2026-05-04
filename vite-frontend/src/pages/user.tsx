@@ -448,6 +448,13 @@ export default function UserPage() {
     onClose: onBatchDeleteModalClose,
   } = useDisclosure();
   const [batchDeleteUserList, setBatchDeleteUserList] = useState<User[]>([]);
+  // 批量归零确认相关状态
+  const {
+    isOpen: isBatchResetModalOpen,
+    onOpen: onBatchResetModalOpen,
+    onClose: onBatchResetModalClose,
+  } = useDisclosure();
+  const [batchResetUserList, setBatchResetUserList] = useState<User[]>([]);
   // 其他数据
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [speedLimits, setSpeedLimits] = useState<SpeedLimit[]>([]);
@@ -1263,7 +1270,14 @@ export default function UserPage() {
   };
   // 批量操作函数
 
-  const handleBatchResetFlow = async () => {
+  const handleBatchResetFlow = () => {
+    const usersToReset = users.filter((u) => selectedUserIds.has(u.id));
+
+    setBatchResetUserList(usersToReset);
+    onBatchResetModalOpen();
+  };
+
+  const handleConfirmBatchResetFlow = async () => {
     setBatchOperationLoading((prev) => ({ ...prev, reset: true }));
     try {
       const response = await batchResetUserFlow(Array.from(selectedUserIds));
@@ -1275,6 +1289,7 @@ export default function UserPage() {
         toast.success(`成功归零 ${successCount} 个用户流量`);
         await loadUsers(undefined, false);
         setSelectedUserIds(new Set());
+        onBatchResetModalClose();
       } else {
         toast.error(response.msg || "归零失败");
       }
@@ -3087,7 +3102,7 @@ export default function UserPage() {
               isLoading={resetFlowLoading}
               onPress={handleConfirmResetFlow}
             >
-              确认归零
+              确认
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -3180,7 +3195,7 @@ export default function UserPage() {
               isLoading={resetTunnelFlowLoading}
               onPress={handleConfirmResetTunnelFlow}
             >
-              确认归零
+              确认
             </Button>
           </ModalFooter>
         </ModalContent>
@@ -3241,7 +3256,7 @@ export default function UserPage() {
             />
           </ModalBody>
           <ModalFooter>
-            <Button variant="light" onPress={onBatchDeleteModalClose}>
+            <Button variant="flat" onPress={onBatchDeleteModalClose}>
               取消
             </Button>
             <Button
@@ -3250,6 +3265,75 @@ export default function UserPage() {
               onPress={handleConfirmBatchDelete}
             >
               确认
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      {/* 批量归零流量确认对话框 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl",
+        }}
+        isOpen={isBatchResetModalOpen}
+        placement="center"
+        scrollBehavior="outside"
+        size="md"
+        onClose={onBatchResetModalClose}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            批量归零流量
+          </ModalHeader>
+          <ModalBody>
+            <p className="text-sm text-default-600 mb-3">
+              确认要归零以下 {batchResetUserList.length}{" "}
+              个用户的流量吗？
+            </p>
+            <div className="max-h-60 overflow-y-auto space-y-2 pr-2">
+              {batchResetUserList.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-2 bg-default-50 dark:bg-default-100/10 rounded-lg"
+                >
+                  <div>
+                    <span className="text-sm font-medium text-foreground">
+                      {user.name || user.user}
+                    </span>
+                    <span className="text-xs text-default-500 ml-2">
+                      @{user.user}
+                    </span>
+                  </div>
+                  <div
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                      user.status === 1
+                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                    }`}
+                  >
+                    {user.status === 1 ? "启用" : "禁用"}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Alert
+              className="mt-4"
+              color="warning"
+              description="归零后当前周期流量将清零，历史流量记录不受影响"
+              title="提示"
+              variant="flat"
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={onBatchResetModalClose}>
+              取消
+            </Button>
+            <Button
+              color="success"
+              isLoading={batchOperationLoading.reset}
+              onPress={handleConfirmBatchResetFlow}
+            >
+              确认归零
             </Button>
           </ModalFooter>
         </ModalContent>
