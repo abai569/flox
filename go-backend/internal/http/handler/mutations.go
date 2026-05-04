@@ -176,6 +176,8 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.repo.PropagateUserFlowToTunnels(id, flow, num, expTime, flowResetTime, status)
+	// 根据用户状态同步 Forward 规则状态
+	_ = h.repo.UpdateUserForwardsStatus(id, status, now)
 	if hasDailyQuota || hasMonthlyQuota {
 		dailyQuotaGB := asInt64(req["dailyQuotaGB"], 0)
 		monthlyQuotaGB := asInt64(req["monthlyQuotaGB"], 0)

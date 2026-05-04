@@ -2987,6 +2987,17 @@ func (r *Repository) ResetUserTunnelMonthlyFlow(day int, lastDay int) error {
 		Updates(updates).Error
 }
 
+// UpdateUserForwardsStatus 根据用户状态更新该用户所有 Forward 规则的状态
+func (r *Repository) UpdateUserForwardsStatus(userID int64, status int, now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Forward{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
+		"status":       status,
+		"updated_time": now,
+	}).Error
+}
+
 func (r *Repository) ListExpiredActiveUserIDs(nowMs int64) ([]int64, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
