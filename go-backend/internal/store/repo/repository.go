@@ -1963,6 +1963,9 @@ var coreTables = []string{
 	// 其他重要数据
 	"speed_limit",
 	"user_quota",
+	"user_quota_history",
+	"node_traffic_reset_log",
+	"forward_traffic_reset_log",
 	"service_monitor",
 }
 
