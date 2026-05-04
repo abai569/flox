@@ -33,22 +33,6 @@ import {
   isPngDataURL,
   type BrandAssetKind,
 } from "@/utils/brand-asset";
-// 简单的保存图标组件
-const SaveIcon = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth="2"
-    viewBox="0 0 24 24"
-  >
-    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-    <polyline points="17,21 17,13 7,13 7,21" />
-    <polyline points="7,3 7,8 15,8" />
-  </svg>
-);
 
 interface ConfigItem {
   key: string;
@@ -171,7 +155,7 @@ const getInitialConfigs = (): Record<string, string> => {
         initialConfigs[key] = cachedValue;
       }
     });
-  } catch {}
+  } catch { }
 
   return initialConfigs;
 };
@@ -492,11 +476,10 @@ export default function ConfigPage() {
 
     return (
       <div
-        className={`rounded-lg border p-3 ${
-          isChanged
-            ? "border-warning-300"
-            : "border-default-200 dark:border-default-100/30"
-        }`}
+        className={`rounded-lg border p-3 ${isChanged
+          ? "border-warning-300"
+          : "border-default-200 dark:border-default-100/30"
+          }`}
       >
         <input
           ref={getBrandInputRef(key)}
@@ -942,7 +925,6 @@ export default function ConfigPage() {
                 <Button
                   color="primary"
                   isLoading={announcementSaving}
-                  startContent={<SaveIcon className="w-4 h-4" />}
                   onPress={saveAnnouncement}
                 >
                   保存公告
@@ -961,7 +943,7 @@ export default function ConfigPage() {
         <CardHeader className="pb-6">
           <div className="flex justify-between items-center w-full">
             <div>
-              <h2 className="text-xl font-semibold">导出全部数据</h2>
+              <h2 className="text-xl font-semibold">导出数据</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 导出系统所有数据为 JSON 格式文件
               </p>
@@ -971,59 +953,71 @@ export default function ConfigPage() {
         <Divider />
         <CardBody className="space-y-6 pt-8 md:pt-8">
           {/* 导出部分 */}
-          <div className="flex justify-between items-start gap-4">
-            <div className="space-y-1.5">
+          <div className="flex flex-col gap-4">
+            {/* 第一行：标题 和 导出按钮 */}
+            <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium">导出数据</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                选择导出范围，一键导出为 JSON 格式文件
-              </p>
-              <div className="flex items-center gap-2 mt-2">
-                <Select
-                  classNames={{ trigger: "min-w-[150px]" }}
-                  label=""
-                  selectedKeys={[exportMode]}
-                  size="sm"
-                  variant="bordered"
-                  onSelectionChange={(keys) => {
-                    const key = Array.from(keys)[0] as string;
-
-                    if (key === "core" || key === "full") {
-                      setExportMode(key);
-                    }
-                  }}
-                >
-                  <SelectItem key="core">快速导出（核心数据）</SelectItem>
-                  <SelectItem key="full">完整导出（所有数据）</SelectItem>
-                </Select>
-                <span className="text-xs text-gray-500">
-                  {exportMode === "core"
-                    ? "仅用户/节点/隧道/规则"
-                    : "包含所有表和配置"}
-                </span>
-              </div>
-            </div>
-            <div className="flex-shrink-0">
               <Button
                 color="primary"
                 isLoading={exporting}
                 onPress={handleExportAll}
               >
-                {exporting ? "导出中..." : "导出全部数据"}
+                {exporting ? "导出中..." : "一键导出"}
               </Button>
+            </div>
+
+            {/* 第二行及以下：下拉框 和 提示文字 */}
+            <div className="flex flex-col gap-1.5">
+              <Select
+                classNames={{ trigger: "min-w-[150px]" }}
+                label="选择导出范围，一键导出为json格式文件"
+                selectedKeys={[exportMode]}
+                size="sm"
+                variant="bordered"
+                onSelectionChange={(keys) => {
+                  const key = Array.from(keys)[0] as string;
+
+                  if (key === "core" || key === "full") {
+                    setExportMode(key);
+                  }
+                }}
+              >
+                <SelectItem key="core">快速导出（核心数据）</SelectItem>
+                <SelectItem key="full">完整导出（所有数据）</SelectItem>
+              </Select>
+              <span className="text-xs text-gray-500 ml-1">
+                {exportMode === "core"
+                  ? "仅用户/节点/隧道/规则等数据，不包含日志和统计，文件较小，适合快速备份"
+                  : "包含所有表和配置项，文件更大，适合完全备份"}
+              </span>
             </div>
           </div>
           <Divider />
           {/* 导入部分 */}
-          <div className="flex justify-between items-start gap-4">
-            <div className="space-y-1.5">
+          <div className="flex flex-col gap-4">
+            {/* 第一行：大标题 和 导入按钮 */}
+            <div className="flex items-center justify-between">
               <h3 className="text-lg font-medium">导入数据</h3>
+              <Button
+                color="primary"
+                isLoading={importing}
+                onPress={() => backupFileInputRef.current?.click()}
+              >
+                {importing ? "导入中..." : "一键导入"}
+              </Button>
+            </div>
+
+            {/* 第二行及以下：提示文字 和 选中文件状态 */}
+            <div className="flex flex-col gap-1.5">
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                从 JSON 备份文件恢复数据
+                从json备份文件恢复数据
               </p>
               {importFileName && (
                 <p className="text-xs text-primary">已选择：{importFileName}</p>
               )}
             </div>
+
+            {/* 隐藏的 input，保持不变 */}
             <input
               ref={backupFileInputRef}
               accept=".json"
@@ -1031,16 +1025,6 @@ export default function ConfigPage() {
               type="file"
               onChange={handleFileChange}
             />
-            <div className="flex-shrink-0">
-              <Button
-                color="primary"
-                isLoading={importing}
-                variant="flat"
-                onPress={() => backupFileInputRef.current?.click()}
-              >
-                {importing ? "导入中..." : "选择文件导入"}
-              </Button>
-            </div>
           </div>
         </CardBody>
       </Card>

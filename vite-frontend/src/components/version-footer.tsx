@@ -158,7 +158,7 @@ export function VersionFooter({
             size="sm"
             color="primary"
             variant="flat"
-            className="ml-1 h-auto px-1.5 py-0 text-[10px] min-w-0"
+            className="ml-0.5 h-auto px-1.5 py-0 text-[10px] min-w-0 rounded-md"
             onPress={handleOpenUpgradeModal}
             isLoading={upgrading}
           >
@@ -194,7 +194,7 @@ export function VersionFooter({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="text-sm">
+                    <div className="text-sm justify-between">
                       <p className="text-default-500">
                         当前版本：<span className="font-medium text-default-900 dark:text-white">v{version}</span>
                       </p>
