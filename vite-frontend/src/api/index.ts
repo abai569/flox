@@ -132,6 +132,9 @@ export const updateNodeOrder = (data: {
 }) => Network.post("/node/update-order", data);
 export const dismissNodeExpiryReminder = (id: number) =>
   Network.post("/node/dismiss-expiry-reminder", { id });
+
+export const refreshNodeExpiryReminder = (id: number) =>
+  Network.post("/node/refresh-expiry-reminder", { id });
 export const checkNodeStatus = (nodeId?: number) => {
   const params = nodeId ? { nodeId } : {};
 

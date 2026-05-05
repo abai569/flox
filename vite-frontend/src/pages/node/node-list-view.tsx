@@ -569,7 +569,7 @@ function SortableTableRow({
                         setExpiryPopoverOpen(false);
                       }}
                     >
-                      关闭提醒
+                      更新周期
                     </button>
                   </div>
                   <div className="rounded-lg border border-divider/80 bg-default-50/80 px-3 py-2 text-xs leading-5 text-default-700">

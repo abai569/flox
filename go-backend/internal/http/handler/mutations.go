@@ -858,6 +858,40 @@ func (h *Handler) nodeUpdateOrder(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OKEmpty())
 }
 
+func (h *Handler) nodeRefreshExpiryReminder(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+
+	if req.ID <= 0 {
+		response.WriteJSON(w, response.ErrDefault("节点 ID 无效"))
+		return
+	}
+
+	// Get Node Info first to ensure it exists and has cycle
+	_, err := h.repo.GetNode(req.ID)
+	if err != nil {
+		response.WriteJSON(w, response.ErrDefault("节点不存在"))
+		return
+	}
+
+	if err := h.repo.RefreshNodeExpiryReminder(req.ID); err != nil {
+		response.WriteJSON(w, response.Err(-2, fmt.Sprintf("更新提醒周期失败: %v", err)))
+		return
+	}
+
+	response.WriteJSON(w, response.OKEmpty())
+}
+
 func (h *Handler) nodeDismissExpiryReminder(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))

@@ -76,6 +76,7 @@ import {
   batchUpgradeNodes,
   getNodeReleases,
   dismissNodeExpiryReminder,
+  refreshNodeExpiryReminder,
   getNodeGroupList,
   assignNodeToGroup,
   batchResetNodeTraffic,
@@ -1029,16 +1030,12 @@ export default function NodePage() {
   };
   const handleDismissExpiryReminder = async (nodeId: number) => {
     try {
-      const res = await dismissNodeExpiryReminder(nodeId);
+      const res = await refreshNodeExpiryReminder(nodeId);
 
       if (res.code === 0) {
-        setNodeList((prev) =>
-          prev.map((n) =>
-            n.id === nodeId ? { ...n, expiryReminderDismissed: 1 } : n,
-          ),
-        );
+        await loadNodes({ silent: true });
         setInfoPopoverOpenId(null);
-        toast.success("提醒已关闭");
+        toast.success("已更新提醒周期");
       } else {
         toast.error(res.msg || "操作失败");
       }
@@ -1964,7 +1961,7 @@ export default function NodePage() {
                                   handleDismissExpiryReminder(node.id);
                                 }}
                               >
-                                关闭提醒
+                                更新周期
                               </button>
                             </div>
                             <div className="rounded-lg border border-divider/80 bg-default-50/80 px-3 py-2 text-xs leading-5 text-default-700">
