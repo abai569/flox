@@ -1285,7 +1285,7 @@ export default function NodePage() {
     } else {
       setGhfastURL("https://ghfast.top");
     }
-    const defaultChannel: ReleaseChannel = "dev";
+    const defaultChannel: ReleaseChannel = "stable";
 
     setUpgradeTarget(target);
     setUpgradeTargetNodeId(nodeId || null);
@@ -3468,7 +3468,7 @@ export default function NodePage() {
           </ModalFooter> */}
         </ModalContent>
       </Modal>
-      {/* 版本选择升级模态框 */}
+      {/* 批量更新模态框 */}
       <Modal
         backdrop="blur"
         classNames={{
