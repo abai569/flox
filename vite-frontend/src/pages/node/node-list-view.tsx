@@ -3,7 +3,7 @@ import type { NodeSystemInfo } from "./system-info";
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 
 import { getConnectionStatusMeta } from "./display";
 import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
@@ -122,17 +122,6 @@ function SortableTableRow({
   handleResetNodeTraffic,
 }: any) {
   const [expiryPopoverOpen, setExpiryPopoverOpen] = useState(false);
-  const expiryButtonRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!expiryPopoverOpen) return;
-    const handleScroll = () => setExpiryPopoverOpen(false);
-    window.addEventListener("scroll", handleScroll, true);
-    window.addEventListener("resize", handleScroll);
-    return () => {
-      window.removeEventListener("scroll", handleScroll, true);
-      window.removeEventListener("resize", handleScroll);
-    };
-  }, [expiryPopoverOpen]);
   const {
     setNodeRef,
     transform,
@@ -516,7 +505,6 @@ function SortableTableRow({
         {hasExpiryInfo && expiryChipProps ? (
           <div className="relative">
             <button
-              ref={expiryButtonRef}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all ${expiryChipProps.className} ${expiryPopoverOpen ? "border-default-400 shadow-sm" : "border-transparent hover:border-default-300"}`}
               type="button"
               onClick={(e) => {
@@ -544,11 +532,7 @@ function SortableTableRow({
             </button>
             {expiryPopoverOpen && (
               <div
-                className="fixed z-[100] w-64 rounded-xl border border-divider/80 bg-background/98 p-3 shadow-xl backdrop-blur"
-                style={{
-                  top: expiryButtonRef.current ? expiryButtonRef.current.getBoundingClientRect().bottom + window.scrollY + 8 : 0,
-                  left: expiryButtonRef.current ? Math.min(expiryButtonRef.current.getBoundingClientRect().left, window.innerWidth - 280) : 0,
-                }}
+                className="absolute right-0 top-full mt-1.5 z-50 w-64 rounded-xl border border-divider/80 bg-background/98 p-3 shadow-xl backdrop-blur"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.nativeEvent.stopImmediatePropagation();
