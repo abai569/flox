@@ -75,7 +75,6 @@ import {
   upgradeNode,
   batchUpgradeNodes,
   getNodeReleases,
-  dismissNodeExpiryReminder,
   refreshNodeExpiryReminder,
   getNodeGroupList,
   assignNodeToGroup,
