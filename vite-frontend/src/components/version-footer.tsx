@@ -4,6 +4,7 @@ import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@/shad
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
 import { Spinner } from "@/shadcn-bridge/heroui/spinner";
+import { Progress } from "@/shadcn-bridge/heroui/progress";
 
 import { siteConfig } from "@/config/site";
 import {
@@ -14,6 +15,13 @@ import {
   hasVersionUpdate,
 } from "@/utils/version-update";
 import { getPanelReleases, upgradePanel, type PanelReleaseItem } from "@/api";
+
+interface UpgradeProgressState {
+  stage: string;
+  percent: number;
+  message: string;
+  error: boolean;
+}
 
 const FALLBACK_GITHUB_REPO = "https://github.com/abai569/flvx";
 
@@ -47,6 +55,7 @@ export function VersionFooter({
   const [panelLatestVersion, setPanelLatestVersion] = useState<string | null>(
     null,
   );
+  const [upgradeProgress, setUpgradeProgress] = useState<UpgradeProgressState | null>(null);
 
   useEffect(() => {
     const handleChannelChange = () => {
@@ -100,6 +109,30 @@ export function VersionFooter({
     };
   }, [channel, version]);
 
+  useEffect(() => {
+    const handleUpgradeProgress = (e: Event) => {
+      const customEvent = e as CustomEvent<UpgradeProgressState>;
+      setUpgradeProgress(customEvent.detail);
+
+      if (customEvent.detail.error) {
+        toast.error(`升级失败：${customEvent.detail.message}`, { duration: 8000 });
+        setUpgrading(false);
+      } else if (customEvent.detail.percent >= 100) {
+        toast.success("升级完成，页面将自动刷新");
+        setUpgrading(false);
+        setUpgradeModalOpen(false);
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      }
+    };
+
+    window.addEventListener("panel_upgrade_progress", handleUpgradeProgress);
+    return () => {
+      window.removeEventListener("panel_upgrade_progress", handleUpgradeProgress);
+    };
+  }, []);
+
   const loadReleases = async () => {
     setReleasesLoading(true);
     try {
@@ -125,18 +158,18 @@ export function VersionFooter({
 
   const handleConfirmUpgrade = async () => {
     setUpgrading(true);
+    setUpgradeProgress({ stage: "starting", percent: 0, message: "开始升级...", error: false });
     try {
       const res = await upgradePanel(selectedVersion || undefined, channel);
-      if (res.code === 0) {
-        toast.success(res.msg || "升级已提交，面板将自动重启");
-        setUpgradeModalOpen(false);
-      } else {
+      if (res.code !== 0) {
         toast.error(res.msg || "升级失败");
+        setUpgrading(false);
+        setUpgradeProgress(null);
       }
     } catch (err) {
       toast.error("升级失败：" + (err as Error).message);
-    } finally {
       setUpgrading(false);
+      setUpgradeProgress(null);
     }
   };
 
@@ -191,6 +224,29 @@ export function VersionFooter({
                   <div className="flex justify-center py-8">
                     <Spinner size="lg" />
                   </div>
+                ) : upgrading && upgradeProgress ? (
+                  <div className="space-y-4 py-4">
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-default-800 dark:text-white mb-2">
+                        {upgradeProgress.message}
+                      </p>
+                      <Progress
+                        aria-label="升级进度"
+                        className="w-full"
+                        color={upgradeProgress.error ? "danger" : "warning"}
+                        showValueLabel
+                        size="md"
+                        value={upgradeProgress.percent}
+                      />
+                    </div>
+                    {upgradeProgress.error && (
+                      <div className="p-3 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-800">
+                        <p className="text-xs text-danger-600 dark:text-danger-400">
+                          {upgradeProgress.message}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4 text-sm w-full">
@@ -241,17 +297,30 @@ export function VersionFooter({
                 )}
               </ModalBody>
               <ModalFooter>
-                <Button variant="flat" onPress={onClose} isDisabled={upgrading}>
-                  取消
-                </Button>
-                <Button
-                  color="primary"
-                  isDisabled={releasesLoading}
-                  isLoading={upgrading}
-                  onPress={handleConfirmUpgrade}
-                >
-                  确认
-                </Button>
+                {upgrading && upgradeProgress ? (
+                  <Button
+                    className="w-full"
+                    isDisabled={!upgradeProgress.error}
+                    variant="flat"
+                    onPress={onClose}
+                  >
+                    {upgradeProgress.error ? "关闭" : "等待升级完成..."}
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="flat" onPress={onClose} isDisabled={upgrading}>
+                      取消
+                    </Button>
+                    <Button
+                      color="primary"
+                      isDisabled={releasesLoading}
+                      isLoading={upgrading}
+                      onPress={handleConfirmUpgrade}
+                    >
+                      确认
+                    </Button>
+                  </>
+                )}
               </ModalFooter>
             </>
           )}

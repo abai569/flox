@@ -714,7 +714,7 @@ func (s *Server) broadcastTyped(nodeID int64, msgType string, data string) {
 	s.broadcastToAdmins(string(raw))
 }
 
-func (s *Server) broadcastToAdmins(message string) {
+func (s *Server) BroadcastToAdmins(message string) {
 	s.mu.RLock()
 	admins := make([]*connWrap, 0, len(s.admins))
 	for c := range s.admins {
@@ -732,6 +732,10 @@ func (s *Server) broadcastToAdmins(message string) {
 			log.Printf("websocket broadcast failed: %v", err)
 		}
 	}
+}
+
+func (s *Server) broadcastToAdmins(message string) {
+	s.BroadcastToAdmins(message)
 }
 
 func decryptIfNeeded(payload []byte, crypto *security.AESCrypto, secret string) string {

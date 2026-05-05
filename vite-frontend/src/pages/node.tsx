@@ -734,6 +734,26 @@ export default function NodePage() {
           }
         }
       } catch {}
+    } else if (type === "panel_upgrade_progress") {
+      try {
+        const progressData =
+          typeof messageData === "string"
+            ? JSON.parse(messageData)
+            : messageData;
+
+        if (progressData?.data) {
+          window.dispatchEvent(
+            new CustomEvent("panel_upgrade_progress", {
+              detail: {
+                stage: progressData.data.stage || "",
+                percent: progressData.data.percent || 0,
+                message: progressData.message || "",
+                error: progressData.data.error || false,
+              },
+            }),
+          );
+        }
+      } catch {}
     } else if (type === "metric") {
       clearOfflineTimer(nodeId);
       const metric =

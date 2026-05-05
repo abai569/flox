@@ -596,8 +596,23 @@ func (h *Handler) panelUpgrade(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
+func (h *Handler) broadcastPanelUpgradeProgress(stage string, percent int, message string, hasError bool) {
+	if h.wsServer == nil {
+		return
+	}
+	payload := map[string]interface{}{
+		"stage":   stage,
+		"percent": percent,
+		"message": message,
+		"error":   hasError,
+	}
+	data, _ := json.Marshal(payload)
+	h.wsServer.BroadcastToAdmins(fmt.Sprintf(`{"type":"panel_upgrade_progress","data":%s}`, string(data)))
+}
+
 func (h *Handler) executePanelUpgrade(currentVersion, targetVersion string) error {
 	fmt.Printf("开始升级面板：%s -> %s\n", currentVersion, targetVersion)
+	h.broadcastPanelUpgradeProgress("starting", 0, "开始升级面板...", false)
 
 	installDir := "/opt/flux_panel"
 	envFile := installDir + "/.env"
@@ -605,7 +620,9 @@ func (h *Handler) executePanelUpgrade(currentVersion, targetVersion string) erro
 	backupEnvFile := envFile + ".backup"
 	backupComposeFile := composeFile + ".backup"
 
+	h.broadcastPanelUpgradeProgress("backing_up", 5, "备份配置文件...", false)
 	if err := backupFile(envFile, backupEnvFile); err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("备份 .env 失败：%v", err), true)
 		return fmt.Errorf("备份 .env 失败：%v", err)
 	}
 	defer func() {
@@ -613,6 +630,7 @@ func (h *Handler) executePanelUpgrade(currentVersion, targetVersion string) erro
 	}()
 
 	if err := backupFile(composeFile, backupComposeFile); err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("备份 docker-compose.yml 失败：%v", err), true)
 		return fmt.Errorf("备份 docker-compose.yml 失败：%v", err)
 	}
 	defer func() {
@@ -623,51 +641,67 @@ func (h *Handler) executePanelUpgrade(currentVersion, targetVersion string) erro
 	latestComposeURL = strings.Replace(latestComposeURL, "https://api.github.com/repos", "https://github.com", 1)
 	latestComposeURL = strings.Replace(latestComposeURL, "/releases/download", "/releases/download", 1)
 
+	h.broadcastPanelUpgradeProgress("downloading", 10, "下载 docker-compose.yml...", false)
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(latestComposeURL)
 	if err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("下载 docker-compose.yml 失败：%v", err), true)
 		return fmt.Errorf("下载 docker-compose.yml 失败：%v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("下载 docker-compose.yml 失败：HTTP %d", resp.StatusCode), true)
 		return fmt.Errorf("下载 docker-compose.yml 失败：HTTP %d", resp.StatusCode)
 	}
 
 	composeContent, err := io.ReadAll(resp.Body)
 	if err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("读取 docker-compose.yml 失败：%v", err), true)
 		return fmt.Errorf("读取 docker-compose.yml 失败：%v", err)
 	}
 
 	if err := os.WriteFile(composeFile, composeContent, 0644); err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("写入 docker-compose.yml 失败：%v", err), true)
 		return fmt.Errorf("写入 docker-compose.yml 失败：%v", err)
 	}
 
+	h.broadcastPanelUpgradeProgress("updating", 20, "更新版本配置...", false)
 	if err := updateEnvVersion(envFile, targetVersion); err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("更新 .env 中的版本号失败：%v", err), true)
 		return fmt.Errorf("更新 .env 中的版本号失败：%v", err)
 	}
 
 	fmt.Println("拉取最新镜像...")
+	h.broadcastPanelUpgradeProgress("pulling", 30, "拉取镜像...", false)
 	if err := runDockerComposePull(installDir); err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("拉取镜像失败：%v", err), true)
 		return fmt.Errorf("拉取镜像失败：%v", err)
 	}
 
 	fmt.Println("停止服务...")
+	h.broadcastPanelUpgradeProgress("stopping", 70, "停止旧服务...", false)
 	if err := runDockerComposeDown(installDir); err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("停止服务失败：%v", err), true)
 		return fmt.Errorf("停止服务失败：%v", err)
 	}
 
 	fmt.Println("启动服务...")
+	h.broadcastPanelUpgradeProgress("starting_containers", 80, "启动新服务...", false)
 	if err := runDockerComposeUp(installDir); err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("启动服务失败：%v", err), true)
 		return fmt.Errorf("启动服务失败：%v", err)
 	}
 
 	fmt.Println("等待服务健康检查...")
+	h.broadcastPanelUpgradeProgress("health_check", 90, "等待服务就绪...", false)
 	if err := waitForBackendHealthy(); err != nil {
+		h.broadcastPanelUpgradeProgress("failed", 0, fmt.Sprintf("服务健康检查失败：%v", err), true)
 		return fmt.Errorf("服务健康检查失败：%v", err)
 	}
 
 	fmt.Printf("面板升级成功：%s -> %s\n", currentVersion, targetVersion)
+	h.broadcastPanelUpgradeProgress("completed", 100, "升级完成", false)
 	return nil
 }
 
