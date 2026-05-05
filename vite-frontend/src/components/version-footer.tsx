@@ -128,11 +128,16 @@ export function VersionFooter({
     try {
       const res = await upgradePanel(selectedVersion || undefined, channel);
       if (res.code === 0) {
-        toast.success("升级任务已提交，面板正在重启中...");
         setUpgradeModalOpen(false);
-        setTimeout(() => {
-          window.location.reload();
-        }, 30000);
+        // 静默等待升级完成，不显示 toast，倒计时结束后自动刷新
+        let countdown = 60;
+        const timer = setInterval(() => {
+          countdown -= 5;
+          if (countdown <= 0) {
+            clearInterval(timer);
+            window.location.reload();
+          }
+        }, 5000);
       } else {
         toast.error(res.msg || "升级失败");
         setUpgrading(false);
