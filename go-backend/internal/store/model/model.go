@@ -94,8 +94,9 @@ type Node struct {
 	RemoteURL               sql.NullString `gorm:"column:remote_url;type:text"`
 	RemoteToken             sql.NullString `gorm:"column:remote_token;type:text"`
 	RemoteConfig            sql.NullString `gorm:"column:remote_config;type:text"`
-	ExpiryReminderDismissed int            `gorm:"column:expiry_reminder_dismissed;not null;default:0"`
-	GroupID                 sql.NullInt64  `gorm:"column:group_id;index:idx_node_group_id"`
+	ExpiryReminderDismissed      int            `gorm:"column:expiry_reminder_dismissed;not null;default:0"`
+	ExpiryReminderDismissedUntil sql.NullInt64  `gorm:"column:expiry_reminder_dismissed_until"`
+	GroupID                      sql.NullInt64  `gorm:"column:group_id;index:idx_node_group_id"`
 	ServiceName             sql.NullString `gorm:"column:service_name;type:varchar(100)"`
 }
 
