@@ -127,13 +127,6 @@ function SortableTableRow({
 
   const handleTogglePopover = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!expiryPopoverOpen && expiryButtonRef.current) {
-      const rect = expiryButtonRef.current.getBoundingClientRect();
-      setPopoverPosition({
-        top: rect.bottom + window.scrollY + 6,
-        left: rect.left + window.scrollX,
-      });
-    }
     setExpiryPopoverOpen(!expiryPopoverOpen);
   };
 
@@ -156,10 +149,13 @@ function SortableTableRow({
     attributes,
     listeners,
   } = useSortable({ id: node.id });
-  const style = {
+  const style: any = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.6 : 1,
+    // 核心魔法：当弹窗打开时，强行把这一整行提拔到最高层！
+    zIndex: expiryPopoverOpen ? 9999 : (isDragging ? 99 : 1),
+    position: expiryPopoverOpen || isDragging ? "relative" : undefined,
   };
   const rowBg = selectedIds.has(node.id)
     ? "bg-primary-50/70 dark:bg-primary-900/40"
@@ -556,11 +552,7 @@ function SortableTableRow({
             </button>
             {expiryPopoverOpen && (
               <div
-                className="fixed z-[100] w-64 rounded-xl border border-divider/80 bg-background/98 p-3 shadow-xl backdrop-blur"
-                style={{
-                  top: popoverPosition.top,
-                  left: popoverPosition.left,
-                }}
+                className="absolute right-0 top-[calc(100%+6px)] z-[100] w-64 rounded-xl border border-divider/80 bg-background/98 p-3 shadow-xl backdrop-blur"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.nativeEvent.stopImmediatePropagation();
