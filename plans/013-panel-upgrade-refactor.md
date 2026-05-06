@@ -90,12 +90,12 @@ volumes:
 
 ## 任务清单
 
-- [ ] 1. 后端：创建 `system_upgrade.go`
-- [ ] 2. 后端：修改 `handler.go` 注册路由
-- [ ] 3. 后端：修改 `Dockerfile` 添加 docker CLI
-- [ ] 4. 后端：修改 `docker-compose-*.yml` 添加配置
-- [ ] 5. 前端：新增 API 类型
-- [ ] 6. 前端：新增 API 函数
+- [x] 1. 后端：创建 `system_upgrade.go`
+- [x] 2. 后端：修改 `handler.go` 注册路由
+- [x] 3. 后端：修改 `Dockerfile` 添加 docker CLI
+- [x] 4. 后端：修改 `docker-compose-*.yml` 添加配置
+- [x] 5. 前端：新增 API 类型
+- [x] 6. 前端：新增 API 函数
 - [ ] 7. 前端：设置页面集成升级 UI
 - [ ] 8. 删除旧的 `upgrade.go` 面板升级代码
-- [ ] 9. 测试与提交
+- [x] 9. 测试与提交（前后端编译通过）
