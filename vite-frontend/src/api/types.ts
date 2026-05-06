@@ -631,3 +631,40 @@ export interface UserQuotaHistoryItem {
   createdTime: number;
   resetReason?: string;
 }
+
+export interface SystemUpgradeCapabilityApiData {
+  capable: boolean;
+  reasons: string[];
+  deployDir: string;
+  backendContainer: string;
+}
+
+export interface SystemUpgradeReleaseApiItem {
+  version: string;
+  name: string;
+  publishedAt: string;
+  prerelease: boolean;
+  channel: "stable" | "dev";
+}
+
+export interface SystemUpgradeVersionApiData {
+  currentVersion: string;
+  latestVersion: string;
+  hasUpdate: boolean;
+  channel: "stable" | "dev";
+  reason?: string;
+  capability: SystemUpgradeCapabilityApiData;
+}
+
+export interface SystemUpgradeCheckApiData extends SystemUpgradeVersionApiData {
+  releases: SystemUpgradeReleaseApiItem[];
+}
+
+export interface SystemUpgradeRunApiData {
+  version: string;
+  channel: "stable" | "dev";
+  composeAsset: string;
+  helperContainer: string;
+  backendImageId: string;
+  message: string;
+}

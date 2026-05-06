@@ -42,7 +42,9 @@ type Handler struct {
 	jobsStarted bool
 	jobsWG      sync.WaitGroup
 
-	upgradeMu              sync.Mutex
+	upgradeMu       sync.Mutex
+	systemUpgradeMu sync.Mutex
+
 	pendingUpgradeRedeploy map[int64]struct{}
 
 	qualityProber    *tunnelQualityProber
@@ -161,6 +163,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/config/list", h.getConfigs)
 	mux.HandleFunc("/api/v1/config/update", h.updateConfigs)
 	mux.HandleFunc("/api/v1/config/update-single", h.updateSingleConfig)
+	mux.HandleFunc("/api/v1/system/version", h.systemVersion)
+	mux.HandleFunc("/api/v1/system/check-updates", h.systemCheckUpdates)
+	mux.HandleFunc("/api/v1/system/upgrade", h.systemUpgrade)
 	mux.HandleFunc("/api/v1/backup/export", h.backupExport)
 	mux.HandleFunc("/api/v1/backup/import", h.backupImport)
 	mux.HandleFunc("/api/v1/backup/restore", h.backupImport)

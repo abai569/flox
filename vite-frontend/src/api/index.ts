@@ -49,9 +49,12 @@ import type {
   ServiceMonitorMutationPayload,
   MonitorNodeApiItem,
   MonitorTunnelApiItem,
-  MonitorPermissionApiItem,
-  MonitorAccessApiData,
   TunnelQualityApiItem,
+  MonitorAccessApiData,
+  MonitorPermissionApiItem,
+  SystemUpgradeCheckApiData,
+  SystemUpgradeRunApiData,
+  SystemUpgradeVersionApiData,
 } from "./types";
 
 import axios from "axios";
@@ -785,3 +788,23 @@ export const getPanelReleases = (channel?: string) =>
 
 export const upgradePanel = (version?: string, channel?: string) =>
 	Network.post("/panel/upgrade", { version, channel });
+
+// ─── System Upgrade ────────────────────────────────────────────────────
+
+export const getSystemUpgradeVersion = () =>
+	Network.post<SystemUpgradeVersionApiData>("/system/version");
+
+export const checkSystemUpgrade = (channel: ReleaseChannel = "stable") =>
+	Network.post<SystemUpgradeCheckApiData>("/system/check-updates", {
+		channel,
+	});
+
+export const runSystemUpgrade = (
+	version?: string,
+	channel: ReleaseChannel = "stable",
+) =>
+	Network.post<SystemUpgradeRunApiData>(
+		"/system/upgrade",
+		{ version: version || "", channel },
+		{ timeout: 60 * 1000 },
+	);
