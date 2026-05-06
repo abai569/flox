@@ -2287,7 +2287,7 @@ export default function ForwardPage() {
     setInIpTouched(false);
     setForm({
       userId: forward.userId,
-      name: forward.name + " (副本)",
+      name: forward.name,
       tunnelId: forward.tunnelId,
       inPort: null,
       inIp: forward.inIp || "",

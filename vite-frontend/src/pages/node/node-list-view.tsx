@@ -123,21 +123,42 @@ function SortableTableRow({
 }: any) {
   const [expiryPopoverOpen, setExpiryPopoverOpen] = useState(false);
   const expiryButtonRef = useRef<HTMLButtonElement>(null);
-  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
+  
 
   const handleTogglePopover = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setExpiryPopoverOpen(!expiryPopoverOpen);
+    const nextState = !expiryPopoverOpen;
+    setExpiryPopoverOpen(nextState);
+    if (nextState) {
+      // 广播事件：告诉其他弹窗“我要打开了，你们都退下”
+      window.dispatchEvent(new CustomEvent("closeOtherExpiryPopovers", { detail: { nodeId: node.id } }));
+    }
   };
 
+  // 监听其他弹窗打开的广播
+  useEffect(() => {
+    const handleCloseOthers = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.nodeId !== node.id) {
+        setExpiryPopoverOpen(false);
+      }
+    };
+    window.addEventListener("closeOtherExpiryPopovers", handleCloseOthers);
+    return () => window.removeEventListener("closeOtherExpiryPopovers", handleCloseOthers);
+  }, [node.id]);
+
+  // 点击空白处、滚动、缩放时自动关闭当前弹窗
   useEffect(() => {
     if (!expiryPopoverOpen) return;
-    const handleScroll = () => setExpiryPopoverOpen(false);
-    window.addEventListener("scroll", handleScroll, true);
-    window.addEventListener("resize", handleScroll);
+    const closePopover = () => setExpiryPopoverOpen(false);
+    
+    window.addEventListener("click", closePopover);
+    window.addEventListener("scroll", closePopover, true);
+    window.addEventListener("resize", closePopover);
     return () => {
-      window.removeEventListener("scroll", handleScroll, true);
-      window.removeEventListener("resize", handleScroll);
+      window.removeEventListener("click", closePopover);
+      window.removeEventListener("scroll", closePopover, true);
+      window.removeEventListener("resize", closePopover);
     };
   }, [expiryPopoverOpen]);
 
@@ -552,39 +573,30 @@ function SortableTableRow({
             </button>
             {expiryPopoverOpen && (
               <div
-                className="absolute right-0 top-[calc(100%+6px)] z-[100] w-64 rounded-xl border border-divider/80 bg-background/98 p-3 shadow-xl backdrop-blur"
+                className="absolute right-0 top-[calc(100%+6px)] z-[100] w-auto whitespace-nowrap flex items-center gap-4 rounded-xl border border-divider/80 bg-background/98 p-2 pl-3 shadow-xl backdrop-blur"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.nativeEvent.stopImmediatePropagation();
                 }}
               >
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-[11px] font-medium text-default-500">
-                      续费提醒
-                    </div>
-                    <button
-                      className="text-[10px] text-default-400 hover:text-default-600 transition-colors"
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.nativeEvent.stopImmediatePropagation();
-                        handleDismissExpiryReminder?.(node.id);
-                        setExpiryPopoverOpen(false);
-                      }}
-                    >
-                      更新周期
-                    </button>
-                  </div>
-                  <div className="rounded-lg border border-divider/80 bg-default-50/80 px-3 py-2 text-xs leading-5 text-default-700">
-                    {formatNodeRenewalTime(expiryMeta.nextDueTime)}{" "}
-                    <span
-                      className={`text-[10px] h-5 px-1.5 ml-1 inline-flex items-center justify-center rounded font-medium ${expiryChipProps.className}`}
-                    >
-                      {expiryChipProps.label}
-                    </span>
-                  </div>
-                </div>
+                {/* 左侧：日期显示 */}
+                <span className="text-xs font-medium text-default-700 tracking-wide">
+                  {formatNodeRenewalTime(expiryMeta.nextDueTime)}
+                </span>
+                
+                {/* 右侧：操作按钮 */}
+                <button
+                  className="inline-flex items-center justify-center text-[12px] font-medium px-3 py-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-colors active:scale-95"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                    handleDismissExpiryReminder?.(node.id);
+                    setExpiryPopoverOpen(false);
+                  }}
+                >
+                  更新周期
+                </button>
               </div>
             )}
           </div>
@@ -712,7 +724,7 @@ export function NodeListView({
           th: "bg-default-100/50 text-default-600 font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
           td: "py-3 border-b border-divider/30 group-data-[last=true]:border-b-0 bg-white/80 backdrop-blur-sm dark:bg-content1/50",
           tr: "hover:bg-default-50/80 dark:hover:bg-default-100/30 transition-colors",
-          wrapper: "p-0 shadow-none bg-transparent rounded-none",
+          wrapper: "p-0 shadow-none bg-transparent rounded-none pb-8",
         }}
       >
       <TableHeader>
