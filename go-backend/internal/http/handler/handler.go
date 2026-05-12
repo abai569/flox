@@ -42,12 +42,9 @@ type Handler struct {
 	jobsStarted bool
 	jobsWG      sync.WaitGroup
 
-	upgradeMu       sync.Mutex
 	systemUpgradeMu sync.Mutex
 
-	pendingUpgradeRedeploy map[int64]struct{}
-
-	qualityProber    *tunnelQualityProber
+	qualityProber *tunnelQualityProber
 	nodeGroupHandler *NodeGroupHandler
 	nodeTagHandler   *NodeTagHandler
 }
@@ -112,8 +109,7 @@ func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
 		healthCheck:            nil,
 		bestExit:               newBestExitManager(),
 		fluxVersion:            fluxVersion,
-		captchaTokens:          make(map[string]int64),
-		pendingUpgradeRedeploy: make(map[int64]struct{}),
+		captchaTokens: make(map[string]int64),
 	}
 	h.healthCheck = health.NewChecker(repo, h.wsServer)
 	h.qualityProber = newTunnelQualityProber(h)

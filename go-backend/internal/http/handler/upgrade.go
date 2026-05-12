@@ -235,7 +235,6 @@ func (h *Handler) nodeUpgrade(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, fmt.Sprintf("升级失败：%v", err)))
 		return
 	}
-	h.markNodePendingUpgradeRedeploy(req.ID)
 
 	response.WriteJSON(w, response.OK(map[string]interface{}{
 		"version": version,
@@ -326,7 +325,6 @@ func (h *Handler) nodeBatchUpgrade(w http.ResponseWriter, r *http.Request) {
 				results[index] = upgradeResult{ID: nodeID, Success: false, Message: err.Error()}
 				return
 			}
-			h.markNodePendingUpgradeRedeploy(nodeID)
 			results[index] = upgradeResult{ID: nodeID, Success: true, Message: result.Message}
 		}(i, id)
 	}
@@ -397,47 +395,21 @@ func (h *Handler) listReleases(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(items))
 }
 
-func (h *Handler) markNodePendingUpgradeRedeploy(nodeID int64) {
-	if h == nil || nodeID <= 0 {
-		return
-	}
-	h.upgradeMu.Lock()
-	h.pendingUpgradeRedeploy[nodeID] = struct{}{}
-	h.upgradeMu.Unlock()
-}
-
-func (h *Handler) consumeNodePendingUpgradeRedeploy(nodeID int64) bool {
-	if h == nil || nodeID <= 0 {
-		return false
-	}
-	h.upgradeMu.Lock()
-	_, ok := h.pendingUpgradeRedeploy[nodeID]
-	if ok {
-		delete(h.pendingUpgradeRedeploy, nodeID)
-	}
-	h.upgradeMu.Unlock()
-	return ok
-}
-
 func (h *Handler) onNodeOnline(nodeID int64) {
-	// 只在 install.sh 中安装时重置流量
-	// 节点重启上线不重置流量
-
-	if !h.consumeNodePendingUpgradeRedeploy(nodeID) {
-		return
-	}
-	h.redeployNodeRuntimeAfterUpgrade(nodeID)
+	// 节点重新上线时自动下发隧道和转发规则
+	// 适用于：续费后上线、网络恢复、节点重启、升级后重连
+	h.redeployNodeRuntime(nodeID)
 }
 
-func (h *Handler) redeployNodeRuntimeAfterUpgrade(nodeID int64) {
+func (h *Handler) redeployNodeRuntime(nodeID int64) {
 	tunnelIDs, err := h.repo.ListActiveTunnelIDsByNode(nodeID)
 	if err != nil {
-		fmt.Printf("post-upgrade redeploy: list tunnels for node %d failed: %v\n", nodeID, err)
+		fmt.Printf("redeploy: list tunnels for node %d failed: %v\n", nodeID, err)
 		return
 	}
 	forwardIDs, err := h.repo.ListActiveForwardIDsByNode(nodeID)
 	if err != nil {
-		fmt.Printf("post-upgrade redeploy: list forwards for node %d failed: %v\n", nodeID, err)
+		fmt.Printf("redeploy: list forwards for node %d failed: %v\n", nodeID, err)
 		return
 	}
 
@@ -445,7 +417,7 @@ func (h *Handler) redeployNodeRuntimeAfterUpgrade(nodeID int64) {
 	for _, tunnelID := range tunnelIDs {
 		if err := h.redeployTunnelAndForwards(tunnelID); err != nil {
 			tunnelFailed[tunnelID] = struct{}{}
-			fmt.Printf("post-upgrade redeploy: tunnel %d failed on node %d: %v\n", tunnelID, nodeID, err)
+			fmt.Printf("redeploy: tunnel %d failed on node %d: %v\n", tunnelID, nodeID, err)
 		}
 	}
 
@@ -458,7 +430,7 @@ func (h *Handler) redeployNodeRuntimeAfterUpgrade(nodeID int64) {
 			continue
 		}
 		if err := h.syncForwardServices(forward, "UpdateService", true); err != nil {
-			fmt.Printf("post-upgrade redeploy: forward %d failed on node %d: %v\n", forwardID, nodeID, err)
+			fmt.Printf("redeploy: forward %d failed on node %d: %v\n", forwardID, nodeID, err)
 		}
 	}
 }
