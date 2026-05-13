@@ -627,12 +627,14 @@ update_panel() {
   echo "⏳ 准备清理旧版本镜像..."
   sleep 10
   
-  # 兼容所有 Docker 版本的清理逻辑 (避免旧版 Docker 不支持 --format 语法)
-  # 提取 ghcr.io/abai569 下的所有镜像，并过滤掉当前最新版本
-  OLD_IMAGES=$(docker images | awk 'NR>1 && $1 ~ /ghcr.io\/abai569/ && $2 !~ /'"$LATEST_VERSION"'/ {print $1":"$2}' | sort -u)
+  # 兼容 Nerdctl/Docker Desktop 等非标准输出的清理逻辑
+  # 1. 过滤警告行和表头
+  # 2. 提取第一列 (通常是 Repo:Tag)
+  # 3. 匹配 ghcr.io/abai569 且排除当前版本
+  OLD_IMAGES=$(docker images 2>/dev/null | grep -v "WARNING" | grep -v "^IMAGE " | grep "ghcr.io/abai569" | grep -v "$LATEST_VERSION" | awk '{print $1}')
   
   if [ -n "$OLD_IMAGES" ]; then
-    echo " 发现旧版本面板镜像，正在强制删除："
+    echo "🧹 发现旧版本面板镜像，正在强制删除："
     echo "$OLD_IMAGES"
     echo "$OLD_IMAGES" | xargs docker rmi -f >/dev/null 2>&1 || true
     echo "✅ 旧版本面板镜像清理完毕"
