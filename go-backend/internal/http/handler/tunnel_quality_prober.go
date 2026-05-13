@@ -196,9 +196,9 @@ func (p *tunnelQualityProber) probeTunnel(tunnelID int64) {
 
 	switch tunnel.Type {
 	case 1:
-		// Port forwarding: entry → Bing only
+		// Port forwarding: entry → exit test targets
 		if len(inNodes) > 0 {
-			lat, loss, err := p.tcpPingNode(inNodes[0].NodeID, "www.bing.com", 443, options)
+			lat, loss, _, err := p.tcpPingExitTest(inNodes[0].NodeID, options)
 			if err == nil {
 				snap.ExitToBingLatency = lat
 				snap.ExitToBingLoss = loss
@@ -237,9 +237,9 @@ func (p *tunnelQualityProber) probeTunnel(tunnelID int64) {
 			}
 		}
 
-		// Exit → Bing
+		// Exit → exit test targets
 		if len(outNodes) > 0 {
-			lat, loss, err := p.tcpPingNode(outNodes[0].NodeID, "www.bing.com", 443, options)
+			lat, loss, _, err := p.tcpPingExitTest(outNodes[0].NodeID, options)
 			if err == nil {
 				snap.ExitToBingLatency = lat
 				snap.ExitToBingLoss = loss
@@ -253,9 +253,9 @@ func (p *tunnelQualityProber) probeTunnel(tunnelID int64) {
 
 		snap.Success = probeOK
 	default:
-		// Unknown type: entry → Bing
+		// Unknown type: entry → exit test targets
 		if len(inNodes) > 0 {
-			lat, loss, err := p.tcpPingNode(inNodes[0].NodeID, "www.bing.com", 443, options)
+			lat, loss, _, err := p.tcpPingExitTest(inNodes[0].NodeID, options)
 			if err == nil {
 				snap.ExitToBingLatency = lat
 				snap.ExitToBingLoss = loss
@@ -295,6 +295,20 @@ func (p *tunnelQualityProber) tcpPingNode(nodeID int64, ip string, port int, opt
 	packetLoss := asFloat(pingData["packetLoss"], 100)
 
 	return avgTime, packetLoss, nil
+}
+
+// tcpPingExitTest tries exit test targets in order and returns the first successful result.
+// Returns the last error if all targets fail.
+func (p *tunnelQualityProber) tcpPingExitTest(nodeID int64, options diagnosisExecOptions) (latency float64, loss float64, targetHost string, err error) {
+	var lastErr error
+	for _, t := range exitTestTargets {
+		lat, loss, perr := p.tcpPingNode(nodeID, t.host, t.port, options)
+		if perr == nil {
+			return lat, loss, t.name, nil
+		}
+		lastErr = perr
+	}
+	return 0, 100, "", lastErr
 }
 
 func (p *tunnelQualityProber) storeResult(snap *tunnelQualitySnapshot) {

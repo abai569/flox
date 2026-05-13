@@ -119,6 +119,16 @@ const (
 	diagnosisRequestTimeoutMsg = "诊断超时（2分钟）"
 )
 
+var exitTestTargets = []struct {
+	name   string
+	host   string
+	port   int
+}{
+	{"www.google.com", "www.google.com", 443},
+	{"www.bing.com", "www.bing.com", 443},
+	{"1.1.1.1", "1.1.1.1", 443},
+}
+
 func (h *Handler) resolveForwardAccess(r *http.Request, forwardID int64) (*forwardRecord, int64, int, error) {
 	userID, roleID, err := userRoleFromRequest(r)
 	if err != nil {
@@ -1001,11 +1011,12 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 			description := fmt.Sprintf("出口(%s)->外网", outNode.NodeName)
 			workItems = append(workItems, diagnosisWorkItem{
 				fromNodeID:  outNode.NodeID,
-				targetIP:    "www.google.com",
+				targetIP:    "",
 				targetPort:  443,
 				description: description,
 				metadata: map[string]interface{}{
 					"fromChainType": 3,
+					"exitTest":      true,
 				},
 			})
 		}
@@ -1137,10 +1148,11 @@ func (h *Handler) executeDiagnosisWorkItem(workItem diagnosisWorkItem, options d
 	nodeCache := map[int64]*nodeRecord{}
 	if workItem.hasChainHop {
 		h.appendChainHopDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.toNode, workItem.description, workItem.metadata, workItem.ipPreference, workItem.connectIpType, options)
+	} else if workItem.metadata["exitTest"] == true {
+		h.appendExitTestRotation(&single, workItem.fromNodeID, workItem.description, workItem.metadata, options)
 	} else {
 		h.appendPathDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.targetIP, workItem.targetPort, workItem.description, workItem.metadata, options)
 	}
-
 	if len(single) == 0 {
 		return newDiagnosisTimeoutItem(workItem, "诊断任务未返回结果")
 	}
@@ -1334,6 +1346,27 @@ func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nod
 		return
 	}
 	h.appendPathDiagnosis(results, nodeCache, fromNodeID, targetIP, targetPort, description, metadata, options)
+}
+
+func (h *Handler) appendExitTestRotation(results *[]map[string]interface{}, fromNodeID int64, description string, metadata map[string]interface{}, options diagnosisExecOptions) {
+	nodeCache := map[int64]*nodeRecord{}
+	allFailedTargets := []string{}
+
+	for _, t := range exitTestTargets {
+		single := make([]map[string]interface{}, 0, 1)
+		h.appendPathDiagnosis(&single, nodeCache, fromNodeID, t.host, t.port, description, metadata, options)
+		if len(single) > 0 && asBool(single[0]["success"], false) {
+			single[0]["targetIp"] = t.host
+			*results = append(*results, single[0])
+			return
+		}
+		allFailedTargets = append(allFailedTargets, t.name)
+	}
+
+	failedDescription := fmt.Sprintf("%s [%s (全部失败)]", description, strings.Join(allFailedTargets, "/"))
+	failedItem := newDiagnosisResultItem(fromNodeID, "", 443, failedDescription, metadata)
+	failedItem["message"] = "所有TCP连接尝试都失败"
+	*results = append(*results, failedItem)
 }
 
 func resolveChainProbeTarget(fromNode, targetNode *nodeRecord, preferredPort int, ipPreference string, connectIpType string) (string, int, error) {
