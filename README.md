@@ -121,8 +121,8 @@ docker compose up -d
 5) 迁移完成后，登录面板检查用户、隧道、转发、节点数据是否正确。
 
 ## Original Project
-- **Name**: flux-panel
-- **Source**: https://github.com/bqlpfy/flux-panel
+- **Name**: flvx-svc
+- **Source**: https://github.com/bqlpfy/flvx-svc
 - **License**: Apache License 2.0
 
 ## Modifications

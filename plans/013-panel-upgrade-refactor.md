@@ -24,7 +24,7 @@
 environment:
   FLUX_VERSION: ${FLUX_VERSION:-dev}
   PANEL_DEPLOY_DIR: /opt/flvx-panel
-  PANEL_BACKEND_CONTAINER: flux-panel-backend
+  PANEL_BACKEND_CONTAINER: flvx-svc-backend
 volumes:
   - /var/run/docker.sock:/var/run/docker.sock
   - ./:/opt/flvx-panel

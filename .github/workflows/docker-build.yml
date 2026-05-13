@@ -180,8 +180,8 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --push \
-            -t ${{ env.REGISTRY }}/${OWNER}/vite-frontend:latest \
-            -t ${{ env.REGISTRY }}/${OWNER}/vite-frontend:${VERSION} \
+            -t ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:latest \
+            -t ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION} \
             ./vite-frontend
 
   build-go-backend:
@@ -231,8 +231,8 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --push \
-            -t ${{ env.REGISTRY }}/${OWNER}/flux-panel-backend:latest \
-            -t ${{ env.REGISTRY }}/${OWNER}/flux-panel-backend:${VERSION} \
+            -t ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:latest \
+            -t ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION} \
             ./go-backend
 
   create-release:
@@ -285,10 +285,10 @@ jobs:
           cp docker-compose-v6.yml ./artifacts/docker-compose-v6.yml
 
           # 替换镜像地址为 GHCR
-          sed -i "s|image: .*flux-panel-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flux-panel-backend:${VERSION}|g" ./artifacts/docker-compose-v4.yml
-          sed -i "s|image: .*vite-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/vite-frontend:${VERSION}|g" ./artifacts/docker-compose-v4.yml
-          sed -i "s|image: .*flux-panel-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flux-panel-backend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
-          sed -i "s|image: .*vite-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/vite-frontend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
+          sed -i "s|image: .*flvx-svc-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION}|g" ./artifacts/docker-compose-v4.yml
+          sed -i "s|image: .*flvx-svc-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION}|g" ./artifacts/docker-compose-v4.yml
+          sed -i "s|image: .*flvx-svc-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
+          sed -i "s|image: .*flvx-svc-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
 
           # 复制并修改安装脚本
           cp install.sh ./artifacts/install.sh
@@ -296,10 +296,10 @@ jobs:
           cp panel_install.sh ./artifacts/panel_install.sh
 
           # 替换仓库地址和版本号
-          sed -i "s|bqlpfy/flux-panel|${REPO}|g" ./artifacts/install.sh
-          sed -i "s|bqlpfy/flux-panel|${REPO}|g" ./artifacts/panel_install.sh
-          sed -i "s|2.0.7-beta|${VERSION}|g" ./artifacts/install.sh
-          sed -i "s|2.0.7-beta|${VERSION}|g" ./artifacts/panel_install.sh
+          # sed -i "s|bqlpfy/flux-panel|${REPO}|g" ./artifacts/install.sh
+          # sed -i "s|bqlpfy/flux-panel|${REPO}|g" ./artifacts/panel_install.sh
+          # sed -i "s|2.0.7-beta|${VERSION}|g" ./artifacts/install.sh
+          # sed -i "s|2.0.7-beta|${VERSION}|g" ./artifacts/panel_install.sh
 
           # 注入固定版本号，使从 Release 页下载的脚本只安装该版本
           sed -i "s|^PINNED_VERSION=\"\"|PINNED_VERSION=\"${VERSION}\"|" ./artifacts/install.sh
@@ -346,10 +346,10 @@ jobs:
 
           \`\`\`bash
           # Backend
-          docker pull ${{ env.REGISTRY }}/${OWNER}/flux-panel-backend:${VERSION}
+          docker pull ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION}
 
           # Frontend
-          docker pull ${{ env.REGISTRY }}/${OWNER}/vite-frontend:${VERSION}
+          docker pull ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION}
           \`\`\`
 
           ## 🚀 Quick Install

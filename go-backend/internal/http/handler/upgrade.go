@@ -597,7 +597,7 @@ func (h *Handler) executePanelUpgrade(currentVersion, targetVersion string) erro
 	fmt.Printf("开始升级面板：%s -> %s\n", currentVersion, targetVersion)
 	h.broadcastPanelUpgradeProgress("starting", 0, "开始升级面板...", false)
 
-	installDir := "/opt/flux_panel"
+	installDir := "/opt/flvx-svc"
 	envFile := installDir + "/.env"
 	composeFile := installDir + "/docker-compose.yml"
 	backupEnvFile := envFile + ".backup"
@@ -689,7 +689,7 @@ func (h *Handler) executePanelUpgrade(currentVersion, targetVersion string) erro
 
 func (h *Handler) rollbackPanelUpgrade(version string) {
 	fmt.Printf("回滚面板到版本：%s\n", version)
-	installDir := "/opt/flux_panel"
+	installDir := "/opt/flvx-svc"
 	envFile := installDir + "/.env"
 
 	if err := updateEnvVersion(envFile, version); err != nil {

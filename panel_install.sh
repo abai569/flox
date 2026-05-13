@@ -349,8 +349,8 @@ wait_for_postgres_healthy() {
 
   echo "🔍 检查 PostgreSQL 服务状态..."
   for i in {1..90}; do
-    if docker ps --format "{{.Names}}" | grep -q "^flux-panel-postgres$"; then
-      pg_health=$(docker inspect -f '{{.State.Health.Status}}' flux-panel-postgres 2>/dev/null || echo "unknown")
+    if docker ps --format "{{.Names}}" | grep -q "^flvx-svc-postgres$"; then
+      pg_health=$(docker inspect -f '{{.State.Health.Status}}' flvx-svc-postgres 2>/dev/null || echo "unknown")
       if [[ "$pg_health" == "healthy" ]]; then
         echo "✅ PostgreSQL 服务健康检查通过"
         return 0
@@ -363,7 +363,7 @@ wait_for_postgres_healthy() {
 
     if [ $i -eq 90 ]; then
       echo "❌ PostgreSQL 启动超时（90秒）"
-      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flux-panel-postgres 2>/dev/null || echo '容器不存在')"
+      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flvx-svc-postgres 2>/dev/null || echo '容器不存在')"
       return 1
     fi
 
@@ -379,8 +379,8 @@ wait_for_backend_healthy() {
 
   echo "🔍 检查后端服务状态..."
   for i in {1..90}; do
-    if docker ps --format "{{.Names}}" | grep -q "^flux-panel-backend$"; then
-      backend_health=$(docker inspect -f '{{.State.Health.Status}}' flux-panel-backend 2>/dev/null || echo "unknown")
+    if docker ps --format "{{.Names}}" | grep -q "^flvx-svc-backend$"; then
+      backend_health=$(docker inspect -f '{{.State.Health.Status}}' flvx-svc-backend 2>/dev/null || echo "unknown")
       if [[ "$backend_health" == "healthy" ]]; then
         echo "✅ 后端服务健康检查通过"
         return 0
@@ -393,7 +393,7 @@ wait_for_backend_healthy() {
 
     if [ $i -eq 90 ]; then
       echo "❌ 后端服务启动超时（90秒）"
-      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flux-panel-backend 2>/dev/null || echo '容器不存在')"
+      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flvx-svc-backend 2>/dev/null || echo '容器不存在')"
       return 1
     fi
 
@@ -442,8 +442,8 @@ get_config_params() {
       ;;
   esac
 
-  POSTGRES_DB="flux_panel"
-  POSTGRES_USER="flux_panel"
+  POSTGRES_DB="flvx_svc"
+  POSTGRES_USER="flvx_svc"
   POSTGRES_PASSWORD=$(generate_random)
 
   if [[ "$DB_TYPE" == "postgres" ]]; then
@@ -484,7 +484,7 @@ install_panel() {
   echo "🚀 开始安装面板..."
   
   # 创建安装目录
-  INSTALL_DIR="/opt/flux_panel"
+  INSTALL_DIR="/opt/flvx-svc"
   echo "📁 创建安装目录：$INSTALL_DIR"
   $SUDO_CMD mkdir -p "$INSTALL_DIR"
   cd "$INSTALL_DIR"
@@ -550,7 +550,7 @@ update_panel() {
   echo "🔄 开始更新面板..."
   
   # 切换到安装目录
-  INSTALL_DIR="/opt/flux_panel"
+  INSTALL_DIR="/opt/flvx-svc"
   
   # 检测目录是否存在，不存在则先创建
   if [[ ! -d "$INSTALL_DIR" ]]; then
@@ -590,8 +590,8 @@ update_panel() {
   fi
 
   # 先发送 SIGTERM 信号，让应用优雅关闭
-  docker stop -t 30 flux-panel-backend 2>/dev/null || true
-  docker stop -t 10 vite-frontend 2>/dev/null || true
+  docker stop -t 30 flvx-svc-backend 2>/dev/null || true
+  docker stop -t 10 flvx-svc-frontend 2>/dev/null || true
   
   # 等待 WAL 文件同步
   echo "⏳ 等待数据同步..."
@@ -674,8 +674,8 @@ migrate_to_postgres() {
   postgres_user=$(get_env_var "POSTGRES_USER")
   postgres_password=$(get_env_var "POSTGRES_PASSWORD")
 
-  postgres_db=${postgres_db:-flux_panel}
-  postgres_user=${postgres_user:-flux_panel}
+  postgres_db=${postgres_db:-flvx_svc}
+  postgres_user=${postgres_user:-flvx_svc}
   postgres_password=${postgres_password:-$(generate_random)}
 
   upsert_env_var ".env" "POSTGRES_DB" "$postgres_db"
@@ -683,8 +683,8 @@ migrate_to_postgres() {
   upsert_env_var ".env" "POSTGRES_PASSWORD" "$postgres_password"
 
   echo "🛑 停止当前服务..."
-  docker stop -t 30 flux-panel-backend 2>/dev/null || true
-  docker stop -t 10 vite-frontend 2>/dev/null || true
+  docker stop -t 30 flvx-svc-backend 2>/dev/null || true
+  docker stop -t 10 flvx-svc-frontend 2>/dev/null || true
   echo "⏳ 等待数据同步..."
   sleep 5
   $DOCKER_CMD down
@@ -731,7 +731,7 @@ uninstall_panel() {
   echo "🗑️ 开始卸载面板..."
   
   # 切换到安装目录
-  INSTALL_DIR="/opt/flux_panel"
+  INSTALL_DIR="/opt/flvx-svc"
   
   # 检测目录是否存在，不存在则先创建
   if [[ ! -d "$INSTALL_DIR" ]]; then

@@ -2,7 +2,7 @@ FLVX
 Copyright 2026 abai569
 
 This product includes software developed at
-flux-panel (https://github.com/bqlpfy/flux-panel)
+flvx-svc (https://github.com/bqlpfy/flvx-svc)
 Copyright 2024-2026 bqlpfy
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +12,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 
 -------------------------------------------------------------------------
-This project is a derivative work based on flux-panel.
+This project is a derivative work based on flvx-svc.
 Modifications and new components (backend, agents, frontend updates) 
 are licensed under the GNU General Public License v3.0 (GPLv3).
 See the LICENSE file for the full GPLv3 text.

@@ -8,7 +8,7 @@
 **A**:
 1. 检查防火墙是否放行了前端端口（默认 `6366`）。
 2. 检查容器是否正常运行: `docker ps`。
-3. 查看容器日志: `docker logs flux-panel-backend` 或 `docker logs vite-frontend`。
+3. 查看容器日志: `docker logs flvx-svcackend` 或 `docker logs flvx-svc-frontend`。
 
 ### Q3: 节点显示离线？
 **A**:
@@ -36,5 +36,5 @@
 ### Q8: PostgreSQL 容器启动失败？
 **A**:
 1. 检查 `POSTGRES_PASSWORD` 是否已设置（不能为空）。
-2. 查看容器日志：`docker logs flux-panel-postgres`。
+2. 查看容器日志：`docker logs flvx-svcostgres`。
 3. 如果是首次启动后修改了密码，需要删除旧的数据卷重新初始化：`docker volume rm postgres_data`。

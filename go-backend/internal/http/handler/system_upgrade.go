@@ -20,8 +20,8 @@ import (
 const (
 	panelDeployDirEnv                 = "PANEL_DEPLOY_DIR"
 	panelBackendContainerEnv          = "PANEL_BACKEND_CONTAINER"
-	defaultPanelDeployDir             = "/opt/flux_panel"
-	defaultPanelBackendName           = "flux-panel-backend"
+	defaultPanelDeployDir             = "/opt/flvx-svc"
+	defaultPanelBackendName           = "flvx-svc-backend"
 	dockerSocketPath                  = "/var/run/docker.sock"
 	maxSystemUpgradeComposeAssetBytes = 1 << 20
 	systemUpgradeMessage              = "升级 helper 已启动，面板服务将短暂重启"
