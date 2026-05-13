@@ -183,10 +183,10 @@ func (e *systemUpgradeExecutor) helperScript() string {
 	return strings.Join([]string{
 		"set -eu",
 		`cd "$PANEL_DEPLOY_DIR"`,
-		"docker compose pull backend frontend",
-		"sleep 5",
-		"docker compose up -d backend frontend",
-		"docker image prune -a -f",
+		"curl -fSL https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh -o /tmp/panel_install.sh",
+		"chmod +x /tmp/panel_install.sh",
+		"echo 2 | /tmp/panel_install.sh",
+		"rm -f /tmp/panel_install.sh",
 	}, "\n")
 }
 
