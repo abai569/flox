@@ -184,8 +184,8 @@ func (e *systemUpgradeExecutor) helperScript() string {
 		"set -eu",
 		`cd "$PANEL_DEPLOY_DIR"`,
 		"docker compose pull backend frontend",
-		"sleep 10",
 		"docker compose up -d backend frontend",
+		"sleep 10",
 		"docker image prune -a -f",
 	}, "\n")
 }
