@@ -624,16 +624,24 @@ update_panel() {
     return 1
   fi
 
-  # 等待 Docker 引擎释放旧镜像资源引用（缓冲 10 秒以确保清理彻底）
-  echo "⏳ 准备清理旧镜像..."
+  echo "⏳ 准备清理旧版本镜像..."
   sleep 10
   
-  # 清理旧镜像
-  echo "🧹 清理旧镜像..."
-  docker image prune -a -f
+  # 1. 精准找出 ghcr.io/abai569 下的，且不是当前最新版本 ($LATEST_VERSION) 的所有旧镜像
+  OLD_IMAGES=$($DOCKER_CMD images --format '{{.Repository}}:{{.Tag}}' | grep 'ghcr.io/abai569' | grep -v "$LATEST_VERSION" || true)
+  
+  if [ -n "$OLD_IMAGES" ]; then
+    echo "🧹 发现旧版本面板镜像，正在清理："
+    echo "$OLD_IMAGES"
+    # 2. 点名强制删除这些旧版本镜像
+    echo "$OLD_IMAGES" | xargs $DOCKER_CMD rmi -f >/dev/null 2>&1 || true
+    echo "✅ 旧版本面板镜像清理完毕"
+  else
+    echo "✨ 没有需要清理的旧版本面板镜像"
+  fi
 
-  echo "✅ 更新完成"
-}
+  # 3. 安全地清理产生悬空的 <none> 镜像 (不加 -a，绝不误伤用户其他带 Tag 的镜像)
+  $DOCKER_CMD image prune -f >/dev/null 2>&1 || true
 
 
 migrate_to_postgres() {
