@@ -643,6 +643,9 @@ update_panel() {
   # 3. 安全地清理产生悬空的 <none> 镜像 (不加 -a，绝不误伤用户其他带 Tag 的镜像)
   $DOCKER_CMD image prune -f >/dev/null 2>&1 || true
 
+  echo "✅ 更新完成"
+}
+
 
 migrate_to_postgres() {
   local current_db_type postgres_db postgres_user postgres_password database_url
