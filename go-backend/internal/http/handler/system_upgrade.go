@@ -186,14 +186,19 @@ func (e *systemUpgradeExecutor) helperScript() string {
 		"docker compose pull backend frontend",
 		"docker compose up -d backend frontend",
 		"sleep 10",
-		"set +e",
+		"set +e", // 确保 rmi 失败时不中断脚本
+
+		// 提取当前版本号作为白名单
 		`NEW_VER=$(grep '^FLUX_VERSION=' .env | cut -d= -f2 | tr -d '\r' | tr -d '"' | tr -d "'" || true)`,
-		`for img in $(docker images | grep 'ghcr.io/abai569' | awk '{print $1":"$2}'); do`,
+
+		// 兼容 Nerdctl 和标准 Docker 的智能提取逻辑
+		`for img in $(docker images | grep 'ghcr.io/abai569' | awk '{if ($1 ~ /:/) print $1; else print $1":"$2}'); do`,
 		`  if [ -n "$NEW_VER" ] && echo "$img" | grep -q "$NEW_VER"; then`,
 		`    continue`,
 		`  fi`,
-		`  docker rmi "$img" 2>/dev/null || true`,
+		`  docker rmi -f "$img" 2>/dev/null || true`, // 👈 必须加 -f，否则残留占用会导致清理静默失败
 		`done`,
+
 		"docker image prune -f",
 	}, "\n")
 }
