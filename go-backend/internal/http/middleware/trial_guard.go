@@ -31,7 +31,7 @@ func TrialGuard(next http.Handler, r *repo.Repository) http.Handler {
 				}
 			case "/api/v1/user/create":
 				if getUserCount(r) >= 1 {
-					response.WriteJSON(w, response.Err(403, "体验模式限制：用户最多 1 个（除admin外），请配置授权码以解除限制"))
+					response.WriteJSON(w, response.Err(403, "体验模式限制：用户最多 1 个，请配置授权码以解除限制"))
 					return
 				}
 			}

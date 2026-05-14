@@ -1110,7 +1110,7 @@ export default function ConfigPage() {
                     ? (licenseStatus.valid
                         ? `授权有效，剩余 ${licenseStatus.expire_time ? Math.floor((licenseStatus.expire_time - Date.now()) / 86400000) : "？"} 天`
                         : `授权无效：${licenseStatus.reason || "未知原因"}`)
-                    : "当前为体验模式（资源已限制）"}
+                    : "当前为体验模式（已限制权限）"}
                 </span>
               )}
             </div>
