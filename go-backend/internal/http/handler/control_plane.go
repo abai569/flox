@@ -135,7 +135,7 @@ var exitTestTargets = []struct {
 }{
 	{"www.google.com", "www.google.com", 443},
 	{"www.bing.com", "www.bing.com", 443},
-	{"1.1.1.1", "1.1.1.1", 443},
+	{"www.cloudflare.com", "www.cloudflare.com", 443},
 }
 
 func (h *Handler) resolveForwardAccess(r *http.Request, forwardID int64) (*forwardRecord, int64, int, error) {
@@ -929,11 +929,12 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 			description := fmt.Sprintf("入口(%s)->外网", inNode.NodeName)
 			workItems = append(workItems, diagnosisWorkItem{
 				fromNodeID:  inNode.NodeID,
-				targetIP:    "www.bing.com",
+				targetIP:    "",
 				targetPort:  443,
 				description: description,
 				metadata: map[string]interface{}{
 					"fromChainType": 1,
+					"exitTest":      true,
 				},
 			})
 		}
@@ -1034,11 +1035,12 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 			description := fmt.Sprintf("入口(%s)->外网", inNode.NodeName)
 			workItems = append(workItems, diagnosisWorkItem{
 				fromNodeID:  inNode.NodeID,
-				targetIP:    "www.bing.com",
+				targetIP:    "",
 				targetPort:  443,
 				description: description,
 				metadata: map[string]interface{}{
 					"fromChainType": 1,
+					"exitTest":      true,
 				},
 			})
 		}
