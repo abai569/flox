@@ -1148,7 +1148,7 @@ export default function DashboardPage() {
                       <span className="text-sm font-medium text-default-600">
                         {item.resetReason === "管理员手动归零" || item.resetReason === "管理员手动重置"
                           ? "admin"
-                          : "归零时间"}
+                          : "系统自动"}
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-default-500">

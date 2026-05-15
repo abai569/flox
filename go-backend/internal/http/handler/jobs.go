@@ -273,8 +273,8 @@ func (h *Handler) runNodeRenewalCycleJob(now time.Time) {
 			NodeID:        result.NodeID,
 			NodeName:      result.NodeName,
 			ResetTime:     now.UnixMilli(),
-			OperatorID:    0, // 归零时间
-			OperatorName:  "归零时间",
+			OperatorID:    0, // 系统自动
+			OperatorName:  "系统自动",
 			Reason:        "自动周期归零",
 			InFlowBefore:  0,
 			OutFlowBefore: 0,
