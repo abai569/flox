@@ -788,7 +788,7 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
       )}
-      {/* 规则配置 */}
+      {/* 注释规则配置
       <Card className="border border-gray-200 dark:border-default-200 shadow-md">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
@@ -857,9 +857,9 @@ export default function DashboardPage() {
                             <h4 className="font-medium text-foreground text-sm mb-2 truncate">
                               {forward.name}
                             </h4>
-                            <div className="space-y-1">
+                            <div className="flex items-center gap-2 w-full">
                               <button
-                                className={`block px-2 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 rounded font-mono text-xs truncate ${hasMultipleIps(forward.inIp) ? "cursor-pointer hover:bg-green-200 dark:hover:bg-green-500/30" : ""}`}
+                                className={`flex-1 min-w-0 px-2 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 rounded font-mono text-xs truncate ${hasMultipleIps(forward.inIp) ? "cursor-pointer hover:bg-green-200 dark:hover:bg-green-500/30" : ""}`}
                                 disabled={!hasMultipleIps(forward.inIp)}
                                 title={formatInAddress(
                                   forward.inIp,
@@ -876,11 +876,13 @@ export default function DashboardPage() {
                               >
                                 {formatInAddress(forward.inIp, forward.inPort)}
                               </button>
-                              <div className="text-center text-default-400 text-xs">
-                                ↓
+
+                              <div className="flex-shrink-0 text-default-400 text-xs">
+                                →
                               </div>
+
                               <button
-                                className={`block px-2 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded font-mono text-xs truncate ${hasMultipleRemoteAddresses(forward.remoteAddr) ? "cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-500/30" : ""}`}
+                                className={`flex-1 min-w-0 px-2 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded font-mono text-xs truncate ${hasMultipleRemoteAddresses(forward.remoteAddr) ? "cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-500/30" : ""}`}
                                 disabled={
                                   !hasMultipleRemoteAddresses(
                                     forward.remoteAddr,
@@ -938,8 +940,8 @@ export default function DashboardPage() {
             </div>
           )}
         </CardBody>
-      </Card>
-            {/* 隧道权限 - 管理员不显示 */}
+      </Card> */}
+      {/* 隧道权限 - 管理员不显示 */}
       {!isAdmin && (
         <Card className="mb-6 lg:mb-8 border border-gray-200 dark:border-default-200 shadow-md">
           <CardHeader className="pb-3">
