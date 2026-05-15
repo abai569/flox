@@ -519,8 +519,10 @@ export default function DashboardPage() {
             value={forwardList.length}
           />
         </div>
-        {/* 5. 续费信息 */}
-        <div className="order-5 flex flex-col [&>*]:flex-1">
+        {!isAdmin && (
+          <>
+            {/* 5. 续费信息 */}
+            <div className="order-5 flex flex-col [&>*]:flex-1">
           <MetricCard
             icon={
               <svg
@@ -577,6 +579,28 @@ export default function DashboardPage() {
             value={userInfo.balance ?? 0}
           />
         </div>
+        {/* 7. 到期时间 */}
+        <div className="order-7 flex flex-col [&>*]:flex-1">
+          <MetricCard
+            icon={<svg aria-hidden="true" className="w-4 h-4 lg:w-5 lg:h-5 text-purple-600 dark:text-purple-400" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" fillRule="evenodd" /></svg>}
+            iconClassName="bg-purple-100 dark:bg-purple-500/20"
+            title="到期时间"
+            value={userInfo.expTime ? new Date(userInfo.expTime).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).replace(/\//g, "-") : "永久"}
+            bottomContent={userInfo.expTime && typeof userInfo.expTime === "number" && Number(userInfo.expTime) > 0 ? (<div className="mt-1 flex items-center gap-1"><div className={`w-1.5 h-1.5 rounded-full ${(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7 ? "bg-success" : "bg-warning"}`}></div><span className={`text-xs ${(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7 ? "text-success" : "text-warning"}`}>{Math.ceil((Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24))} 天后到期</span></div>) : null}
+          />
+        </div>
+        {/* 8. 自动续费 */}
+        <div className="order-8 flex flex-col [&>*]:flex-1">
+          <MetricCard
+            icon={<svg aria-hidden="true" className="w-4 h-4 lg:w-5 lg:h-5 text-cyan-600 dark:text-cyan-400" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" fillRule="evenodd" /></svg>}
+            iconClassName="bg-cyan-100 dark:bg-cyan-500/20"
+            title="自动续费"
+            value={userInfo.autoRenew === 1 ? "启用" : "禁用"}
+            bottomContent={userInfo.autoRenew === 1 ? (<div className="mt-1 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-success"></div><span className="text-xs text-success">自动续费运行中</span></div>) : (<div className="mt-1 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-default-400"></div><span className="text-xs text-default-500">到期后将停用</span></div>)}
+          />
+            </div>
+          </>
+        )}
       </div>
       <FlowChartCard
         chartData={processFlowChartData()}
