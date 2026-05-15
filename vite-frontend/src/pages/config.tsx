@@ -257,6 +257,13 @@ export default function ConfigPage() {
       const res = await getLicenseInfo();
       if (res.code === 0 && res.data) {
         setLicenseStatus(res.data);
+        if (res.data.has_license_key) {
+          setLicenseKey(res.data.license_key || "");
+          setLicenseDomain(res.data.domain || "");
+        }
+      } else {
+        setLicenseKey("");
+        setLicenseDomain("");
       }
     } catch {
     }

@@ -40,10 +40,13 @@ func (h *Handler) licenseInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hasLicenseKey := licenseKey != ""
+	actualLicenseKey := licenseKey
+
 	if !hasLicenseKey {
 		cfg, _ := h.repo.GetConfigByName("license_key")
-		if cfg != nil && cfg.Value != "" {
-			hasLicenseKey = true
+		if cfg != nil {
+			hasLicenseKey = cfg.Value != ""
+			actualLicenseKey = cfg.Value
 		}
 	}
 
@@ -61,6 +64,7 @@ func (h *Handler) licenseInfo(w http.ResponseWriter, r *http.Request) {
 		"reason":          reason,
 		"configured":      configured,
 		"has_license_key": hasLicenseKey,
+		"license_key":     actualLicenseKey,
 		"domain":          domain,
 	}))
 }

@@ -559,6 +559,7 @@ export interface LicenseInfo {
   reason?: string;
   configured: boolean;
   has_license_key: boolean;
+  license_key: string;
   domain: string;
 }
 
