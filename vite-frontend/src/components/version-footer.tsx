@@ -162,9 +162,9 @@ export function VersionFooter({
           {" "}
           {showUpdateInfo && (
             <Button
-              size="sm"
+              size="xs"
               color="primary"
-              className="inline-flex h-[18px] px-1.5 text-[10px] min-w-0 rounded-sm font-semibold"
+              className="inline-flex h-[16px] px-1.5 text-[8px] min-w-0 rounded-xs font-semibold"
               onPress={handleOpenUpgradeModal}
               isLoading={upgrading}
             >
@@ -173,7 +173,15 @@ export function VersionFooter({
           )}
         </p>
         <p className={poweredClassName}>
-          Powered by Flvx
+          Powered by{" "}
+          <a
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            href={siteConfig.github_repo}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            FLVX
+          </a>
         </p>
       </div>
 

@@ -329,9 +329,19 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
           </button>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <BrandLogo size={20} />
-            <h1 className="text-sm font-bold text-foreground truncate max-w-[90px] sm:max-w-none">
+            <a
+              className={`text-sm font-bold truncate max-w-[90px] sm:max-w-none transition-colors cursor-pointer no-underline ${
+                licenseInfo?.has_license_key
+                  ? "text-foreground hover:text-primary-600 dark:hover:text-primary-300"
+                  : "text-foreground hover:text-primary-600 dark:hover:text-primary-300"
+              }`}
+              href={licenseInfo?.has_license_key ? "/dashboard" : siteConfig.github_repo}
+              rel={licenseInfo?.has_license_key ? undefined : "noopener noreferrer"}
+              target={licenseInfo?.has_license_key ? undefined : "_blank"}
+              title={licenseInfo?.has_license_key ? "返回首页" : "访问 GitHub 仓库"}
+            >
               {siteConfig.name}
-            </h1>
+            </a>
           </div>
         </div>
 
@@ -505,7 +515,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
           <VersionFooter
             showUpdateInfo={isAdmin}
             poweredClassName="text-xs text-gray-400 dark:text-gray-500"
-            updateBadgeClassName="inline-flex items-center h-[18px] px-1.5 rounded-sm bg-rose-500/90 text-[10px] font-semibold text-white"
+            updateBadgeClassName="inline-flex items-center h-[16px] px-1.5 rounded-xs bg-rose-500/90 text-[8px] font-semibold text-white"
             version={siteConfig.version}
             versionClassName="text-xs text-gray-400 dark:text-gray-500"
           />
