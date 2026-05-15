@@ -85,8 +85,7 @@ services:
 
 volumes:
   sqlite_data:
-    name: sqlite_data
-    driver: local
+    external: true
   postgres_data:
     name: postgres_data
     driver: local
@@ -94,8 +93,7 @@ volumes:
 
 networks:
   gost-network:
-    name: gost-network
-    driver: bridge
+    external: true
     enable_ipv6: true
     ipam:
       config:

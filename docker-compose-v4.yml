@@ -82,17 +82,11 @@ services:
 
 volumes:
   sqlite_data:
-    name: sqlite_data
-    driver: local
+    external: true
   postgres_data:
     name: postgres_data
     driver: local
 
-
 networks:
   gost-network:
-    name: gost-network
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.80.0.0/16 
+    external: true
