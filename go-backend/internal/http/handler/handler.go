@@ -288,7 +288,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/announcement/update", h.updateAnnouncement)
 	mux.HandleFunc("/api/v1/license/info", h.licenseInfo)
 	mux.HandleFunc("/api/v1/license/config", h.licenseConfig)
-	mux.HandleFunc("/api/v1/license/remove", h.licenseRemove)
 
 
 

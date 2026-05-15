@@ -61,27 +61,3 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 		"triggered_check": true,
 	}))
 }
-
-func (h *Handler) licenseRemove(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		response.WriteJSON(w, response.ErrDefault("请求失败"))
-		return
-	}
-
-	now := time.Now().UnixMilli()
-
-	if err := h.repo.UpsertConfig("license_key", "", now); err != nil {
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
-	}
-	if err := h.repo.UpsertConfig("server_domain", "", now); err != nil {
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
-	}
-
-	// Reset memory state and params
-	middleware.UpdateCheckParams("", "", "")
-	go middleware.ForceSyncCheck()
-
-	response.WriteJSON(w, response.OK(nil))
-}

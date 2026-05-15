@@ -21,7 +21,6 @@ import {
   type AnnouncementData,
   getLicenseInfo,
   updateLicenseConfig,
-  removeLicenseConfig,
   type LicenseInfo,
 } from "@/api";
 // 主题设置暂时放在这里，后续可以独立成一个页面或者组件
@@ -290,22 +289,6 @@ export default function ConfigPage() {
       toast.error("保存出错，请重试");
     } finally {
       setLicenseSaving(false);
-    }
-  };
-  const handleLicenseClear = async () => {
-    if (!confirm("确定要清除授权配置吗？此操作将恢复到体验模式")) {
-      return;
-    }
-    try {
-      const res = await removeLicenseConfig();
-      if (res.code === 0) {
-        toast.success("授权已清除，已恢复到体验模式");
-        setTimeout(() => window.location.reload(), 1000);
-      } else {
-        toast.error("清除失败：" + res.msg);
-      }
-    } catch {
-      toast.error("清除出错，请重试");
     }
   };
   const loadAnnouncement = async () => {
@@ -1122,7 +1105,7 @@ export default function ConfigPage() {
             </div>
           </div>
           <div className="flex justify-between items-center pt-4 border-t border-divider/50">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               {licenseStatus && (
                 <span className={`text-xs font-medium ${licenseStatus.has_license_key ? (licenseStatus.valid ? "text-green-600" : "text-red-600") : "text-yellow-600"}`}>
                   {licenseStatus.has_license_key
@@ -1131,17 +1114,6 @@ export default function ConfigPage() {
                         : `授权无效：${licenseStatus.reason || "未知原因"}`)
                     : "当前为体验模式（已限制权限）"}
                 </span>
-              )}
-              {licenseStatus?.has_license_key && (
-                <Button
-                  color="danger"
-                  size="sm"
-                  variant="light"
-                  className="ml-2"
-                  onPress={handleLicenseClear}
-                >
-                  清除授权
-                </Button>
               )}
             </div>
             <Button
