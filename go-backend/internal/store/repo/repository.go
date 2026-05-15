@@ -462,7 +462,7 @@ func seedData(db *gorm.DB) {
 	}
 	db.Where("id = ?", 1).FirstOrCreate(&adminUser)
 
-	appNameConfig := model.ViteConfig{ID: 1, Name: "app_name", Value: "flux", Time: 1755147963000}
+	appNameConfig := model.ViteConfig{ID: 1, Name: "app_name", Value: "flvx", Time: 1755147963000}
 	db.Where("id = ?", 1).FirstOrCreate(&appNameConfig)
 }
 
