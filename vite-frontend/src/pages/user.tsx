@@ -1197,6 +1197,29 @@ export default function UserPage() {
               : user,
           ),
         );
+
+        try {
+          const historyRes = await getUserQuotaHistory(targetUserId, 50);
+          if (historyRes.code === 0) {
+            setUsers((prev) =>
+              prev.map((u) =>
+                u.id === targetUserId
+                  ? { ...u, quotaHistory: historyRes.data }
+                  : u,
+              ),
+            );
+            if (
+              historyModalUser &&
+              historyModalUser.id === targetUserId
+            ) {
+              setHistoryModalUser({
+                ...historyModalUser,
+                quotaHistory: historyRes.data,
+              });
+            }
+          }
+        } catch {}
+
         setUserToReset(null);
       } else {
         toast.error(response.msg || "归零失败");
@@ -1250,6 +1273,7 @@ export default function UserPage() {
         toast.success("隧道流量归零成功");
         onResetTunnelFlowModalClose();
         const targetTunnelId = tunnelToReset.id;
+        const targetUserId = tunnelToReset.userId;
 
         setUserTunnels((prev) =>
           prev.map((userTunnel) =>
@@ -1258,6 +1282,29 @@ export default function UserPage() {
               : userTunnel,
           ),
         );
+
+        try {
+          const historyRes = await getUserQuotaHistory(targetUserId, 50);
+          if (historyRes.code === 0) {
+            setUsers((prev) =>
+              prev.map((u) =>
+                u.id === targetUserId
+                  ? { ...u, quotaHistory: historyRes.data }
+                  : u,
+              ),
+            );
+            if (
+              historyModalUser &&
+              historyModalUser.id === targetUserId
+            ) {
+              setHistoryModalUser({
+                ...historyModalUser,
+                quotaHistory: historyRes.data,
+              });
+            }
+          }
+        } catch {}
+
         setTunnelToReset(null);
       } else {
         toast.error(response.msg || "归零失败");
