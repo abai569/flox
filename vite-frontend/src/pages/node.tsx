@@ -1093,10 +1093,10 @@ export default function NodePage() {
     if (!nodeToReset) return;
     setResetTrafficLoading(true);
     try {
-      // 从当前节点列表中获取最新流量数据
-      const currentNode = nodeList.find(n => n.id === nodeToReset.id);
-      const inFlowBefore = currentNode?.periodTraffic?.tx || 0;
-      const outFlowBefore = currentNode?.periodTraffic?.rx || 0;
+      // 从实时数据中获取最新流量
+      const metrics = realtimeNodeMetrics[nodeToReset.id];
+      const inFlowBefore = metrics?.periodTraffic?.tx || 0;
+      const outFlowBefore = metrics?.periodTraffic?.rx || 0;
       const res = await batchResetNodeTraffic([nodeToReset.id], "管理员手动归零", inFlowBefore, outFlowBefore);
 
       if (res.code === 0) {

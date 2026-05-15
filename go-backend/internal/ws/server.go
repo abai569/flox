@@ -88,22 +88,27 @@ type Server struct {
 }
 
 type SystemInfo struct {
-	Uptime             uint64         `json:"uptime"`
-	BytesReceived      uint64         `json:"bytes_received"`
-	BytesTransmitted   uint64         `json:"bytes_transmitted"`
-	CPUUsage           float64        `json:"cpu_usage"`
-	MemoryUsage        float64        `json:"memory_usage"`
-	DiskUsage          float64        `json:"disk_usage"`
-	Load1              float64        `json:"load1"`
-	Load5              float64        `json:"load5"`
-	Load15             float64        `json:"load15"`
-	TCPConns           int64          `json:"tcp_conns"`
-	UDPConns           int64          `json:"udp_conns"`
-	NetInSpeed         int64          `json:"net_in_speed"`
-	NetOutSpeed        int64          `json:"net_out_speed"`
-	ServiceName        string         `json:"service_name,omitempty"`
-	ServiceConnections map[string]int `json:"serviceConnections"`
-	ForwardMetrics     []ForwardMetric `json:"forward_metrics,omitempty"`
+	Uptime                 uint64         `json:"uptime"`
+	BytesReceived          uint64         `json:"bytes_received"`
+	BytesTransmitted       uint64         `json:"bytes_transmitted"`
+	PeriodBytesReceived    uint64         `json:"period_bytes_received"`
+	PeriodBytesTransmitted uint64         `json:"period_bytes_transmitted"`
+	BaselineRecordedAt     int64          `json:"baseline_recorded_at"`
+	NextResetAt            int64          `json:"next_reset_at"`
+	RenewalCycle           string         `json:"renewal_cycle,omitempty"`
+	CPUUsage               float64        `json:"cpu_usage"`
+	MemoryUsage            float64        `json:"memory_usage"`
+	DiskUsage              float64        `json:"disk_usage"`
+	Load1                  float64        `json:"load1"`
+	Load5                  float64        `json:"load5"`
+	Load15                 float64        `json:"load15"`
+	TCPConns               int64          `json:"tcp_conns"`
+	UDPConns               int64          `json:"udp_conns"`
+	NetInSpeed             int64          `json:"net_in_speed"`
+	NetOutSpeed            int64          `json:"net_out_speed"`
+	ServiceName            string         `json:"service_name,omitempty"`
+	ServiceConnections     map[string]int `json:"serviceConnections"`
+	ForwardMetrics         []ForwardMetric `json:"forward_metrics,omitempty"`
 }
 
 // ForwardMetric 转发规则指标

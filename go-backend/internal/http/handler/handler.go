@@ -116,19 +116,24 @@ func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
 	h.wsServer.SetNodeOnlineHook(h.onNodeOnline)
 	h.wsServer.SetNodeMetricHook(func(nodeID int64, info ws.SystemInfo) {
 		metricInfo := metrics.SystemInfo{
-			Uptime:           info.Uptime,
-			BytesReceived:    info.BytesReceived,
-			BytesTransmitted: info.BytesTransmitted,
-			CPUUsage:         info.CPUUsage,
-			MemoryUsage:      info.MemoryUsage,
-			DiskUsage:        info.DiskUsage,
-			Load1:            info.Load1,
-			Load5:            info.Load5,
-			Load15:           info.Load15,
-			TCPConns:         info.TCPConns,
-			UDPConns:         info.UDPConns,
-			NetInSpeed:       info.NetInSpeed,
-			NetOutSpeed:      info.NetOutSpeed,
+			Uptime:                 info.Uptime,
+			BytesReceived:          info.BytesReceived,
+			BytesTransmitted:       info.BytesTransmitted,
+			PeriodBytesReceived:    info.PeriodBytesReceived,
+			PeriodBytesTransmitted: info.PeriodBytesTransmitted,
+			BaselineRecordedAt:     info.BaselineRecordedAt,
+			NextResetAt:            info.NextResetAt,
+			RenewalCycle:           info.RenewalCycle,
+			CPUUsage:               info.CPUUsage,
+			MemoryUsage:            info.MemoryUsage,
+			DiskUsage:              info.DiskUsage,
+			Load1:                  info.Load1,
+			Load5:                  info.Load5,
+			Load15:                 info.Load15,
+			TCPConns:               info.TCPConns,
+			UDPConns:               info.UDPConns,
+			NetInSpeed:             info.NetInSpeed,
+			NetOutSpeed:            info.NetOutSpeed,
 		}
 		h.metrics.RecordNodeMetric(nodeID, metricInfo)
 	})

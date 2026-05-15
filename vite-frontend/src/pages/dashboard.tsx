@@ -788,7 +788,158 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
       )}
-      {/* 隧道权限 - 管理员不显示 */}
+      {/* 规则配置 */}
+      <Card className="border border-gray-200 dark:border-default-200 shadow-md">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <svg
+              aria-hidden="true"
+              className="w-5 h-5 text-primary"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                clipRule="evenodd"
+                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                fillRule="evenodd"
+              />
+            </svg>
+            <h2 className="text-lg lg:text-xl font-semibold text-foreground">
+              规则配置
+            </h2>
+            <span className="px-2 py-1 bg-default-100 dark:bg-default-50 text-default-600 rounded-full text-xs">
+              {forwardList.length}
+            </span>
+          </div>
+        </CardHeader>
+        <CardBody className="pt-0">
+          {groupedForwards().length === 0 ? (
+            <div className="text-center py-12">
+              <svg
+                aria-hidden="true"
+                className="w-12 h-12 text-default-400 mx-auto mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  d="M8 9l4-4 4 4m0 6l-4 4-4-4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                />
+              </svg>
+              <p className="text-default-500">暂无规则配置</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {groupedForwards().map((group) => (
+                <div
+                  key={group.tunnelName}
+                  className="border border-gray-200 dark:border-default-100 rounded-lg p-3 lg:p-4"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-foreground">
+                      {group.tunnelName}
+                    </h3>
+                    <span className="px-2 py-1 bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 rounded-md text-sm">
+                      {group.forwards.length} 条规则
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                    {group.forwards.map((forward) => (
+                      <div
+                        key={forward.id}
+                        className="bg-white dark:bg-default-100/50 border border-gray-200 dark:border-default-200 rounded-lg p-3 hover:shadow-md transition-shadow"
+                      >
+                        <div className="space-y-3">
+                          <div>
+                            <h4 className="font-medium text-foreground text-sm mb-2 truncate">
+                              {forward.name}
+                            </h4>
+                            <div className="space-y-1">
+                              <button
+                                className={`block px-2 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 rounded font-mono text-xs truncate ${hasMultipleIps(forward.inIp) ? "cursor-pointer hover:bg-green-200 dark:hover:bg-green-500/30" : ""}`}
+                                disabled={!hasMultipleIps(forward.inIp)}
+                                title={formatInAddress(
+                                  forward.inIp,
+                                  forward.inPort,
+                                )}
+                                type="button"
+                                onClick={() =>
+                                  showAddressModal(
+                                    forward.inIp,
+                                    forward.inPort,
+                                    "入口地址",
+                                  )
+                                }
+                              >
+                                {formatInAddress(forward.inIp, forward.inPort)}
+                              </button>
+                              <div className="text-center text-default-400 text-xs">
+                                ↓
+                              </div>
+                              <button
+                                className={`block px-2 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded font-mono text-xs truncate ${hasMultipleRemoteAddresses(forward.remoteAddr) ? "cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-500/30" : ""}`}
+                                disabled={
+                                  !hasMultipleRemoteAddresses(
+                                    forward.remoteAddr,
+                                  )
+                                }
+                                title={formatRemoteAddress(forward.remoteAddr)}
+                                type="button"
+                                onClick={() =>
+                                  showRemoteAddressModal(
+                                    forward.remoteAddr,
+                                    "出口地址",
+                                  )
+                                }
+                              >
+                                {formatRemoteAddress(forward.remoteAddr)}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="pt-2 border-t border-gray-200 dark:border-default-200">
+                            <div className="grid grid-cols-3 gap-1 text-xs">
+                              <div className="text-center">
+                                <div className="text-default-500 mb-1">
+                                  上传
+                                </div>
+                                <div className="font-medium text-green-600 dark:text-green-400 truncate">
+                                  {formatFlow(forward.inFlow || 0)}
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-default-500 mb-1">
+                                  下载
+                                </div>
+                                <div className="font-medium text-orange-600 dark:text-orange-400 truncate">
+                                  {formatFlow(forward.outFlow || 0)}
+                                </div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-default-500 mb-1">
+                                  总量
+                                </div>
+                                <div className="font-medium text-primary truncate">
+                                  {formatFlow(
+                                    calculateForwardBillingFlow(forward),
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
+            {/* 隧道权限 - 管理员不显示 */}
       {!isAdmin && (
         <Card className="mb-6 lg:mb-8 border border-gray-200 dark:border-default-200 shadow-md">
           <CardHeader className="pb-3">
@@ -909,157 +1060,6 @@ export default function DashboardPage() {
           </CardBody>
         </Card>
       )}
-      {/* 规则配置 */}
-      <Card className="border border-gray-200 dark:border-default-200 shadow-md">
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <svg
-              aria-hidden="true"
-              className="w-5 h-5 text-primary"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                clipRule="evenodd"
-                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                fillRule="evenodd"
-              />
-            </svg>
-            <h2 className="text-lg lg:text-xl font-semibold text-foreground">
-              规则配置
-            </h2>
-            <span className="px-2 py-1 bg-default-100 dark:bg-default-50 text-default-600 rounded-full text-xs">
-              {forwardList.length}
-            </span>
-          </div>
-        </CardHeader>
-        <CardBody className="pt-0">
-          {groupedForwards().length === 0 ? (
-            <div className="text-center py-12">
-              <svg
-                aria-hidden="true"
-                className="w-12 h-12 text-default-400 mx-auto mb-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M8 9l4-4 4 4m0 6l-4 4-4-4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                />
-              </svg>
-              <p className="text-default-500">暂无规则配置</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {groupedForwards().map((group) => (
-                <div
-                  key={group.tunnelName}
-                  className="border border-gray-200 dark:border-default-100 rounded-lg p-3 lg:p-4"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-foreground">
-                      {group.tunnelName}
-                    </h3>
-                    <span className="px-2 py-1 bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-300 rounded-md text-sm">
-                      {group.forwards.length} 个规则
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                    {group.forwards.map((forward) => (
-                      <div
-                        key={forward.id}
-                        className="bg-white dark:bg-default-100/50 border border-gray-200 dark:border-default-200 rounded-lg p-3 hover:shadow-md transition-shadow"
-                      >
-                        <div className="space-y-3">
-                          <div>
-                            <h4 className="font-medium text-foreground text-sm mb-2 truncate">
-                              {forward.name}
-                            </h4>
-                            <div className="space-y-1">
-                              <button
-                                className={`block px-2 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 rounded font-mono text-xs truncate ${hasMultipleIps(forward.inIp) ? "cursor-pointer hover:bg-green-200 dark:hover:bg-green-500/30" : ""}`}
-                                disabled={!hasMultipleIps(forward.inIp)}
-                                title={formatInAddress(
-                                  forward.inIp,
-                                  forward.inPort,
-                                )}
-                                type="button"
-                                onClick={() =>
-                                  showAddressModal(
-                                    forward.inIp,
-                                    forward.inPort,
-                                    "入口地址",
-                                  )
-                                }
-                              >
-                                {formatInAddress(forward.inIp, forward.inPort)}
-                              </button>
-                              <div className="text-center text-default-400 text-xs">
-                                ↓
-                              </div>
-                              <button
-                                className={`block px-2 py-1 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded font-mono text-xs truncate ${hasMultipleRemoteAddresses(forward.remoteAddr) ? "cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-500/30" : ""}`}
-                                disabled={
-                                  !hasMultipleRemoteAddresses(
-                                    forward.remoteAddr,
-                                  )
-                                }
-                                title={formatRemoteAddress(forward.remoteAddr)}
-                                type="button"
-                                onClick={() =>
-                                  showRemoteAddressModal(
-                                    forward.remoteAddr,
-                                    "出口地址",
-                                  )
-                                }
-                              >
-                                {formatRemoteAddress(forward.remoteAddr)}
-                              </button>
-                            </div>
-                          </div>
-                          <div className="pt-2 border-t border-gray-200 dark:border-default-200">
-                            <div className="grid grid-cols-3 gap-1 text-xs">
-                              <div className="text-center">
-                                <div className="text-default-500 mb-1">
-                                  上传
-                                </div>
-                                <div className="font-medium text-green-600 dark:text-green-400 truncate">
-                                  {formatFlow(forward.inFlow || 0)}
-                                </div>
-                              </div>
-                              <div className="text-center">
-                                <div className="text-default-500 mb-1">
-                                  下载
-                                </div>
-                                <div className="font-medium text-orange-600 dark:text-orange-400 truncate">
-                                  {formatFlow(forward.outFlow || 0)}
-                                </div>
-                              </div>
-                              <div className="text-center">
-                                <div className="text-default-500 mb-1">
-                                  计费
-                                </div>
-                                <div className="font-medium text-primary truncate">
-                                  {formatFlow(
-                                    calculateForwardBillingFlow(forward),
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardBody>
-      </Card>
       {/* 地址列表弹窗 */}
       <Modal
         backdrop="blur"
