@@ -2498,7 +2498,7 @@ export default function NodePage() {
                         setLocalSearchKeyword("");
                       }}
                     >
-                      归零
+                      重置
                     </Button>
                   )}
               </>

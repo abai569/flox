@@ -235,6 +235,38 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 	}
 
 	for _, userID := range userIDs {
+		user, err := h.repo.GetUserByID(userID)
+		if err != nil {
+			continue
+		}
+
+		// 检查是否启用自动续费
+		if user.AutoRenew == 1 && user.RenewalAmount > 0 {
+			// 检查余额是否充足
+			if user.Balance >= user.RenewalAmount {
+				// 计算续费后的到期时间（+1 个月）
+				baseTime := user.ExpTime
+				if baseTime < nowMs {
+					// 已过期，从当前时间开始计算
+					baseTime = nowMs
+				}
+				newExpTime := time.UnixMilli(baseTime).AddDate(0, 1, 0).UnixMilli()
+
+				// 扣款并续费
+				if renewErr := h.repo.RenewUserWithBalance(userID, user.RenewalAmount, newExpTime, nowMs); renewErr == nil {
+					log.Printf("用户 %d 自动续费成功：扣款 %d 分，新到期时间 %v",
+						userID, user.RenewalAmount, time.UnixMilli(newExpTime))
+					continue // 续费成功，跳过禁用
+				} else {
+					log.Printf("用户 %d 自动续费失败：%v，将执行禁用", userID, renewErr)
+				}
+			} else {
+				log.Printf("用户 %d 余额不足：余额 %d 分，需要 %d 分，将执行禁用",
+					userID, user.Balance, user.RenewalAmount)
+			}
+		}
+
+		// 余额不足或未启用自动续费：执行禁用
 		forwards, err := h.listActiveForwardsByUser(userID)
 		if err == nil {
 			h.pauseForwardRecords(forwards, nowMs)

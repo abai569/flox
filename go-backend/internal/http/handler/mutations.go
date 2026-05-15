@@ -64,13 +64,20 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 	dailyQuotaGB := asInt64(req["dailyQuotaGB"], 0)
 	monthlyQuotaGB := asInt64(req["monthlyQuotaGB"], 0)
 	if dailyQuotaGB < 0 || monthlyQuotaGB < 0 {
-		response.WriteJSON(w, response.ErrDefault("配额不能小于0"))
+		response.WriteJSON(w, response.ErrDefault("配额不能小于 0"))
+		return
+	}
+	renewalAmount := asInt64(req["renewalAmount"], 0)
+	balance := asInt64(req["balance"], 0)
+	autoRenew := asInt(req["autoRenew"], 0)
+	if renewalAmount < 0 || balance < 0 {
+		response.WriteJSON(w, response.ErrDefault("续费金额和余额不能小于 0"))
 		return
 	}
 	roleID := 1
 	now := time.Now().UnixMilli()
 
-	userID, err := h.repo.CreateUser(username, security.MD5(pwd), roleID, expTime, flow, flowResetTime, num, status, now)
+	userID, err := h.repo.CreateUser(username, security.MD5(pwd), roleID, expTime, flow, flowResetTime, num, status, now, renewalAmount, balance, int64(autoRenew))
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -156,6 +163,13 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	status := asInt(req["status"], 1)
 	_, hasDailyQuota := req["dailyQuotaGB"]
 	_, hasMonthlyQuota := req["monthlyQuotaGB"]
+	renewalAmount := asInt64(req["renewalAmount"], 0)
+	balance := asInt64(req["balance"], 0)
+	autoRenew := asInt(req["autoRenew"], 0)
+	if renewalAmount < 0 || balance < 0 {
+		response.WriteJSON(w, response.ErrDefault("续费金额和余额不能小于 0"))
+		return
+	}
 	now := time.Now().UnixMilli()
 
 	name := asString(req["name"]) // 解析前端传来的备注名称
@@ -163,13 +177,13 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 
 	if strings.TrimSpace(pwd) == "" {
 		// 在参数里增加了 name
-		if err := h.repo.UpdateUserWithoutPassword(id, username, name, flow, num, expTime, flowResetTime, status, now); err != nil {
+		if err := h.repo.UpdateUserWithoutPassword(id, username, name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew)); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
 	} else {
 		// 在参数里增加了 name
-		if err := h.repo.UpdateUserWithPassword(id, username, security.MD5(pwd), name, flow, num, expTime, flowResetTime, status, now); err != nil {
+		if err := h.repo.UpdateUserWithPassword(id, username, security.MD5(pwd), name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew)); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}

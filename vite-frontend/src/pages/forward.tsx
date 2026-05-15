@@ -4402,7 +4402,7 @@ export default function ForwardPage() {
                     setSearchKeyword("");
                   }}
                 >
-                  归零
+                  重置
                 </Button>
               )}
             </>

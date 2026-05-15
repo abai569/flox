@@ -189,6 +189,42 @@ func (h *Handler) userQuotaHistoryDelete(w http.ResponseWriter, r *http.Request)
 	response.WriteJSON(w, response.OKEmpty())
 }
 
+type userRenewalLogsRequest struct {
+	UserID int64 `json:"userId"`
+	Limit  int   `json:"limit"`
+}
+
+func (h *Handler) userRenewalLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	var req userRenewalLogsRequest
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+
+	if req.UserID <= 0 {
+		response.WriteJSON(w, response.ErrDefault("用户 ID 不能为空"))
+		return
+	}
+
+	limit := 50
+	if req.Limit > 0 {
+		limit = req.Limit
+	}
+
+	logs, err := h.repo.GetUserRenewalLogs(req.UserID, limit)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	response.WriteJSON(w, response.OK(logs))
+}
+
 func (h *Handler) ensureUserForwardAllowedByQuota(userID int64, now int64) error {
 	reason, err := h.userQuotaBlockReason(userID, now)
 	if err != nil {

@@ -98,6 +98,7 @@ import {
 } from "@/api";
 import { EditIcon, DeleteIcon, EyeIcon, EyeOffIcon } from "@/components/icons";
 import { PageLoadingState } from "@/components/page-state";
+import type { UserRenewalLog } from "@/types";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { removeItemsById, replaceItemById } from "@/utils/list-state";
 
@@ -243,6 +244,9 @@ export default function UserPage() {
     expTime: Date | null;
     flowResetTime: number;
     groupIds: number[];
+    renewalAmount: number;
+    balance: number;
+    autoRenew: number;
   }>({
     user: "",
     name: "",
@@ -255,6 +259,9 @@ export default function UserPage() {
     expTime: null,
     flowResetTime: 0,
     groupIds: [],
+    renewalAmount: 0,
+    balance: 0,
+    autoRenew: 0,
   });
   const [userFormLoading, setUserFormLoading] = useState(false);
   const editingUser = useMemo(
@@ -278,6 +285,10 @@ export default function UserPage() {
     onClose: onMonitorModalClose,
   } = useDisclosure();
   const [monitorModalUser, setMonitorModalUser] = useState<User | null>(null);
+  const [isRenewalLogModalOpen, setIsRenewalLogModalOpen] = useState(false);
+  const [selectedRenewalLogUser, setSelectedRenewalLogUser] = useState<User | null>(null);
+  const [renewalLogs, setRenewalLogs] = useState<UserRenewalLog[]>([]);
+  const [renewalLogLoading, setRenewalLogLoading] = useState(false);
   // --- 监控权限相关状态 (来自 user 新) ---
   const [monitorPermissionUserIds, setMonitorPermissionUserIds] = useState<
     Set<number>
@@ -743,6 +754,9 @@ export default function UserPage() {
       expTime: null,
       flowResetTime: 0,
       groupIds: [],
+      renewalAmount: 0,
+      balance: 0,
+      autoRenew: 0,
     });
     onUserModalOpen();
   };
@@ -850,6 +864,9 @@ export default function UserPage() {
       expTime: user.expTime ? new Date(user.expTime) : null,
       flowResetTime: user.flowResetTime ?? 0,
       groupIds: currentGroupIds,
+      renewalAmount: user.renewalAmount ?? 0,
+      balance: user.balance ?? 0,
+      autoRenew: user.autoRenew ?? 0,
     });
     onUserModalOpen();
   };
@@ -947,6 +964,36 @@ export default function UserPage() {
   const handleOpenMonitorModal = (user: User) => {
     setMonitorModalUser(user);
     onMonitorModalOpen();
+  };
+  const handleOpenRenewalLogModal = async (user: User) => {
+    setSelectedRenewalLogUser(user);
+    setIsRenewalLogModalOpen(true);
+    setRenewalLogLoading(true);
+    setRenewalLogs([]);
+
+    try {
+      const response = await fetch("/api/v1/user/renewal-logs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: localStorage.token,
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          limit: 50,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.code === 0) {
+        setRenewalLogs(data.data || []);
+      }
+    } catch (error) {
+      console.error("获取续费日志失败:", error);
+      toast.error("获取续费日志失败");
+    } finally {
+      setRenewalLogLoading(false);
+    }
   };
   const handleBatchAssignTunnel = async () => {
     if (batchTunnelSelections.size === 0 || !currentUser) {
@@ -1623,7 +1670,7 @@ export default function UserPage() {
                     用户名
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                    状态
+                    用户状态
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
                     监控权限
@@ -1642,6 +1689,15 @@ export default function UserPage() {
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[120px] text-left">
                     到期时间
+                  </TableColumn>
+                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                    续费金额
+                  </TableColumn>
+                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                    可用余额
+                  </TableColumn>
+                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                    自动续费
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[240px] text-left">
                     操作
@@ -1794,22 +1850,91 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {user.expTime && user.expTime > 0 ? (
-                            expStatus && expStatus.color === "success" ? (
-                              <span className="text-sm text-default-600">
-                                {formatDate(user.expTime)}
-                              </span>
-                            ) : (
-                              <div
-                                className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "default") === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : expStatus?.color === "warning" ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : expStatus?.color === "danger" ? "bg-danger-500/10 text-danger-600 dark:text-danger-400" : "bg-default-500/10 text-default-500"}`}
+                            <div className="flex items-center gap-1">
+                              {expStatus?.color === "success" ? (
+                                <span className="text-sm text-primary">
+                                  {new Date(user.expTime).toLocaleDateString(
+                                    "zh-CN",
+                                    {
+                                      year: "numeric",
+                                      month: "2-digit",
+                                      day: "2-digit",
+                                    },
+                                  ).replace(/\//g, "-")}
+                                </span>
+                              ) : (
+                                <div
+                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    ((expStatus?.color as string) || "") ===
+                                    "success"
+                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                      : expStatus?.color === "warning"
+                                      ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                                      : expStatus?.color === "danger"
+                                      ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                      : "bg-default-500/10 text-default-500"
+                                  }`}
+                                >
+                                  {expStatus?.text || "未知"}
+                                </div>
+                              )}
+                              <Button
+                                isIconOnly
+                                className="w-6 h-6 min-w-6"
+                                size="sm"
+                                variant="flat"
+                                onPress={() =>
+                                  handleOpenRenewalLogModal(user)
+                                }
                               >
-                                {expStatus?.text || "未知"}
-                              </div>
-                            )
+                                <svg
+                                  aria-hidden="true"
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    d="M19 9l-7 7-7-7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </Button>
+                            </div>
                           ) : (
-                            <span className="text-sm text-default-600">
-                              永久
-                            </span>
+                            <span className="text-sm text-default-600">永久</span>
                           )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <span className="text-sm text-default-600">
+                            {user.renewalAmount && user.renewalAmount > 0
+                              ? user.renewalAmount
+                              : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <span
+                            className={`text-sm font-medium ${
+                              user.balance && user.balance > 0
+                                ? "text-success"
+                                : "text-default-400"
+                            }`}
+                          >
+                            {user.balance ? user.balance : "0"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <div
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                              user.autoRenew === 1
+                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
+                          >
+                            {user.autoRenew === 1 ? "启用" : "禁用"}
+                          </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex gap-1.5">
@@ -1990,20 +2115,39 @@ export default function UserPage() {
                             </span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-default-600">归零日期</span>
-                            <span className="text-xs">
-                              {user.flowResetTime === 0
-                                ? "不归零"
-                                : `每月${user.flowResetTime}号`}
+                            <span className="text-default-600">续费金额</span>
+                            <span className="text-xs font-medium text-default-700">
+                              {user.renewalAmount && user.renewalAmount > 0
+                                ? user.renewalAmount
+                                : "-"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-default-600">可用余额</span>
+                            <span
+                              className={`text-xs font-medium ${
+                                user.balance && user.balance > 0
+                                  ? "text-success"
+                                  : "text-default-400"
+                              }`}
+                            >
+                              {user.balance ?? 0}
                             </span>
                           </div>
                           {user.expTime && user.expTime > 0 ? (
                             <div className="flex justify-between text-sm">
-                              <span className="text-default-600">过期时间</span>
-                              <div className="text-right">
+                              <span className="text-default-600">到期时间</span>
+                              <div className="flex items-center gap-1">
                                 {expStatus && expStatus.color === "success" ? (
                                   <div className="text-xs">
-                                    {formatDate(user.expTime)}
+                                    {new Date(user.expTime).toLocaleDateString(
+                                      "zh-CN",
+                                      {
+                                        year: "numeric",
+                                        month: "2-digit",
+                                        day: "2-digit",
+                                      },
+                                    ).replace(/\//g, "-")}
                                   </div>
                                 ) : (
                                   <div
@@ -2012,11 +2156,36 @@ export default function UserPage() {
                                     {expStatus?.text || "未知状态"}
                                   </div>
                                 )}
+                                <Button
+                                  isIconOnly
+                                  className="w-5 h-5 min-w-5"
+                                  size="sm"
+                                  variant="flat"
+                                  onPress={(e) => {
+                                    e?.stopPropagation();
+                                    handleOpenRenewalLogModal(user);
+                                  }}
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      d="M19 9l-7 7-7-7"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                </Button>
                               </div>
                             </div>
                           ) : (
                             <div className="flex justify-between text-sm">
-                              <span className="text-default-600">过期时间</span>
+                              <span className="text-default-600">到期时间</span>
                               <span className="text-sm text-default-600">
                                 永久
                               </span>
@@ -2287,17 +2456,74 @@ export default function UserPage() {
                   {/* ... 省略内部配额显示代码 ... */}
                 </div>
               )}
-            <RadioGroup
-              label="状态"
-              orientation="horizontal"
-              value={userForm.status.toString()}
-              onValueChange={(value: string) =>
-                setUserForm((prev) => ({ ...prev, status: Number(value) }))
-              }
-            >
-              <Radio value="1">启用</Radio>
-              <Radio value="0">禁用</Radio>
-            </RadioGroup>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="续费金额 (元)"
+                  placeholder="选填"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={userForm.renewalAmount > 0 ? userForm.renewalAmount.toString() : ""}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setUserForm((prev) => ({
+                      ...prev,
+                      renewalAmount: Math.round(value),
+                    }));
+                  }}
+                />
+                <Input
+                  label="可用余额 (元)"
+                  placeholder="选填"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={userForm.balance > 0 ? userForm.balance.toString() : ""}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setUserForm((prev) => ({
+                      ...prev,
+                      balance: Math.round(value),
+                    }));
+                  }}
+                />
+              </div>
+              <div className="flex items-end justify-between gap-4">
+                <div className="flex-1">
+                  <RadioGroup
+                    label="用户状态"
+                    orientation="horizontal"
+                    value={userForm.status.toString()}
+                    onValueChange={(value: string) =>
+                      setUserForm((prev) => ({
+                        ...prev,
+                        status: Number(value),
+                      }))
+                    }
+                  >
+                    <Radio value="1">启用</Radio>
+                    <Radio value="0">禁用</Radio>
+                  </RadioGroup>
+                </div>
+                <div className="flex-1">
+                  <RadioGroup
+                    label="自动续费"
+                    orientation="horizontal"
+                    value={userForm.autoRenew.toString()}
+                    onValueChange={(value: string) =>
+                      setUserForm((prev) => ({
+                        ...prev,
+                        autoRenew: Number(value),
+                      }))
+                    }
+                  >
+                    <Radio value="1">启用</Radio>
+                    <Radio value="0">禁用</Radio>
+                  </RadioGroup>
+                </div>               
+              </div>
+            </div>
           </ModalBody>
           <ModalFooter>
             <Button onPress={onUserModalClose}>取消</Button>
@@ -2307,6 +2533,107 @@ export default function UserPage() {
               onPress={handleSubmitUser}
             >
               {isEdit ? "保存" : "创建"}
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      {/* 续费记录日志弹窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full sm:max-w-5xl rounded-2xl",
+        }}
+        isOpen={isRenewalLogModalOpen}
+        placement="center"
+        scrollBehavior="inside"
+        size="lg"
+        onClose={() => setIsRenewalLogModalOpen(false)}
+      >
+        <ModalContent>
+          <ModalHeader>
+            用户 {selectedRenewalLogUser?.user} 的续费记录
+          </ModalHeader>
+          <ModalBody>
+            {renewalLogLoading ? (
+              <div className="flex justify-center py-12">
+                <Spinner />
+              </div>
+            ) : renewalLogs.length === 0 ? (
+              <div className="text-center py-12 text-default-500">
+                暂无续费记录
+              </div>
+            ) : (
+              <Table
+                aria-label="续费记录"
+                classNames={{
+                  th: "bg-default-100/50 text-default-600 font-semibold text-xs uppercase",
+                  td: "py-2 text-sm",
+                }}
+              >
+                <TableHeader>
+                  <TableColumn>续费时间</TableColumn>
+                  <TableColumn>扣款金额</TableColumn>
+                  <TableColumn>续费前余额</TableColumn>
+                  <TableColumn>续费后余额</TableColumn>
+                  <TableColumn>续费前到期</TableColumn>
+                  <TableColumn>续费后到期</TableColumn>
+                  <TableColumn>原因</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {renewalLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        {new Date(log.renewalTime).toLocaleString("zh-CN", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }).replace(/\//g, "-")}
+                      </TableCell>
+                      <TableCell className="text-success font-medium">
+                        {log.renewalAmount}
+                      </TableCell>
+                      <TableCell>
+                        {log.balanceBefore}
+                      </TableCell>
+                      <TableCell>
+                        {log.balanceAfter}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(log.expTimeBefore).toLocaleDateString("zh-CN", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                        }).replace(/\//g, "-")}
+                      </TableCell>
+                      <TableCell className="text-primary font-medium">
+                        {new Date(log.expTimeAfter).toLocaleDateString("zh-CN", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                        }).replace(/\//g, "-")}
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded ${
+                            log.reason === "自动续费"
+                              ? "bg-success-500/10 text-success-600"
+                              : "bg-default-500/10 text-default-600"
+                          }`}
+                        >
+                          {log.reason}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button onPress={() => setIsRenewalLogModalOpen(false)}>
+              关闭
             </Button>
           </ModalFooter>
         </ModalContent>

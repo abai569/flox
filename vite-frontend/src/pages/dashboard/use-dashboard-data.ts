@@ -22,6 +22,9 @@ export interface DashboardUserInfo {
   num: number;
   expTime?: string | number;
   flowResetTime?: number;
+  renewalAmount?: number;
+  balance?: number;
+  autoRenew?: number;
 }
 
 export interface DashboardUserTunnel {

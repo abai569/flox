@@ -2082,7 +2082,7 @@ export default function TunnelPage() {
                   setSearchKeyword("");
                 }}
               >
-                归零
+                重置
               </Button>
             )}
           </>

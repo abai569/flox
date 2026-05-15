@@ -25,6 +25,9 @@ type User struct {
 	CreatedTime   int64         `gorm:"column:created_time;not null"`
 	UpdatedTime   sql.NullInt64 `gorm:"column:updated_time"`
 	Status        int           `gorm:"not null"`
+	RenewalAmount int64         `gorm:"column:renewal_amount;default:0"` // 续费金额 (分)
+	Balance       int64         `gorm:"column:balance;default:0"`        // 可用余额 (分)
+	AutoRenew     int           `gorm:"column:auto_renew;default:0"`     // 自动续费开关 (0=禁用，1=启用)
 }
 
 func (User) TableName() string { return "user" }
@@ -901,3 +904,20 @@ type NodeTrafficResetLog struct {
 }
 
 func (NodeTrafficResetLog) TableName() string { return "node_traffic_reset_log" }
+
+type UserRenewalLog struct {
+	ID            int64          `gorm:"primaryKey;autoIncrement"`
+	UserID        int64          `gorm:"column:user_id;not null;index:idx_user_renewal_time"`
+	UserName      string         `gorm:"column:user_name;type:varchar(100);not null"`
+	RenewalAmount int64          `gorm:"column:renewal_amount;not null"`         // 扣款金额 (分)
+	BalanceBefore int64          `gorm:"column:balance_before;not null"`         // 扣款前余额
+	BalanceAfter  int64          `gorm:"column:balance_after;not null"`          // 扣款后余额
+	ExpTimeBefore int64          `gorm:"column:exp_time_before;not null"`        // 续费前到期时间
+	ExpTimeAfter  int64          `gorm:"column:exp_time_after;not null"`         // 续费后到期时间
+	RenewalTime   int64          `gorm:"column:renewal_time;not null"`           // 续费时间
+	OperatorID    sql.NullInt64  `gorm:"column:operator_id"`                     // 操作人 ID(0=系统自动)
+	OperatorName  sql.NullString `gorm:"column:operator_name;type:varchar(100)"` // 操作人姓名
+	Reason        string         `gorm:"column:reason;type:varchar(200);default:'自动续费'"`
+}
+
+func (UserRenewalLog) TableName() string { return "user_renewal_log" }

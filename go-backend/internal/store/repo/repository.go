@@ -203,6 +203,7 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.NodeTagNode{},
 		&model.ForwardTrafficResetLog{},
 		&model.NodeTrafficResetLog{},
+		&model.UserRenewalLog{},
 		&model.UserTrafficHistory{},
 	}
 

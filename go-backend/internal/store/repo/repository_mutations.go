@@ -37,7 +37,7 @@ func (r *Repository) UserExistsExcluding(username string, excludeID int64) (bool
 	return cnt > 0, err
 }
 
-func (r *Repository) CreateUser(username, pwdHash string, roleID int, expTime, flow, flowResetTime int64, num, status int, now int64) (int64, error) {
+func (r *Repository) CreateUser(username, pwdHash string, roleID int, expTime, flow, flowResetTime int64, num, status int, now int64, renewalAmount, balance, autoRenew int64) (int64, error) {
 	if r == nil || r.db == nil {
 		return 0, errors.New("repository not initialized")
 	}
@@ -54,6 +54,9 @@ func (r *Repository) CreateUser(username, pwdHash string, roleID int, expTime, f
 		CreatedTime:   now,
 		UpdatedTime:   sql.NullInt64{Int64: now, Valid: true},
 		Status:        status,
+		RenewalAmount: renewalAmount,
+		Balance:       balance,
+		AutoRenew:     int(autoRenew),
 	}
 	if err := r.db.Create(&user).Error; err != nil {
 		return 0, err
@@ -73,44 +76,50 @@ func (r *Repository) GetUserRoleID(userID int64) (int, error) {
 	return user.RoleID, nil
 }
 
-func (r *Repository) UpdateUserWithPassword(id int64, username, pwdHash, name string, flow int64, num int, expTime, flowResetTime int64, status int, now int64) error {
+func (r *Repository) UpdateUserWithPassword(id int64, username, pwdHash, name string, flow int64, num int, expTime, flowResetTime int64, status int, now int64, renewalAmount, balance, autoRenew int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 	// 使用 Select 强制更新所有字段，包括零值
 	return r.db.Model(&model.User{}).
 		Where("id = ?", id).
-		Select("user", "name", "pwd", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time").
+		Select("user", "name", "pwd", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew").
 		Updates(map[string]interface{}{
-			"user":            username,
-			"name":            name,
-			"pwd":             pwdHash,
-			"flow":            flow,
-			"num":             num,
-			"exp_time":        expTime,
-			"flow_reset_time": flowResetTime,
-			"status":          status,
-			"updated_time":    sql.NullInt64{Int64: now, Valid: true},
+			"user":             username,
+			"name":             name,
+			"pwd":              pwdHash,
+			"flow":             flow,
+			"num":              num,
+			"exp_time":         expTime,
+			"flow_reset_time":  flowResetTime,
+			"status":           status,
+			"updated_time":     sql.NullInt64{Int64: now, Valid: true},
+			"renewal_amount":   renewalAmount,
+			"balance":          balance,
+			"auto_renew":       autoRenew,
 		}).Error
 }
 
-func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, flow int64, num int, expTime, flowResetTime int64, status int, now int64) error {
+func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, flow int64, num int, expTime, flowResetTime int64, status int, now int64, renewalAmount, balance, autoRenew int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 	// 使用 Select 强制更新所有字段，包括零值
 	return r.db.Model(&model.User{}).
 		Where("id = ?", id).
-		Select("user", "name", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time").
+		Select("user", "name", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew").
 		Updates(map[string]interface{}{
-			"user":            username,
-			"name":            name,
-			"flow":            flow,
-			"num":             num,
-			"exp_time":        expTime,
-			"flow_reset_time": flowResetTime,
-			"status":          status,
-			"updated_time":    sql.NullInt64{Int64: now, Valid: true},
+			"user":             username,
+			"name":             name,
+			"flow":             flow,
+			"num":              num,
+			"exp_time":         expTime,
+			"flow_reset_time":  flowResetTime,
+			"status":           status,
+			"updated_time":     sql.NullInt64{Int64: now, Valid: true},
+			"renewal_amount":   renewalAmount,
+			"balance":          balance,
+			"auto_renew":       autoRenew,
 		}).Error
 }
 
@@ -1028,6 +1037,103 @@ func (r *Repository) ReplaceForwardPorts(forwardID int64, entries []struct {
 		}
 		return tx.Create(&rows).Error
 	})
+}
+
+func (r *Repository) RenewUserWithBalance(userID, renewalAmount, newExpTime, now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+
+	user, err := r.GetUserByID(userID)
+	if err != nil {
+		return err
+	}
+
+	if user.Balance < renewalAmount {
+		return errors.New("insufficient balance")
+	}
+
+	tx := r.db.Begin()
+	defer func() { tx.Rollback() }()
+
+	err = tx.Model(&model.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"balance":      user.Balance - renewalAmount,
+			"exp_time":     newExpTime,
+			"updated_time": sql.NullInt64{Int64: now, Valid: true},
+		}).Error
+	if err != nil {
+		return err
+	}
+
+	log := &model.UserRenewalLog{
+		UserID:          userID,
+		UserName:        user.User,
+		RenewalAmount:   renewalAmount,
+		BalanceBefore:   user.Balance,
+		BalanceAfter:    user.Balance - renewalAmount,
+		ExpTimeBefore:   user.ExpTime,
+		ExpTimeAfter:    newExpTime,
+		RenewalTime:     now,
+		OperatorID:      sql.NullInt64{Int64: 0, Valid: true},
+		OperatorName:    sql.NullString{String: "系统", Valid: true},
+		Reason:          "自动续费",
+	}
+	err = tx.Create(log).Error
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
+type UserRenewalLogItem struct {
+	ID            int64
+	UserID        int64
+	UserName      string
+	RenewalAmount int64
+	BalanceBefore int64
+	BalanceAfter  int64
+	ExpTimeBefore int64
+	ExpTimeAfter  int64
+	RenewalTime   int64
+	OperatorName  string
+	Reason        string
+}
+
+func (r *Repository) GetUserRenewalLogs(userID int64, limit int) ([]UserRenewalLogItem, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+
+	var logs []model.UserRenewalLog
+	err := r.db.
+		Where("user_id = ?", userID).
+		Order("renewal_time DESC").
+		Limit(limit).
+		Find(&logs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]UserRenewalLogItem, 0, len(logs))
+	for _, log := range logs {
+		items = append(items, UserRenewalLogItem{
+			ID:            log.ID,
+			UserID:        log.UserID,
+			UserName:      log.UserName,
+			RenewalAmount: log.RenewalAmount,
+			BalanceBefore: log.BalanceBefore,
+			BalanceAfter:  log.BalanceAfter,
+			ExpTimeBefore: log.ExpTimeBefore,
+			ExpTimeAfter:  log.ExpTimeAfter,
+			RenewalTime:   log.RenewalTime,
+			OperatorName:  log.OperatorName.String,
+			Reason:        log.Reason,
+		})
+	}
+		return items, nil
 }
 
 func (r *Repository) UpdateForwardPortBindIP(forwardID, nodeID int64, port int, inIP string) error {

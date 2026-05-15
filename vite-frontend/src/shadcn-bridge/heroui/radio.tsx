@@ -55,16 +55,22 @@ export function RadioGroup({
 export interface RadioProps {
   children?: React.ReactNode;
   value: string;
+  color?: "default" | "primary" | "success" | "danger";
 }
 
-export function Radio({ children, value }: RadioProps) {
+export function Radio({ children, value, color = "primary" }: RadioProps) {
   const context = React.useContext(RadioContext);
   const id = `${context.name}-${value}`;
+
+  // 只改变文字颜色，圆圈保持默认样式（符合多数管理系统惯例）
+  const labelColor = color === "success" ? "text-success" : color === "danger" ? "text-danger" : "text-primary";
 
   return (
     <div className="flex items-center gap-2">
       <RadioGroupItem id={id} value={value} />
-      <Label htmlFor={id}>{children}</Label>
+      <Label htmlFor={id} className={`font-medium ${labelColor}`}>
+        {children}
+      </Label>
     </div>
   );
 }

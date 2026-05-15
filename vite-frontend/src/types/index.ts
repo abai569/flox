@@ -10,20 +10,23 @@ export interface User {
   name?: string;
   user: string;
   pwd?: string;
-  status: number; // 1-正常, 0-禁用
-  flow: number; // 流量限制(GB)
+  status: number; // 1-正常，0-禁用
+  flow: number; // 流量限制 (GB)
   num: number; // 转发数量
   expTime?: number; // 过期时间戳
-  flowResetTime?: number; // 流量归零日期(1-31号)
+  flowResetTime?: number; // 流量归零日期 (1-31 号)
   createdTime?: number; // 创建时间戳
-  inFlow?: number; // 下载流量(字节)
-  outFlow?: number; // 上传流量(字节)
+  inFlow?: number; // 下载流量 (字节)
+  outFlow?: number; // 上传流量 (字节)
   dailyQuotaGB?: number;
   monthlyQuotaGB?: number;
   dailyUsedBytes?: number;
   monthlyUsedBytes?: number;
   disabledByQuota?: number;
   quotaDisabledAt?: number;
+  renewalAmount?: number; // 续费金额 (分)
+  balance?: number; // 可用余额 (分)
+  autoRenew?: number; // 自动续费开关 (0/1)
 }
 
 export interface UserGroup {
@@ -45,6 +48,9 @@ export interface UserForm {
   expTime: Date | null;
   flowResetTime: number;
   groupIds?: number[];
+  renewalAmount?: number;
+  balance?: number;
+  autoRenew?: number;
 }
 
 export interface UserTunnel {
@@ -105,4 +111,18 @@ export interface Pagination {
   current: number;
   size: number;
   total: number;
+}
+
+export interface UserRenewalLog {
+  id: number;
+  userId: number;
+  userName: string;
+  renewalAmount: number; // 分
+  balanceBefore: number; // 分
+  balanceAfter: number; // 分
+  expTimeBefore: number; // 毫秒
+  expTimeAfter: number; // 毫秒
+  renewalTime: number; // 毫秒
+  operatorName: string;
+  reason: string;
 }
