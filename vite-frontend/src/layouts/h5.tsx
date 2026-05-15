@@ -314,7 +314,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
             onClick={toggleMobileMenu}
           >
             <svg
-              className="w-6 h-6"
+              className="w-5 h-5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -328,7 +328,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
             </svg>
           </button>
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <BrandLogo size={20} />
+            {/* 注释掉左上角 logo <BrandLogo size={20} /> */}
             <a
               className={`text-sm font-bold truncate max-w-[90px] sm:max-w-none transition-colors cursor-pointer no-underline ${
                 licenseInfo?.has_license_key
@@ -476,15 +476,17 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
         className={`fixed ${!mobileMenuVisible ? "-translate-x-full" : "translate-x-0"} w-[36%] min-w-[140px] bg-white dark:bg-black shadow-2xl border-r border-gray-200 dark:border-gray-600 z-50 transition-transform duration-300 ease-in-out flex flex-col h-[100dvh] top-0 left-0`}
       >
         <div className="px-5 h-14 flex items-center overflow-hidden whitespace-nowrap box-border border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+          {/* 注释掉侧边栏顶部 logo  */}
           <div className="flex-shrink-0 flex items-center justify-center w-10">
-            <BrandLogo size={28} />
+            <BrandLogo size={24} />
           </div>
-          {/* 👇 侧边栏logo的文字 👇 */}
-          {/* <div className="max-w-[180px] opacity-100 ml-2">
-            <h1 className="text-sm font-bold text-foreground overflow-hidden whitespace-nowrap text-ellipsis">
-              {siteConfig.name}
-            </h1>
-          </div> */}
+          <div className="flex items-center opacity-100 ml-2">
+            {/* 注释掉侧边栏顶部 svg 图标 
+            <svg className="w-5 h-5 mr-1.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>*/}
+            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">导航菜单</span>
+          </div>
         </div>
 
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
