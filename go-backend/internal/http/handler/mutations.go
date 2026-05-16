@@ -233,6 +233,33 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OKEmpty())
 }
 
+func (h *Handler) userToggleAutoRenew(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+	var req map[string]interface{}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	id := asInt64(req["id"], 0)
+	if id <= 0 {
+		response.WriteJSON(w, response.ErrDefault("用户ID不能为空"))
+		return
+	}
+	autoRenew := asInt(req["autoRenew"], 0)
+	if autoRenew != 0 && autoRenew != 1 {
+		response.WriteJSON(w, response.ErrDefault("自动续费参数错误"))
+		return
+	}
+	if err := h.repo.UpdateUserAutoRenew(id, autoRenew); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OKEmpty())
+}
+
 func (h *Handler) userGroups(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))

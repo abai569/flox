@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 import { AnimatedPage } from "@/components/animated-page";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Button } from "@/shadcn-bridge/heroui/button";
+import { Switch } from "@/shadcn-bridge/heroui/switch";
 import {
   Modal,
   ModalContent,
@@ -24,6 +26,7 @@ import {
   type DashboardNodeExpiryItem,
   type DashboardUserTunnel as UserTunnel,
 } from "@/pages/dashboard/use-dashboard-data";
+import { toggleUserAutoRenew } from "@/api";
 
 export default function DashboardPage() {
   const [quotaHistoryModalOpen, setQuotaHistoryModalOpen] = useState(false);
@@ -42,6 +45,27 @@ export default function DashboardPage() {
   } = useDashboardData();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [historyToDelete, setHistoryToDelete] = useState<number | null>(null);
+  const [autoRenewSwitchLoading, setAutoRenewSwitchLoading] = useState(false);
+
+  const handleToggleAutoRenew = async (enabled: boolean) => {
+    if (!userInfo.id || autoRenewSwitchLoading) return;
+    setAutoRenewSwitchLoading(true);
+    try {
+      const newValue = enabled ? 1 : 0;
+      const res = await toggleUserAutoRenew(userInfo.id, newValue);
+      if (res.code === 0) {
+        toast.success(enabled ? "自动续费已启用" : "自动续费已禁用");
+        window.location.reload();
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("操作失败");
+    } finally {
+      setAutoRenewSwitchLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchQuotaHistory();
   }, [fetchQuotaHistory]);
@@ -594,7 +618,17 @@ export default function DashboardPage() {
           <MetricCard
             icon={<svg aria-hidden="true" className="w-4 h-4 lg:w-5 lg:h-5 text-cyan-600 dark:text-cyan-400" fill="currentColor" viewBox="0 0 20 20"><path clipRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" fillRule="evenodd" /></svg>}
             iconClassName="bg-cyan-100 dark:bg-cyan-500/20"
-            title="自动续费"
+            title={
+              <div className="flex items-center gap-2">
+                <span>自动续费</span>
+                <Switch
+                  size="sm"
+                  isSelected={userInfo.autoRenew === 1}
+                  isDisabled={autoRenewSwitchLoading}
+                  onValueChange={handleToggleAutoRenew}
+                />
+              </div>
+            }
             value={userInfo.autoRenew === 1 ? "启用" : "禁用"}
             bottomContent={userInfo.autoRenew === 1 ? (<div className="mt-1 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-success"></div><span className="text-xs text-success">自动续费运行中</span></div>) : (<div className="mt-1 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-default-400"></div><span className="text-xs text-default-500">到期后将停用</span></div>)}
           />

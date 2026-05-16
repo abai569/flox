@@ -159,6 +159,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/user/quota/history", h.userQuotaHistory)
 	mux.HandleFunc("/api/v1/user/quota/history/delete", h.userQuotaHistoryDelete)
 	mux.HandleFunc("/api/v1/user/renewal-logs", h.userRenewalLogs)
+	mux.HandleFunc("/api/v1/user/toggle-auto-renew", h.userToggleAutoRenew)
 	mux.HandleFunc("/api/v1/user/update-order", h.userUpdateOrder)
 	mux.HandleFunc("/api/v1/user/groups", h.userGroups)
 	mux.HandleFunc("/api/v1/config/get", h.getConfigByName)

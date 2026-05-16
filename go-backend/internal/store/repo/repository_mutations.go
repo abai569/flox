@@ -492,6 +492,15 @@ func (r *Repository) UpdateUserOrder(userID int64, inx int, now int64) {
 		}).Error
 }
 
+func (r *Repository) UpdateUserAutoRenew(userID int64, autoRenew int) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		Update("auto_renew", autoRenew).Error
+}
+
 func (r *Repository) RefreshNodeExpiryReminder(nodeID int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
