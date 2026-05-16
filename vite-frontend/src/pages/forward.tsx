@@ -1367,7 +1367,6 @@ export default function ForwardPage() {
   const [speedLimits, setSpeedLimits] = useState<SpeedLimitApiItem[]>([]);
   const [forwardPage, setForwardPage] = useState(1);
   const [forwardPageSize, setForwardPageSize] = useState(10);
-  const [forwardTotal, setForwardTotal] = useState(0);
   //   const isMobile = useMobileBreakpoint();
   // searchKeyword removed
   // isSearchVisible removed
@@ -2069,42 +2068,29 @@ export default function ForwardPage() {
   );
   const refreshForwardList = useCallback(
     async (lod = true) => {
-      if (lod) {
-        setLoading(true);
-      }
+      if (lod) setLoading(true);
       try {
-        const params = compactMode
-          ? { current: forwardPage, size: forwardPageSize }
-          : {};
+        const params = {}; // 永远拉取全量数据，用于本地过滤和拖拽排序
         const forwardsRes = await getForwardList(params);
-
         if (forwardsRes.code === 0) {
-          const data = forwardsRes.data;
-          const items = data?.items ?? [];
-          const total = data?.total ?? 0;
-          setForwardTotal(total);
-          await applyForwardList(mapForwardApiItems(items));
+          await applyForwardList(mapForwardApiItems(forwardsRes.data?.items ?? []));
         } else {
           toast.error(forwardsRes.msg || "获取规则列表失败");
         }
       } catch {
         toast.error("获取规则列表失败");
       } finally {
-        if (lod) {
-          setLoading(false);
-        }
+        if (lod) setLoading(false);
       }
     },
-    [applyForwardList, compactMode, forwardPage, forwardPageSize],
+    [applyForwardList],
   );
   // 加载所有数据
   const loadData = useCallback(
     async (lod = true) => {
       setLoading(lod);
       try {
-        const params = compactMode
-          ? { current: forwardPage, size: forwardPageSize }
-          : {};
+        const params = {}; // 永远拉取全量数据
         const [tunnelsRes, forwardsRes, speedLimitsRes] = await Promise.all([
           userTunnel(),
           getForwardList(params),
@@ -2116,21 +2102,12 @@ export default function ForwardPage() {
           setAllTunnels((tunnelsRes.data || []) as Tunnel[]);
         }
         if (forwardsRes.code === 0) {
-          const data = forwardsRes.data;
-          const items = data?.items ?? [];
-          const total = data?.total ?? 0;
-          setForwardTotal(total);
-          await applyForwardList(mapForwardApiItems(items));
+          await applyForwardList(mapForwardApiItems(forwardsRes.data?.items ?? []));
         }
-        if (speedLimitsRes.code === 0) {
-          setSpeedLimits(speedLimitsRes.data || []);
-        }
+        if (speedLimitsRes.code === 0) setSpeedLimits(speedLimitsRes.data || []);
         if (isAdmin) {
           const nodesRes = await getNodeList();
-
-          if (nodesRes.code === 0) {
-            setNodes((nodesRes.data || []) as Node[]);
-          }
+          if (nodesRes.code === 0) setNodes((nodesRes.data || []) as Node[]);
         }
       } catch {
         toast.error("加载数据失败");
@@ -2138,7 +2115,7 @@ export default function ForwardPage() {
         setLoading(false);
       }
     },
-    [isAdmin, applyForwardList, compactMode, forwardPage, forwardPageSize],
+    [isAdmin, applyForwardList],
   );
 
   useEffect(() => {
@@ -3840,6 +3817,54 @@ export default function ForwardPage() {
       group.tunnels.flatMap((tunnel) => tunnel.items),
     );
   }, [compactMode, orderedForwards, groupedForwards]);
+  const forwardTotal = sortedForwards.length;
+  const paginatedForwards = useMemo(() => {
+    if (!compactMode) return sortedForwards;
+    const start = (forwardPage - 1) * forwardPageSize;
+    return sortedForwards.slice(start, start + forwardPageSize);
+  }, [sortedForwards, compactMode, forwardPage, forwardPageSize]);
+
+  useEffect(() => {
+    const maxPage = Math.ceil(forwardTotal / forwardPageSize);
+    if (forwardPage > maxPage && maxPage > 0) setForwardPage(1);
+  }, [forwardTotal, forwardPageSize, forwardPage]);
+
+  const paginationUI = forwardTotal > forwardPageSize && (
+    <div className="flex items-center justify-center gap-2 mt-4">
+      <Button size="sm" variant="flat" isDisabled={forwardPage === 1} onPress={() => setForwardPage((p) => Math.max(1, p - 1))}>←</Button>
+      {(() => {
+        const totalPages = Math.ceil(forwardTotal / forwardPageSize);
+        const pages = [];
+        if (totalPages <= 7) {
+          for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+          pages.push(1);
+          if (forwardPage > 3) pages.push("...");
+          const start = Math.max(2, forwardPage - 1);
+          const end = Math.min(totalPages - 1, forwardPage + 1);
+          for (let i = start; i <= end; i++) pages.push(i);
+          if (forwardPage < totalPages - 2) pages.push("...");
+          pages.push(totalPages);
+        }
+        return pages.map((p, idx) =>
+          typeof p === "string" ? (
+            <span key={"e"+idx} className="text-default-400 text-sm px-1">{p}</span>
+          ) : (
+            <Button key={p} size="sm" variant={p === forwardPage ? "solid" : "flat"} color={p === forwardPage ? "primary" : "default"} onPress={() => setForwardPage(p)}>{p}</Button>
+          )
+        );
+      })()}
+      <Button size="sm" variant="flat" isDisabled={forwardPage >= Math.ceil(forwardTotal / forwardPageSize)} onPress={() => setForwardPage((p) => Math.min(Math.ceil(forwardTotal / forwardPageSize), p + 1))}>→</Button>
+      <span className="text-default-400 text-sm ml-2">每页</span>
+      <select className="text-sm border border-input rounded px-2 py-1 bg-background" value={forwardPageSize} onChange={(e) => { setForwardPageSize(Number(e.target.value)); setForwardPage(1); }}>
+        <option value={10}>10</option>
+        <option value={50}>50</option>
+        <option value={100}>100</option>
+      </select>
+      <span className="text-default-400 text-sm">条</span>
+    </div>
+  );
+  
   const sortableForwardIds = useMemo(
     () => sortedForwards.map((f) => f.id).filter((id) => id > 0),
     [sortedForwards],
@@ -4625,10 +4650,7 @@ export default function ForwardPage() {
                           操作
                         </TableColumn>
                       </TableHeader>
-                      <TableBody
-                        emptyContent="暂无规则配置"
-                        items={sortedForwards}
-                      >
+                      <TableBody emptyContent="暂无规则配置" items={paginatedForwards}>
                         {(forward) => (
                           <SortableCompactTableRow
                             copyToClipboard={copyToClipboard}
@@ -4659,78 +4681,7 @@ export default function ForwardPage() {
                   </SortableContext>
                 </DndContext>
               </div>
-              {forwardTotal > forwardPageSize && (
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    isDisabled={forwardPage === 1}
-                    onPress={() => {
-                      setForwardPage((p) => Math.max(1, p - 1));
-                    }}
-                  >
-                    ←
-                  </Button>
-                  {(() => {
-                    const totalPages = Math.ceil(forwardTotal / forwardPageSize);
-                    const pages: (number | string)[] = [];
-                    const current = forwardPage;
-                    const total = totalPages;
-                    if (total <= 7) {
-                      for (let i = 1; i <= total; i++) pages.push(i);
-                    } else {
-                      pages.push(1);
-                      if (current > 3) pages.push("...");
-                      const start = Math.max(2, current - 1);
-                      const end = Math.min(total - 1, current + 1);
-                      for (let i = start; i <= end; i++) pages.push(i);
-                      if (current < total - 2) pages.push("...");
-                      pages.push(total);
-                    }
-                    return pages.map((p, idx) =>
-                      typeof p === "string" ? (
-                        <span key={`e${idx}`} className="text-default-400 text-sm px-1">
-                          {p}
-                        </span>
-                      ) : (
-                        <Button
-                          key={p}
-                          size="sm"
-                          variant={p === current ? "solid" : "flat"}
-                          color={p === current ? "primary" : "default"}
-                          onPress={() => setForwardPage(p)}
-                        >
-                          {p}
-                        </Button>
-                      ),
-                    );
-                  })()}
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    isDisabled={forwardPage >= Math.ceil(forwardTotal / forwardPageSize)}
-                    onPress={() => {
-                      setForwardPage((p) => Math.min(Math.ceil(forwardTotal / forwardPageSize), p + 1));
-                    }}
-                  >
-                    →
-                  </Button>
-                  <span className="text-default-400 text-sm ml-2">每页</span>
-                  <select
-                    className="text-sm border border-input rounded px-2 py-1 bg-background"
-                    value={forwardPageSize}
-                    onChange={(e) => {
-                      setForwardPageSize(Number(e.target.value));
-                      setForwardPage(1);
-                    }}
-                  >
-                    <option value={10}>10</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <span className="text-default-400 text-sm">条</span>
-                </div>
-              )}
+              {paginationUI}
             </>
           ) : (
             <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-default-50/50">
@@ -4766,7 +4717,7 @@ export default function ForwardPage() {
                 strategy={rectSortingStrategy}
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                  {sortedForwards.map((forward) =>
+                  {paginatedForwards.map((forward) =>
                     forward && forward.id ? (
                       <SortableForwardCard
                         key={forward.id}
