@@ -1872,7 +1872,7 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span className="text-sm text-foreground">
-                            {user.num}
+                            {user.num}条
                           </span>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -1944,7 +1944,7 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           <span className="text-sm text-default-600">
                             {user.renewalAmount && user.renewalAmount > 0
-                              ? user.renewalAmount
+                              ? `${user.renewalAmount}元`
                               : "-"}
                           </span>
                         </TableCell>
@@ -1956,7 +1956,7 @@ export default function UserPage() {
                                 : "text-default-400"
                             }`}
                           >
-                            {user.balance ? user.balance : "0"}
+                            {user.balance != null ? `${user.balance}元` : "-"}
                           </span>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -2045,20 +2045,13 @@ export default function UserPage() {
           </SortableContext>
         </DndContext>
       ) : (
-        <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-          {users.map((user) => {
+        <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+          {displayUsers.map((user) => {
             const userStatus = getUserStatus(user);
             const expStatus = user.expTime
               ? getExpireStatus(user.expTime)
               : null;
             const usedFlow = calculateUserTotalUsedFlow(user);
-            const flowPercent =
-              user.flow > 0
-                ? Math.min(
-                  (usedFlow / (user.flow * 1024 * 1024 * 1024)) * 100,
-                  100,
-                )
-                : 0;
 
             return (
               <StaggerItem key={user.id}>
@@ -2067,11 +2060,10 @@ export default function UserPage() {
                     ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
                     : ""
                     }`}
-                  onClick={() => toggleUserSelection(user.id)}
                 >
                   <Card className="shadow-none border-0">
                     <CardHeader className="pb-2 md:pb-2">
-                      <div className="flex items-center justify-between w-full mb-1">
+                      <div className="flex items-center justify-between w-full">
                         <div onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             isSelected={selectedUserIds.has(user.id)}
@@ -2091,43 +2083,33 @@ export default function UserPage() {
                           ) : null}
                         </div>
                       </div>
-                      <div className="min-w-0">
-                        <h3 className="font-semibold text-foreground truncate text-sm">
+                      <div className="flex justify-between items-center w-full mt-1">
+                        <span className="font-semibold text-foreground truncate text-sm">
                           {user.name || user.user}
-                        </h3>
-                        <p className="text-xs text-default-500 truncate">
+                        </span>
+                        <span className="text-xs text-default-500 truncate ml-2">
                           @{user.user}
-                        </p>
+                        </span>
                       </div>
                     </CardHeader>
                     <CardBody className="pt-0 pb-3 md:pt-0 md:pb-3">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-default-600">流量限制</span>
-                          <span
-                            className={`font-medium text-xs ${user.flow === 99999 ? "text-success" : ""}`}
-                          >
-                            {user.flow === 99999
-                              ? "不限"
-                              : formatFlow(user.flow, "gb")}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-default-600">已用流量</span>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-default-600 text-xs">已用流量</span>
                           <div className="flex items-center gap-1">
                             <span className="font-medium text-xs text-primary">
                               {formatFlow(usedFlow)}
                             </span>
                             <Button
                               isIconOnly
-                              className="w-6 h-6 min-w-6"
+                              className="w-5 h-5 min-w-5"
                               size="sm"
                               variant="flat"
                               onPress={() => openHistoryModal(user)}
                             >
                               <svg
                                 aria-hidden="true"
-                                className="w-4 h-4"
+                                className="w-3 h-3"
                                 fill="none"
                                 stroke="currentColor"
                                 strokeWidth={2}
@@ -2142,49 +2124,13 @@ export default function UserPage() {
                             </Button>
                           </div>
                         </div>
-                        {user.flow !== 99999 && (
-                          <Progress
-                            aria-label={`已用流量 ${flowPercent.toFixed(1)}%`}
-                            className="mt-1"
-                            color={flowPercent > 80 ? "danger" : "primary"}
-                            size="sm"
-                            value={flowPercent}
-                          />
-                        )}
-                        {/* 其他信息 */}
-                        <div className="space-y-1.5 pt-2 border-t border-divider">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-default-600">规则数量</span>
-                            <span className="font-medium text-xs">
-                              {user.num}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-default-600">续费金额</span>
-                            <span className="text-xs font-medium text-default-700">
-                              {user.renewalAmount && user.renewalAmount > 0
-                                ? user.renewalAmount
-                                : "-"}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-default-600">可用余额</span>
-                            <span
-                              className={`text-xs font-medium ${
-                                user.balance && user.balance > 0
-                                  ? "text-success"
-                                  : "text-default-400"
-                              }`}
-                            >
-                              {user.balance ?? 0}
-                            </span>
-                          </div>
-                          {user.expTime && user.expTime > 0 ? (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-default-600">到期时间</span>
-                              <div className="flex items-center gap-1">
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-default-600 text-xs">到期时间</span>
+                          <div className="flex items-center gap-1">
+                            {user.expTime && user.expTime > 0 ? (
+                              <>
                                 {expStatus && expStatus.color === "success" ? (
-                                  <div className="text-xs">
+                                  <span className="text-xs">
                                     {new Date(user.expTime).toLocaleDateString(
                                       "zh-CN",
                                       {
@@ -2193,13 +2139,13 @@ export default function UserPage() {
                                         day: "2-digit",
                                       },
                                     ).replace(/\//g, "-")}
-                                  </div>
+                                  </span>
                                 ) : (
-                                  <div
-                                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "default") === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : expStatus?.color === "warning" ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : expStatus?.color === "danger" ? "bg-danger-500/10 text-danger-600 dark:text-danger-400" : "bg-default-500/10 text-default-500"}`}
+                                  <span
+                                    className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "default") === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : expStatus?.color === "warning" ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : expStatus?.color === "danger" ? "bg-danger-500/10 text-danger-600 dark:text-danger-400" : "bg-default-500/10 text-default-500"}`}
                                   >
                                     {expStatus?.text || "未知状态"}
-                                  </div>
+                                  </span>
                                 )}
                                 <Button
                                   isIconOnly
@@ -2213,7 +2159,7 @@ export default function UserPage() {
                                 >
                                   <svg
                                     aria-hidden="true"
-                                    className="w-4 h-4"
+                                    className="w-3 h-3"
                                     fill="none"
                                     stroke="currentColor"
                                     strokeWidth={2}
@@ -2226,124 +2172,161 @@ export default function UserPage() {
                                     />
                                   </svg>
                                 </Button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-default-600">到期时间</span>
-                              <span className="text-sm text-default-600">
-                                永久
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex justify-between text-sm">
-                            <span className="text-default-600">监控权限</span>
-                            <div
-                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionUserIds.has(user.id)
+                              </>
+                            ) : (
+                              <span className="text-xs text-default-600">永久</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-default-600 text-xs">流量限制</span>
+                          <span
+                            className={`font-medium text-xs ${user.flow === 99999 ? "text-success" : ""}`}
+                          >
+                            {user.flow === 99999
+                              ? "不限"
+                              : formatFlow(user.flow, "gb")}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-default-600 text-xs">规则数量</span>
+                          <span className="font-medium text-xs">
+                            {user.num}条
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-default-600 text-xs">续费金额</span>
+                          <span className="text-xs font-medium text-default-700">
+                            {user.renewalAmount && user.renewalAmount > 0
+                              ? `${user.renewalAmount}元`
+                              : "-"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-default-600 text-xs">可用余额</span>
+                          <span
+                            className={`text-xs font-medium ${
+                              user.balance && user.balance > 0
+                                ? "text-success"
+                                : "text-default-400"
+                            }`}
+                          >
+                            {user.balance != null ? `${user.balance}元` : "-"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-default-600 text-xs">自动续费</span>
+                          <div
+                            className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                              user.autoRenew === 1
                                 ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-default-500/10 text-default-500"
-                                }`}
-                            >
-                              {monitorPermissionUserIds.has(user.id) ? (
-                                <>
-                                  <EyeIcon className="w-3 h-3" />
-                                  已打开
-                                </>
-                              ) : (
-                                <>
-                                  <EyeOffIcon className="w-3 h-3" />
-                                  已关闭
-                                </>
-                              )}
-                            </div>
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
+                          >
+                            {user.autoRenew === 1 ? "启用" : "禁用"}
                           </div>
                         </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-default-600">自动购流</span>
-                            <div
-                              className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                                user.autoBuyTraffic === 1
-                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-default-600 text-xs">自动购流</span>
+                          <div
+                            className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                              user.autoBuyTraffic === 1
+                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
+                          >
+                            {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
+                          </div>
+                        </div>
+                        <div className="col-span-2 flex justify-between text-sm items-center pt-1.5 border-t border-divider">
+                          <span className="text-default-600 text-xs">监控权限</span>
+                          <div
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionUserIds.has(user.id)
+                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                              : "bg-default-500/10 text-default-500"
                               }`}
-                            >
-                              {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
-                            </div>
+                          >
+                            {monitorPermissionUserIds.has(user.id) ? (
+                              <>
+                                <EyeIcon className="w-3 h-3" />
+                                已打开
+                              </>
+                            ) : (
+                              <>
+                                <EyeOffIcon className="w-3 h-3" />
+                                已关闭
+                              </>
+                            )}
                           </div>
                         </div>
-                      <div className="space-y-1.5 mt-3">
-                        {/* 第一行：编辑和归零 */}
-                        <div className="flex gap-1.5">
-                          <Button
-                            className="flex-1 min-h-8"
-                            color="primary"
-                            size="sm"
-                            variant="flat"
-                            onPress={(e) => {
-                              e?.stopPropagation();
-                              handleEdit(user);
-                            }}
-                          >
-                            编辑
-                          </Button>
-                          <Button
-                            className="flex-1 min-h-8"
-                            color="success"
-                            size="sm"
-                            variant="flat"
-                            onPress={(e) => {
-                              e?.stopPropagation();
-                              handleResetFlow(user);
-                            }}
-                          >
-                            归零
-                          </Button>
-                        </div>
-                        {/* 第二行：权限、监控和删除 */}
-                        <div className="flex gap-1.5">
-                          <Button
-                            className="flex-1 min-h-8"
-                            color="secondary"
-                            size="sm"
-                            variant="flat"
-                            onPress={(e) => {
-                              e?.stopPropagation();
-                              handleManageTunnels(user);
-                            }}
-                          >
-                            隧道
-                          </Button>
-                          <Button
-                            className="flex-1 min-h-8"
-                            color={
-                              monitorPermissionUserIds.has(user.id)
-                                ? "success"
-                                : "default"
-                            }
-                            size="sm"
-                            variant="flat"
-                            onPress={(e) => {
-                              e?.stopPropagation();
-                              handleOpenMonitorModal(user);
-                            }}
-                          >
-                            {monitorPermissionUserIds.has(user.id)
-                              ? "监控"
-                              : "监控"}
-                          </Button>
-                          <Button
-                            className="flex-1 min-h-8"
-                            color="danger"
-                            size="sm"
-                            variant="flat"
-                            onPress={(e) => {
-                              e?.stopPropagation();
-                              handleDelete(user);
-                            }}
-                          >
-                            删除
-                          </Button>
-                        </div>
+                      </div>
+                      <div className="flex gap-1.5 mt-3">
+                        <Button
+                          className="flex-1 min-h-8"
+                          color="primary"
+                          size="sm"
+                          variant="flat"
+                          onPress={(e) => {
+                            e?.stopPropagation();
+                            handleEdit(user);
+                          }}
+                        >
+                          编辑
+                        </Button>
+                        <Button
+                          className="flex-1 min-h-8"
+                          color="secondary"
+                          size="sm"
+                          variant="flat"
+                          onPress={(e) => {
+                            e?.stopPropagation();
+                            handleManageTunnels(user);
+                          }}
+                        >
+                          隧道
+                        </Button>
+                        <Button
+                          className="flex-1 min-h-8"
+                          color={
+                            monitorPermissionUserIds.has(user.id)
+                              ? "success"
+                              : "default"
+                          }
+                          size="sm"
+                          variant="flat"
+                          onPress={(e) => {
+                            e?.stopPropagation();
+                            handleOpenMonitorModal(user);
+                          }}
+                        >
+                          {monitorPermissionUserIds.has(user.id)
+                            ? "监控"
+                            : "监控"}
+                        </Button>
+                        <Button
+                          className="flex-1 min-h-8"
+                          color="success"
+                          size="sm"
+                          variant="flat"
+                          onPress={(e) => {
+                            e?.stopPropagation();
+                            handleResetFlow(user);
+                          }}
+                        >
+                          归零
+                        </Button>
+                        <Button
+                          className="flex-1 min-h-8"
+                          color="danger"
+                          size="sm"
+                          variant="flat"
+                          onPress={(e) => {
+                            e?.stopPropagation();
+                            handleDelete(user);
+                          }}
+                        >
+                          删除
+                        </Button>
                       </div>
                     </CardBody>
                   </Card>
