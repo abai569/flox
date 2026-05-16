@@ -630,7 +630,7 @@ export default function DashboardPage() {
               </div>
             }
             value={userInfo.autoRenew === 1 ? "启用" : "禁用"}
-            bottomContent={userInfo.autoRenew === 1 ? (<div className="mt-1 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-success"></div><span className="text-xs text-success">自动续费运行中</span></div>) : (<div className="mt-1 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-default-400"></div><span className="text-xs text-default-500">到期后将停用</span></div>)}
+            bottomContent={userInfo.autoRenew === 1 ? (<div className="mt-1 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-success"></div><span className="text-xs text-success">自动续费运行中</span></div>) : (<div className="mt-1 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-default-400"></div><span className="text-xs text-default-500">到期后将禁用</span></div>)}
           />
             </div>
           </>
