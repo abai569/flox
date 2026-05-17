@@ -3829,8 +3829,8 @@ export default function ForwardPage() {
   }, [forwardTotal, forwardPageSize, forwardPage]);
 
   const paginationUI = (
-    <div className="flex items-center justify-center gap-2 mt-4 mb-4">
-      <Button size="sm" variant="flat" isDisabled={forwardPage === 1} onPress={() => setForwardPage((p) => Math.max(1, p - 1))}>←</Button>
+    <div className="flex flex-wrap items-center justify-center gap-2 mt-4 mb-4">
+      <Button size="sm" variant="flat" className="min-w-8 px-2" isDisabled={forwardPage === 1} onPress={() => setForwardPage((p) => Math.max(1, p - 1))}>{"<"}</Button>
       {(() => {
         const totalPages = Math.ceil(forwardTotal / forwardPageSize);
         const pages = [];
@@ -3853,7 +3853,7 @@ export default function ForwardPage() {
           )
         );
       })()}
-      <Button size="sm" variant="flat" isDisabled={forwardPage >= Math.ceil(forwardTotal / forwardPageSize)} onPress={() => setForwardPage((p) => Math.min(Math.ceil(forwardTotal / forwardPageSize), p + 1))}>→</Button>
+      <Button size="sm" variant="flat" className="min-w-8 px-2" isDisabled={forwardPage >= Math.ceil(forwardTotal / forwardPageSize)} onPress={() => setForwardPage((p) => Math.min(Math.ceil(forwardTotal / forwardPageSize), p + 1))}>{">"}</Button>
       <span className="text-default-400 text-sm ml-2">每页</span>
       <select className="text-sm border border-input rounded px-2 py-1 bg-background" value={forwardPageSize} onChange={(e) => { setForwardPageSize(Number(e.target.value)); setForwardPage(1); }}>
         <option value={10}>10</option>
@@ -3877,8 +3877,8 @@ export default function ForwardPage() {
   }, [groupTotal, groupPageSize, groupPage]);
 
   const groupPaginationUI = (
-    <div className="flex items-center justify-center gap-2 mt-4 mb-4">
-      <Button size="sm" variant="flat" isDisabled={groupPage === 1} onPress={() => setGroupPage((p) => Math.max(1, p - 1))}>←</Button>
+    <div className="flex flex-wrap items-center justify-center gap-2 mt-4 mb-4">
+      <Button size="sm" variant="flat" className="min-w-8 px-2" isDisabled={groupPage === 1} onPress={() => setGroupPage((p) => Math.max(1, p - 1))}>{"<"}</Button>
       {(() => {
         const totalPages = Math.ceil(groupTotal / groupPageSize);
         const pages = [];
@@ -3901,7 +3901,7 @@ export default function ForwardPage() {
           )
         );
       })()}
-      <Button size="sm" variant="flat" isDisabled={groupPage >= Math.ceil(groupTotal / groupPageSize)} onPress={() => setGroupPage((p) => Math.min(Math.ceil(groupTotal / groupPageSize), p + 1))}>→</Button>
+      <Button size="sm" variant="flat" className="min-w-8 px-2" isDisabled={groupPage >= Math.ceil(groupTotal / groupPageSize)} onPress={() => setGroupPage((p) => Math.min(Math.ceil(groupTotal / groupPageSize), p + 1))}>{">"}</Button>
       <span className="text-default-400 text-sm ml-2">每页</span>
       <select className="text-sm border border-input rounded px-2 py-1 bg-background" value={groupPageSize} onChange={(e) => { setGroupPageSize(Number(e.target.value)); setGroupPage(1); }}>
         <option value={5}>5</option>
