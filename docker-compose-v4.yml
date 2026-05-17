@@ -82,7 +82,7 @@ services:
 
 volumes:
   sqlite_data:
-    external: true
+    driver: local
   postgres_data:
     name: postgres_data
     driver: local
