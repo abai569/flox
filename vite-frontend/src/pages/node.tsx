@@ -2462,7 +2462,7 @@ export default function NodePage() {
                 >
                   {/* 按钮显示的是"下一个要切换到的视图"的名称 */}
                   {viewMode === "grouped"
-                    ? "默认"
+                    ? "分组"
                     : viewMode === "list"
                       ? "列表"
                       : "卡片"}
