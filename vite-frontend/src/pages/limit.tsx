@@ -277,7 +277,7 @@ export default function LimitPage() {
             <Table
               aria-label="限速规则列表"
               classNames={{
-                th: "bg-default-100/50 text-default-600 font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
+                th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
                 td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
                 tr: "hover:bg-default-50/50 transition-colors",
               }}
@@ -299,7 +299,12 @@ export default function LimitPage() {
                   更新时间
                 </TableColumn>
                 <TableColumn className="whitespace-nowrap flex-shrink-0 w-[200px] text-left">
-                  操作
+                  <div className="flex items-center justify-between w-full">
+                    <span>操作</span>
+                    <span className="text-xs text-default-500 font-normal">
+                      {filteredRules.length} 条规则
+                    </span>
+                  </div>
                 </TableColumn>
               </TableHeader>
               <TableBody>
@@ -384,72 +389,84 @@ export default function LimitPage() {
             </Table>
           </div>
         ) : (
-          <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-            {filteredRules.map((rule) => (
-              <StaggerItem key={rule.id}>
-                <Card className="shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full">
-                  <CardHeader className="pb-2 md:pb-2">
-                    <div className="flex justify-between items-start w-full">
-                      <div>
-                        <h3 className="font-semibold text-foreground">
-                          {rule.name}
-                        </h3>
-                      </div>
-                      <div
-                        className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${rule.status === 1 ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
-                      >
-                        {rule.status === 1 ? "运行" : "异常"}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardBody className="pt-0 pb-3 md:pt-0 md:pb-3">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-small text-default-600">
-                          速度限制
-                        </span>
-                        <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-secondary-500/10 text-secondary-600 dark:text-secondary-400">
-                          {rule.speed}M
+          <div className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-md">
+            <div className="flex items-center justify-between border-b border-divider bg-default-100/40 px-4 py-3">
+              <span className="text-sm font-semibold text-foreground">
+                admin
+              </span>
+              <span className="text-xs text-default-500">
+                {filteredRules.length} 条规则
+              </span>
+            </div>
+            <div className="p-4">
+              <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                {filteredRules.map((rule) => (
+                  <StaggerItem key={rule.id}>
+                    <Card className="shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden h-full">
+                      <CardHeader className="pb-2 md:pb-2">
+                        <div className="flex justify-between items-start w-full">
+                          <div>
+                            <h3 className="font-semibold text-foreground">
+                              {rule.name}
+                            </h3>
+                          </div>
+                          <div
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${rule.status === 1 ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
+                          >
+                            {rule.status === 1 ? "运行" : "异常"}
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 mt-4">
-                      <Button
-                        className="flex-1"
-                        color="primary"
-                        size="sm"
-                        variant="flat"
-                        onPointerDown={(e) => {
-                          e.stopPropagation();
-                        }}
-                        onPress={() => handleEdit(rule)}
-                        onTouchStart={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        编辑
-                      </Button>
-                      <Button
-                        className="flex-1"
-                        color="danger"
-                        size="sm"
-                        variant="flat"
-                        onPointerDown={(e) => {
-                          e.stopPropagation();
-                        }}
-                        onPress={() => handleDelete(rule)}
-                        onTouchStart={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        删除
-                      </Button>
-                    </div>
-                  </CardBody>
-                </Card>
-              </StaggerItem>
-            ))}
-          </StaggerList>
+                      </CardHeader>
+                      <CardBody className="pt-0 pb-3 md:pt-0 md:pb-3">
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-small text-default-600">
+                              速度限制
+                            </span>
+                            <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-secondary-500/10 text-secondary-600 dark:text-secondary-400">
+                              {rule.speed}M
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <Button
+                            className="flex-1"
+                            color="primary"
+                            size="sm"
+                            variant="flat"
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onPress={() => handleEdit(rule)}
+                            onTouchStart={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            编辑
+                          </Button>
+                          <Button
+                            className="flex-1"
+                            color="danger"
+                            size="sm"
+                            variant="flat"
+                            onPointerDown={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onPress={() => handleDelete(rule)}
+                            onTouchStart={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </CardBody>
+                    </Card>
+                  </StaggerItem>
+                ))}
+              </StaggerList>
+            </div>
+          </div>
         )
       ) : (
         <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-default-50/50">
