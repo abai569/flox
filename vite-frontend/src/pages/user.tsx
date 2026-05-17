@@ -1740,6 +1740,9 @@ export default function UserPage() {
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
                     用户名
+                    <span className="text-xs text-primary-500 font-normal">
+                      ^{displayUsers.length}个
+                    </span>
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
                     备注
@@ -1778,12 +1781,7 @@ export default function UserPage() {
                     自动购流
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[240px] text-left">
-                    <div className="flex items-center justify-between w-full">
-                      <span>操作</span>
-                      <span className="text-xs text-default-500 font-normal">
-                        {displayUsers.length} 个用户
-                      </span>
-                    </div>
+                    操作
                   </TableColumn>
                 </TableHeader>
                 <TableBody>
@@ -1990,13 +1988,13 @@ export default function UserPage() {
                               ) : (
                                 <div
                                   className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "") ===
-                                      "success"
-                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                      : expStatus?.color === "warning"
-                                        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-                                        : expStatus?.color === "danger"
-                                          ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                          : "bg-default-500/10 text-default-500"
+                                    "success"
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : expStatus?.color === "warning"
+                                      ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                                      : expStatus?.color === "danger"
+                                        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                        : "bg-default-500/10 text-default-500"
                                     }`}
                                 >
                                   {expStatus?.text || "未知"}
@@ -2017,8 +2015,8 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           <span
                             className={`text-sm font-medium ${user.balance && user.balance > 0
-                                ? "text-success"
-                                : "text-default-400"
+                              ? "text-success"
+                              : "text-default-400"
                               }`}
                           >
                             {user.balance != null ? `${user.balance}元` : "-"}
@@ -2027,8 +2025,8 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           <div
                             className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
                               }`}
                           >
                             {user.autoRenew === 1 ? "启用" : "禁用"}
@@ -2037,8 +2035,8 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           <div
                             className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
                               }`}
                           >
                             {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
@@ -2120,129 +2118,79 @@ export default function UserPage() {
           <div className="p-4">
             <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
               {displayUsers.map((user) => {
-            const userStatus = getUserStatus(user);
-            const expStatus = user.expTime
-              ? getExpireStatus(user.expTime)
-              : null;
-            const usedFlow = calculateUserTotalUsedFlow(user);
+                const userStatus = getUserStatus(user);
+                const expStatus = user.expTime
+                  ? getExpireStatus(user.expTime)
+                  : null;
+                const usedFlow = calculateUserTotalUsedFlow(user);
 
-            return (
-              <StaggerItem key={user.id}>
-                <div
-                  className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${selectedUserIds.has(user.id)
-                    ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
-                    : ""
-                    }`}
-                >
-                  <Card className="shadow-none border-0">
-                    <CardHeader className="pb-2 md:pb-2">
-                      <div className="flex items-center justify-between w-full">
-                        <div onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            isSelected={selectedUserIds.has(user.id)}
-                            onValueChange={() => toggleUserSelection(user.id)}
-                          />
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${userStatus.color === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
-                          >
-                            {userStatus.text}
-                          </div>
-                          {user.disabledByQuota ? (
-                            <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-danger-500/10 text-danger-600 dark:text-danger-400">
-                              配额超额
+                return (
+                  <StaggerItem key={user.id}>
+                    <div
+                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${selectedUserIds.has(user.id)
+                        ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
+                        : ""
+                        }`}
+                    >
+                      <Card className="shadow-none border-0">
+                        <CardHeader className="pb-2 md:pb-2">
+                          <div className="flex items-center justify-between w-full">
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                isSelected={selectedUserIds.has(user.id)}
+                                onValueChange={() => toggleUserSelection(user.id)}
+                              />
                             </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center w-full mt-1">
-                        <span
-                          className="font-medium text-sm text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
-                          title={user.user}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(user.user, "用户名");
-                          }}
-                        >
-                          @{user.user}
-                        </span>
-                        <span
-                          className="text-sm text-default-500 truncate ml-2 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
-                          title={user.name || user.user}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            copyToClipboard(user.name || user.user, "备注");
-                          }}
-                        >
-                          {user.name || user.user}
-                        </span>                        
-                      </div>
-                    </CardHeader>
-                    <CardBody className="pt-0 pb-3 md:pt-0 md:pb-3">
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-default-600 text-xs">已用流量</span>
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium text-xs text-primary">
-                              {formatFlow(usedFlow)}
-                            </span>
-                            <Button
-                              isIconOnly
-                              className="w-5 h-5 min-w-5"
-                              size="sm"
-                              variant="flat"
-                              onPress={() => openHistoryModal(user)}
-                            >
-                              <svg
-                                aria-hidden="true"
-                                className="w-3 h-3"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                viewBox="0 0 24 24"
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <div
+                                className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${userStatus.color === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
                               >
-                                <path
-                                  d="M19 9l-7 7-7-7"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </Button>
+                                {userStatus.text}
+                              </div>
+                              {user.disabledByQuota ? (
+                                <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-danger-500/10 text-danger-600 dark:text-danger-400">
+                                  配额超额
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-default-600 text-xs">到期时间</span>
-                          <div className="flex items-center gap-1">
-                            {user.expTime && user.expTime > 0 ? (
-                              <>
-                                {expStatus && expStatus.color === "success" ? (
-                                  <span className="text-xs">
-                                    {new Date(user.expTime).toLocaleDateString(
-                                      "zh-CN",
-                                      {
-                                        year: "numeric",
-                                        month: "2-digit",
-                                        day: "2-digit",
-                                      },
-                                    ).replace(/\//g, "-")}
-                                  </span>
-                                ) : (
-                                  <span
-                                    className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "default") === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : expStatus?.color === "warning" ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : expStatus?.color === "danger" ? "bg-danger-500/10 text-danger-600 dark:text-danger-400" : "bg-default-500/10 text-default-500"}`}
-                                  >
-                                    {expStatus?.text || "未知状态"}
-                                  </span>
-                                )}
+                          <div className="flex justify-between items-center w-full mt-1">
+                            <span
+                              className="font-medium text-sm text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
+                              title={user.user}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(user.user, "用户名");
+                              }}
+                            >
+                              @{user.user}
+                            </span>
+                            <span
+                              className="text-sm text-default-500 truncate ml-2 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
+                              title={user.name || user.user}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(user.name || user.user, "备注");
+                              }}
+                            >
+                              {user.name || user.user}
+                            </span>
+                          </div>
+                        </CardHeader>
+                        <CardBody className="pt-0 pb-3 md:pt-0 md:pb-3">
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">已用流量</span>
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium text-xs text-primary">
+                                  {formatFlow(usedFlow)}
+                                </span>
                                 <Button
                                   isIconOnly
                                   className="w-5 h-5 min-w-5"
                                   size="sm"
                                   variant="flat"
-                                  onPress={(e) => {
-                                    e?.stopPropagation();
-                                    handleOpenRenewalLogModal(user);
-                                  }}
+                                  onPress={() => openHistoryModal(user)}
                                 >
                                   <svg
                                     aria-hidden="true"
@@ -2259,166 +2207,216 @@ export default function UserPage() {
                                     />
                                   </svg>
                                 </Button>
-                              </>
-                            ) : (
-                              <span className="text-xs text-default-600">永久</span>
-                            )}
+                              </div>
+                            </div>
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">到期时间</span>
+                              <div className="flex items-center gap-1">
+                                {user.expTime && user.expTime > 0 ? (
+                                  <>
+                                    {expStatus && expStatus.color === "success" ? (
+                                      <span className="text-xs">
+                                        {new Date(user.expTime).toLocaleDateString(
+                                          "zh-CN",
+                                          {
+                                            year: "numeric",
+                                            month: "2-digit",
+                                            day: "2-digit",
+                                          },
+                                        ).replace(/\//g, "-")}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "default") === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : expStatus?.color === "warning" ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : expStatus?.color === "danger" ? "bg-danger-500/10 text-danger-600 dark:text-danger-400" : "bg-default-500/10 text-default-500"}`}
+                                      >
+                                        {expStatus?.text || "未知状态"}
+                                      </span>
+                                    )}
+                                    <Button
+                                      isIconOnly
+                                      className="w-5 h-5 min-w-5"
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={(e) => {
+                                        e?.stopPropagation();
+                                        handleOpenRenewalLogModal(user);
+                                      }}
+                                    >
+                                      <svg
+                                        aria-hidden="true"
+                                        className="w-3 h-3"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth={2}
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          d="M19 9l-7 7-7-7"
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-default-600">永久</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">流量限制</span>
+                              <span
+                                className={`font-medium text-xs ${user.flow === 99999 ? "text-success" : ""}`}
+                              >
+                                {user.flow === 99999
+                                  ? "不限"
+                                  : formatFlow(user.flow, "gb")}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">规则数量</span>
+                              <span className="font-medium text-xs">
+                                {user.num}个
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">续费金额</span>
+                              <span className="text-xs font-medium text-default-700">
+                                {user.renewalAmount && user.renewalAmount > 0
+                                  ? `${user.renewalAmount}元`
+                                  : "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">可用余额</span>
+                              <span
+                                className={`text-xs font-medium ${user.balance && user.balance > 0
+                                  ? "text-success"
+                                  : "text-default-400"
+                                  }`}
+                              >
+                                {user.balance != null ? `${user.balance}元` : "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">自动续费</span>
+                              <div
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                  }`}
+                              >
+                                {user.autoRenew === 1 ? "启用" : "禁用"}
+                              </div>
+                            </div>
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">自动购流</span>
+                              <div
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                  }`}
+                              >
+                                {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
+                              </div>
+                            </div>
+                            <div className="col-span-2 flex justify-between text-sm items-center pt-1.5 border-t border-divider">
+                              <span className="text-default-600 text-xs">监控权限</span>
+                              <div
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionUserIds.has(user.id)
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-default-500/10 text-default-500"
+                                  }`}
+                              >
+                                {monitorPermissionUserIds.has(user.id) ? (
+                                  <>
+                                    <EyeIcon className="w-3 h-3" />
+                                    已打开
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOffIcon className="w-3 h-3" />
+                                    已关闭
+                                  </>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-default-600 text-xs">流量限制</span>
-                          <span
-                            className={`font-medium text-xs ${user.flow === 99999 ? "text-success" : ""}`}
-                          >
-                            {user.flow === 99999
-                              ? "不限"
-                              : formatFlow(user.flow, "gb")}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-default-600 text-xs">规则数量</span>
-                          <span className="font-medium text-xs">
-                            {user.num}个
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-default-600 text-xs">续费金额</span>
-                          <span className="text-xs font-medium text-default-700">
-                            {user.renewalAmount && user.renewalAmount > 0
-                              ? `${user.renewalAmount}元`
-                              : "-"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-default-600 text-xs">可用余额</span>
-                          <span
-                            className={`text-xs font-medium ${user.balance && user.balance > 0
-                                ? "text-success"
-                                : "text-default-400"
-                              }`}
-                          >
-                            {user.balance != null ? `${user.balance}元` : "-"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-default-600 text-xs">自动续费</span>
-                          <div
-                            className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                              }`}
-                          >
-                            {user.autoRenew === 1 ? "启用" : "禁用"}
+                          <div className="flex gap-1.5 mt-3">
+                            <Button
+                              className="flex-1 min-h-8"
+                              color="primary"
+                              size="sm"
+                              variant="flat"
+                              onPress={(e) => {
+                                e?.stopPropagation();
+                                handleEdit(user);
+                              }}
+                            >
+                              编辑
+                            </Button>
+                            <Button
+                              className="flex-1 min-h-8"
+                              color="secondary"
+                              size="sm"
+                              variant="flat"
+                              onPress={(e) => {
+                                e?.stopPropagation();
+                                handleManageTunnels(user);
+                              }}
+                            >
+                              隧道
+                            </Button>
+                            <Button
+                              className="flex-1 min-h-8"
+                              color={
+                                monitorPermissionUserIds.has(user.id)
+                                  ? "success"
+                                  : "default"
+                              }
+                              size="sm"
+                              variant="flat"
+                              onPress={(e) => {
+                                e?.stopPropagation();
+                                handleOpenMonitorModal(user);
+                              }}
+                            >
+                              {monitorPermissionUserIds.has(user.id)
+                                ? "监控"
+                                : "监控"}
+                            </Button>
+                            <Button
+                              className="flex-1 min-h-8"
+                              color="success"
+                              size="sm"
+                              variant="flat"
+                              onPress={(e) => {
+                                e?.stopPropagation();
+                                handleResetFlow(user);
+                              }}
+                            >
+                              归零
+                            </Button>
+                            <Button
+                              className="flex-1 min-h-8"
+                              color="danger"
+                              size="sm"
+                              variant="flat"
+                              onPress={(e) => {
+                                e?.stopPropagation();
+                                handleDelete(user);
+                              }}
+                            >
+                              删除
+                            </Button>
                           </div>
-                        </div>
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-default-600 text-xs">自动购流</span>
-                          <div
-                            className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                              }`}
-                          >
-                            {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
-                          </div>
-                        </div>
-                        <div className="col-span-2 flex justify-between text-sm items-center pt-1.5 border-t border-divider">
-                          <span className="text-default-600 text-xs">监控权限</span>
-                          <div
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionUserIds.has(user.id)
-                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                              : "bg-default-500/10 text-default-500"
-                              }`}
-                          >
-                            {monitorPermissionUserIds.has(user.id) ? (
-                              <>
-                                <EyeIcon className="w-3 h-3" />
-                                已打开
-                              </>
-                            ) : (
-                              <>
-                                <EyeOffIcon className="w-3 h-3" />
-                                已关闭
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-1.5 mt-3">
-                        <Button
-                          className="flex-1 min-h-8"
-                          color="primary"
-                          size="sm"
-                          variant="flat"
-                          onPress={(e) => {
-                            e?.stopPropagation();
-                            handleEdit(user);
-                          }}
-                        >
-                          编辑
-                        </Button>
-                        <Button
-                          className="flex-1 min-h-8"
-                          color="secondary"
-                          size="sm"
-                          variant="flat"
-                          onPress={(e) => {
-                            e?.stopPropagation();
-                            handleManageTunnels(user);
-                          }}
-                        >
-                          隧道
-                        </Button>
-                        <Button
-                          className="flex-1 min-h-8"
-                          color={
-                            monitorPermissionUserIds.has(user.id)
-                              ? "success"
-                              : "default"
-                          }
-                          size="sm"
-                          variant="flat"
-                          onPress={(e) => {
-                            e?.stopPropagation();
-                            handleOpenMonitorModal(user);
-                          }}
-                        >
-                          {monitorPermissionUserIds.has(user.id)
-                            ? "监控"
-                            : "监控"}
-                        </Button>
-                        <Button
-                          className="flex-1 min-h-8"
-                          color="success"
-                          size="sm"
-                          variant="flat"
-                          onPress={(e) => {
-                            e?.stopPropagation();
-                            handleResetFlow(user);
-                          }}
-                        >
-                          归零
-                        </Button>
-                        <Button
-                          className="flex-1 min-h-8"
-                          color="danger"
-                          size="sm"
-                          variant="flat"
-                          onPress={(e) => {
-                            e?.stopPropagation();
-                            handleDelete(user);
-                          }}
-                        >
-                          删除
-                        </Button>
-                      </div>
-                    </CardBody>
-                  </Card>
-                </div>
-              </StaggerItem>
-            );
-            })}
-          </StaggerList>
+                        </CardBody>
+                      </Card>
+                    </div>
+                  </StaggerItem>
+                );
+              })}
+            </StaggerList>
           </div>
         </div>
       )}
@@ -2793,8 +2791,8 @@ export default function UserPage() {
                       <TableCell>
                         <span
                           className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动续费"
-                              ? "bg-success-500/10 text-success-600"
-                              : "bg-default-500/10 text-default-600"
+                            ? "bg-success-500/10 text-success-600"
+                            : "bg-default-500/10 text-default-600"
                             }`}
                         >
                           {log.reason}

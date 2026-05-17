@@ -284,7 +284,10 @@ export default function LimitPage() {
             >
               <TableHeader>
                 <TableColumn className="whitespace-nowrap flex-shrink-0 w-[200px] text-left">
-                  规则名
+                  限速名称
+                  <span className="text-xs text-primary-500 font-normal">
+                    ^{filteredRules.length}个
+                  </span>
                 </TableColumn>
                 <TableColumn className="whitespace-nowrap flex-shrink-0 w-[120px] text-left">
                   速度限制
@@ -299,23 +302,17 @@ export default function LimitPage() {
                   更新时间
                 </TableColumn>
                 <TableColumn className="whitespace-nowrap flex-shrink-0 w-[200px] text-left">
-                  <div className="flex items-center justify-between w-full">
-                    <span>操作</span>
-                    <span className="text-xs text-default-500 font-normal">
-                      {filteredRules.length} 个限速
-                    </span>
-                  </div>
+                  操作
                 </TableColumn>
               </TableHeader>
               <TableBody>
                 {filteredRules.map((rule) => (
                   <TableRow
                     key={rule.id}
-                    className={`cursor-pointer transition-colors ${
-                      selectedRuleId === rule.id
+                    className={`cursor-pointer transition-colors ${selectedRuleId === rule.id
                         ? "bg-primary-50 dark:bg-primary-900/30"
                         : "hover:bg-default-50/50"
-                    }`}
+                      }`}
                     onClick={() => {
                       if (selectedRuleId !== rule.id) {
                         setSelectedRuleId(rule.id);

@@ -191,10 +191,10 @@ const SortableListRowItem = ({
   const style: React.CSSProperties = {
     transform: transform
       ? CSS.Transform.toString({
-          ...transform,
-          x: 0,
-          y: Math.round(transform.y),
-        })
+        ...transform,
+        x: 0,
+        y: Math.round(transform.y),
+      })
       : undefined,
     transition: isDragging ? undefined : transition || undefined,
     opacity: isDragging ? 0.9 : 1,
@@ -224,10 +224,10 @@ const SortableItem = ({
   const style: React.CSSProperties = {
     transform: transform
       ? CSS.Transform.toString({
-          ...transform,
-          x: Math.round(transform.x),
-          y: Math.round(transform.y),
-        })
+        ...transform,
+        x: Math.round(transform.x),
+        y: Math.round(transform.y),
+      })
       : undefined,
     transition: isDragging ? undefined : transition || undefined,
     opacity: isDragging ? 0.5 : 1,
@@ -290,11 +290,11 @@ const mapTunnelApiItems = (items: any[]): Tunnel[] => {
     bestExitState:
       tunnel.bestExitState && typeof tunnel.bestExitState === "object"
         ? {
-            ...tunnel.bestExitState,
-            items: Array.isArray(tunnel.bestExitState.items)
-              ? tunnel.bestExitState.items
-              : [],
-          }
+          ...tunnel.bestExitState,
+          items: Array.isArray(tunnel.bestExitState.items)
+            ? tunnel.bestExitState.items
+            : [],
+        }
         : null,
   }));
 };
@@ -329,11 +329,10 @@ const renderBestExitState = (state?: BestExitState | null) => {
 
   return (
     <div
-      className={`mt-1 text-[11px] leading-4 ${
-        isWaiting
+      className={`mt-1 text-[11px] leading-4 ${isWaiting
           ? "text-default-500"
           : "text-emerald-700 dark:text-emerald-300"
-      }`}
+        }`}
       title={title || undefined}
     >
       最优出口：{state.summary || "等待探测"}
@@ -521,7 +520,7 @@ export default function TunnelPage() {
       if (nodesRes.code === 0) {
         setNodes(nodesRes.data || []);
       }
-    } catch {}
+    } catch { }
   }, []);
   // 加载隧道分组
   const loadTunnelGroupsNew = useCallback(async () => {
@@ -681,9 +680,9 @@ export default function TunnelPage() {
       trafficRatio: tunnel.trafficRatio,
       inIp: tunnel.inIp
         ? tunnel.inIp
-            .split(",")
-            .map((ip: string) => ip.trim())
-            .join("\n")
+          .split(",")
+          .map((ip: string) => ip.trim())
+          .join("\n")
         : "",
       ipPreference: tunnel.ipPreference || "",
       status: tunnel.status,
@@ -1332,12 +1331,12 @@ export default function TunnelPage() {
           onStart: (payload) => {
             const startTunnelName =
               typeof payload.tunnelName === "string" &&
-              payload.tunnelName.trim() !== ""
+                payload.tunnelName.trim() !== ""
                 ? payload.tunnelName
                 : tunnel.name;
             const startTunnelType =
               typeof payload.tunnelType === "string" &&
-              payload.tunnelType.trim() !== ""
+                payload.tunnelType.trim() !== ""
                 ? payload.tunnelType
                 : tunnel.type === 1
                   ? "端口转发"
@@ -1992,7 +1991,7 @@ export default function TunnelPage() {
           />
         </div>
         {(viewMode === "list" && selectedTunnelIds.size > 0) ||
-        (viewMode === "card" && selectedIds.size > 0) ? (
+          (viewMode === "card" && selectedIds.size > 0) ? (
           <>
             <Button
               color="primary"
@@ -2115,7 +2114,7 @@ export default function TunnelPage() {
               <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
                 <table className="w-full text-sm text-left border-collapse whitespace-nowrap">
                   <thead className="bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider uppercase tracking-wider">
-                    <tr> 
+                    <tr>
                       <th className="py-3 px-4 w-[56px] text-center align-middle">
                         <div className="flex items-center justify-center h-full">
                           <Checkbox
@@ -2130,6 +2129,9 @@ export default function TunnelPage() {
                       </th>
                       <th className="py-3 px-4 w-[200px] align-middle">
                         隧道名称
+                        <span className="text-xs text-primary-500 font-normal">
+                          ^{sortedTunnels.length}个
+                        </span>
                       </th>
                       {/* <th className="py-3 px-4 w-[120px] align-middle">分组名</th> */}
                       <th className="py-3 px-4 w-[140px] align-middle">
@@ -2150,10 +2152,10 @@ export default function TunnelPage() {
                             filterGroupId === null
                               ? []
                               : [
-                                  filterGroupId === -1
-                                    ? "-1"
-                                    : String(filterGroupId),
-                                ]
+                                filterGroupId === -1
+                                  ? "-1"
+                                  : String(filterGroupId),
+                              ]
                           }
                           size="sm"
                           variant="flat"
@@ -2217,12 +2219,7 @@ export default function TunnelPage() {
                       </th>
                       <th className="py-3 px-4 w-[150px] align-middle">备注</th>
                       <th className="py-3 px-4 w-[280px] align-middle">
-                        <div className="flex items-center justify-between w-full">
-                          <span>操作</span>
-                          <span className="text-xs text-default-500 font-normal">
-                            {sortedTunnels.length} 个隧道
-                          </span>
-                        </div>
+                        操作
                       </th>
                     </tr>
                   </thead>
@@ -2259,195 +2256,195 @@ export default function TunnelPage() {
                         const chainCount = tunnel.chainNodes?.length || 0;
 
                         return (
-                        <SortableListRowItem key={tunnel.id} id={tunnel.id}>
-                          {({ setNodeRef, style, attributes, listeners }) => (
-                            <tr
-                              ref={setNodeRef}
-                              className={`cursor-pointer transition-colors border-b border-divider/50 last:border-b-0 hover:bg-default-50/50 ${selectedTunnelIds.has(tunnel.id) ? "bg-primary-50 dark:bg-primary-900/30" : ""}`}
-                              style={style}
-                            >
-                              <td className="py-3 px-4 text-center align-middle">
-                                <div className="flex items-center justify-center h-full">
-                                  <Checkbox
-                                    aria-label="选择"
-                                    isSelected={selectedTunnelIds.has(
-                                      tunnel.id,
-                                    )}
-                                    onValueChange={(isSelected) => {
-                                      if (isSelected) {
-                                        setSelectedTunnelIds((prev) =>
-                                          new Set(prev).add(tunnel.id),
-                                        );
-                                      } else {
-                                        setSelectedTunnelIds((prev) => {
-                                          const next = new Set(prev);
+                          <SortableListRowItem key={tunnel.id} id={tunnel.id}>
+                            {({ setNodeRef, style, attributes, listeners }) => (
+                              <tr
+                                ref={setNodeRef}
+                                className={`cursor-pointer transition-colors border-b border-divider/50 last:border-b-0 hover:bg-default-50/50 ${selectedTunnelIds.has(tunnel.id) ? "bg-primary-50 dark:bg-primary-900/30" : ""}`}
+                                style={style}
+                              >
+                                <td className="py-3 px-4 text-center align-middle">
+                                  <div className="flex items-center justify-center h-full">
+                                    <Checkbox
+                                      aria-label="选择"
+                                      isSelected={selectedTunnelIds.has(
+                                        tunnel.id,
+                                      )}
+                                      onValueChange={(isSelected) => {
+                                        if (isSelected) {
+                                          setSelectedTunnelIds((prev) =>
+                                            new Set(prev).add(tunnel.id),
+                                          );
+                                        } else {
+                                          setSelectedTunnelIds((prev) => {
+                                            const next = new Set(prev);
 
-                                          next.delete(tunnel.id);
+                                            next.delete(tunnel.id);
 
-                                          return next;
-                                        });
-                                      }
-                                    }}
-                                  />
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-center align-middle">
-                                <div
-                                  {...attributes}
-                                  {...listeners}
-                                  className="cursor-grab active:cursor-grabbing inline-flex p-1 text-default-400 hover:text-default-600 transition-colors touch-manipulation"
-                                  style={{ touchAction: "none" }}
-                                >
-                                  <svg
-                                    aria-hidden="true"
-                                    className="w-4 h-4"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
-                                  </svg>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 align-middle">
-                                <span
-                                  className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
-                                  title={tunnel.name}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    copyToClipboard(tunnel.name, "隧道名称");
-                                  }}
-                                >
-                                  {tunnel.name}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 align-middle">
-                                {tunnel.tunnelGroupId &&
-                                tunnel.tunnelGroupId > 0 ? (
-                                  (() => {
-                                    const group = tunnelGroupsNew.find(
-                                      (g) => g.id === tunnel.tunnelGroupId,
-                                    );
-
-                                    return group ? (
-                                      <div
-                                        className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
-                                        style={{
-                                          backgroundColor: `${group.color}1A`,
-                                          color: group.color,
-                                        }}
-                                      >
-                                        {group.name}
-                                      </div>
-                                    ) : (
-                                      <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
-                                        未分组
-                                      </div>
-                                    );
-                                  })()
-                                ) : (
-                                  <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
-                                    未分组
+                                            return next;
+                                          });
+                                        }
+                                      }}
+                                    />
                                   </div>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 align-middle">
-                                <div
-                                  className={
-                                    typeDisplay.color === "primary"
-                                      ? "inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400"
-                                      : "inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-success-500/10 text-success-600 dark:text-success-400"
-                                  }
-                                >
-                                  {typeDisplay.text}
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-center align-middle">
-                                <span className="font-medium text-foreground">
-                                  {inCount}个
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-center align-middle">
-                                <span className="font-medium text-foreground">
-                                  {chainCount}跳
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-center align-middle">
-                                <span className="font-medium text-foreground">
-                                  {outCount}个
-                                </span>
-                                {renderBestExitState(tunnel.bestExitState)}
-                              </td>
-                              <td className="py-3 px-4 text-center align-middle">
-                                <span className="font-medium text-foreground">
-                                  {getTunnelFlowDisplay(tunnel.flow)}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-center align-middle">
-                                <span className="font-medium text-foreground">
-                                  {tunnel.trafficRatio}x
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-center align-middle">
-                                <span className="font-medium text-foreground">
-                                  {tunnel.ipPreference === "v6"
-                                    ? "IPv6"
-                                    : "IPv4"}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 align-middle">
-                                {tunnel.remark ? (
+                                </td>
+                                <td className="py-3 px-4 text-center align-middle">
                                   <div
-                                    className="text-sm text-default-600 truncate max-w-[140px] cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block"
-                                    title={tunnel.remark}
+                                    {...attributes}
+                                    {...listeners}
+                                    className="cursor-grab active:cursor-grabbing inline-flex p-1 text-default-400 hover:text-default-600 transition-colors touch-manipulation"
+                                    style={{ touchAction: "none" }}
+                                  >
+                                    <svg
+                                      aria-hidden="true"
+                                      className="w-4 h-4"
+                                      fill="currentColor"
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
+                                    </svg>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 align-middle">
+                                  <span
+                                    className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
+                                    title={tunnel.name}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      copyToClipboard(tunnel.remark!, "备注");
+                                      copyToClipboard(tunnel.name, "隧道名称");
                                     }}
                                   >
-                                    {tunnel.remark}
-                                  </div>
-                                ) : (
-                                  <span className="text-sm text-default-400">
-                                    -
+                                    {tunnel.name}
                                   </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 align-middle">
-                                <div className="flex gap-1.5">
-                                  <Button
-                                    className="min-h-7 px-2"
-                                    color="primary"
-                                    size="sm"
-                                    variant="flat"
-                                    onPress={() => handleEdit(tunnel)}
+                                </td>
+                                <td className="py-3 px-4 align-middle">
+                                  {tunnel.tunnelGroupId &&
+                                    tunnel.tunnelGroupId > 0 ? (
+                                    (() => {
+                                      const group = tunnelGroupsNew.find(
+                                        (g) => g.id === tunnel.tunnelGroupId,
+                                      );
+
+                                      return group ? (
+                                        <div
+                                          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
+                                          style={{
+                                            backgroundColor: `${group.color}1A`,
+                                            color: group.color,
+                                          }}
+                                        >
+                                          {group.name}
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
+                                          未分组
+                                        </div>
+                                      );
+                                    })()
+                                  ) : (
+                                    <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
+                                      未分组
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 align-middle">
+                                  <div
+                                    className={
+                                      typeDisplay.color === "primary"
+                                        ? "inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400"
+                                        : "inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-success-500/10 text-success-600 dark:text-success-400"
+                                    }
                                   >
-                                    编辑
-                                  </Button>
-                                  <Button
-                                    className="min-h-7 px-2"
-                                    color="secondary"
-                                    size="sm"
-                                    variant="flat"
-                                    onPress={() => handleDiagnose(tunnel)}
-                                  >
-                                    诊断
-                                  </Button>
-                                  <Button
-                                    className="min-h-7 px-2"
-                                    color="danger"
-                                    size="sm"
-                                    variant="flat"
-                                    onPress={() => handleDelete(tunnel)}
-                                  >
-                                    删除
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </SortableListRowItem>
-                      );
-                    })
+                                    {typeDisplay.text}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-center align-middle">
+                                  <span className="font-medium text-foreground">
+                                    {inCount}个
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center align-middle">
+                                  <span className="font-medium text-foreground">
+                                    {chainCount}跳
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center align-middle">
+                                  <span className="font-medium text-foreground">
+                                    {outCount}个
+                                  </span>
+                                  {renderBestExitState(tunnel.bestExitState)}
+                                </td>
+                                <td className="py-3 px-4 text-center align-middle">
+                                  <span className="font-medium text-foreground">
+                                    {getTunnelFlowDisplay(tunnel.flow)}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center align-middle">
+                                  <span className="font-medium text-foreground">
+                                    {tunnel.trafficRatio}x
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center align-middle">
+                                  <span className="font-medium text-foreground">
+                                    {tunnel.ipPreference === "v6"
+                                      ? "IPv6"
+                                      : "IPv4"}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 align-middle">
+                                  {tunnel.remark ? (
+                                    <div
+                                      className="text-sm text-default-600 truncate max-w-[140px] cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block"
+                                      title={tunnel.remark}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        copyToClipboard(tunnel.remark!, "备注");
+                                      }}
+                                    >
+                                      {tunnel.remark}
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-default-400">
+                                      -
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 align-middle">
+                                  <div className="flex gap-1.5">
+                                    <Button
+                                      className="min-h-7 px-2"
+                                      color="primary"
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleEdit(tunnel)}
+                                    >
+                                      编辑
+                                    </Button>
+                                    <Button
+                                      className="min-h-7 px-2"
+                                      color="secondary"
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleDiagnose(tunnel)}
+                                    >
+                                      诊断
+                                    </Button>
+                                    <Button
+                                      className="min-h-7 px-2"
+                                      color="danger"
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleDelete(tunnel)}
+                                    >
+                                      删除
+                                    </Button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </SortableListRowItem>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -2529,24 +2526,24 @@ export default function TunnelPage() {
                                         {typeDisplay.text}
                                       </div>
                                       {tunnel.tunnelGroupId &&
-                                      tunnel.tunnelGroupId > 0
+                                        tunnel.tunnelGroupId > 0
                                         ? (() => {
-                                            const group = tunnelGroupsNew.find(
-                                              (g) => g.id === tunnel.tunnelGroupId,
-                                            );
+                                          const group = tunnelGroupsNew.find(
+                                            (g) => g.id === tunnel.tunnelGroupId,
+                                          );
 
-                                            return group ? (
-                                              <div
-                                                className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
-                                                style={{
-                                                  backgroundColor: `${group.color}1A`,
-                                                  color: group.color,
-                                                }}
-                                              >
-                                                {group.name}
-                                              </div>
-                                            ) : null;
-                                          })()
+                                          return group ? (
+                                            <div
+                                              className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
+                                              style={{
+                                                backgroundColor: `${group.color}1A`,
+                                                color: group.color,
+                                              }}
+                                            >
+                                              {group.name}
+                                            </div>
+                                          ) : null;
+                                        })()
                                         : null}
                                     </div>
                                   </div>
@@ -2557,192 +2554,192 @@ export default function TunnelPage() {
                                     <div className="pt-2 border-t border-divider">
                                       <div className="flex items-center justify-center gap-2 text-xs">
                                         {/* 入口节点 */}
-                                  <div className="flex items-center gap-1 px-2 py-1 bg-primary-50 dark:bg-primary-100/20 rounded border border-primary-200 dark:border-primary-300/20">
-                                    <svg
-                                      aria-hidden="true"
-                                      className="w-3 h-3 text-primary-600"
-                                      fill="currentColor"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path
-                                        clipRule="evenodd"
-                                        d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2v8h10V6H5z"
-                                        fillRule="evenodd"
-                                      />
-                                    </svg>
-                                    <span className="font-semibold text-primary-700 dark:text-primary-400">
-                                      {tunnel.inNodeId?.length || 0}入口
-                                    </span>
-                                  </div>
-                                  {/* 箭头 */}
-                                  <svg
-                                    aria-hidden="true"
-                                    className="w-4 h-4 text-default-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      d="M9 5l7 7-7 7"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                    />
-                                  </svg>
-                                  {/* 转发链 */}
-                                  <div className="flex items-center gap-1 px-2 py-1 bg-secondary-50 dark:bg-secondary-100/20 rounded border border-secondary-200 dark:border-secondary-300/20">
-                                    <svg
-                                      aria-hidden="true"
-                                      className="w-3 h-3 text-secondary-600"
-                                      fill="currentColor"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path
-                                        clipRule="evenodd"
-                                        d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
-                                        fillRule="evenodd"
-                                      />
-                                    </svg>
-                                    <span className="font-semibold text-secondary-700 dark:text-secondary-400">
-                                      {tunnel.type === 2
-                                        ? tunnel.chainNodes?.length || 0
-                                        : 0}
-                                      跳
-                                    </span>
-                                  </div>
-                                  {/* 箭头 */}
-                                  <svg
-                                    aria-hidden="true"
-                                    className="w-4 h-4 text-default-400"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      d="M9 5l7 7-7 7"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                    />
-                                  </svg>
-                                  {/* 出口节点 */}
-                                  <div className="flex items-center gap-1 px-2 py-1 bg-success-50 dark:bg-success-100/20 rounded border border-success-200 dark:border-success-300/20">
-                                    <svg
-                                      aria-hidden="true"
-                                      className="w-3 h-3 text-success-600"
-                                      fill="currentColor"
-                                      viewBox="0 0 20 20"
-                                    >
-                                      <path
-                                        clipRule="evenodd"
-                                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z"
-                                        fillRule="evenodd"
-                                      />
-                                    </svg>
-                                    <span className="font-semibold text-success-700 dark:text-success-400">
-                                      {tunnel.type === 2
-                                        ? tunnel.outNodeId?.length || 0
-                                        : tunnel.inNodeId?.length || 0}
-                                      出口
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-center">
-                                {renderBestExitState(tunnel.bestExitState)}
-                              </div>
-                              {/* 流量配置 */}
-                              <div
-                                className={`grid gap-2 ${tunnel.type === 2 && tunnel.ipPreference ? "grid-cols-3" : "grid-cols-2"}`}
-                              >
-                                <div className="text-center p-1.5 bg-default-50 dark:bg-default-100/30 rounded">
-                                  <div className="text-xs text-default-500">
-                                    流量计算
-                                  </div>
-                                  <div className="text-sm font-semibold text-foreground mt-0.5">
-                                    {getTunnelFlowDisplay(tunnel.flow)}
-                                  </div>
-                                </div>
-                                <div className="text-center p-1.5 bg-default-50 dark:bg-default-100/30 rounded">
-                                  <div className="text-xs text-default-500">
-                                    流量倍率
-                                  </div>
-                                  <div className="text-sm font-semibold text-foreground mt-0.5">
-                                    {tunnel.trafficRatio}x
-                                  </div>
-                                </div>
-                                {tunnel.type === 2 && tunnel.ipPreference && (
-                                  <div className="text-center p-1.5 bg-default-50 dark:bg-default-100/30 rounded">
-                                    <div className="text-xs text-default-500">
-                                      连接偏好
+                                        <div className="flex items-center gap-1 px-2 py-1 bg-primary-50 dark:bg-primary-100/20 rounded border border-primary-200 dark:border-primary-300/20">
+                                          <svg
+                                            aria-hidden="true"
+                                            className="w-3 h-3 text-primary-600"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                          >
+                                            <path
+                                              clipRule="evenodd"
+                                              d="M3 4a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm2 2v8h10V6H5z"
+                                              fillRule="evenodd"
+                                            />
+                                          </svg>
+                                          <span className="font-semibold text-primary-700 dark:text-primary-400">
+                                            {tunnel.inNodeId?.length || 0}入口
+                                          </span>
+                                        </div>
+                                        {/* 箭头 */}
+                                        <svg
+                                          aria-hidden="true"
+                                          className="w-4 h-4 text-default-400"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            d="M9 5l7 7-7 7"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                          />
+                                        </svg>
+                                        {/* 转发链 */}
+                                        <div className="flex items-center gap-1 px-2 py-1 bg-secondary-50 dark:bg-secondary-100/20 rounded border border-secondary-200 dark:border-secondary-300/20">
+                                          <svg
+                                            aria-hidden="true"
+                                            className="w-3 h-3 text-secondary-600"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                          >
+                                            <path
+                                              clipRule="evenodd"
+                                              d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
+                                              fillRule="evenodd"
+                                            />
+                                          </svg>
+                                          <span className="font-semibold text-secondary-700 dark:text-secondary-400">
+                                            {tunnel.type === 2
+                                              ? tunnel.chainNodes?.length || 0
+                                              : 0}
+                                            跳
+                                          </span>
+                                        </div>
+                                        {/* 箭头 */}
+                                        <svg
+                                          aria-hidden="true"
+                                          className="w-4 h-4 text-default-400"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            d="M9 5l7 7-7 7"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                          />
+                                        </svg>
+                                        {/* 出口节点 */}
+                                        <div className="flex items-center gap-1 px-2 py-1 bg-success-50 dark:bg-success-100/20 rounded border border-success-200 dark:border-success-300/20">
+                                          <svg
+                                            aria-hidden="true"
+                                            className="w-3 h-3 text-success-600"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                          >
+                                            <path
+                                              clipRule="evenodd"
+                                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z"
+                                              fillRule="evenodd"
+                                            />
+                                          </svg>
+                                          <span className="font-semibold text-success-700 dark:text-success-400">
+                                            {tunnel.type === 2
+                                              ? tunnel.outNodeId?.length || 0
+                                              : tunnel.inNodeId?.length || 0}
+                                            出口
+                                          </span>
+                                        </div>
+                                      </div>
                                     </div>
-                                    <div className="text-sm font-semibold text-foreground mt-0.5">
-                                      {tunnel.ipPreference === "v4"
-                                        ? "IPv4"
-                                        : "IPv6"}
+                                    <div className="text-center">
+                                      {renderBestExitState(tunnel.bestExitState)}
+                                    </div>
+                                    {/* 流量配置 */}
+                                    <div
+                                      className={`grid gap-2 ${tunnel.type === 2 && tunnel.ipPreference ? "grid-cols-3" : "grid-cols-2"}`}
+                                    >
+                                      <div className="text-center p-1.5 bg-default-50 dark:bg-default-100/30 rounded">
+                                        <div className="text-xs text-default-500">
+                                          流量计算
+                                        </div>
+                                        <div className="text-sm font-semibold text-foreground mt-0.5">
+                                          {getTunnelFlowDisplay(tunnel.flow)}
+                                        </div>
+                                      </div>
+                                      <div className="text-center p-1.5 bg-default-50 dark:bg-default-100/30 rounded">
+                                        <div className="text-xs text-default-500">
+                                          流量倍率
+                                        </div>
+                                        <div className="text-sm font-semibold text-foreground mt-0.5">
+                                          {tunnel.trafficRatio}x
+                                        </div>
+                                      </div>
+                                      {tunnel.type === 2 && tunnel.ipPreference && (
+                                        <div className="text-center p-1.5 bg-default-50 dark:bg-default-100/30 rounded">
+                                          <div className="text-xs text-default-500">
+                                            连接偏好
+                                          </div>
+                                          <div className="text-sm font-semibold text-foreground mt-0.5">
+                                            {tunnel.ipPreference === "v4"
+                                              ? "IPv4"
+                                              : "IPv6"}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex gap-1.5 mt-3">
-                              <Button
-                                className="flex-1 min-h-8"
-                                color="primary"
-                                size="sm"
-                                variant="flat"
-                                onPress={() => handleEdit(tunnel)}
-                              >
-                                编辑
-                              </Button>
-                              <Button
-                                className="flex-1 min-h-8"
-                                color="warning"
-                                size="sm"
-                                variant="flat"
-                                onPress={() => handleDiagnose(tunnel)}
-                              >
-                                诊断
-                              </Button>
-                              <Button
-                                className="flex-1 min-h-8"
-                                color="danger"
-                                size="sm"
-                                variant="flat"
-                                onPress={() => handleDelete(tunnel)}
-                              >
-                                删除
-                              </Button>
-                            </div>
-                            {/* 备注 */}
-                            {tunnel.remark && (
-                              <div className="mt-2 pt-2 border-t border-divider">
-                                <div className="flex items-center text-xs text-default-500">
-                                  <span className="font-medium text-red-500 flex-shrink-0">
-                                    备注：
-                                  </span>
-                                  <span
-                                    className="truncate ml-1 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block"
-                                    title={tunnel.remark}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      copyToClipboard(tunnel.remark!, "备注");
-                                    }}
-                                  >
-                                    {tunnel.remark}
-                                  </span>
-                                </div>
-                              </div>
+                                  <div className="flex gap-1.5 mt-3">
+                                    <Button
+                                      className="flex-1 min-h-8"
+                                      color="primary"
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleEdit(tunnel)}
+                                    >
+                                      编辑
+                                    </Button>
+                                    <Button
+                                      className="flex-1 min-h-8"
+                                      color="warning"
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleDiagnose(tunnel)}
+                                    >
+                                      诊断
+                                    </Button>
+                                    <Button
+                                      className="flex-1 min-h-8"
+                                      color="danger"
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleDelete(tunnel)}
+                                    >
+                                      删除
+                                    </Button>
+                                  </div>
+                                  {/* 备注 */}
+                                  {tunnel.remark && (
+                                    <div className="mt-2 pt-2 border-t border-divider">
+                                      <div className="flex items-center text-xs text-default-500">
+                                        <span className="font-medium text-red-500 flex-shrink-0">
+                                          备注：
+                                        </span>
+                                        <span
+                                          className="truncate ml-1 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block"
+                                          title={tunnel.remark}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            copyToClipboard(tunnel.remark!, "备注");
+                                          }}
+                                        >
+                                          {tunnel.remark}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </CardBody>
+                              </Card>
                             )}
-                          </CardBody>
-                        </Card>
-                      )}
-                    </SortableItem>
-                  );
-                })}
-              </div>
-            </SortableContext>
-          </DndContext>
+                          </SortableItem>
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             </div>
           </>
@@ -2922,25 +2919,25 @@ export default function TunnelPage() {
                         disabledKeys={
                           isEdit
                             ? (() => {
-                                console.log(
-                                  "编辑模式，disabledKeys 应该为空数组:",
-                                  [],
-                                );
+                              console.log(
+                                "编辑模式，disabledKeys 应该为空数组:",
+                                [],
+                              );
 
-                                return [];
-                              })()
+                              return [];
+                            })()
                             : [
-                                // 新建时禁用离线节点
-                                ...nodes
-                                  .filter((node) => node.status !== 1)
-                                  .map((node) => node.id.toString()),
-                                ...(form.outNodeId || []).map((ct) =>
-                                  ct.nodeId.toString(),
-                                ),
-                                ...getSelectedChainNodeIds().map((id) =>
-                                  id.toString(),
-                                ),
-                              ]
+                              // 新建时禁用离线节点
+                              ...nodes
+                                .filter((node) => node.status !== 1)
+                                .map((node) => node.id.toString()),
+                              ...(form.outNodeId || []).map((ct) =>
+                                ct.nodeId.toString(),
+                              ),
+                              ...getSelectedChainNodeIds().map((id) =>
+                                id.toString(),
+                              ),
+                            ]
                         }
                         dropdownPlacement="top"
                         errorMessage={errors.inNodeId}
@@ -3029,10 +3026,10 @@ export default function TunnelPage() {
                                 {getSelectedChainNodeIds().includes(
                                   node.id,
                                 ) && (
-                                  <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                                    已选为转发链
-                                  </div>
-                                )}
+                                    <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
+                                      已选为转发链
+                                    </div>
+                                  )}
                               </div>
                             </div>
                           </SelectItem>
@@ -3168,48 +3165,48 @@ export default function TunnelPage() {
                                       disabledKeys={
                                         isEdit
                                           ? [
-                                              ...form.inNodeId.map((ct) =>
-                                                ct.nodeId.toString(),
-                                              ),
-                                              ...(form.outNodeId || []).map(
-                                                (ct) => ct.nodeId.toString(),
-                                              ),
-                                              ...(form.chainNodes || [])
-                                                .flatMap((group, idx) =>
-                                                  idx !== groupIndex
-                                                    ? group.map(
-                                                        (ct) => ct.nodeId,
-                                                      )
-                                                    : [],
-                                                )
-                                                .filter((id) => id !== -1)
-                                                .map((id) => id.toString()),
-                                            ]
+                                            ...form.inNodeId.map((ct) =>
+                                              ct.nodeId.toString(),
+                                            ),
+                                            ...(form.outNodeId || []).map(
+                                              (ct) => ct.nodeId.toString(),
+                                            ),
+                                            ...(form.chainNodes || [])
+                                              .flatMap((group, idx) =>
+                                                idx !== groupIndex
+                                                  ? group.map(
+                                                    (ct) => ct.nodeId,
+                                                  )
+                                                  : [],
+                                              )
+                                              .filter((id) => id !== -1)
+                                              .map((id) => id.toString()),
+                                          ]
                                           : [
-                                              ...nodes
-                                                .filter(
-                                                  (node) => node.status !== 1,
-                                                )
-                                                .map((node) =>
-                                                  node.id.toString(),
-                                                ),
-                                              ...form.inNodeId.map((ct) =>
-                                                ct.nodeId.toString(),
+                                            ...nodes
+                                              .filter(
+                                                (node) => node.status !== 1,
+                                              )
+                                              .map((node) =>
+                                                node.id.toString(),
                                               ),
-                                              ...(form.outNodeId || []).map(
-                                                (ct) => ct.nodeId.toString(),
-                                              ),
-                                              ...(form.chainNodes || [])
-                                                .flatMap((group, idx) =>
-                                                  idx !== groupIndex
-                                                    ? group.map(
-                                                        (ct) => ct.nodeId,
-                                                      )
-                                                    : [],
-                                                )
-                                                .filter((id) => id !== -1)
-                                                .map((id) => id.toString()),
-                                            ]
+                                            ...form.inNodeId.map((ct) =>
+                                              ct.nodeId.toString(),
+                                            ),
+                                            ...(form.outNodeId || []).map(
+                                              (ct) => ct.nodeId.toString(),
+                                            ),
+                                            ...(form.chainNodes || [])
+                                              .flatMap((group, idx) =>
+                                                idx !== groupIndex
+                                                  ? group.map(
+                                                    (ct) => ct.nodeId,
+                                                  )
+                                                  : [],
+                                              )
+                                              .filter((id) => id !== -1)
+                                              .map((id) => id.toString()),
+                                          ]
                                       }
                                       dropdownPlacement="top"
                                       label={`节点选择${groupNodes.filter((ct) => ct.nodeId !== -1).length > 0 ? ` (已选 ${groupNodes.filter((ct) => ct.nodeId !== -1).length} 个)` : ""}`}
@@ -3262,10 +3259,10 @@ export default function TunnelPage() {
                                               {form.inNodeId.some(
                                                 (ct) => ct.nodeId === node.id,
                                               ) && (
-                                                <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400">
-                                                  已选为入口
-                                                </div>
-                                              )}
+                                                  <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400">
+                                                    已选为入口
+                                                  </div>
+                                                )}
                                               {form.outNodeId &&
                                                 form.outNodeId.some(
                                                   (ct) => ct.nodeId === node.id,
@@ -3283,10 +3280,10 @@ export default function TunnelPage() {
                                                       ct.nodeId !== -1,
                                                   ),
                                               ) && (
-                                                <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                                                  已选为其他跳
-                                                </div>
-                                              )}
+                                                  <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
+                                                    已选为其他跳
+                                                  </div>
+                                                )}
                                             </div>
                                           </div>
                                         </SelectItem>
@@ -3373,14 +3370,14 @@ export default function TunnelPage() {
                                     type="text"
                                     value={
                                       focusedInputs[
-                                        `chain_port_${groupIndex}`
+                                      `chain_port_${groupIndex}`
                                       ] ?? formatChainPortsToDisplay(groupNodes)
                                     }
                                     variant="bordered"
                                     onBlur={() => {
                                       const finalValue =
                                         focusedInputs[
-                                          `chain_port_${groupIndex}`
+                                        `chain_port_${groupIndex}`
                                         ] ??
                                         formatChainPortsToDisplay(groupNodes);
 
@@ -3428,7 +3425,7 @@ export default function TunnelPage() {
                                     type="text"
                                     value={
                                       focusedInputs[
-                                        `chain_ipType_${groupIndex}`
+                                      `chain_ipType_${groupIndex}`
                                       ] ??
                                       formatConnectIpTypesToDisplay(groupNodes)
                                     }
@@ -3559,26 +3556,26 @@ export default function TunnelPage() {
                                   disabledKeys={
                                     isEdit
                                       ? [
-                                          // 编辑时【不禁用】离线节点，仅排除入口和转发链冲突节点
-                                          ...form.inNodeId.map((ct) =>
-                                            ct.nodeId.toString(),
-                                          ),
-                                          ...getSelectedChainNodeIds().map(
-                                            (id) => id.toString(),
-                                          ),
-                                        ]
+                                        // 编辑时【不禁用】离线节点，仅排除入口和转发链冲突节点
+                                        ...form.inNodeId.map((ct) =>
+                                          ct.nodeId.toString(),
+                                        ),
+                                        ...getSelectedChainNodeIds().map(
+                                          (id) => id.toString(),
+                                        ),
+                                      ]
                                       : [
-                                          // 新建时【禁用】离线节点，并排除冲突节点
-                                          ...nodes
-                                            .filter((node) => node.status !== 1)
-                                            .map((node) => node.id.toString()),
-                                          ...form.inNodeId.map((ct) =>
-                                            ct.nodeId.toString(),
-                                          ),
-                                          ...getSelectedChainNodeIds().map(
-                                            (id) => id.toString(),
-                                          ),
-                                        ]
+                                        // 新建时【禁用】离线节点，并排除冲突节点
+                                        ...nodes
+                                          .filter((node) => node.status !== 1)
+                                          .map((node) => node.id.toString()),
+                                        ...form.inNodeId.map((ct) =>
+                                          ct.nodeId.toString(),
+                                        ),
+                                        ...getSelectedChainNodeIds().map(
+                                          (id) => id.toString(),
+                                        ),
+                                      ]
                                   }
                                   dropdownPlacement="top"
                                   errorMessage={errors.outNodeId}
@@ -3588,8 +3585,8 @@ export default function TunnelPage() {
                                   selectedKeys={
                                     form.outNodeId
                                       ? form.outNodeId
-                                          .filter((ct) => ct.nodeId !== -1)
-                                          .map((ct) => ct.nodeId.toString())
+                                        .filter((ct) => ct.nodeId !== -1)
+                                        .map((ct) => ct.nodeId.toString())
                                       : []
                                   }
                                   selectionMode="multiple"
@@ -3659,17 +3656,17 @@ export default function TunnelPage() {
                                           {form.inNodeId.some(
                                             (ct) => ct.nodeId === node.id,
                                           ) && (
-                                            <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400">
-                                              已选为入口
-                                            </div>
-                                          )}
+                                              <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400">
+                                                已选为入口
+                                              </div>
+                                            )}
                                           {getSelectedChainNodeIds().includes(
                                             node.id,
                                           ) && (
-                                            <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                                              已选为转发链
-                                            </div>
-                                          )}
+                                              <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
+                                                已选为转发链
+                                              </div>
+                                            )}
                                         </div>
                                       </div>
                                     </SelectItem>
@@ -3714,7 +3711,7 @@ export default function TunnelPage() {
                                       const currentStrategy =
                                         currentOutNodes.length > 0
                                           ? currentOutNodes[0].strategy ||
-                                            "round"
+                                          "round"
                                           : "round";
 
                                       if (currentOutNodes.length === 0) {
@@ -4014,7 +4011,7 @@ export default function TunnelPage() {
                           )}
                         </div>
                         {deletePreviewForwardCount >
-                        (tunnelDeletePreview?.sampleForwards?.length ?? 0) ? (
+                          (tunnelDeletePreview?.sampleForwards?.length ?? 0) ? (
                           <p className="text-xs text-default-500">
                             还有{" "}
                             {deletePreviewForwardCount -
@@ -4208,10 +4205,10 @@ export default function TunnelPage() {
                       <div className="text-center p-3 bg-success-50 dark:bg-success-900/20 rounded-lg border border-success-200 dark:border-success-700">
                         <div className="text-2xl font-bold text-success-600 dark:text-success-400">
                           {diagnosisProgress.completed > 0 ||
-                          diagnosisProgress.total > 0
+                            diagnosisProgress.total > 0
                             ? diagnosisProgress.success
                             : diagnosisResult.results.filter((r) => r.success)
-                                .length}
+                              .length}
                         </div>
                         <div className="text-xs text-success-600 dark:text-success-400/80 mt-1">
                           成功
@@ -4220,10 +4217,10 @@ export default function TunnelPage() {
                       <div className="text-center p-3 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-700">
                         <div className="text-2xl font-bold text-danger-600 dark:text-danger-400">
                           {diagnosisProgress.completed > 0 ||
-                          diagnosisProgress.total > 0
+                            diagnosisProgress.total > 0
                             ? diagnosisProgress.failed
                             : diagnosisResult.results.filter((r) => !r.success)
-                                .length}
+                              .length}
                         </div>
                         <div className="text-xs text-danger-600 dark:text-danger-400/80 mt-1">
                           失败
@@ -4306,13 +4303,12 @@ export default function TunnelPage() {
                                     return (
                                       <tr
                                         key={index}
-                                        className={`hover:bg-default-50 dark:hover:bg-gray-700/50 ${
-                                          isDiagnosing
+                                        className={`hover:bg-default-50 dark:hover:bg-gray-700/50 ${isDiagnosing
                                             ? "bg-warning-50 dark:bg-warning-900/20"
                                             : isSuccess
                                               ? "bg-white dark:bg-gray-800"
                                               : "bg-danger-50 dark:bg-danger-900/30"
-                                        }`}
+                                          }`}
                                       >
                                         <td className="px-3 py-2">
                                           <div className="flex items-center gap-2">
@@ -4320,11 +4316,10 @@ export default function TunnelPage() {
                                               <Spinner size="sm" />
                                             ) : (
                                               <span
-                                                className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
-                                                  isSuccess
+                                                className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${isSuccess
                                                     ? "bg-success text-white"
                                                     : "bg-danger text-white"
-                                                }`}
+                                                  }`}
                                               >
                                                 {isSuccess ? "✓" : "✗"}
                                               </span>
@@ -4364,11 +4359,10 @@ export default function TunnelPage() {
                                         <td className="px-3 py-2 text-center">
                                           {isSuccess ? (
                                             <span
-                                              className={`font-semibold ${
-                                                (result.packetLoss || 0) > 0
+                                              className={`font-semibold ${(result.packetLoss || 0) > 0
                                                   ? "text-warning"
                                                   : "text-success"
-                                              }`}
+                                                }`}
                                             >
                                               {result.packetLoss?.toFixed(1)}%
                                             </span>
@@ -4476,24 +4470,22 @@ export default function TunnelPage() {
                                 return (
                                   <div
                                     key={index}
-                                    className={`border rounded-lg p-3 ${
-                                      isDiagnosing
+                                    className={`border rounded-lg p-3 ${isDiagnosing
                                         ? "border-warning-200 dark:border-warning-300/30 bg-warning-50 dark:bg-warning-900/20"
                                         : isSuccess
                                           ? "border-divider bg-white dark:bg-gray-800"
                                           : "border-danger-200 dark:border-danger-300/30 bg-danger-50 dark:bg-danger-900/30"
-                                    }`}
+                                      }`}
                                   >
                                     <div className="flex items-start gap-2 mb-2">
                                       {isDiagnosing ? (
                                         <Spinner size="sm" />
                                       ) : (
                                         <span
-                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${
-                                            isSuccess
+                                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${isSuccess
                                               ? "bg-success text-white"
                                               : "bg-danger text-white"
-                                          }`}
+                                            }`}
                                         >
                                           {isSuccess ? "✓" : "✗"}
                                         </span>
@@ -4528,11 +4520,10 @@ export default function TunnelPage() {
                                         </div>
                                         <div className="text-center">
                                           <div
-                                            className={`text-lg font-bold ${
-                                              (result.packetLoss || 0) > 0
+                                            className={`text-lg font-bold ${(result.packetLoss || 0) > 0
                                                 ? "text-warning"
                                                 : "text-success"
-                                            }`}
+                                              }`}
                                           >
                                             {result.packetLoss?.toFixed(1)}%
                                           </div>
@@ -4558,11 +4549,10 @@ export default function TunnelPage() {
                                     ) : (
                                       <div className="mt-2 pt-2 border-t border-divider">
                                         <div
-                                          className={`text-xs ${
-                                            isDiagnosing
+                                          className={`text-xs ${isDiagnosing
                                               ? "text-warning"
                                               : "text-danger"
-                                          }`}
+                                            }`}
                                         >
                                           {isDiagnosing
                                             ? result.message || "诊断中..."
@@ -4607,26 +4597,26 @@ export default function TunnelPage() {
                     {diagnosisResult.results.some(
                       (r) => r.success === false && !r.diagnosing,
                     ) && (
-                      <div className="space-y-2 hidden md:block">
-                        <h4 className="text-sm font-semibold text-danger">
-                          失败详情
-                        </h4>
-                        <div className="space-y-2">
-                          {diagnosisResult.results
-                            .filter((r) => r.success === false && !r.diagnosing)
-                            .map((result, index) => (
-                              <Alert
-                                key={index}
-                                className="text-xs"
-                                color="danger"
-                                description={result.message || "连接失败"}
-                                title={result.description}
-                                variant="flat"
-                              />
-                            ))}
+                        <div className="space-y-2 hidden md:block">
+                          <h4 className="text-sm font-semibold text-danger">
+                            失败详情
+                          </h4>
+                          <div className="space-y-2">
+                            {diagnosisResult.results
+                              .filter((r) => r.success === false && !r.diagnosing)
+                              .map((result, index) => (
+                                <Alert
+                                  key={index}
+                                  className="text-xs"
+                                  color="danger"
+                                  description={result.message || "连接失败"}
+                                  title={result.description}
+                                  variant="flat"
+                                />
+                              ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 ) : (
                   <div className="text-center py-16">
@@ -4743,7 +4733,7 @@ export default function TunnelPage() {
                                 </div>
                               ))}
                               {item.forwardCount >
-                              item.sampleForwards.length ? (
+                                item.sampleForwards.length ? (
                                 <p className="text-[11px] text-default-500">
                                   还有{" "}
                                   {item.forwardCount -
@@ -4791,7 +4781,7 @@ export default function TunnelPage() {
                       />
                     ) : null}
                     {batchDeleteAction === "replace" &&
-                    !batchDeleteReplaceUnavailable ? (
+                      !batchDeleteReplaceUnavailable ? (
                       <div className="space-y-2">
                         <Select
                           label="目标隧道"

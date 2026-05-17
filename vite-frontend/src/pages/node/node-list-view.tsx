@@ -123,7 +123,7 @@ function SortableTableRow({
 }: any) {
   const [expiryPopoverOpen, setExpiryPopoverOpen] = useState(false);
   const expiryButtonRef = useRef<HTMLButtonElement>(null);
-  
+
 
   const handleTogglePopover = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -151,7 +151,7 @@ function SortableTableRow({
   useEffect(() => {
     if (!expiryPopoverOpen) return;
     const closePopover = () => setExpiryPopoverOpen(false);
-    
+
     window.addEventListener("click", closePopover);
     window.addEventListener("scroll", closePopover, true);
     window.addEventListener("resize", closePopover);
@@ -190,11 +190,11 @@ function SortableTableRow({
   );
   const hasExpiryInfo = Boolean(
     node.expiryTime &&
-      node.expiryTime > 0 &&
-      node.renewalCycle &&
-      (node.expiryReminderDismissed !== 1 ||
-        (node.expiryReminderDismissedUntil &&
-          node.expiryReminderDismissedUntil * 1000 < Date.now())),
+    node.expiryTime > 0 &&
+    node.renewalCycle &&
+    (node.expiryReminderDismissed !== 1 ||
+      (node.expiryReminderDismissedUntil &&
+        node.expiryReminderDismissedUntil * 1000 < Date.now())),
   );
   const getExpiryChipProps = () => {
     if (expiryMeta.state === "expired") {
@@ -324,30 +324,30 @@ function SortableTableRow({
 
                 if (val) copyToClipboard(val, "IPv4/域名");
               }}
-              >
-                {(() => {
-                  const val =
-                    node.serverIpV4?.trim() ||
-                    (node.serverIp?.trim() && !node.serverIp.includes(":")
-                      ? node.serverIp.trim()
-                      : undefined);
-                  if (!val) return "暂无";
-                  // 域名显示前两段
-                  if (val.includes(".")) {
-                    const parts = val.split(".");
-                    if (parts.length >= 2) {
-                      return `${parts[0]}.${parts[1]}.*`;
-                    }
-                    return parts[0].length > 12 ? parts[0].slice(0, 12) + "..." : parts[0];
+            >
+              {(() => {
+                const val =
+                  node.serverIpV4?.trim() ||
+                  (node.serverIp?.trim() && !node.serverIp.includes(":")
+                    ? node.serverIp.trim()
+                    : undefined);
+                if (!val) return "暂无";
+                // 域名显示前两段
+                if (val.includes(".")) {
+                  const parts = val.split(".");
+                  if (parts.length >= 2) {
+                    return `${parts[0]}.${parts[1]}.*`;
                   }
-                  // IP 地址只显示前两段
-                  const ipParts = val.split(".");
-                  if (ipParts.length === 4) {
-                    return `${ipParts[0]}.${ipParts[1]}.*.*`;
-                  }
-                  return val.length > 15 ? val.slice(0, 15) + "..." : val;
-                })()}
-              </span>
+                  return parts[0].length > 12 ? parts[0].slice(0, 12) + "..." : parts[0];
+                }
+                // IP 地址只显示前两段
+                const ipParts = val.split(".");
+                if (ipParts.length === 4) {
+                  return `${ipParts[0]}.${ipParts[1]}.*.*`;
+                }
+                return val.length > 15 ? val.slice(0, 15) + "..." : val;
+              })()}
+            </span>
           </div>
           <div className="flex justify-between items-center min-w-0 gap-3">
             <span className="text-default-500 text-[11px] flex-shrink-0">
@@ -436,7 +436,7 @@ function SortableTableRow({
         {!isRemoteNode ? (
           <div className="flex flex-col gap-1 min-w-[100px] justify-center">
             {upgradeProgress?.[node.id]?.percent !== undefined &&
-            upgradeProgress[node.id].percent < 100 ? (
+              upgradeProgress[node.id].percent < 100 ? (
               <>
                 <Progress
                   aria-label="更新进度"
@@ -478,11 +478,11 @@ function SortableTableRow({
         <div className="flex items-center justify-end gap-1">
           <span className="text-sm text-danger-600 dark:text-danger-400">
             {node.connectionStatus === "online" &&
-            realtimeNodeMetrics?.[node.id]
+              realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
-                  (realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0) +
-                    (realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0),
-                )
+                (realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0) +
+                (realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0),
+              )
               : "-"}
           </span>
           {handleViewNodeTrafficLogs && (
@@ -508,10 +508,10 @@ function SortableTableRow({
         <div className="flex justify-end">
           <span className="text-sm text-success-700 dark:text-success-300">
             {node.connectionStatus === "online" &&
-            realtimeNodeMetrics?.[node.id]
+              realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
-                  realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0,
-                )
+                realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0,
+              )
               : "-"}
           </span>
         </div>
@@ -520,10 +520,10 @@ function SortableTableRow({
         <div className="flex justify-end">
           <span className="text-sm text-primary-700 dark:text-primary-300">
             {node.connectionStatus === "online" &&
-            realtimeNodeMetrics?.[node.id]
+              realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
-                  realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0,
-                )
+                realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0,
+              )
               : "-"}
           </span>
         </div>
@@ -583,7 +583,7 @@ function SortableTableRow({
                 <span className="text-xs font-medium text-default-700 tracking-wide">
                   {formatNodeRenewalTime(expiryMeta.nextDueTime)}
                 </span>
-                
+
                 {/* 右侧：操作按钮 */}
                 <button
                   className="inline-flex items-center justify-center text-[12px] font-medium px-3 py-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-colors active:scale-95"
@@ -727,195 +727,198 @@ export function NodeListView({
           wrapper: "p-0 shadow-none bg-transparent rounded-none pb-8",
         }}
       >
-      <TableHeader>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[50px] text-center">
-          <div className="flex items-center justify-center h-full">
-            <Checkbox
-              isSelected={isAllSelected}
-              onValueChange={toggleSelectAll}
-            />
-          </div>
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[40px] text-center">
-          排序
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
-          节点名称
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[120px] text-left">
-          <Select
-            aria-label="按分组筛选"
-            className="w-full min-w-[100px]"
-            classNames={{
-              trigger:
-                "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors flex flex-row-reverse justify-end items-center",
-              value:
-                "text-sm text-default-600 font-semibold uppercase tracking-wider p-0",
-              selectorIcon: "text-default-400 w-3.5 h-3.5 static m-0",
-              innerWrapper: "w-fit flex-none",
-              placeholder:
-                "text-sm text-default-600 font-semibold uppercase tracking-wider",
-            }}
-            placeholder="节点分组"
-            selectedKeys={
-              filterGroupId === null
-                ? []
-                : filterGroupId === -1
-                  ? ["none"]
-                  : [String(filterGroupId)]
-            }
-            size="sm"
-            variant="flat"
-            onSelectionChange={(keys) => {
-              const selected = Array.from(keys)[0] as string | undefined;
-
-              if (!selected || selected === "all") {
-                setFilterGroupId(null);
-              } else if (selected === "none") {
-                setFilterGroupId(-1);
-              } else {
-                setFilterGroupId(parseInt(selected));
+        <TableHeader>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[50px] text-center">
+            <div className="flex items-center justify-center h-full">
+              <Checkbox
+                isSelected={isAllSelected}
+                onValueChange={toggleSelectAll}
+              />
+            </div>
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[40px] text-center">
+            排序
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
+            节点名称
+            <span className="text-xs text-primary-500 font-normal">
+              ^{displayNodes.length}个
+            </span>
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[120px] text-left">
+            <Select
+              aria-label="按分组筛选"
+              className="w-full min-w-[100px]"
+              classNames={{
+                trigger:
+                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors flex flex-row-reverse justify-end items-center",
+                value:
+                  "text-sm text-default-600 font-semibold uppercase tracking-wider p-0",
+                selectorIcon: "text-default-400 w-3.5 h-3.5 static m-0",
+                innerWrapper: "w-fit flex-none",
+                placeholder:
+                  "text-sm text-default-600 font-semibold uppercase tracking-wider",
+              }}
+              placeholder="节点分组"
+              selectedKeys={
+                filterGroupId === null
+                  ? []
+                  : filterGroupId === -1
+                    ? ["none"]
+                    : [String(filterGroupId)]
               }
-            }}
-          >
-            <SelectItem key="all" textValue="全部分组">
-              全部分组
-            </SelectItem>
-            <SelectItem key="none" textValue="未分组">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-gray-300 flex-shrink-0" />
-                <span>未分组</span>
-              </div>
-            </SelectItem>
-            {nodeGroups.map((group) => (
-              <SelectItem key={group.id.toString()} textValue={group.name}>
-                <div className="flex items-center gap-2 min-w-0">
-                  <div
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: group.color }}
-                  />
-                  <span className="truncate">{group.name}</span>
-                  <span className="text-default-400 text-xs ml-auto">
-                    {group.nodeCount}
-                  </span>
+              size="sm"
+              variant="flat"
+              onSelectionChange={(keys) => {
+                const selected = Array.from(keys)[0] as string | undefined;
+
+                if (!selected || selected === "all") {
+                  setFilterGroupId(null);
+                } else if (selected === "none") {
+                  setFilterGroupId(-1);
+                } else {
+                  setFilterGroupId(parseInt(selected));
+                }
+              }}
+            >
+              <SelectItem key="all" textValue="全部分组">
+                全部分组
+              </SelectItem>
+              <SelectItem key="none" textValue="未分组">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-gray-300 flex-shrink-0" />
+                  <span>未分组</span>
                 </div>
               </SelectItem>
-            ))}
-          </Select>
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[200px] text-left">
-          地址
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[90px] text-left">
-          版本
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
-          周期流量
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
-          上行流量
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
-          下行流量
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[150px] text-left">
-          备注
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
-          <Select
-            aria-label="按到期状态筛选"
-            className="w-full min-w-[160px]"
-            classNames={{
-              trigger:
-                "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors",
-              value:
-                "text-sm text-default-600 font-semibold uppercase tracking-wider p-0",
-              selectorIcon: "text-default-400 w-3.5 h-3.5 static m-0",
-              innerWrapper: "w-fit flex-none",
-              placeholder:
-                "text-sm text-default-600 font-semibold uppercase tracking-wider",
-            }}
-            placeholder="续费提醒"
-            selectedKeys={nodeFilterMode ? [nodeFilterMode] : []}
-            size="sm"
-            variant="flat"
-            onSelectionChange={(keys) => {
-              const selected = Array.from(keys)[0] as string | undefined;
-
-              setNodeFilterMode?.(selected || "all");
-            }}
-          >
-            <SelectItem key="expiringSoon">
-              7 天内续费 ({nodeExpiryStats?.expiringSoon || 0})
-            </SelectItem>
-            <SelectItem key="expired">
-              已逾期 ({nodeExpiryStats?.expired || 0})
-            </SelectItem>
-            <SelectItem key="withExpiry">
-              已启用续费提醒 ({nodeExpiryStats?.withExpiry || 0})
-            </SelectItem>
-          </Select>
-        </TableColumn>
-        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
-          操作
-        </TableColumn>
-      </TableHeader>
-      <TableBody>
-        {displayNodes.length === 0 ? (
-          <TableRow>
-            <TableCell
-              className="py-16 text-center"
-              colSpan={12}
-            >
-              <div className="flex flex-col items-center justify-center">
-                <h3 className="text-base font-medium text-foreground mb-1">
-                  未找到匹配的节点
-                </h3>
-                <p className="text-default-500 text-sm mb-3">
-                  没有符合条件的节点配置，请调整筛选条件
-                </p>
-                <Button
-                  color="warning"
-                  size="sm"
-                  variant="flat"
-                  onPress={() => {
-                    setFilterGroupId(null);
-                    setNodeFilterMode?.("all");
-                  }}
-                >
-                  归零筛选
-                </Button>
-              </div>
-            </TableCell>
-          </TableRow>
-        ) : (
-          displayNodes.map((node) => (
-            <SortableTableRow
-              key={node.id}
-              {...{
-                node,
-                realtimeNodeMetrics,
-                upgradeProgress,
-                selectedIds,
-                toggleSelect,
-                copyToClipboard,
-                openUpgradeModal,
-                handleEdit,
-                handleDelete,
-                formatTraffic,
-                nodeGroups,
-                handleDismissExpiryReminder,
-                handleCopyOverseasInstallCommand,
-                handleCopyOfflineInstallCommand,
-                handleCopyAutoInstallCommand,
-                handleViewNodeTrafficLogs,
-                handleResetNodeTraffic,
+              {nodeGroups.map((group) => (
+                <SelectItem key={group.id.toString()} textValue={group.name}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: group.color }}
+                    />
+                    <span className="truncate">{group.name}</span>
+                    <span className="text-default-400 text-xs ml-auto">
+                      {group.nodeCount}
+                    </span>
+                  </div>
+                </SelectItem>
+              ))}
+            </Select>
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[200px] text-left">
+            地址
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[90px] text-left">
+            版本
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
+            周期流量
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
+            上行流量
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
+            下行流量
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[150px] text-left">
+            备注
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
+            <Select
+              aria-label="按到期状态筛选"
+              className="w-full min-w-[160px]"
+              classNames={{
+                trigger:
+                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors",
+                value:
+                  "text-sm text-default-600 font-semibold uppercase tracking-wider p-0",
+                selectorIcon: "text-default-400 w-3.5 h-3.5 static m-0",
+                innerWrapper: "w-fit flex-none",
+                placeholder:
+                  "text-sm text-default-600 font-semibold uppercase tracking-wider",
               }}
-            />
-          ))
-        )}
-      </TableBody>
-    </Table>
+              placeholder="续费提醒"
+              selectedKeys={nodeFilterMode ? [nodeFilterMode] : []}
+              size="sm"
+              variant="flat"
+              onSelectionChange={(keys) => {
+                const selected = Array.from(keys)[0] as string | undefined;
+
+                setNodeFilterMode?.(selected || "all");
+              }}
+            >
+              <SelectItem key="expiringSoon">
+                7 天内续费 ({nodeExpiryStats?.expiringSoon || 0})
+              </SelectItem>
+              <SelectItem key="expired">
+                已逾期 ({nodeExpiryStats?.expired || 0})
+              </SelectItem>
+              <SelectItem key="withExpiry">
+                已启用续费提醒 ({nodeExpiryStats?.withExpiry || 0})
+              </SelectItem>
+            </Select>
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
+            操作
+          </TableColumn>
+        </TableHeader>
+        <TableBody>
+          {displayNodes.length === 0 ? (
+            <TableRow>
+              <TableCell
+                className="py-16 text-center"
+                colSpan={12}
+              >
+                <div className="flex flex-col items-center justify-center">
+                  <h3 className="text-base font-medium text-foreground mb-1">
+                    未找到匹配的节点
+                  </h3>
+                  <p className="text-default-500 text-sm mb-3">
+                    没有符合条件的节点配置，请调整筛选条件
+                  </p>
+                  <Button
+                    color="warning"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => {
+                      setFilterGroupId(null);
+                      setNodeFilterMode?.("all");
+                    }}
+                  >
+                    归零筛选
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ) : (
+            displayNodes.map((node) => (
+              <SortableTableRow
+                key={node.id}
+                {...{
+                  node,
+                  realtimeNodeMetrics,
+                  upgradeProgress,
+                  selectedIds,
+                  toggleSelect,
+                  copyToClipboard,
+                  openUpgradeModal,
+                  handleEdit,
+                  handleDelete,
+                  formatTraffic,
+                  nodeGroups,
+                  handleDismissExpiryReminder,
+                  handleCopyOverseasInstallCommand,
+                  handleCopyOfflineInstallCommand,
+                  handleCopyAutoInstallCommand,
+                  handleViewNodeTrafficLogs,
+                  handleResetNodeTraffic,
+                }}
+              />
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }

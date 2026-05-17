@@ -4593,7 +4593,10 @@ export default function ForwardPage() {
                           </TableColumn>
                         )}
                         <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
-                          规则名
+                          规则名称
+                          <span className="text-xs text-primary-500 font-normal">
+                            ^{sortedForwards.length}个
+                          </span>
                         </TableColumn>
                         {/* <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">隧道倍率</TableColumn> */}
                         <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
@@ -4682,10 +4685,7 @@ export default function ForwardPage() {
                           状态
                         </TableColumn>
                         <TableColumn align="left" className="whitespace-nowrap flex-shrink-0 min-w-[220px] pl-4">
-                          <div className="flex items-center justify-between w-full">
-                            <span>操作</span>
-                            <span className="text-xs text-default-500 font-normal">{sortedForwards.length} 个规则</span>
-                          </div>
+                          操作
                         </TableColumn>
                       </TableHeader>
                       <TableBody emptyContent="暂无规则配置" items={paginatedForwards}>
