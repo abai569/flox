@@ -51,9 +51,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-flvx_svc}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flvx_svc_change_me}
       TZ: Asia/Shanghai
-      FLUX_VERSION: ${FLUX_VERSION:-dev}
-      PANEL_DEPLOY_DIR: /opt/flvx-svc
-      PANEL_BACKEND_CONTAINER: flvx-svc-backend
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
