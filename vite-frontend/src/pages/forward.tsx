@@ -3828,7 +3828,7 @@ export default function ForwardPage() {
     if (forwardPage > maxPage && maxPage > 0) setForwardPage(1);
   }, [forwardTotal, forwardPageSize, forwardPage]);
 
-  const paginationUI = forwardTotal > forwardPageSize && (
+  const paginationUI = (
     <div className="flex items-center justify-center gap-2 mt-4 mb-4">
       <Button size="sm" variant="flat" isDisabled={forwardPage === 1} onPress={() => setForwardPage((p) => Math.max(1, p - 1))}>←</Button>
       {(() => {
@@ -3847,7 +3847,7 @@ export default function ForwardPage() {
         }
         return pages.map((p, idx) =>
           typeof p === "string" ? (
-            <span key={"e"+idx} className="text-default-400 text-sm px-1">{p}</span>
+            <span key={"e" + idx} className="text-default-400 text-sm px-1">{p}</span>
           ) : (
             <Button key={p} size="sm" variant={p === forwardPage ? "solid" : "flat"} color={p === forwardPage ? "primary" : "default"} onPress={() => setForwardPage(p)}>{p}</Button>
           )
@@ -3895,7 +3895,7 @@ export default function ForwardPage() {
         }
         return pages.map((p, idx) =>
           typeof p === "string" ? (
-            <span key={"e"+idx} className="text-default-400 text-sm px-1">{p}</span>
+            <span key={"e" + idx} className="text-default-400 text-sm px-1">{p}</span>
           ) : (
             <Button key={p} size="sm" variant={p === groupPage ? "solid" : "flat"} color={p === groupPage ? "primary" : "default"} onPress={() => setGroupPage(p)}>{p}</Button>
           )
@@ -3911,7 +3911,7 @@ export default function ForwardPage() {
       <span className="text-default-400 text-sm">个分组</span>
     </div>
   );
-  
+
   const sortableForwardIds = useMemo(
     () => sortedForwards.map((f) => f.id).filter((id) => id > 0),
     [sortedForwards],
@@ -4507,7 +4507,7 @@ export default function ForwardPage() {
         viewMode === "grouped" ? (
           sortedForwards.length > 0 ? (
             <>
-            {/* 注释规则数量
+              {/* 注释规则数量
               <div className="flex items-center justify-start px-1 mb-3">
                 <span className="text-sm font-semibold text-foreground">
                   全部规则
@@ -4531,7 +4531,7 @@ export default function ForwardPage() {
                       aria-label="全部规则列表"
                       className={FORWARD_GROUPED_TABLE_MIN_WIDTH_CLASS}
                       classNames={{
-                        th: "bg-default-100/50 text-default-600 font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
+                        th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
                         td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
                         tr: "hover:bg-default-50/50 transition-colors",
                       }}
@@ -4593,7 +4593,7 @@ export default function ForwardPage() {
                           </TableColumn>
                         )}
                         <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
-                          规则名_共{sortedForwards.length}条
+                          规则名
                         </TableColumn>
                         {/* <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">隧道倍率</TableColumn> */}
                         <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
@@ -4681,11 +4681,11 @@ export default function ForwardPage() {
                         <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
                           状态
                         </TableColumn>
-                        <TableColumn
-                          align="left"
-                          className="whitespace-nowrap flex-shrink-0 min-w-[220px] pl-4 text-left"
-                        >
-                          操作
+                        <TableColumn align="left" className="whitespace-nowrap flex-shrink-0 min-w-[220px] pl-4">
+                          <div className="flex items-center justify-between w-full">
+                            <span>操作</span>
+                            <span className="text-xs text-default-500 font-normal">{sortedForwards.length} 条规则</span>
+                          </div>
                         </TableColumn>
                       </TableHeader>
                       <TableBody emptyContent="暂无规则配置" items={paginatedForwards}>
@@ -4734,39 +4734,42 @@ export default function ForwardPage() {
           )
         ) : sortedForwards.length > 0 ? (
           <>
-          {/* 注释规则数量
-            <div className="flex items-center justify-start px-1 mb-3">
-              <span className="text-sm font-semibold text-foreground">
-                全部规则
-              </span>
-              <span className="text-xs text-default-600">
-                _{sortedForwards.length}条
-              </span>
-            </div> */}
             {paginationUI}
-            <DndContext
-              collisionDetection={pointerWithin}
-              sensors={sensors}
-              onDragEnd={handleDragEnd}
-              onDragStart={() => { }}
-            >
-              <SortableContext
-                items={sortableForwardIds}
-                strategy={rectSortingStrategy}
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-                  {paginatedForwards.map((forward) =>
-                    forward && forward.id ? (
-                      <SortableForwardCard
-                        key={forward.id}
-                        forward={forward}
-                        renderCard={renderForwardCard}
-                      />
-                    ) : null,
-                  )}
+            <div className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-md">
+              <div className="flex items-center justify-between border-b border-divider bg-default-100/40 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-foreground">
+                    {paginatedForwards[0]?.userRemark?.trim() || paginatedForwards[0]?.userName || "全部规则"}
+                  </span>
                 </div>
-              </SortableContext>
-            </DndContext>
+                <span className="text-xs text-default-500">{sortedForwards.length} 条规则</span>
+              </div>
+              <div className="p-4">
+                <DndContext
+                  collisionDetection={pointerWithin}
+                  sensors={sensors}
+                  onDragEnd={handleDragEnd}
+                  onDragStart={() => { }}
+                >
+                  <SortableContext
+                    items={sortableForwardIds}
+                    strategy={rectSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                      {paginatedForwards.map((forward) =>
+                        forward && forward.id ? (
+                          <SortableForwardCard
+                            key={forward.id}
+                            forward={forward}
+                            renderCard={renderForwardCard}
+                          />
+                        ) : null,
+                      )}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            </div>
           </>
         ) : (
           <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-default-50/50">
@@ -4785,267 +4788,257 @@ export default function ForwardPage() {
           <>
             {groupPaginationUI}
             <div className="space-y-4">
-            {paginatedGroupedForwards.map((group) => {
-              const isSelfGroup =
-                isAdmin && tokenUserId !== null && group.userId === tokenUserId;
-              const groupForwardCount = group.tunnels.reduce(
-                (total, tunnel) => total + tunnel.items.length,
-                0,
-              );
+              {paginatedGroupedForwards.map((group) => {
+                const groupForwardCount = group.tunnels.reduce(
+                  (total, tunnel) => total + tunnel.items.length,
+                  0,
+                );
 
-              return (
-                <div
-                  key={`grouped-table-${group.userId}-${group.userName}`}
-                  className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-md"
-                >
-                  <div className="flex items-center justify-between border-b border-divider bg-default-100/40 px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground">
-                        {group.userName}
-                      </span>
-                      {/* 🌟 列表分组视图 */}
-                      {isSelfGroup && (
-                        <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                          管理员本人
-                        </div>
-                      )}
+                return (
+                  <div
+                    key={`grouped-table-${group.userId}-${group.userName}`}
+                    className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-md"
+                  >
+                    <div className="flex items-center justify-between border-b border-divider bg-default-100/40 px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-foreground">
+                          {group.userName}
+                        </span>
+                      </div>
+                      <span className="text-xs text-default-500">{groupForwardCount} 条规则</span>
                     </div>
-                    <span className="text-xs text-default-600">
-                      {groupForwardCount} 条规则
-                    </span>
-                  </div>
-                  <div className="space-y-4 p-4">
-                    <DndContext
-                      collisionDetection={pointerWithin}
-                      sensors={sensors}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <SortableContext
-                        items={group.tunnels.map((tunnel) =>
-                          buildTunnelGroupSortableId(
-                            group.userId,
-                            tunnel.tunnelKey,
-                          ),
-                        )}
-                        strategy={verticalListSortingStrategy}
+                    <div className="space-y-4 p-4">
+                      <DndContext
+                        collisionDetection={pointerWithin}
+                        sensors={sensors}
+                        onDragEnd={handleDragEnd}
                       >
-                        {group.tunnels.map((tunnel) => {
-                          const tunnelSortableForwardIds = tunnel.items
-                            .map((item) => item.id)
-                            .filter((id) => id > 0);
-                          const collapsed =
-                            sanitizedCollapsedTunnelGroups[
-                            buildTunnelGroupCollapseKey(
+                        <SortableContext
+                          items={group.tunnels.map((tunnel) =>
+                            buildTunnelGroupSortableId(
                               group.userId,
                               tunnel.tunnelKey,
-                            )
-                            ] === true;
+                            ),
+                          )}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          {group.tunnels.map((tunnel) => {
+                            const tunnelSortableForwardIds = tunnel.items
+                              .map((item) => item.id)
+                              .filter((id) => id > 0);
+                            const collapsed =
+                              sanitizedCollapsedTunnelGroups[
+                              buildTunnelGroupCollapseKey(
+                                group.userId,
+                                tunnel.tunnelKey,
+                              )
+                              ] === true;
 
-                          return (
-                            <SortableTunnelGroupContainer
-                              key={`grouped-table-${group.userId}-${tunnel.tunnelKey}`}
-                              bodyClassName=""
-                              collapsed={collapsed}
-                              countClassName="text-xs text-default-600"
-                              groupUserId={group.userId}
-                              headerClassName="flex items-center justify-between border-b border-divider bg-default-100/50 hover:bg-default-200/50 px-4 py-2.5"
-                              titleClassName="truncate text-sm font-semibold text-foreground"
-                              tunnel={tunnel}
-                              wrapperClassName="overflow-hidden rounded-lg border border-divider bg-content1"
-                              onToggleCollapsed={() =>
-                                toggleTunnelGroupCollapsed(
-                                  group.userId,
-                                  tunnel.tunnelKey,
-                                )
-                              }
-                            >
-                              <DndContext
-                                collisionDetection={pointerWithin}
-                                sensors={sensors}
-                                onDragEnd={handleDragEnd}
+                            return (
+                              <SortableTunnelGroupContainer
+                                key={`grouped-table-${group.userId}-${tunnel.tunnelKey}`}
+                                bodyClassName=""
+                                collapsed={collapsed}
+                                countClassName="text-xs text-default-600"
+                                groupUserId={group.userId}
+                                headerClassName="flex items-center justify-between border-b border-divider bg-default-100/50 hover:bg-default-200/50 px-4 py-2.5"
+                                titleClassName="truncate text-sm font-semibold text-foreground"
+                                tunnel={tunnel}
+                                wrapperClassName="overflow-hidden rounded-lg border border-divider bg-content1"
+                                onToggleCollapsed={() =>
+                                  toggleTunnelGroupCollapsed(
+                                    group.userId,
+                                    tunnel.tunnelKey,
+                                  )
+                                }
                               >
-                                {(() => {
-                                  const groupIds = tunnel.items.map(
-                                    (f) => f.id,
-                                  );
-                                  const isGroupSelected = groupIds.every((id) =>
-                                    selectedIds.has(id),
-                                  );
-                                  const handleGroupToggle = (
-                                    isSelected: boolean,
-                                  ) => {
-                                    const next = new Set(selectedIds);
-
-                                    groupIds.forEach((id) =>
-                                      isSelected
-                                        ? next.add(id)
-                                        : next.delete(id),
+                                <DndContext
+                                  collisionDetection={pointerWithin}
+                                  sensors={sensors}
+                                  onDragEnd={handleDragEnd}
+                                >
+                                  {(() => {
+                                    const groupIds = tunnel.items.map(
+                                      (f) => f.id,
                                     );
-                                    setSelectedIds(next);
-                                  };
+                                    const isGroupSelected = groupIds.every((id) =>
+                                      selectedIds.has(id),
+                                    );
+                                    const handleGroupToggle = (
+                                      isSelected: boolean,
+                                    ) => {
+                                      const next = new Set(selectedIds);
 
-                                  return (
-                                    <Table
-                                      aria-label={`${group.userName}-${tunnel.tunnelName}规则列表`}
-                                      className={
-                                        FORWARD_GROUPED_TABLE_MIN_WIDTH_CLASS
-                                      }
-                                      classNames={{
-                                        th: "bg-default-100/50 text-default-600 font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
-                                        td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
-                                        tr: "hover:bg-default-50/50 transition-colors",
-                                        wrapper: "bg-content1",
-                                      }}
-                                    >
-                                      <TableHeader>
-                                        <TableColumn
-                                          className={`whitespace-nowrap flex-shrink-0 ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.select} text-left`}
-                                        >
-                                          <div className="flex items-center justify-center h-full">
-                                            <Checkbox
-                                              aria-label="本组全选"
-                                              isSelected={isGroupSelected}
-                                              onValueChange={handleGroupToggle}
-                                            />
-                                          </div>
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-16 pl-2 text-left">
-                                          排序
-                                        </TableColumn>
-                                        {/* <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">用户名</TableColumn> */}
-                                        {isAdmin && (
-                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                                            <Select
-                                              aria-label="按用户筛选"
-                                              className="w-full min-w-[80px]"
-                                              classNames={{
-                                                trigger: "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors flex flex-row items-center justify-start",
-                                                value: "text-sm text-default-600 font-semibold uppercase tracking-wider p-0 order-last",
-                                                selectorIcon: "text-default-400 w-3.5 h-3.5 static order-first m-0",
-                                                innerWrapper: "w-fit flex-none",
-                                                placeholder: "text-sm text-default-600 font-semibold uppercase tracking-wider",
-                                              }}
-                                              size="sm"
-                                              variant="flat"
-                                              onSelectionChange={(keys) => {
-                                                const key = Array.from(keys)[0] as string | undefined;
-                                                setSearchParams((prev: any) => ({
-                                                  ...prev,
-                                                  userId: key || "all",
-                                                }));
-                                              }}
-                                              placeholder="所属用户"
-                                              // 🎯 逻辑对齐：如果是 "all" 或者空，传 [] 让它显示 placeholder ("所属用户")
-                                              selectedKeys={(!searchParams?.userId || searchParams.userId === "all") ? [] : [String(searchParams.userId)]}
-                                            >
-                                              <SelectItem
-                                                key="all"
-                                                textValue="全部用户"
-                                              >
-                                                全部用户
-                                              </SelectItem>
-                                              {(uniqueUsers || []).map(
-                                                (user: any) => (
-                                                  <SelectItem
-                                                    key={user.id.toString()}
-                                                    textValue={user.name}
-                                                  >
-                                                    {user.name}
-                                                  </SelectItem>
-                                                ),
-                                              )}
-                                            </Select>
-                                          </TableColumn>
-                                        )}
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
-                                          规则名_共{sortedForwards.length}条
-                                        </TableColumn>
-                                        {/* {isAdmin && <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">速度限制</TableColumn>} */}
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
-                                          入口地址
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[65px] text-left">
-                                          端口
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-left">
-                                          落地地址
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[65px] text-left">
-                                          端口
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                                          用量
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
-                                          实时带宽
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[90px] text-left">
-                                          连接数
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                                          有效期
-                                        </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                                          状态
-                                        </TableColumn>
-                                        <TableColumn
-                                          align="left"
-                                          className="whitespace-nowrap flex-shrink-0 min-w-[220px] pl-4 text-left"
-                                        >
-                                          操作
-                                        </TableColumn>
-                                      </TableHeader>
-                                      <TableBody
-                                        emptyContent="暂无规则配置"
-                                        items={tunnel.items}
+                                      groupIds.forEach((id) =>
+                                        isSelected
+                                          ? next.add(id)
+                                          : next.delete(id),
+                                      );
+                                      setSelectedIds(next);
+                                    };
+
+                                    return (
+                                      <Table
+                                        aria-label={`${group.userName}-${tunnel.tunnelName}规则列表`}
+                                        className={
+                                          FORWARD_GROUPED_TABLE_MIN_WIDTH_CLASS
+                                        }
+                                        classNames={{
+                                          th: "bg-default-100/50 text-default-600 font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
+                                          td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
+                                          tr: "hover:bg-default-50/50 transition-colors",
+                                          wrapper: "bg-content1",
+                                        }}
                                       >
-                                        {(forward) => (
-                                          <SortableContext
-                                            key={forward.id}
-                                            items={tunnelSortableForwardIds}
-                                            strategy={
-                                              verticalListSortingStrategy
-                                            }
+                                        <TableHeader>
+                                          <TableColumn
+                                            className={`whitespace-nowrap flex-shrink-0 ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.select} text-left`}
                                           >
-                                            <SortableTableRow
-                                              copyToClipboard={copyToClipboard}
-                                              formatFlow={formatFlow}
-                                              formatSpeed={formatSpeed}
-                                              forward={forward}
-                                              getStrategyDisplay={
-                                                getStrategyDisplay
+                                            <div className="flex items-center justify-center h-full">
+                                              <Checkbox
+                                                aria-label="本组全选"
+                                                isSelected={isGroupSelected}
+                                                onValueChange={handleGroupToggle}
+                                              />
+                                            </div>
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-16 pl-2 text-left">
+                                            排序
+                                          </TableColumn>
+                                          {/* <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">用户名</TableColumn> */}
+                                          {isAdmin && (
+                                            <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                                              <Select
+                                                aria-label="按用户筛选"
+                                                className="w-full min-w-[80px]"
+                                                classNames={{
+                                                  trigger: "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors flex flex-row items-center justify-start",
+                                                  value: "text-sm text-default-600 font-semibold uppercase tracking-wider p-0 order-last",
+                                                  selectorIcon: "text-default-400 w-3.5 h-3.5 static order-first m-0",
+                                                  innerWrapper: "w-fit flex-none",
+                                                  placeholder: "text-sm text-default-600 font-semibold uppercase tracking-wider",
+                                                }}
+                                                size="sm"
+                                                variant="flat"
+                                                onSelectionChange={(keys) => {
+                                                  const key = Array.from(keys)[0] as string | undefined;
+                                                  setSearchParams((prev: any) => ({
+                                                    ...prev,
+                                                    userId: key || "all",
+                                                  }));
+                                                }}
+                                                placeholder="所属用户"
+                                                // 🎯 逻辑对齐：如果是 "all" 或者空，传 [] 让它显示 placeholder ("所属用户")
+                                                selectedKeys={(!searchParams?.userId || searchParams.userId === "all") ? [] : [String(searchParams.userId)]}
+                                              >
+                                                <SelectItem
+                                                  key="all"
+                                                  textValue="全部用户"
+                                                >
+                                                  全部用户
+                                                </SelectItem>
+                                                {(uniqueUsers || []).map(
+                                                  (user: any) => (
+                                                    <SelectItem
+                                                      key={user.id.toString()}
+                                                      textValue={user.name}
+                                                    >
+                                                      {user.name}
+                                                    </SelectItem>
+                                                  ),
+                                                )}
+                                              </Select>
+                                            </TableColumn>
+                                          )}
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
+                                            规则名
+                                          </TableColumn>
+                                          {/* {isAdmin && <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">速度限制</TableColumn>} */}
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                                            入口地址
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[65px] text-left">
+                                            端口
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-left">
+                                            落地地址
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[65px] text-left">
+                                            端口
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                                            用量
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                                            实时带宽
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[90px] text-left">
+                                            连接数
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                                            有效期
+                                          </TableColumn>
+                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                                            状态
+                                          </TableColumn>
+                                          <TableColumn
+                                            align="left"
+                                            className="whitespace-nowrap flex-shrink-0 min-w-[220px] pl-4 text-left"
+                                          >
+                                            操作
+                                          </TableColumn>
+                                        </TableHeader>
+                                        <TableBody
+                                          emptyContent="暂无规则配置"
+                                          items={tunnel.items}
+                                        >
+                                          {(forward) => (
+                                            <SortableContext
+                                              key={forward.id}
+                                              items={tunnelSortableForwardIds}
+                                              strategy={
+                                                verticalListSortingStrategy
                                               }
-                                              handleCopy={handleCopy}
-                                              handleDelete={handleDelete}
-                                              handleDiagnose={handleDiagnose}
-                                              handleEdit={handleEdit}
-                                              handleServiceToggle={
-                                                handleServiceToggle
-                                              }
-                                              handleViewTrafficResetLogs={
-                                                handleViewTrafficResetLogs
-                                              }
-                                              isAdmin={isAdmin}
-                                              selectedIds={selectedIds}
-                                              toggleSelect={toggleSelect}
-                                            />
-                                          </SortableContext>
-                                        )}
-                                      </TableBody>
-                                    </Table>
-                                  );
-                                })()}
-                              </DndContext>
-                            </SortableTunnelGroupContainer>
-                          );
-                        })}
-                      </SortableContext>
-                    </DndContext>
+                                            >
+                                              <SortableTableRow
+                                                copyToClipboard={copyToClipboard}
+                                                formatFlow={formatFlow}
+                                                formatSpeed={formatSpeed}
+                                                forward={forward}
+                                                getStrategyDisplay={
+                                                  getStrategyDisplay
+                                                }
+                                                handleCopy={handleCopy}
+                                                handleDelete={handleDelete}
+                                                handleDiagnose={handleDiagnose}
+                                                handleEdit={handleEdit}
+                                                handleServiceToggle={
+                                                  handleServiceToggle
+                                                }
+                                                handleViewTrafficResetLogs={
+                                                  handleViewTrafficResetLogs
+                                                }
+                                                isAdmin={isAdmin}
+                                                selectedIds={selectedIds}
+                                                toggleSelect={toggleSelect}
+                                              />
+                                            </SortableContext>
+                                          )}
+                                        </TableBody>
+                                      </Table>
+                                    );
+                                  })()}
+                                </DndContext>
+                              </SortableTunnelGroupContainer>
+                            );
+                          })}
+                        </SortableContext>
+                      </DndContext>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           </>
         ) : (
           <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-default-50/50">
