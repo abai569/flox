@@ -5,6 +5,7 @@ package nftables
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,7 +61,17 @@ func NewManager() (*Manager, error) {
 	if err := m.initTable(); err != nil {
 		return nil, fmt.Errorf("init table: %w", err)
 	}
+	enableIPForwarding()
 	return m, nil
+}
+
+func enableIPForwarding() {
+	if err := exec.Command("sysctl", "-w", "net.ipv4.ip_forward=1").Run(); err != nil {
+		fmt.Printf("⚠️ 设置 IPv4 转发失败: %v\n", err)
+	}
+	if err := exec.Command("sysctl", "-w", "net.ipv6.conf.all.forwarding=1").Run(); err != nil {
+		fmt.Printf("⚠️ 设置 IPv6 转发失败: %v\n", err)
+	}
 }
 
 func (m *Manager) initTable() error {
