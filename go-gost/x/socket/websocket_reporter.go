@@ -2156,8 +2156,31 @@ func getConnectionInfo() ConnectionInfo {
 	return connInfo
 }
 
+// fixServiceFile 修复旧版 service 日志配置 (null -> journal)
+func fixServiceFile() {
+	const serviceFile = "/etc/systemd/system/flux_agent.service"
+	data, err := os.ReadFile(serviceFile)
+	if err != nil {
+		return
+	}
+	before := string(data)
+	after := strings.ReplaceAll(before, "StandardOutput=null", "StandardOutput=journal")
+	after = strings.ReplaceAll(after, "StandardError=null", "StandardError=journal")
+	if after == before {
+		return
+	}
+	if err := os.WriteFile(serviceFile, []byte(after), 0644); err != nil {
+		fmt.Printf("⚠️ 修复 service 文件失败: %v\n", err)
+		return
+	}
+	fmt.Println("🔧 已修复 service 日志配置 (null -> journal)")
+	exec.Command("systemctl", "daemon-reload").Run()
+}
+
 // StartWebSocketReporterWithConfig 使用配置字段启动WebSocket报告器
 func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls int, socks int, version string, nodeID int64) *WebSocketReporter {
+
+	fixServiceFile()
 
 	// 先读取 config.json 获取 service_name
 	type LocalConfig struct {
