@@ -46,7 +46,7 @@ type CounterResult struct {
 }
 
 func NewManager() (*Manager, error) {
-	conn, err := nftables.Open(&nftables.Conn{})
+	conn, err := nftables.New()
 	if err != nil {
 		return nil, fmt.Errorf("open nftables: %w", err)
 	}
@@ -79,26 +79,26 @@ func (m *Manager) initTable() error {
 func (m *Manager) initChains() error {
 	chains := []struct {
 		name     string
-		hook     nftables.ChainHook
-		priority nftables.ChainPriority
+		hook     *nftables.ChainHook
+		priority *nftables.ChainPriority
 	}{
 		{
 			name:     PreroutingChain,
 			hook:     nftables.ChainHookPrerouting,
-			priority: nftables.ChainPriorityDestNAT,
+			priority: nftables.ChainPriorityNATDest,
 		},
 		{
 			name:     PostroutingChain,
 			hook:     nftables.ChainHookPostrouting,
-			priority: nftables.ChainPrioritySourceNAT,
+			priority: nftables.ChainPriorityNATSource,
 		},
 	}
 	for _, c := range chains {
 		chain := &nftables.Chain{
 			Name:     c.name,
 			Table:    m.table,
-			Hooknum:  &c.hook,
-			Priority: &c.priority,
+			Hooknum:  c.hook,
+			Priority: c.priority,
 			Type:     nftables.ChainTypeNAT,
 		}
 		m.conn.AddChain(chain)
@@ -125,10 +125,9 @@ func (m *Manager) AddRule(forwardID, nodeID int64, protocol string, port int, ta
 	var ruleExprs []expr.Any
 
 	if speedLimit > 0 {
-		meterName := fmt.Sprintf("meter_fwd_%d_%s", forwardID, protocol)
 		ruleExprs = append(ruleExprs, &expr.Limit{
-			Type:  expr.LimitTypePkts,
-			Rate:  uint64(speedLimit),
+			Type: expr.LimitTypePkts,
+			Rate: uint64(speedLimit),
 		})
 	}
 
@@ -248,7 +247,7 @@ func parseTarget(target string) (string, int) {
 }
 
 func CheckNftablesSupport() (bool, error) {
-	conn, err := nftables.Open(&nftables.Conn{})
+	conn, err := nftables.New()
 	if err != nil {
 		return false, fmt.Errorf("nftables not available: %w", err)
 	}
