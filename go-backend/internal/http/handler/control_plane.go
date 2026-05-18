@@ -2119,7 +2119,10 @@ func resolveChainNextHop(chainNodes []chainNodeRecord, nodeID int64, finalTarget
 
 	if currentNodeIdx+1 < len(chainNodes) {
 		nextNode := chainNodes[currentNodeIdx+1]
-		return nextNode.ConnectIP, nextNode.Port
+		if ip := strings.TrimSpace(nextNode.ConnectIP); ip != "" && nextNode.Port > 0 {
+			return ip, nextNode.Port
+		}
+		// Fallback: use finalTarget when next hop info is incomplete
 	}
 
 	host, port, _ := net.SplitHostPort(finalTarget)
