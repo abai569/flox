@@ -2822,13 +2822,20 @@ func (h *Handler) forwardPause(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-	if err := h.controlForwardServices(forward, "PauseService", false); err != nil {
-		response.WriteJSON(w, response.ErrDefault(err.Error()))
-		return
-	}
-	// 断开已建立的连接
-	if err := h.controlForwardServices(forward, "TerminateConnections", false); err != nil {
-		log.Printf("断开连接失败：%v", err)
+
+	// nftables mode: delete rules to pause traffic
+	if strings.EqualFold(forward.Mode, "nftables") {
+		ports, _ := h.listForwardPorts(forward.ID)
+		_ = h.deleteNftablesRules(forward, ports)
+	} else {
+		if err := h.controlForwardServices(forward, "PauseService", false); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+		// 断开已建立的连接
+		if err := h.controlForwardServices(forward, "TerminateConnections", false); err != nil {
+			log.Printf("断开连接失败：%v", err)
+		}
 	}
 
 	now := time.Now().UnixMilli()
@@ -2858,10 +2865,21 @@ func (h *Handler) forwardResume(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
-	if err := h.controlForwardServices(forward, "ResumeService", false); err != nil {
-		response.WriteJSON(w, response.ErrDefault(err.Error()))
-		return
+
+	// nftables mode: re-sync rules to resume traffic
+	if strings.EqualFold(forward.Mode, "nftables") {
+		_, err := h.syncForwardServicesWithWarnings(forward, "UpdateService", true)
+		if err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+	} else {
+		if err := h.controlForwardServices(forward, "ResumeService", false); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
 	}
+
 	_ = h.repo.UpdateForwardStatus(id, 1, now)
 	response.WriteJSON(w, response.OKEmpty())
 }
