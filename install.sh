@@ -579,11 +579,22 @@ update_service() {
 
   mv "$INSTALL_DIR/${SERVICE_NAME}.new" "$INSTALL_DIR/${SERVICE_NAME}"
   chmod +x "$INSTALL_DIR/${SERVICE_NAME}"
+
+  # 修复旧版 service 日志丢弃问题
+  SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+  if [[ -f "$SERVICE_FILE" ]]; then
+    if grep -q "StandardOutput=null" "$SERVICE_FILE" || grep -q "StandardError=null" "$SERVICE_FILE"; then
+      echo "🔧 修复 service 日志配置 (null -> journal)..."
+      sed -i 's/^StandardOutput=null$/StandardOutput=journal/' "$SERVICE_FILE"
+      sed -i 's/^StandardError=null$/StandardError=journal/' "$SERVICE_FILE"
+      systemctl daemon-reload
+    fi
+  fi
   
   echo "🔎 新版本：$($INSTALL_DIR/${SERVICE_NAME} -V)"
 
   echo "🔄 重启服务..."
-  systemctl start ${SERVICE_NAME}
+  systemctl restart ${SERVICE_NAME}
   
   echo "✅ 更新完成，服务已重新启动。"
 }
