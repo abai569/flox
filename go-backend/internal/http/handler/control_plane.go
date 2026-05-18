@@ -2087,7 +2087,7 @@ func buildChainNftablesRule(forwardID int64, chainNodes []chainNodeRecord, fp fo
 		NodeID:      fp.NodeID,
 		Protocol:    protocol,
 		Port:        fp.Port,
-		Target:      fmt.Sprintf("%s:%d", nextHopIP, nextHopPort),
+		Target:      net.JoinHostPort(nextHopIP, strconv.Itoa(nextHopPort)),
 		SpeedLimit:  speedLimit,
 		ChainType:   2,
 		NextHopIP:   nextHopIP,
