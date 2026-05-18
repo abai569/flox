@@ -4,11 +4,12 @@ package nftables
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 	"sync"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
-	"net"
 	"golang.org/x/sys/unix"
 )
 
@@ -301,10 +302,12 @@ func ruleKey(forwardID int64, protocol string) string {
 }
 
 func parseTarget(target string) (string, int) {
-	var addr string
-	var port int
-	fmt.Sscanf(target, "%[^:]:%d", &addr, &port)
-	return addr, port
+	host, portStr, err := net.SplitHostPort(target)
+	if err != nil {
+		return "", 0
+	}
+	port, _ := strconv.Atoi(portStr)
+	return host, port
 }
 
 func CheckNftablesSupport() (bool, error) {
