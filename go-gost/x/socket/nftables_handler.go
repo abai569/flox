@@ -4,9 +4,11 @@ package socket
 
 import (
 	"encoding/json"
-	"github.com/go-gost/x/nftables"
 	"fmt"
+	"net"
+	"strconv"
 
+	"github.com/go-gost/x/nftables"
 )
 
 // AddNftablesRulesRequest nftables 规则创建请求
@@ -70,7 +72,7 @@ func (w *WebSocketReporter) handleAddNftablesRules(data json.RawMessage) error {
 	for _, rule := range req.Rules {
 		target := rule.Target
 		if rule.ChainType > 0 && rule.NextHopIP != "" {
-			target = fmt.Sprintf("%s:%d", rule.NextHopIP, rule.NextHopPort)
+			target = net.JoinHostPort(rule.NextHopIP, strconv.Itoa(rule.NextHopPort))
 		}
 		if err := w.nftablesMgr.AddRule(rule.ForwardID, rule.NodeID, rule.Protocol, rule.Port, target, rule.SpeedLimit); err != nil {
 			return fmt.Errorf("add rule for forward %d/%s (target=%q): %w", rule.ForwardID, rule.Protocol, target, err)
@@ -93,7 +95,7 @@ func (w *WebSocketReporter) handleUpdateNftablesRules(data json.RawMessage) erro
 	for _, rule := range req.Rules {
 		target := rule.Target
 		if rule.ChainType > 0 && rule.NextHopIP != "" {
-			target = fmt.Sprintf("%s:%d", rule.NextHopIP, rule.NextHopPort)
+			target = net.JoinHostPort(rule.NextHopIP, strconv.Itoa(rule.NextHopPort))
 		}
 		if err := w.nftablesMgr.UpdateRule(rule.ForwardID, rule.Protocol, rule.Port, target, rule.SpeedLimit); err != nil {
 			return fmt.Errorf("update rule for forward %d/%s: %w", rule.ForwardID, rule.Protocol, err)
