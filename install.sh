@@ -457,8 +457,8 @@ After=network.target
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$INSTALL_DIR/${SERVICE_NAME} -C $INSTALL_DIR/config.json
 Restart=on-failure
-StandardOutput=null
-StandardError=null
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
