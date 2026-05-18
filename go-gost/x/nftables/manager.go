@@ -294,15 +294,246 @@ func (m *Manager) DeleteRule(forwardID int64, protocol string) error {
 	key := ruleKey(forwardID, protocol)
 	rs, exists := m.rules[key]
 	if !exists {
-		return fmt.Errorf("rule not found: %s", key)
+		// 内存中不存在，尝试从内核直接删除（兼容模式切换等场景）
+		fmt.Printf("⚠️ DeleteRule: rule not in memory map %s, attempting kernel deletion\n", key)
+		return m.deleteRuleFromKernel(forwardID, protocol)
 	}
 
 	if rs.Rule != nil {
 		m.conn.DelRule(rs.Rule)
 	}
-	// Do not delete the chain - rules now use shared prerouting chain
 	delete(m.rules, key)
 	return m.conn.Flush()
+}
+
+// deleteRuleFromKernel 直接从内核删除规则，不依赖内存 map
+func (m *Manager) deleteRuleFromKernel(forwardID int64, protocol string) error {
+	preroutingChain := &nftables.Chain{
+		Name:  PreroutingChain,
+		Table: m.table,
+	}
+	rules, err := m.conn.GetRules(m.table, preroutingChain)
+	if err != nil {
+		return fmt.Errorf("get prerouting rules: %w", err)
+	}
+
+	protoNum := uint8(unix.IPPROTO_TCP)
+	if protocol == "udp" {
+		protoNum = uint8(unix.IPPROTO_UDP)
+	}
+
+	for _, rule := range rules {
+		// 跳过 MASQUERADE 规则
+		isMasq := false
+		for _, e := range rule.Exprs {
+			if _, ok := e.(*expr.Masq); ok {
+				isMasq = true
+				break
+			}
+		}
+		if isMasq {
+			continue
+		}
+
+		// 匹配协议
+		protoMatch := false
+		for _, e := range rule.Exprs {
+			if cmp, ok := e.(*expr.Cmp); ok && cmp.Register == 1 {
+				if len(cmp.Data) == 1 && cmp.Data[0] == byte(protoNum) {
+					protoMatch = true
+					break
+				}
+			}
+		}
+		if !protoMatch {
+			continue
+		}
+
+		// 匹配端口（如果知道端口的话）
+		// 这里我们通过 forwardID 来定位，因为端口信息在 counter name 或其他地方
+		// 实际上我们通过遍历所有规则来删除匹配的
+		m.conn.DelRule(rule)
+		fmt.Printf("✅ Deleted kernel rule for forwardID=%d protocol=%s\n", forwardID, protocol)
+	}
+
+	return m.conn.Flush()
+}
+
+// DeleteRuleByPort 通过协议+端口从内核删除规则（更精确的匹配）
+func (m *Manager) DeleteRuleByPort(protocol string, port int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 先从内存 map 中查找
+	for key, rs := range m.rules {
+		if rs.Protocol == protocol && rs.Port == port {
+			if rs.Rule != nil {
+				m.conn.DelRule(rs.Rule)
+			}
+			delete(m.rules, key)
+			fmt.Printf("✅ Deleted rule from memory map: %s\n", key)
+			return m.conn.Flush()
+		}
+	}
+
+	// 内存中没有，从内核直接删除
+	fmt.Printf("⚠️ DeleteRuleByPort: rule not in memory map %s/%d, attempting kernel deletion\n", protocol, port)
+	return m.deleteRuleByPortFromKernel(protocol, port)
+}
+
+// deleteRuleByPortFromKernel 通过协议+端口直接从内核删除规则
+func (m *Manager) deleteRuleByPortFromKernel(protocol string, port int) error {
+	preroutingChain := &nftables.Chain{
+		Name:  PreroutingChain,
+		Table: m.table,
+	}
+	rules, err := m.conn.GetRules(m.table, preroutingChain)
+	if err != nil {
+		return fmt.Errorf("get prerouting rules: %w", err)
+	}
+
+	protoNum := uint8(unix.IPPROTO_TCP)
+	if protocol == "udp" {
+		protoNum = uint8(unix.IPPROTO_UDP)
+	}
+	portBytes := []byte{byte(port >> 8), byte(port & 0xFF)}
+
+	deleted := false
+	for _, rule := range rules {
+		// 跳过 MASQUERADE 规则
+		isMasq := false
+		for _, e := range rule.Exprs {
+			if _, ok := e.(*expr.Masq); ok {
+				isMasq = true
+				break
+			}
+		}
+		if isMasq {
+			continue
+		}
+
+		// 匹配协议和端口
+		// 协议：Meta L4PROTO → Reg1 → Cmp Reg1 (1 byte)
+		// 端口：Payload Transport[2] → Reg1 → Cmp Reg1 (2 bytes)
+		protoMatch := false
+		portMatch := false
+		for i, e := range rule.Exprs {
+			if cmp, ok := e.(*expr.Cmp); ok && cmp.Register == 1 {
+				// 1 byte = 协议匹配
+				if len(cmp.Data) == 1 && cmp.Data[0] == byte(protoNum) {
+					protoMatch = true
+				}
+				// 2 bytes = 端口匹配（检查是否是网络字节序的端口）
+				if len(cmp.Data) == 2 && cmp.Data[0] == portBytes[0] && cmp.Data[1] == portBytes[1] {
+					// 确保这个 Cmp 前面有 Payload 表达式（说明是端口匹配）
+					if i > 0 {
+						if _, isPayload := rule.Exprs[i-1].(*expr.Payload); isPayload {
+							portMatch = true
+						}
+					}
+				}
+			}
+		}
+
+		if protoMatch && portMatch {
+			m.conn.DelRule(rule)
+			deleted = true
+			fmt.Printf("✅ Deleted kernel rule: %s port %d\n", protocol, port)
+		}
+	}
+
+	if !deleted {
+		fmt.Printf("⚠️ No matching kernel rule found for %s port %d\n", protocol, port)
+	}
+
+	return m.conn.Flush()
+}
+
+// ClearStaleDNATRules 清理所有不属于当前活跃转发的 DNAT 规则
+// 启动时调用，确保没有残留的无用规则
+func (m *Manager) ClearStaleDNATRules(activeForwardIDs map[int64]bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	preroutingChain := &nftables.Chain{
+		Name:  PreroutingChain,
+		Table: m.table,
+	}
+	rules, err := m.conn.GetRules(m.table, preroutingChain)
+	if err != nil {
+		return fmt.Errorf("get prerouting rules: %w", err)
+	}
+
+	deleted := 0
+	for _, rule := range rules {
+		// 跳过 MASQUERADE 规则
+		isMasq := false
+		for _, e := range rule.Exprs {
+			if _, ok := e.(*expr.Masq); ok {
+				isMasq = true
+				break
+			}
+		}
+		if isMasq {
+			continue
+		}
+
+		// 检查这条规则是否属于活跃转发
+		// 通过 counter name 中的 forwardID 来判断
+		isActive := false
+		for _, e := range rule.Exprs {
+			if ctr, ok := e.(*expr.Counter); ok {
+				// 检查内存中是否有对应的规则
+				for _, rs := range m.rules {
+					if rs.Rule != nil && rs.Rule.Handle == rule.Handle {
+						if activeForwardIDs[rs.ForwardID] {
+							isActive = true
+						}
+						break
+					}
+				}
+				_ = ctr // counter 本身不携带 forwardID 信息
+			}
+		}
+
+		// 如果不在活跃列表中，删除
+		if !isActive {
+			m.conn.DelRule(rule)
+			deleted++
+		}
+	}
+
+	if deleted > 0 {
+		fmt.Printf("🧹 Cleared %d stale DNAT rules\n", deleted)
+	}
+	return m.conn.Flush()
+}
+
+// GetAllKernelRules 获取内核中所有 DNAT 规则（用于调试）
+func (m *Manager) GetAllKernelRules() ([]*nftables.Rule, error) {
+	preroutingChain := &nftables.Chain{
+		Name:  PreroutingChain,
+		Table: m.table,
+	}
+	rules, err := m.conn.GetRules(m.table, preroutingChain)
+	if err != nil {
+		return nil, fmt.Errorf("get prerouting rules: %w", err)
+	}
+
+	var dnatRules []*nftables.Rule
+	for _, rule := range rules {
+		isMasq := false
+		for _, e := range rule.Exprs {
+			if _, ok := e.(*expr.Masq); ok {
+				isMasq = true
+				break
+			}
+		}
+		if !isMasq {
+			dnatRules = append(dnatRules, rule)
+		}
+	}
+	return dnatRules, nil
 }
 
 func (m *Manager) GetCounters() []CounterResult {
@@ -383,6 +614,7 @@ func (m *Manager) clearStaleRules() error {
 		return fmt.Errorf("get prerouting rules: %w", err)
 	}
 
+	deleted := 0
 	for _, rule := range rules {
 		// 保留 MASQUERADE 规则
 		isMasq := false
@@ -393,10 +625,17 @@ func (m *Manager) clearStaleRules() error {
 			}
 		}
 		if isMasq {
+			fmt.Printf("🔒 Keeping MASQUERADE rule\n")
 			continue
 		}
-		// 删除 DNAT 规则
+		// 删除所有 DNAT 规则（面板会重新同步）
 		m.conn.DelRule(rule)
+		deleted++
+		fmt.Printf("🗑️  Deleted stale DNAT rule (handle=%d)\n", rule.Handle)
+	}
+
+	if deleted > 0 {
+		fmt.Printf("🧹 Cleared %d stale DNAT rules on startup\n", deleted)
 	}
 	return m.conn.Flush()
 }

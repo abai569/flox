@@ -120,10 +120,18 @@ func (w *WebSocketReporter) handleDeleteNftablesRules(data json.RawMessage) erro
 		protocols = []string{"tcp", "udp"}
 	}
 
+	var errs []error
 	for _, forwardID := range req.ForwardIDs {
 		for _, protocol := range protocols {
-			_ = w.nftablesMgr.DeleteRule(forwardID, protocol)
+			if err := w.nftablesMgr.DeleteRule(forwardID, protocol); err != nil {
+				errs = append(errs, fmt.Errorf("delete rule forwardID=%d/%s: %w", forwardID, protocol, err))
+			}
 		}
+	}
+
+	if len(errs) > 0 {
+		fmt.Printf("⚠️ DeleteNftablesRules errors: %v\n", errs)
+		return fmt.Errorf("some rules failed to delete: %v", errs)
 	}
 	return nil
 }
