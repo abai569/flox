@@ -176,15 +176,21 @@ func (m *Manager) AddRule(forwardID, nodeID int64, protocol string, port int, ta
 	if ip == nil {
 		return fmt.Errorf("invalid target IP: %s", dnatAddr)
 	}
-	ip4 := ip.To4()
-	if ip4 == nil {
-		return fmt.Errorf("target IP is not IPv4: %s", dnatAddr)
+
+	var natFamily uint32
+	var ipBytes []byte
+	if ip4 := ip.To4(); ip4 != nil {
+		natFamily = unix.NFPROTO_IPV4
+		ipBytes = ip4
+	} else {
+		natFamily = unix.NFPROTO_IPV6
+		ipBytes = ip.To16()
 	}
 
 	// Load destination address into register 1
 	ruleExprs = append(ruleExprs, &expr.Immediate{
 		Register: 1,
-		Data:     ip4,
+		Data:     ipBytes,
 	})
 	// Load destination port into register 2 (network byte order)
 	portNet := []byte{byte(dnatPort >> 8), byte(dnatPort & 0xFF)}
@@ -195,7 +201,7 @@ func (m *Manager) AddRule(forwardID, nodeID int64, protocol string, port int, ta
 	// Apply DNAT
 	ruleExprs = append(ruleExprs, &expr.NAT{
 		Type:        expr.NATTypeDestNAT,
-		Family:      unix.NFPROTO_IPV4,
+		Family:      natFamily,
 		RegAddrMin:  1,
 		RegProtoMin: 2,
 	})
