@@ -2656,7 +2656,12 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 	if _, ok := req["speedLimit"]; !ok {
 		speedLimit = forward.SpeedLimit
 	}
-	if err := h.repo.UpdateForward(id, name, tunnelID, remoteAddr, strategy, now, newSpeedID, maxConnections, trafficLimit, newExpiryTime, speedLimitEnabled, speedLimit); err != nil {
+
+	mode := asString(req["mode"])
+	if mode == "" {
+		mode = forward.Mode
+	}
+	if err := h.repo.UpdateForward(id, name, tunnelID, remoteAddr, strategy, now, newSpeedID, maxConnections, trafficLimit, newExpiryTime, speedLimitEnabled, speedLimit, mode); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}

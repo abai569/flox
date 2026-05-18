@@ -1,4 +1,4 @@
-package repo
+﻿package repo
 
 import (
 	"crypto/rand"
@@ -1064,7 +1064,7 @@ func (r *Repository) GetMinForwardPort(forwardID int64) sql.NullInt64 {
 	return p
 }
 
-func (r *Repository) UpdateForward(id int64, name string, tunnelID int64, remoteAddr, strategy string, now int64, speedID interface{}, maxConnections int, trafficLimit int64, expiryTime interface{}, speedLimitEnabled bool, speedLimit int) error {
+func (r *Repository) UpdateForward(id int64, name string, tunnelID int64, remoteAddr, strategy string, now int64, speedID interface{}, maxConnections int, trafficLimit int64, expiryTime interface{}, speedLimitEnabled bool, speedLimit int, mode string) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -1081,6 +1081,7 @@ func (r *Repository) UpdateForward(id int64, name string, tunnelID int64, remote
 			"expiry_time":         nullInt64FromInterface(expiryTime),
 			"speed_limit_enabled": speedLimitEnabled,
 			"speed_limit":         speedLimit,
+			"mode":                mode,
 			"updated_time":        now,
 		}).Error
 }
