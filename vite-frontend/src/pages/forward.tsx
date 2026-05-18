@@ -804,7 +804,7 @@ const SortableTableRow = ({
       <TableCell className={`whitespace-nowrap text-black ${rowBg}`}>
         <span
           className="cursor-pointer hover:text-primary transition-colors text-black"
-          onClick={() => copyToClipboard(forward.name, "规则名")}
+          onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
           {forward.name}
         </span>
@@ -1104,7 +1104,7 @@ const SortableCompactTableRow = ({
       <TableCell className={`whitespace-nowrap text-black ${rowBg}`}>
         <span
           className="cursor-pointer hover:text-primary transition-colors text-black"
-          onClick={() => copyToClipboard(forward.name, "规则名")}
+          onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
           {forward.name}
         </span>
@@ -4104,7 +4104,7 @@ export default function ForwardPage() {
             <div className="flex items-center justify-between gap-2 mb-1">
               <h3
                 className="font-bold text-foreground truncate text-sm cursor-pointer hover:text-primary transition-colors flex-1 min-w-0"
-                onClick={() => copyToClipboard(forward.name, "规则名")}
+                onClick={() => copyToClipboard(forward.name, "规则名称")}
               >
                 {forward.name}
               </h3>
@@ -4928,7 +4928,10 @@ export default function ForwardPage() {
                                             </TableColumn>
                                           )}
                                           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
-                                            规则名
+                                            规则名称
+                                            <span className="text-xs text-primary-500 font-normal">
+                                              ^{sortedForwards.length}个
+                                            </span>
                                           </TableColumn>
                                           {/* {isAdmin && <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">速度限制</TableColumn>} */}
                                           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
