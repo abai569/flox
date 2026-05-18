@@ -334,7 +334,6 @@ jobs:
           # 创建 release
           gh release create "${VERSION}" \
             --title "Release ${VERSION}" \
-            --latest true \
             --notes "## 📝 Release Information
 
           - **Version**: ${VERSION}
@@ -396,6 +395,8 @@ jobs:
           gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber
           gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber
 
+          RELEASE_ID=$(gh release view "${VERSION}" --json id --jq '.id')
+          gh api -X PATCH repos/${{ github.repository }}/releases/${RELEASE_ID} -f make_latest="true"
           echo "✅ Release ${VERSION} 创建完成"
 
       #- name: Sync to Chinese CDN
