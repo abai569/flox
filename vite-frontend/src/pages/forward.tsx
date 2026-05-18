@@ -5284,22 +5284,6 @@ export default function ForwardPage() {
                         <SelectItem key="hash">哈希模式 - IP 哈希</SelectItem>
                       </Select>
                     )}
-                    <Select
-                      label="转发模式"
-                      description="nftables 为内核态转发，性能更高但协议阻断暂不可用"
-                      selectedKeys={[form.mode]}
-                      variant="bordered"
-                      onSelectionChange={(keys) => {
-                        const selectedKey = Array.from(keys)[0] as string;
-                        setForm((prev) => ({
-                          ...prev,
-                          mode: selectedKey as "gost" | "nftables"
-                        }));
-                      }}
-                    >
-                      <SelectItem key="gost">GOST 用户态转发</SelectItem>
-                      <SelectItem key="nftables">nftables 内核态转发</SelectItem>
-                    </Select>
                   </div>
                   {/* 高级功能折叠面板 - 移到最底部 */}
                   <div className="border border-divider rounded-lg overflow-hidden mt-4">
@@ -5347,7 +5331,7 @@ export default function ForwardPage() {
                           }
                         />
                         {/* 连接数限制 & 流量控制 - 同一行 */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
                           <ConnectionLimitField
                             value={form.maxConnections}
                             onChange={(val) =>
@@ -5366,7 +5350,23 @@ export default function ForwardPage() {
                               }))
                             }
                           />
-
+                          {/* 转发模式选择 */}
+                          <Select
+                            label="转发模式"
+                            description="nftables模式协议阻断暂不可用"
+                            selectedKeys={[form.mode]}
+                            variant="bordered"
+                            onSelectionChange={(keys) => {
+                              const selectedKey = Array.from(keys)[0] as string;
+                              setForm((prev) => ({
+                                ...prev,
+                                mode: selectedKey as "gost" | "nftables"
+                              }));
+                            }}
+                          >
+                            <SelectItem key="gost">GOST 用户态转发</SelectItem>
+                            <SelectItem key="nftables">nftables 内核态转发</SelectItem>
+                          </Select>
                           {/* 有效期 */}
                           <ExpiryTimeField
                             value={form.expiryTime}
