@@ -395,7 +395,7 @@ jobs:
           gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber
           gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber
 
-          RELEASE_ID=$(gh release view "${VERSION}" --json id --jq '.id')
+          RELEASE_ID=$(gh release view "${VERSION}" --json databaseId --jq '.databaseId')
           gh api -X PATCH repos/${{ github.repository }}/releases/${RELEASE_ID} -f make_latest="true"
           echo "✅ Release ${VERSION} 创建完成"
 
