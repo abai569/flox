@@ -2266,7 +2266,7 @@ export default function ForwardPage() {
       expiryTime: null,
       speedLimitEnabled: false,
       speedLimit: 0,
-      mode: form.mode,
+      mode: "gost",
     });
     setErrors({});
     setModalOpen(true);
