@@ -294,16 +294,17 @@ func (m *Manager) DeleteRule(forwardID int64, protocol string) error {
 	key := ruleKey(forwardID, protocol)
 	rs, exists := m.rules[key]
 	if !exists {
-		// 内存中不存在，尝试从内核直接删除（兼容模式切换等场景）
 		fmt.Printf("️ DeleteRule: rule not in memory map %s, attempting kernel deletion\n", key)
 		return m.deleteRuleFromKernel(forwardID, protocol)
 	}
 
-	if rs.Rule != nil {
-		m.conn.DelRule(rs.Rule)
-	}
+	// 从内存中移除，但不用 rs.Rule 删内核 — AddRule 不返回有效 handle
 	delete(m.rules, key)
-	return m.conn.Flush()
+	if rs.Rule != nil && rs.Rule.Handle != 0 {
+		m.conn.DelRule(rs.Rule)
+		return m.conn.Flush()
+	}
+	return m.deleteRuleFromKernel(forwardID, protocol)
 }
 
 // DeleteRuleWithPort 通过 forwardID+协议+端口删除规则（精确匹配）
@@ -314,21 +315,14 @@ func (m *Manager) DeleteRuleWithPort(forwardID int64, protocol string, port int)
 	key := ruleKey(forwardID, protocol)
 	rs, exists := m.rules[key]
 	if !exists {
-		// 内存中不存在，尝试从内核直接删除
 		fmt.Printf("️ DeleteRuleWithPort: rule not in memory map %s, attempting kernel deletion\n", key)
 		return m.deleteRuleByPortFromKernel(protocol, port)
 	}
 
-	// 验证端口是否匹配
-	if rs.Port != port {
-		fmt.Printf("️ DeleteRuleWithPort: port mismatch, memory has port %d, requested %d\n", rs.Port, port)
-	}
-
-	if rs.Rule != nil {
-		m.conn.DelRule(rs.Rule)
-	}
+	// 从内存中移除，但不用 rs.Rule 删内核 — AddRule 不返回有效 handle
+	// 直接通过协议+端口扫描内核删除
 	delete(m.rules, key)
-	return m.conn.Flush()
+	return m.deleteRuleByPortFromKernel(protocol, port)
 }
 
 // DeleteRuleByPort 通过协议+端口从内核删除规则（更精确的匹配）
