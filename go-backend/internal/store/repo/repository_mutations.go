@@ -940,6 +940,10 @@ func (r *Repository) DeleteTunnelCascade(tunnelID int64) error {
 		if err := tx.Where("tunnel_id = ?", tunnelID).Delete(&model.Forward{}).Error; err != nil {
 			return err
 		}
+		userTunnelIDs := tx.Model(&model.UserTunnel{}).Select("id").Where("tunnel_id = ?", tunnelID)
+		if err := tx.Where("user_tunnel_id IN (?)", userTunnelIDs).Delete(&model.GroupPermissionGrant{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("tunnel_id = ?", tunnelID).Delete(&model.UserTunnel{}).Error; err != nil {
 			return err
 		}
