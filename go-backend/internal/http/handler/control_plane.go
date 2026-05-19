@@ -2047,51 +2047,68 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		nodePorts[fp.NodeID] = append(nodePorts[fp.NodeID], fp.Port)
 	}
 
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	var syncErr error
+
 	for nodeID, portList := range nodePorts {
-		node, err := h.getNodeRecord(nodeID)
-		if err != nil {
-			fmt.Printf("[nft.debug] getNodeRecord failed for nodeID=%d: %v\n", nodeID, err)
-			continue
-		}
-		nodeRules := filterRulesByNodeID(rules, node.ID)
-		fmt.Printf("[nft.debug] node %s: %d rules, ports %v\n", node.Name, len(nodeRules), portList)
-		if len(nodeRules) == 0 {
-			continue
-		}
+		wg.Add(1)
+		go func(nid int64, plist []int) {
+			defer wg.Done()
+			node, err := h.getNodeRecord(nid)
+			if err != nil {
+				fmt.Printf("[nft.debug] getNodeRecord failed for nodeID=%d: %v\n", nid, err)
+				return
+			}
+			nodeRules := filterRulesByNodeID(rules, nid)
+			fmt.Printf("[nft.debug] node %s: %d rules, ports %v\n", node.Name, len(nodeRules), plist)
+			if len(nodeRules) == 0 {
+				return
+			}
 
-		// Batch delete old rules for this forward on all ports
-		delPayload := DeleteNftablesRulesRequest{
-			ForwardIDs: []int64{forward.ID},
-			Protocols:  []string{"tcp", "udp"},
-			Ports:      portList,
-		}
-		fmt.Printf("[nft.debug] sending batch DeleteNftablesRules to node %s for ports %v\n", node.Name, portList)
-		if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
-			if err := h.sendRemoteNftablesCommand(node, delPayload); err != nil {
-				fmt.Printf("️ syncNftablesRules remote delete error: %v\n", err)
+			// Batch delete old rules for this forward on all ports
+			delPayload := DeleteNftablesRulesRequest{
+				ForwardIDs: []int64{forward.ID},
+				Protocols:  []string{"tcp", "udp"},
+				Ports:      plist,
 			}
-		} else {
-			if _, err := h.sendNodeCommand(node.ID, "DeleteNftablesRules", delPayload, true, false); err != nil {
-				fmt.Printf("️ syncNftablesRules node delete error: %v\n", err)
-			}
-		}
-
-		// Batch add new rules for this forward
-		payload := AddNftablesRulesRequest{Rules: nodeRules}
-		fmt.Printf("[nft.debug] sending AddNftablesRules to node %s with %d rules\n", node.Name, len(nodeRules))
-		if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
-			if err := h.sendRemoteNftablesCommand(node, payload); err != nil {
-				return fmt.Errorf("remote node %s nftables sync failed: %w", node.Name, err)
-			}
-		} else {
-			if _, err := h.sendNodeCommand(node.ID, "AddNftablesRules", payload, true, false); err != nil {
-				if isNodeOfflineOrTimeoutError(err) {
-					fmt.Printf("[nft.debug] node %s offline/timeout, skipping\n", node.Name)
-					continue
+			fmt.Printf("[nft.debug] sending batch DeleteNftablesRules to node %s for ports %v\n", node.Name, plist)
+			if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
+				if err := h.sendRemoteNftablesCommand(node, delPayload); err != nil {
+					fmt.Printf("️ syncNftablesRules remote delete error: %v\n", err)
 				}
-				return fmt.Errorf("node %s nftables sync failed: %w", node.Name, err)
+			} else {
+				if _, err := h.sendNodeCommand(node.ID, "DeleteNftablesRules", delPayload, true, false); err != nil {
+					fmt.Printf("️ syncNftablesRules node delete error: %v\n", err)
+				}
 			}
-		}
+
+			// Batch add new rules for this forward
+			payload := AddNftablesRulesRequest{Rules: nodeRules}
+			fmt.Printf("[nft.debug] sending AddNftablesRules to node %s with %d rules\n", node.Name, len(nodeRules))
+			if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
+				if err := h.sendRemoteNftablesCommand(node, payload); err != nil {
+					mu.Lock()
+					syncErr = fmt.Errorf("remote node %s nftables sync failed: %w", node.Name, err)
+					mu.Unlock()
+				}
+			} else {
+				if _, err := h.sendNodeCommand(node.ID, "AddNftablesRules", payload, true, false); err != nil {
+					if isNodeOfflineOrTimeoutError(err) {
+						fmt.Printf("[nft.debug] node %s offline/timeout, skipping\n", node.Name)
+					} else {
+						mu.Lock()
+						syncErr = fmt.Errorf("node %s nftables sync failed: %w", node.Name, err)
+						mu.Unlock()
+					}
+				}
+			}
+		}(nodeID, portList)
+	}
+	wg.Wait()
+
+	if syncErr != nil {
+		return syncErr
 	}
 	fmt.Printf("[nft.debug] syncNftablesRules completed successfully for forwardID=%d\n", forward.ID)
 	return nil
@@ -2214,24 +2231,36 @@ func (h *Handler) deleteNftablesRules(forward *forwardRecord, ports []forwardPor
 	}
 
 	var errs []string
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
 	for nodeID := range nodeIDs {
-		node, err := h.getNodeRecord(nodeID)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("node %d: %v", nodeID, err))
-			continue
-		}
-		if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
-			if err := h.sendRemoteNftablesCommand(node, payload); err != nil {
-				errs = append(errs, fmt.Sprintf("remote node %s: %v", node.Name, err))
-			}
-		} else {
-			// Use shorter timeout for delete operations (2s instead of 6s)
-			_, err := h.sendNodeCommandWithTimeout(node.ID, "DeleteNftablesRules", payload, 2*time.Second, true, false)
+		wg.Add(1)
+		go func(nid int64) {
+			defer wg.Done()
+			node, err := h.getNodeRecord(nid)
 			if err != nil {
-				errs = append(errs, fmt.Sprintf("node %s: %v", node.Name, err))
+				mu.Lock()
+				errs = append(errs, fmt.Sprintf("node %d: %v", nid, err))
+				mu.Unlock()
+				return
 			}
-		}
+			if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
+				if err := h.sendRemoteNftablesCommand(node, payload); err != nil {
+					mu.Lock()
+					errs = append(errs, fmt.Sprintf("remote node %s: %v", node.Name, err))
+					mu.Unlock()
+				}
+			} else {
+				if _, err := h.sendNodeCommand(node.ID, "DeleteNftablesRules", payload, true, false); err != nil {
+					mu.Lock()
+					errs = append(errs, fmt.Sprintf("node %s: %v", node.Name, err))
+					mu.Unlock()
+				}
+			}
+		}(nodeID)
 	}
+	wg.Wait()
 
 	if len(errs) > 0 {
 		return fmt.Errorf("nftables rule deletion errors: %s", strings.Join(errs, "; "))
