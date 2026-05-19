@@ -607,6 +607,40 @@ update_service() {
     return 1
   fi
 
+  # 从旧的 flux_agent 自动迁移到 flvx_agent
+  if [[ "$SERVICE_NAME" == "flux_agent" ]]; then
+    echo "📦 检测到旧服务名称: flux_agent，正在迁移到 flvx_agent..."
+    local old_dir="/etc/flux_agent"
+    local new_name="flvx_agent"
+    local new_dir="/etc/${new_name}"
+
+    # 停止旧服务
+    systemctl stop flux_agent 2>/dev/null
+    systemctl disable flux_agent 2>/dev/null
+
+    # 创建新目录并复制配置
+    mkdir -p "$new_dir"
+    [[ -f "$old_dir/config.json" ]] && cp "$old_dir/config.json" "$new_dir/config.json"
+    [[ -f "$old_dir/gost.json" ]] && cp "$old_dir/gost.json" "$new_dir/gost.json"
+
+    # 更新 config.json 中的 service_name
+    sed -i "s|\"service_name\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"service_name\": \"${new_name}\"|" "$new_dir/config.json"
+    chmod 600 "$new_dir"/*.json
+
+    # 复制现成的 service 文件并改名
+    if [[ -f "/etc/systemd/system/flux_agent.service" ]]; then
+      cp "/etc/systemd/system/flux_agent.service" "/etc/systemd/system/${new_name}.service"
+      sed -i "s/flux_agent/${new_name}/g" "/etc/systemd/system/${new_name}.service"
+      sed -i "s|/etc/flux_agent|${new_dir}|g" "/etc/systemd/system/${new_name}.service"
+      rm -f "/etc/systemd/system/flux_agent.service"
+    fi
+
+    systemctl daemon-reload
+    SERVICE_NAME="$new_name"
+    INSTALL_DIR="$new_dir"
+    echo "✅ 服务名称已迁移到: ${SERVICE_NAME}"
+  fi
+
   echo "🔄 开始更新 ${SERVICE_NAME}..."
   
   SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"

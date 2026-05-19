@@ -297,6 +297,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 
 	// nftables mode branch
 	if strings.EqualFold(forward.Mode, "nftables") {
+		fmt.Printf("[nft.debug] syncForwardServicesWithWarnings: nft mode branch, forwardID=%d\n", forward.ID)
 		return nil, h.syncNftablesRules(forward, tunnel, ports, userTunnelID, speed)
 	}
 
@@ -2022,15 +2023,20 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		return errors.New("invalid nftables sync context")
 	}
 
+	fmt.Printf("[nft.debug] syncNftablesRules called: forwardID=%d mode=%s\n", forward.ID, forward.Mode)
+
 	chainNodes, _ := h.listChainNodesForTunnel(forward.TunnelID)
 	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, speedLimit)
+	fmt.Printf("[nft.debug] built %d rule payloads for forwardID=%d\n", len(rules), forward.ID)
 
 	for _, fp := range ports {
 		node, err := h.getNodeRecord(fp.NodeID)
 		if err != nil {
+			fmt.Printf("[nft.debug] getNodeRecord failed for nodeID=%d: %v\n", fp.NodeID, err)
 			continue
 		}
 		nodeRules := filterRulesByNodeID(rules, node.ID)
+		fmt.Printf("[nft.debug] port %d node %s: %d rules after filter\n", fp.Port, node.Name, len(nodeRules))
 		if len(nodeRules) == 0 {
 			continue
 		}
@@ -2041,6 +2047,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 			Protocols:  []string{"tcp", "udp"},
 			Ports:      []int{fp.Port},
 		}
+		fmt.Printf("[nft.debug] sending DeleteNftablesRules to node %s\n", node.Name)
 		if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
 			if err := h.sendRemoteNftablesCommand(node, delPayload); err != nil {
 				fmt.Printf("️ syncNftablesRules remote delete error: %v\n", err)
@@ -2052,6 +2059,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		}
 
 		payload := AddNftablesRulesRequest{Rules: nodeRules}
+		fmt.Printf("[nft.debug] sending AddNftablesRules to node %s with %d rules\n", node.Name, len(nodeRules))
 		if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
 			if err := h.sendRemoteNftablesCommand(node, payload); err != nil {
 				return fmt.Errorf("remote node %s nftables sync failed: %w", node.Name, err)
@@ -2059,12 +2067,14 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		} else {
 			if _, err := h.sendNodeCommand(node.ID, "AddNftablesRules", payload, true, false); err != nil {
 				if isNodeOfflineOrTimeoutError(err) {
+					fmt.Printf("[nft.debug] node %s offline/timeout, skipping\n", node.Name)
 					continue
 				}
 				return fmt.Errorf("node %s nftables sync failed: %w", node.Name, err)
 			}
 		}
 	}
+	fmt.Printf("[nft.debug] syncNftablesRules completed successfully for forwardID=%d\n", forward.ID)
 	return nil
 }
 

@@ -2893,6 +2893,7 @@ func (h *Handler) forwardResume(w http.ResponseWriter, r *http.Request) {
 
 	// nftables mode: re-sync rules to resume traffic
 	if strings.EqualFold(forward.Mode, "nftables") {
+		log.Printf("[nft.debug] forwardResume: nft mode, calling syncForwardServicesWithWarnings forwardID=%d", forward.ID)
 		_, err := h.syncForwardServicesWithWarnings(forward, "UpdateService", true)
 		if err != nil {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
