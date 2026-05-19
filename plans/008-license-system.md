@@ -108,7 +108,7 @@
 
 - [ ] **5.2** 启动时 License 加载
   - 文件：`go-backend/cmd/paneld/main.go`
-  - 逻辑：检测 `/etc/flux_agent/license.json` 自动激活
+  - 逻辑：检测 `/etc/flvx_agent/license.json` 自动激活
 
 ---
 
@@ -220,4 +220,4 @@
 - RSA 公钥内置于面板代码中
 - 私钥由管理员保管，用于生成 License
 - 域名验证支持通配符（`*.example.com`）
-- License 文件默认路径：`/etc/flux_agent/license.json`
+- License 文件默认路径：`/etc/flvx_agent/license.json`

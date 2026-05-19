@@ -30,7 +30,7 @@ FLVX (formerly Flux Panel) is a traffic forwarding management system built on a 
 | **Deploy (Docker)** | `docker-compose-v4.yml` | Env: `JWT_SECRET`, `BACKEND_PORT`, `FRONTEND_PORT` |
 | **Deploy (IPv6)** | `docker-compose-v6.yml` | Same as v4 + IPv6-enabled bridge |
 | **Panel install** | `panel_install.sh` | Picks v4/v6, generates `JWT_SECRET`, downloads compose |
-| **Node install** | `install.sh` | Installs `/etc/flux_agent/flux_agent` + writes `config.json`/`gost.json` + systemd `flux_agent.service` |
+| **Node install** | `install.sh` | Installs `/etc/flvx_agent/flvx_agent` + writes `config.json`/`gost.json` + systemd `flvx_agent.service` (migrates from legacy `/etc/flux_agent` automatically) |
 | **Admin API** | `go-backend/` | Go Admin API (SQLite/PostgreSQL) |
 | **Web UI** | `vite-frontend/` | React/Vite dashboard (shadcn bridge + Tailwind v4) |
 | **UI Compatibility** | `vite-frontend/src/shadcn-bridge/heroui/` | HeroUI-compatible API wrappers backed by shadcn/radix |

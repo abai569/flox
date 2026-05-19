@@ -7,7 +7,7 @@ REPO="abai569/flvx"
 PINNED_VERSION="2.2.6-beta1"
 
 # 默认服务名
-SERVICE_NAME="flux_agent"
+SERVICE_NAME="flvx_agent"
 SERVER_ADDR=""
 SECRET=""
 
@@ -225,11 +225,11 @@ build_download_url() {
 show_download_source() {
     local url="$1"
     if [[ "$url" == *"chfs.646321.xyz"* ]]; then
-        echo "🌏 正在通过国内镜像源下载 flux_agent 中..."
+        echo "🌏 正在通过国内镜像源下载 ${SERVICE_NAME} 中..."
     elif [[ "$url" == *"github.com"* ]]; then
-        echo "🌍 正在通过 GitHub 镜像源下载 flux_agent 中..."
+        echo "🌍 正在通过 GitHub 镜像源下载 ${SERVICE_NAME} 中..."
     else
-        echo "🌐 正在通过自定义镜像源下载 flux_agent 中..."
+        echo "🌐 正在通过自定义镜像源下载 ${SERVICE_NAME} 中..."
     fi
 }
 
@@ -379,12 +379,91 @@ get_config_params() {
   fi
 }
 
+# 从旧 flux_agent 迁移配置到新目录
+migrate_legacy_config() {
+  local old_dir="/etc/flux_agent"
+  local old_service="flux_agent"
+
+  # 新目录就是旧目录，无需迁移
+  [[ "$INSTALL_DIR" == "$old_dir" ]] && return 0
+
+  # 旧目录不存在，无需迁移
+  [[ ! -d "$old_dir" ]] && return 0
+  [[ ! -f "$old_dir/config.json" ]] && return 0
+
+  echo "📦 检测到旧的 flux_agent 配置目录：$old_dir"
+  echo "📂 新目录：$INSTALL_DIR"
+
+  # 新目录已有配置，询问是否覆盖
+  if [[ -f "$INSTALL_DIR/config.json" ]]; then
+    echo "⚠️  新目录已存在配置，跳过迁移。"
+    return 0
+  fi
+
+  echo "是否将旧配置迁移到新目录？"
+  read -p "迁移后将停止并禁用旧 flux_agent 服务 [Y/n]: " confirm
+  if [[ "$confirm" == "n" || "$confirm" == "N" ]]; then
+    echo "⏭️   跳过迁移，将继续在新的空目录安装。"
+    return 0
+  fi
+
+  echo "🔁  正在迁移配置..."
+
+  # 创建新目录并复制配置
+  mkdir -p "$INSTALL_DIR"
+  cp "$old_dir/config.json" "$INSTALL_DIR/config.json"
+  [[ -f "$old_dir/gost.json" ]] && cp "$old_dir/gost.json" "$INSTALL_DIR/gost.json"
+
+  # 更新 config.json 中的 service_name
+  sed -i "s|\"service_name\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"service_name\": \"${SERVICE_NAME}\"|" "$INSTALL_DIR/config.json"
+  # 同步 node_id（如果旧配置有）
+  local old_node_id
+  old_node_id=$(grep -o '"node_id"[[:space:]]*:[[:space:]]*[0-9]*' "$old_dir/config.json" | grep -o '[0-9]*')
+  if [[ -n "$old_node_id" ]]; then
+    # 如果新配置没有 node_id，从旧配置补上
+    if ! grep -q '"node_id"' "$INSTALL_DIR/config.json" 2>/dev/null; then
+      sed -i "s|^\}$|  \"node_id\": ${old_node_id}\n}|" "$INSTALL_DIR/config.json"
+    fi
+  fi
+
+  chmod 600 "$INSTALL_DIR"/*.json
+
+  # 停止旧 flux_agent 服务
+  if systemctl list-units --full -all | grep -Fq "${old_service}.service"; then
+    echo "🛑  停止旧 ${old_service} 服务..."
+    systemctl stop ${old_service} 2>/dev/null
+    systemctl disable ${old_service} 2>/dev/null
+  fi
+
+  # 删除旧 service 文件
+  if [[ -f "/etc/systemd/system/${old_service}.service" ]]; then
+    rm -f "/etc/systemd/system/${old_service}.service"
+    echo "🧹 已删除旧服务文件"
+  fi
+
+  # 询问是否删除旧配置目录
+  echo "是否删除旧的配置目录（$old_dir）？"
+  read -p "建议确认新服务正常运行后再删除 [y/N]: " del_old
+  if [[ "$del_old" == "y" || "$del_old" == "Y" ]]; then
+    rm -rf "$old_dir"
+    echo "🧹 已删除旧配置目录"
+  else
+    echo "⏭️  保留旧配置目录，如需手动删除请执行：rm -rf $old_dir"
+  fi
+
+  systemctl daemon-reload
+  echo "✅ 配置迁移完成"
+}
+
 # 安装功能
 install_service() {
   get_config_params
   echo "🚀 开始安装 ${SERVICE_NAME}..."
 
   check_and_install_tcpkill
+
+  # 如果是新默认名称且检测到旧 flux_agent，执行迁移
+  migrate_legacy_config
   
   mkdir -p "$INSTALL_DIR"
 

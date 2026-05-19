@@ -328,7 +328,7 @@ func (w *WebSocketReporter) connect() error {
 
 	var cfg LocalConfig
 	// 先尝试从当前工作目录读取，再尝试默认路径
-	configPaths := []string{"config.json", "/etc/flux_agent/config.json"}
+	configPaths := []string{"config.json", "/etc/flvx_agent/config.json", "/etc/flux_agent/config.json"}
 	for _, path := range configPaths {
 		if b, err := os.ReadFile(path); err == nil {
 			json.Unmarshal(b, &cfg)
@@ -400,7 +400,7 @@ func getConfigDir(serviceName string) string {
 	if serviceName != "" {
 		return "/etc/" + serviceName
 	}
-	return "/etc/flux_agent"
+	return "/etc/flvx_agent"
 }
 
 // fetchAndSaveNodeID 从面板获取节点 ID 并保存到 config.json，然后初始化基线管理器
@@ -1762,7 +1762,9 @@ func (w *WebSocketReporter) handleUpgradeAgent(data interface{}) error {
 	fmt.Printf("📦 开始下载升级包：%s\n", downloadURL)
 
 	// 下载新版本二进制
-	const binaryPath = "/etc/flux_agent/flux_agent"
+	configDir := getConfigDir(w.serviceName)
+	binaryName := configDir[strings.LastIndex(configDir, "/")+1:]
+	binaryPath := configDir + "/" + binaryName
 	tmpPath := binaryPath + ".new"
 	backupPath := binaryPath + ".old"
 
@@ -1869,8 +1871,9 @@ func (w *WebSocketReporter) handleUpgradeAgent(data interface{}) error {
 
 	// 执行重启脚本
 	// 使用 systemd-run 在独立的 transient unit 中运行重启脚本，
-	// 避免 systemctl stop 杀死 flux_agent cgroup 内所有进程（包括此脚本自身）导致 mv 未执行。
-	script := fmt.Sprintf("sleep 1 && systemctl stop flux_agent && mv %s %s && sed -i 's/^StandardOutput=null$/StandardOutput=journal/' /etc/systemd/system/flux_agent.service && sed -i 's/^StandardError=null$/StandardError=journal/' /etc/systemd/system/flux_agent.service && systemctl daemon-reload && systemctl start flux_agent", tmpPath, binaryPath)
+	// 避免 systemctl stop 杀死 cgroup 内所有进程（包括此脚本自身）导致 mv 未执行。
+	svcFile := "/etc/systemd/system/" + binaryName + ".service"
+	script := fmt.Sprintf("sleep 1 && systemctl stop %s && mv %s %s && sed -i 's/^StandardOutput=null$/StandardOutput=journal/' %s && sed -i 's/^StandardError=null$/StandardError=journal/' %s && systemctl daemon-reload && systemctl start %s", binaryName, tmpPath, binaryPath, svcFile, svcFile, binaryName)
 	cmd := exec.Command("systemd-run", "--quiet", "/bin/sh", "-c", script)
 	if err := cmd.Start(); err != nil {
 		os.Remove(tmpPath)
@@ -1883,7 +1886,9 @@ func (w *WebSocketReporter) handleUpgradeAgent(data interface{}) error {
 }
 
 func (w *WebSocketReporter) handleRollbackAgent(data interface{}) error {
-	const binaryPath = "/etc/flux_agent/flux_agent"
+	configDir := getConfigDir(w.serviceName)
+	binaryName := configDir[strings.LastIndex(configDir, "/")+1:]
+	binaryPath := configDir + "/" + binaryName
 	backupPath := binaryPath + ".old"
 
 	// 检查备份文件是否存在
@@ -1897,7 +1902,8 @@ func (w *WebSocketReporter) handleRollbackAgent(data interface{}) error {
 	w.sendUpgradeProgress("rollback", 0, "准备回退...")
 
 	// 执行回退脚本（同升级逻辑，使用 systemd-run 避免 cgroup 问题）
-	script := fmt.Sprintf("sleep 1 && systemctl stop flux_agent && cp %s %s && sed -i 's/^StandardOutput=null$/StandardOutput=journal/' /etc/systemd/system/flux_agent.service && sed -i 's/^StandardError=null$/StandardError=journal/' /etc/systemd/system/flux_agent.service && systemctl daemon-reload && systemctl start flux_agent", backupPath, binaryPath)
+	svcFile := "/etc/systemd/system/" + binaryName + ".service"
+	script := fmt.Sprintf("sleep 1 && systemctl stop %s && cp %s %s && sed -i 's/^StandardOutput=null$/StandardOutput=journal/' %s && sed -i 's/^StandardError=null$/StandardError=journal/' %s && systemctl daemon-reload && systemctl start %s", binaryName, backupPath, binaryPath, svcFile, svcFile, binaryName)
 	cmd := exec.Command("systemd-run", "--quiet", "/bin/sh", "-c", script)
 	if err := cmd.Start(); err != nil {
 		w.sendUpgradeProgress("rollback", 0, "回退失败："+err.Error())
@@ -2157,8 +2163,8 @@ func getConnectionInfo() ConnectionInfo {
 }
 
 // fixServiceFile 修复旧版 service 日志配置 (null -> journal)
-func fixServiceFile() {
-	const serviceFile = "/etc/systemd/system/flux_agent.service"
+func fixServiceFile(serviceName string) {
+	serviceFile := "/etc/systemd/system/" + serviceName + ".service"
 	data, err := os.ReadFile(serviceFile)
 	if err != nil {
 		return
@@ -2180,14 +2186,12 @@ func fixServiceFile() {
 // StartWebSocketReporterWithConfig 使用配置字段启动WebSocket报告器
 func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls int, socks int, version string, nodeID int64) *WebSocketReporter {
 
-	fixServiceFile()
-
 	// 先读取 config.json 获取 service_name
 	type LocalConfig struct {
 		ServiceName string `json:"service_name"`
 	}
 	var cfg LocalConfig
-	configPaths := []string{"config.json", "/etc/flux_agent/config.json"}
+	configPaths := []string{"config.json", "/etc/flvx_agent/config.json", "/etc/flux_agent/config.json"}
 	for _, path := range configPaths {
 		if b, err := os.ReadFile(path); err == nil {
 			json.Unmarshal(b, &cfg)
@@ -2195,6 +2199,13 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 		}
 	}
 	configDir := getConfigDir(cfg.ServiceName)
+
+	// 修复旧版 service 日志配置
+	serviceName := cfg.ServiceName
+	if serviceName == "" {
+		serviceName = "flvx_agent"
+	}
+	fixServiceFile(serviceName)
 
 	// 构建初始 WebSocket URL
 	candidates := buildWebSocketCandidates(addr, secret, version, http, tls, socks, "")

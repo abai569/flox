@@ -396,7 +396,7 @@ export default function NodePage() {
   }, [infoPopoverOpenId]);
   const [installCommandModal, setInstallCommandModal] = useState(false);
   const [installCommand, setInstallCommand] = useState("");
-  const [installServiceName, setInstallServiceName] = useState("flux_agent");
+  const [installServiceName, setInstallServiceName] = useState("flvx_agent");
   const [currentNodeName, setCurrentNodeName] = useState("");
   const [installSelectorOpen, setInstallSelectorOpen] = useState(false);
   const [installTargetNode, setInstallTargetNode] = useState<Node | null>(null);
@@ -1126,7 +1126,7 @@ export default function NodePage() {
       const res = await getNodeInstallCommand(node.id, channel);
 
       if (res.code === 0 && res.data) {
-        setInstallServiceName("flux_agent");
+        setInstallServiceName(installServiceName);
         setInstallCommand(res.data);
         setCurrentNodeName(node.name);
         setInstallCommandModal(true);
@@ -1142,7 +1142,7 @@ export default function NodePage() {
       const res = await getNodeInstallCommandDomestic(node.id);
 
       if (res.code === 0 && res.data) {
-        setInstallServiceName("flux_agent");
+        setInstallServiceName(installServiceName);
         setInstallCommand(res.data);
         setCurrentNodeName(node.name);
         setInstallCommandModal(true);
@@ -1158,7 +1158,7 @@ export default function NodePage() {
       const res = await getNodeInstallCommandOverseas(node.id, "stable");
 
       if (res.code === 0 && res.data) {
-        setInstallServiceName("flux_agent");
+        setInstallServiceName(installServiceName);
         setInstallCommand(res.data);
         setCurrentNodeName(node.name);
         setInstallCommandModal(true);
@@ -1174,7 +1174,7 @@ export default function NodePage() {
       const res = await getNodeInstallCommandDomestic(node.id);
 
       if (res.code === 0 && res.data) {
-        setInstallServiceName("flux_agent");
+        setInstallServiceName(installServiceName);
         let command = res.data as string;
 
         // 移除 GLOBAL_DOWNLOAD_URL 前缀
@@ -1196,7 +1196,7 @@ export default function NodePage() {
 
       if (res.code === 0 && res.data) {
         const data = res.data as OfflineDeployPayload;
-        const command = `unzip -d /tmp/flux_agent -o offline.zip && bash /tmp/flux_agent/offline.sh -a ${data.panelAddr} -s ${data.secret}`;
+        const command = `unzip -d /tmp/flvx_agent -o offline.zip && bash /tmp/flvx_agent/offline.sh -a ${data.panelAddr} -s ${data.secret}`;
 
         setOfflineCommand(command);
         setOfflineDeployData(data);
@@ -3393,7 +3393,7 @@ export default function NodePage() {
                   </label>
                   <Input
                     className="flex-1"
-                    placeholder="flux_agent"
+                    placeholder="flvx_agent"
                     size="sm"
                     value={installServiceName}
                     variant="bordered"

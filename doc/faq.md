@@ -14,8 +14,8 @@
 **A**:
 1. 检查节点服务器与面板服务器之间的网络连通性。
 2. 确认在节点端安装时输入的 **面板地址** 和 **密钥** 是否正确。
-3. 检查节点端服务状态: `systemctl status flux_agent`。
-4. 查看节点端日志: `journalctl -u flux_agent -f`。
+3. 检查节点端服务状态: `systemctl status flvx_agent`（旧版为 `flux_agent`）。
+4. 查看节点端日志: `journalctl -u flvx_agent -f`（旧版为 `flux_agent`）。
 
 ### Q4: 只有 TCP 能通，UDP 不通？
 **A**: 请检查服务器防火墙和安全组（AWS/阿里云/腾讯云等）是否同时放行了对应端口的 **TCP 和 UDP** 协议。

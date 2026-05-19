@@ -308,14 +308,14 @@ jobs:
           # 构建离线包（amd64）
           echo "📦 构建离线包 (amd64)..."
           mkdir -p ./artifacts/offline-amd64
-          cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flux_agent
+          cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flvx_agent
           cp ./install.sh ./artifacts/offline-amd64/offline.sh
           cd ./artifacts/offline-amd64 && zip -r ../offline-amd64.zip . && cd ../..
 
           # 构建离线包（arm64）
           echo "📦 构建离线包 (arm64)..."
           mkdir -p ./artifacts/offline-arm64
-          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flux_agent
+          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flvx_agent
           cp ./install.sh ./artifacts/offline-arm64/offline.sh
           cd ./artifacts/offline-arm64 && zip -r ../offline-arm64.zip . && cd ../..
 
@@ -452,13 +452,13 @@ jobs:
         run: |
           echo "📦 构建离线包 (amd64)..."
           mkdir -p ./artifacts/offline-amd64
-          cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flux_agent
+          cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flvx_agent
           cp ./install.sh ./artifacts/offline-amd64/offline.sh
           cd ./artifacts/offline-amd64 && zip -r ../offline-amd64.zip . && cd ../..
 
           echo "📦 构建离线包 (arm64)..."
           mkdir -p ./artifacts/offline-arm64
-          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flux_agent
+          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flvx_agent
           cp ./install.sh ./artifacts/offline-arm64/offline.sh
           cd ./artifacts/offline-arm64 && zip -r ../offline-arm64.zip . && cd ../..
 

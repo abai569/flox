@@ -77,7 +77,7 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o instal
 
 ### 3. 验证安装
 安装完成后，服务会自动启动。
-- 查看状态: `systemctl status flux_agent`
+- 查看状态: `systemctl status flvx_agent`（旧版为 `flux_agent`）
 - 回到面板 **节点管理** 页面，该节点状态应显示为 **在线**。
 
 ---
