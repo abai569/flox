@@ -1,21 +1,24 @@
 site_name: FLVX 文档
-site_url: https://abai569.github.io/flvx/docs/
-site_description: FLVX官方文档
-site_author: Sagit-chu
+site_url: https://abai569.github.io/flvx/
+site_description: FLVX 官方文档
+site_author: abai569
 
 theme:
   name: material
   language: zh
   palette:
     - scheme: default
-      primary: indigo
-      accent: indigo
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
     - scheme: slate
-      primary: indigo
-      accent: indigo
+      primary: teal
+      accent: cyan
       toggle:
         icon: material/brightness-4
-        name: Switch to dark mode
+        name: Switch to light mode
   features:
     - navigation.tabs
     - navigation.sections
