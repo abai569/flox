@@ -1716,22 +1716,18 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
               ].map((item) => (
                 <Card
                   key={item.label}
-                  className="border border-divider bg-content1 shadow-sm hover:shadow-md transition-shadow h-full p-0"
+                  className="border border-divider bg-content1 shadow-sm hover:shadow-md transition-shadow h-full flex items-center justify-center p-4"
                 >
-                  <CardBody className="p-0 h-full">
-                    <div className="flex items-center justify-center w-full h-full px-6 py-8">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-xs text-default-500 uppercase tracking-wider">
-                          {item.label}
-                        </span>
-                        <span
-                          className={`text-lg font-bold font-mono ${item.color === "danger" ? "text-danger" : item.color === "warning" ? "text-warning" : item.color === "success" ? "text-success" : item.color === "primary" ? "text-primary" : ""}`}
-                        >
-                          {item.value}
-                        </span>
-                      </div>
-                    </div>
-                  </CardBody>
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-xs font-bold text-foreground text-default-500 uppercase tracking-wider">
+                      {item.label}
+                    </span>
+                    <span
+                      className={`text-lg font-bold font-mono ${item.color === "danger" ? "text-danger" : item.color === "warning" ? "text-warning" : item.color === "success" ? "text-success" : item.color === "primary" ? "text-primary" : ""}`}
+                    >
+                      {item.value}
+                    </span>
+                  </div>
                 </Card>
               ))}
             </div>
