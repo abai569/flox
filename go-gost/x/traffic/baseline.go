@@ -264,21 +264,38 @@ func (m *BaselineManager) CheckAndAutoReset(currentRX, currentTX uint64) (*Basel
 }
 
 // CalculatePeriodTraffic 计算周期流量
+// 当检测到网卡计数器重置（当前值 < 基线值）时，自动更新基线
 func (m *BaselineManager) CalculatePeriodTraffic(currentRX, currentTX uint64) (rx, tx uint64) {
-	m.mu.RLock()
+	m.mu.Lock()
 	baseline := m.data.CurrentBaseline
-	m.mu.RUnlock()
+	m.mu.Unlock()
 
 	if baseline == nil {
 		return currentRX, currentTX
 	}
 
-	if currentRX >= baseline.InitialRX {
-		rx = currentRX - baseline.InitialRX
+	// 检测网卡计数器是否被重置（重启后计数器从 0 开始）
+	// 如果当前值小于基线值，说明计数器重置了，需要更新基线
+	if currentRX < baseline.InitialRX || currentTX < baseline.InitialTX {
+		fmt.Printf("⚠️ 检测到网卡计数器重置，自动更新基线 (RX: %d→%d, TX: %d→%d)\n",
+			baseline.InitialRX, currentRX, baseline.InitialTX, currentTX)
+
+		m.mu.Lock()
+		baseline.InitialRX = currentRX
+		baseline.InitialTX = currentTX
+		baseline.RecordedAt = time.Now().UTC()
+		m.mu.Unlock()
+
+		// 保存更新后的基线
+		m.mu.Lock()
+		_ = m.save()
+		m.mu.Unlock()
+
+		return 0, 0
 	}
-	if currentTX >= baseline.InitialTX {
-		tx = currentTX - baseline.InitialTX
-	}
+
+	rx = currentRX - baseline.InitialRX
+	tx = currentTX - baseline.InitialTX
 
 	return rx, tx
 }

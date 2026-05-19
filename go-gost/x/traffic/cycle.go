@@ -22,19 +22,23 @@ func CalculateNextReset(renewalCycle string, from time.Time) time.Time {
 		}
 		return time.Date(from.Year(), from.Month(), from.Day()+daysUntilMonday, 0, 0, 0, 0, loc)
 
-	case "monthly":
-		// 下月1日 00:00
-		return time.Date(from.Year(), from.Month()+1, 1, 0, 0, 0, 0, loc)
+	case "monthly", "month":
+		// 下月同日 00:00
+		return time.Date(from.Year(), from.Month()+1, from.Day(), 0, 0, 0, 0, loc)
 
-	case "quarterly":
-		// 下季度首日
+	case "quarterly", "quarter":
+		// 下季度同日
 		currentQuarter := (int(from.Month()) - 1) / 3
 		nextQuarterMonth := time.Month(currentQuarter*3 + 4)
-		return time.Date(from.Year(), nextQuarterMonth, 1, 0, 0, 0, 0, loc)
+		return time.Date(from.Year(), nextQuarterMonth, from.Day(), 0, 0, 0, 0, loc)
 
-	case "yearly":
-		// 明年1月1日
-		return time.Date(from.Year()+1, 1, 1, 0, 0, 0, 0, loc)
+	case "halfyear", "halfYear":
+		// 半年后同日
+		return time.Date(from.Year(), from.Month()+6, from.Day(), 0, 0, 0, 0, loc)
+
+	case "yearly", "year":
+		// 明年同日
+		return time.Date(from.Year()+1, from.Month(), from.Day(), 0, 0, 0, 0, loc)
 
 	default:
 		// once 或其他值：不自动归零
@@ -45,7 +49,7 @@ func CalculateNextReset(renewalCycle string, from time.Time) time.Time {
 // IsAutoResetEnabled 检查是否启用自动归零
 func IsAutoResetEnabled(renewalCycle string) bool {
 	switch renewalCycle {
-	case "daily", "weekly", "monthly", "quarterly", "yearly":
+	case "daily", "weekly", "monthly", "month", "quarterly", "quarter", "halfyear", "halfYear", "yearly", "year":
 		return true
 	default:
 		return false
