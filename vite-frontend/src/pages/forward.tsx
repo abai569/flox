@@ -722,6 +722,7 @@ const SortableTableRow = ({
   formatFlow,
   formatSpeed,
   isAdmin,
+  togglingIds,
 }: any) => {
   const {
     attributes,
@@ -964,6 +965,7 @@ const SortableTableRow = ({
             size="sm"
             title={forward.serviceRunning ? "暂停" : "启用"}
             variant="flat"
+            isLoading={togglingIds?.has(forward.id)}
             onPress={() => handleServiceToggle(forward)}
           >
             {forward.serviceRunning ? "暂停" : "启用"}
@@ -1027,6 +1029,7 @@ const SortableCompactTableRow = ({
   formatFlow,
   formatSpeed,
   isAdmin,
+  togglingIds,
 }: any) => {
   const {
     attributes,
@@ -1275,6 +1278,7 @@ const SortableCompactTableRow = ({
             size="sm"
             title={forward.serviceRunning ? "暂停" : "启用"}
             variant="flat"
+            isLoading={togglingIds?.has(forward.id)}
             onPress={() => handleServiceToggle(forward)}
           >
             {forward.serviceRunning ? "暂停" : "启用"}
@@ -1367,6 +1371,7 @@ export default function ForwardPage() {
     (searchParams.inPort ? 1 : 0) +
     (searchParams.remoteAddr ? 1 : 0) +
     (searchKeyword.trim() ? 1 : 0);
+  const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [forwards, setForwards] = useState<Forward[]>([]);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
@@ -2533,52 +2538,40 @@ export default function ForwardPage() {
   const handleServiceToggle = async (forward: Forward) => {
     if (forward.status !== 1 && forward.status !== 0) {
       toast.error("规则状态异常，无法操作");
-
       return;
     }
+    if (togglingIds.has(forward.id)) return; // 防止狂点
+    
     const targetState = !forward.serviceRunning;
-
     isTogglingRef.current = true;
+    setTogglingIds((prev) => new Set(prev).add(forward.id)); // 开启此行的 Loading
+    
     try {
-      // 乐观更新UI
-      setForwards((prev) =>
-        prev.map((f) =>
-          f.id === forward.id ? { ...f, serviceRunning: targetState } : f,
-        ),
-      );
       let res: { code: number; msg: string };
-
       if (targetState) {
         res = await resumeForwardService(forward.id);
       } else {
         res = await pauseForwardService(forward.id);
       }
+      
       if (res.code === 0) {
         toast.success(targetState ? "服务已启动" : "服务已暂停");
-        // 更新规则状态
         setForwards((prev) =>
           prev.map((f) =>
-            f.id === forward.id ? { ...f, status: targetState ? 1 : 0 } : f,
+            f.id === forward.id ? { ...f, serviceRunning: targetState, status: targetState ? 1 : 0 } : f,
           ),
         );
       } else {
-        // 操作失败，恢复UI状态
-        setForwards((prev) =>
-          prev.map((f) =>
-            f.id === forward.id ? { ...f, serviceRunning: !targetState } : f,
-          ),
-        );
         toast.error(res.msg || "操作失败");
       }
     } catch {
-      // 操作失败，恢复UI状态
-      setForwards((prev) =>
-        prev.map((f) =>
-          f.id === forward.id ? { ...f, serviceRunning: !targetState } : f,
-        ),
-      );
       toast.error("网络错误，操作失败");
     } finally {
+      setTogglingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(forward.id);
+        return next;
+      });
       isTogglingRef.current = false;
     }
   };
@@ -4093,7 +4086,7 @@ export default function ForwardPage() {
             </div>
             <div className="flex items-center gap-1.5 -mr-1">
               <Switch
-                isDisabled={forward.status !== 1 && forward.status !== 0}
+                isDisabled={(forward.status !== 1 && forward.status !== 0) || togglingIds?.has(forward.id)}
                 isSelected={forward.serviceRunning}
                 size="sm"
                 onValueChange={() => handleServiceToggle(forward)}
@@ -4703,6 +4696,7 @@ export default function ForwardPage() {
                             }
                             hasMultipleAddresses={hasMultipleAddresses}
                             isAdmin={isAdmin}
+                            togglingIds={togglingIds}
                             selectMode={selectMode}
                             selectedIds={selectedIds}
                             showAddressModal={showAddressModal}
@@ -5017,6 +5011,7 @@ export default function ForwardPage() {
                                                   handleViewTrafficResetLogs
                                                 }
                                                 isAdmin={isAdmin}
+                            togglingIds={togglingIds}
                                                 selectedIds={selectedIds}
                                                 toggleSelect={toggleSelect}
                                               />
