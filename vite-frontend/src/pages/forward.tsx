@@ -1428,6 +1428,7 @@ export default function ForwardPage() {
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [diagnosisModalOpen, setDiagnosisModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
+  const [isCopy, setIsCopy] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [diagnosisLoading, setDiagnosisLoading] = useState(false);
@@ -2244,6 +2245,7 @@ export default function ForwardPage() {
   // 新增规则
   const handleAdd = () => {
     setIsEdit(false);
+    setIsCopy(false);
     setInIpTouched(false);
     setForm({
       name: "",
@@ -2267,6 +2269,7 @@ export default function ForwardPage() {
   // 编辑规则
   const handleEdit = (forward: Forward) => {
     setIsEdit(true);
+    setIsCopy(false);
     setInIpTouched(false);
     setForm({
       id: forward.id,
@@ -2292,6 +2295,7 @@ export default function ForwardPage() {
   // 复制规则
   const handleCopy = (forward: Forward) => {
     setIsEdit(false);
+    setIsCopy(true);
     setInIpTouched(false);
     setForm({
       userId: forward.userId,
@@ -5063,7 +5067,7 @@ export default function ForwardPage() {
             <>
               <ModalHeader className="flex flex-col gap-1">
                 <h2 className="text-xl font-bold">
-                  {isEdit ? "编辑规则" : "新增规则"}
+                  {isCopy ? "复制规则" : isEdit ? "编辑规则" : "新增规则"}
                 </h2>
                 <p className="text-small text-default-500">
                   {isEdit ? "修改现有规则配置" : "创建新的规则配置"}

@@ -2769,9 +2769,13 @@ func (h *Handler) forwardDelete(w http.ResponseWriter, r *http.Request) {
 	if strings.EqualFold(forward.Mode, "nftables") {
 		ports, _ := h.listForwardPorts(forward.ID)
 		if err := h.deleteNftablesRules(forward, ports); err != nil {
-			fmt.Printf("️ nftables规则删除失败: %v, 尝试gost回退\n", err)
-			if svcErr := h.controlForwardServices(forward, "DeleteService", true); svcErr != nil {
-				fmt.Printf("️ gost回退也失败: %v\n", svcErr)
+			fmt.Printf("⚠️ nftables规则删除失败: %v, 尝试gost回退\n", err)
+		}
+		// 清理可能残留的 gost 服务（从 gost 切换到 nft 后，gost 进程可能仍在监听端口）
+		bases, _ := h.forwardServiceBaseCandidates(forward)
+		if len(bases) > 0 {
+			for _, fp := range ports {
+				_ = h.deleteForwardServiceBasesOnNode(fp.NodeID, bases)
 			}
 		}
 	} else {
@@ -2840,6 +2844,13 @@ func (h *Handler) forwardPause(w http.ResponseWriter, r *http.Request) {
 		if err := h.deleteNftablesRules(forward, ports); err != nil {
 			response.WriteJSON(w, response.Err(-2, fmt.Sprintf("暂停nftables转发失败，规则清理异常: %v", err)))
 			return
+		}
+		// 清理可能残留的 gost 服务（从 gost 切换到 nft 后，gost 进程可能仍在监听端口）
+		bases, _ := h.forwardServiceBaseCandidates(forward)
+		if len(bases) > 0 {
+			for _, fp := range ports {
+				_ = h.deleteForwardServiceBasesOnNode(fp.NodeID, bases)
+			}
 		}
 	} else {
 		if err := h.controlForwardServices(forward, "PauseService", false); err != nil {
@@ -2970,6 +2981,12 @@ func (h *Handler) forwardBatchDelete(w http.ResponseWriter, r *http.Request) {
 				failures = appendBatchFailure(failures, id, forward.Name, err)
 				continue
 			}
+			bases, _ := h.forwardServiceBaseCandidates(forward)
+			if len(bases) > 0 {
+				for _, fp := range ports {
+					_ = h.deleteForwardServiceBasesOnNode(fp.NodeID, bases)
+				}
+			}
 		} else {
 			if err := h.controlForwardServices(forward, "DeleteService", true); err != nil {
 				f++
@@ -3013,6 +3030,12 @@ func (h *Handler) forwardBatchPause(w http.ResponseWriter, r *http.Request) {
 				f++
 				failures = appendBatchFailure(failures, id, forward.Name, err)
 				continue
+			}
+			bases, _ := h.forwardServiceBaseCandidates(forward)
+			if len(bases) > 0 {
+				for _, fp := range ports {
+					_ = h.deleteForwardServiceBasesOnNode(fp.NodeID, bases)
+				}
 			}
 		} else {
 			if err := h.controlForwardServices(forward, "PauseService", false); err != nil {

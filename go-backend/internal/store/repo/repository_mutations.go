@@ -1742,6 +1742,7 @@ func (r *Repository) CreateForwardTx(userID int64, userName, name string, tunnel
 			TunnelID:          tunnelID,
 			RemoteAddr:        remoteAddr,
 			Strategy:          strategy,
+			Mode:              mode,
 			InFlow:            0,
 			OutFlow:           0,
 			CreatedTime:       now,
