@@ -813,7 +813,7 @@ const SortableTableRow = ({
           {forward.name}
           {forward.mode === "nftables" && (
             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-              nftables
+              nft
             </span>
           )}
         </span>
@@ -1118,6 +1118,11 @@ const SortableCompactTableRow = ({
           onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
           {forward.name}
+          {forward.mode === "nftables" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              nft
+            </span>
+          )}
         </span>
       </TableCell>
       <TableCell className={`whitespace-nowrap ${rowBg}`}>
@@ -2545,11 +2550,11 @@ export default function ForwardPage() {
       return;
     }
     if (togglingIds.has(forward.id)) return; // 防止狂点
-    
+
     const targetState = !forward.serviceRunning;
     isTogglingRef.current = true;
     setTogglingIds((prev) => new Set(prev).add(forward.id)); // 开启此行的 Loading
-    
+
     try {
       let res: { code: number; msg: string };
       if (targetState) {
@@ -2557,7 +2562,7 @@ export default function ForwardPage() {
       } else {
         res = await pauseForwardService(forward.id);
       }
-      
+
       if (res.code === 0) {
         toast.success(targetState ? "服务已启动" : "服务已暂停");
         setForwards((prev) =>
@@ -5015,7 +5020,7 @@ export default function ForwardPage() {
                                                   handleViewTrafficResetLogs
                                                 }
                                                 isAdmin={isAdmin}
-                            togglingIds={togglingIds}
+                                                togglingIds={togglingIds}
                                                 selectedIds={selectedIds}
                                                 toggleSelect={toggleSelect}
                                               />
