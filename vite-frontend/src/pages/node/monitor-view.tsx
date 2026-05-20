@@ -202,6 +202,14 @@ function ServerCard({
   const distro = parseDistroFromVersion(node.version);
   const distroColor = getDistroColor(distro);
 
+  function setDetailNodeId(_id: any) {
+    throw new Error("Function not implemented.");
+  }
+
+  function setSelectedNodeId(_id: any) {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <Card
       className="group h-full flex flex-col overflow-hidden border border-divider bg-content1 shadow-sm transition-shadow duration-200 hover:shadow-md cursor-pointer"
