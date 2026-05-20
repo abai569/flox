@@ -1384,7 +1384,7 @@ export default function ForwardPage() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [speedLimits, setSpeedLimits] = useState<SpeedLimitApiItem[]>([]);
   const [forwardPage, setForwardPage] = useState(1);
-  const [forwardPageSize, setForwardPageSize] = useState(10);
+  const [forwardPageSize, setForwardPageSize] = useLocalStorageState("forwardPageSize", 10);
   const [groupPage, setGroupPage] = useState(1);
   const [groupPageSize, setGroupPageSize] = useState(10);
   //   const isMobile = useMobileBreakpoint();
