@@ -21,6 +21,7 @@ services:
       LICENSE_SERVER_URL: ${LICENSE_SERVER_URL}
       LICENSE_KEY: ${LICENSE_KEY}
       SERVER_DOMAIN: ${SERVER_DOMAIN}
+      HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-HMAC_KEY}
     ports:
       - "${BACKEND_PORT}:6365"
     volumes:
