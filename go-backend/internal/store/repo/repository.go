@@ -1,7 +1,10 @@
 ﻿package repo
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -19,6 +22,31 @@ import (
 
 	"go-backend/internal/store/model"
 )
+
+// hmacKey returns the HMAC secret key used for balance log signing.
+// Must match the key used by the license server.
+func hmacKey() string {
+	key := os.Getenv("HMAC_SECRET_KEY")
+	if key != "" {
+		return key
+	}
+	return string([]byte{0x48, 0x4d, 0x41, 0x43, 0x5f, 0x4b, 0x45, 0x59})
+}
+
+// SignBalanceLog creates an HMAC-SHA256 signature for a balance log entry.
+// Covers all meaningful fields so tampering invalidates the signature.
+func SignBalanceLog(userID, amount, balanceBefore, balanceAfter, createdTime int64, reason string) string {
+	payload := fmt.Sprintf("%d:%d:%d:%d:%d:%s", userID, amount, balanceBefore, balanceAfter, createdTime, reason)
+	mac := hmac.New(sha256.New, []byte(hmacKey()))
+	mac.Write([]byte(payload))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// VerifyBalanceLogSignature checks whether a balance log's signature is valid.
+func VerifyBalanceLogSignature(log *model.BalanceLog) bool {
+	expected := SignBalanceLog(log.UserID, log.Amount, log.BalanceBefore, log.BalanceAfter, log.CreatedTime, log.Reason)
+	return hmac.Equal([]byte(expected), []byte(log.Signature))
+}
 
 // ─── Type aliases for backward compatibility ─────────────────────────
 // Handlers still reference repo.User, repo.BackupData, etc.
@@ -47,6 +75,7 @@ type UserGroupBackup = model.UserGroupBackup
 type PermissionBackup = model.PermissionBackup
 type PermissionGrantBackup = model.PermissionGrantBackup
 type ImportResult = model.ImportResult
+type BalanceLog = model.BalanceLog
 type NodeMetric = model.NodeMetric
 type TunnelMetric = model.TunnelMetric
 type ServiceMonitor = model.ServiceMonitor
@@ -206,6 +235,7 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.NodeTrafficResetLog{},
 		&model.UserRenewalLog{},
 		&model.UserTrafficBuyLog{},
+		&model.BalanceLog{},
 		&model.UserTrafficHistory{},
 	}
 

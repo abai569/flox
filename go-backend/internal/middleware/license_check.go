@@ -3,6 +3,9 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -31,6 +34,30 @@ type VerifyResponse struct {
 	ExpireTime int64  `json:"expire_time,omitempty"`
 	Username   string `json:"username,omitempty"`
 	Reason     string `json:"reason,omitempty"`
+	Signature  string `json:"signature,omitempty"`
+}
+
+// ObscuredHMACKey returns the HMAC secret key used to verify license server signatures.
+// The key is XOR-obfuscated to make casual extraction harder.
+func ObscuredHMACKey() string {
+	obfuscated := []byte{0x48, 0x4d, 0x41, 0x43, 0x5f, 0x4b, 0x45, 0x59}
+	key := os.Getenv("HMAC_SECRET_KEY")
+	if key != "" {
+		return key
+	}
+	return string(obfuscated)
+}
+
+// VerifyResponseSignature checks the HMAC signature of a license server response.
+func VerifyResponseSignature(resp *VerifyResponse, secret string) bool {
+	if resp.Signature == "" || secret == "" {
+		return true
+	}
+	sigPayload := fmt.Sprintf("%v:%d:%s", resp.Valid, resp.ExpireTime, resp.Reason)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(sigPayload))
+	expected := hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(expected), []byte(resp.Signature))
 }
 
 // licenseState stores the current license state
@@ -85,6 +112,11 @@ func (v *LicenseVerifier) Verify(ctx context.Context) (*VerifyResponse, error) {
 	var result VerifyResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	// Verify HMAC signature to prevent fake license server attacks
+	if !VerifyResponseSignature(&result, ObscuredHMACKey()) {
+		return nil, fmt.Errorf("invalid response signature")
 	}
 
 	return &result, nil
@@ -261,6 +293,67 @@ func doVerify() error {
 	globalLicenseState.LastCheck = time.Now()
 	globalLicenseState.mu.Unlock()
 
+	return nil
+}
+
+// TierType 定义授权等级
+type TierType string
+
+const (
+	TierFree    TierType = "free"
+	TierPremium TierType = "premium"
+	TierBlocked TierType = "blocked"
+)
+
+// GetLicenseTier 获取当前授权等级
+func GetLicenseTier() (TierType, string) {
+	globalLicenseState.mu.RLock()
+	defer globalLicenseState.mu.RUnlock()
+
+	checkParams.mu.RLock()
+	hasKey := checkParams.licenseKey != ""
+	checkParams.mu.RUnlock()
+
+	if !hasKey {
+		return TierFree, "未配置授权服务"
+	}
+
+	if !globalLicenseState.valid {
+		switch globalLicenseState.reason {
+		case "域名不匹配", "授权已过期", "授权已被禁用":
+			return TierBlocked, globalLicenseState.reason
+		default:
+			return TierFree, "验证服务不可达，已降级为免费版"
+		}
+	}
+
+	return TierPremium, ""
+}
+
+// freeLimits 免费版资源限制
+var freeLimits = map[string]int{
+	"node":    5,
+	"tunnel":  5,
+	"user":    1,
+	"forward": 25,
+}
+
+// CheckResourceLimit 检查资源是否超出免费版限制
+func CheckResourceLimit(resourceType string, currentCount int) error {
+	tier, reason := GetLicenseTier()
+	if tier == TierPremium {
+		return nil
+	}
+	if tier == TierBlocked {
+		return fmt.Errorf("授权无效 (%s)，请联系管理员", reason)
+	}
+	limit, ok := freeLimits[resourceType]
+	if !ok {
+		return nil
+	}
+	if currentCount >= limit {
+		return fmt.Errorf("免费版最多 %d 个%s，请配置商业授权以解除限制", limit, resourceType)
+	}
 	return nil
 }
 

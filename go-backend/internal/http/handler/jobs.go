@@ -169,6 +169,33 @@ func (h *Handler) runResetAndExpiryJob(now time.Time) {
 	h.disableExpiredUserTunnels(now.UnixMilli())
 	h.disableExpiredForwards(now.UnixMilli())
 	h.resetNodeMonthlyTraffic(now)
+	h.verifyBalances(now)
+}
+
+func (h *Handler) verifyBalances(now time.Time) {
+	mismatches, err := h.repo.VerifyAllBalances()
+	if err != nil {
+		log.Printf("[余额校验] 校验失败: %v", err)
+		return
+	}
+	if len(mismatches) > 0 {
+		log.Printf("[余额校验] 发现 %d 个用户余额不匹配（共 %d 个用户）", len(mismatches), len(mismatches))
+		for _, m := range mismatches {
+			log.Printf("[余额校验] 不匹配详情: %+v", m)
+		}
+	}
+
+	invalidSigs, err := h.repo.VerifyBalanceSignatures()
+	if err != nil {
+		log.Printf("[余额签名校验] 校验失败: %v", err)
+		return
+	}
+	if len(invalidSigs) > 0 {
+		log.Printf("[余额签名校验] 发现 %d 条无效签名的记录", len(invalidSigs))
+		for _, entry := range invalidSigs {
+			log.Printf("[余额签名校验] 无效签名 ID=%d UserID=%d Amount=%d", entry.ID, entry.UserID, entry.Amount)
+		}
+	}
 }
 
 func (h *Handler) resetMonthlyFlow(now time.Time) {

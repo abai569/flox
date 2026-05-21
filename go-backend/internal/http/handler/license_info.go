@@ -58,6 +58,8 @@ func (h *Handler) licenseInfo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	tier, _ := middleware.GetLicenseTier()
+
 	response.WriteJSON(w, response.OK(map[string]interface{}{
 		"valid":           valid,
 		"expire_time":     expireTime,
@@ -66,5 +68,6 @@ func (h *Handler) licenseInfo(w http.ResponseWriter, r *http.Request) {
 		"has_license_key": hasLicenseKey,
 		"license_key":     actualLicenseKey,
 		"domain":          domain,
+		"tier":            string(tier),
 	}))
 }

@@ -7,28 +7,18 @@ import (
 	"go-backend/internal/middleware"
 )
 
-// LicenseGuard middleware restricts all access if license is invalid
+// LicenseGuard middleware blocks all access if license is TierBlocked.
+// TierFree and TierPremium flow through to handler-level enforcement.
 func LicenseGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 1. Whitelist the license check endpoint itself.
-		// Without this, if the license is invalid, the panel cannot refresh status.
+		// Whitelist license check endpoints so the panel can refresh status
 		if r.URL.Path == "/api/v1/license/info" || r.URL.Path == "/api/v1/license/config" {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// 2. Check license state
-		valid, _, reason := middleware.GetLicenseState()
-		if !valid {
-			// 允许放行的情况：
-			// 1. 测试环境：初始化状态下 reason 为空字符串 ("")
-			// 2. 未配置授权服务
-			if reason == "" || reason == "未配置授权服务" {
-				next.ServeHTTP(w, r)
-				return
-			}
-			
-			// 明确拒绝（如：域名不匹配、已禁用、已过期等）
+		tier, reason := middleware.GetLicenseTier()
+		if tier == middleware.TierBlocked {
 			response.WriteJSON(w, response.Err(403, "访问被拒绝：授权无效 ("+reason+")"))
 			return
 		}

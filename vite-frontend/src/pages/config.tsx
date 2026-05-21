@@ -1111,12 +1111,12 @@ export default function ConfigPage() {
           <div className="flex justify-between items-center pt-4 border-t border-divider/50">
             <div className="flex items-center gap-2">
               {licenseStatus && (
-                <span className={`text-xs font-medium ${licenseStatus.has_license_key ? (licenseStatus.valid ? "text-green-600" : "text-red-600") : "text-yellow-600"}`}>
-                  {licenseStatus.has_license_key
-                    ? (licenseStatus.valid
-                        ? `授权有效，剩余 ${licenseStatus.expire_time ? Math.floor((licenseStatus.expire_time - Date.now()) / 86400000) : "？"} 天`
-                        : `授权无效：${licenseStatus.reason || "未知原因"}`)
-                    : "当前为体验模式（已限制权限）"}
+                <span className={`text-xs font-medium ${licenseStatus.tier === 'premium' ? "text-green-600" : licenseStatus.tier === 'blocked' ? "text-red-600" : "text-yellow-600"}`}>
+                  {licenseStatus.tier === 'premium'
+                    ? `商业版，授权剩余 ${licenseStatus.expire_time ? Math.floor((licenseStatus.expire_time - Date.now()) / 86400000) : "？"} 天`
+                    : licenseStatus.tier === 'blocked'
+                      ? `授权已阻断：${licenseStatus.reason || "未知原因"}`
+                      : "免费版（5 节点 / 5 隧道 / 1 用户 / 25 转发）"}
                 </span>
               )}
             </div>

@@ -56,6 +56,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
     has_license_key: boolean;
     reason?: string;
     expire_time?: number;
+    tier?: string;
   }>(null);
 
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -362,15 +363,22 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
 
         {/* 授权信息居左显示 */}
         <div className="flex-1 flex justify-start items-center h-full mx-2 overflow-hidden">
-          {licenseInfo && !licenseInfo.has_license_key ? (
+          {licenseInfo && (licenseInfo.tier === 'free' || (!licenseInfo.has_license_key && !licenseInfo.tier)) ? (
+            <div className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400 truncate">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+              </svg>
+              <span className="truncate">免费版：已限制最多5个节点、5个隧道、1个用户、25转发，授权请联系作者</span>
+              <a href="https://t.me/erflvx" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 flex-shrink-0 underline whitespace-nowrap">
+                TG群组
+              </a>
+            </div>
+          ) : licenseInfo && licenseInfo.tier === 'blocked' ? (
             <div className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 truncate">
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
               </svg>
-              <span className="truncate">体验模式：已限制最多5个节点、5个隧道和新增1个用户，授权请联系作者</span>
-              <a href="https://t.me/erflvx" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 flex-shrink-0 underline whitespace-nowrap">
-                TG群组
-              </a>
+              <span className="truncate font-bold">{licenseInfo.reason || "授权无效"}</span>
             </div>
           ) : licenseInfo && licenseInfo.configured && (
             <div className="flex items-center justify-start h-full overflow-hidden whitespace-nowrap">
@@ -397,6 +405,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
                     </span>
                   );
                 })()
+
               ) : (
                 <span className="text-red-600 dark:text-red-400 text-xs font-bold truncate">
                   {licenseInfo.reason || "授权无效"}
@@ -405,7 +414,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
             </div>
           )}
         </div>
-
+        
         {/* 顶部右侧 - 用户名下拉菜单 */}
         <div className="flex items-center">
           <Dropdown placement="bottom-end">

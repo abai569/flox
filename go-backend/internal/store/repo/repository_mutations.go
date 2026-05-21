@@ -556,7 +556,114 @@ func (r *Repository) BuyTrafficWithBalance(userID, buyPrice, buyAmount, flowBefo
 		return err
 	}
 
+	balanceLog := &model.BalanceLog{
+		UserID:        userID,
+		UserName:      user.User,
+		Amount:        -buyPrice,
+		BalanceBefore: user.Balance,
+		BalanceAfter:  user.Balance - buyPrice,
+		Reason:        "自动购买流量",
+		CreatedTime:   now,
+		Signature:     SignBalanceLog(userID, -buyPrice, user.Balance, user.Balance-buyPrice, now, "自动购买流量"),
+	}
+	err = tx.Create(balanceLog).Error
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit().Error
+}
+
+// CreateBalanceLog inserts a signed balance log entry.
+func (r *Repository) CreateBalanceLog(userID int64, userName string, amount, balanceBefore, balanceAfter, now int64, reason string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+
+	entry := &model.BalanceLog{
+		UserID:        userID,
+		UserName:      userName,
+		Amount:        amount,
+		BalanceBefore: balanceBefore,
+		BalanceAfter:  balanceAfter,
+		Reason:        reason,
+		CreatedTime:   now,
+		Signature:     SignBalanceLog(userID, amount, balanceBefore, balanceAfter, now, reason),
+	}
+	return r.db.Create(entry).Error
+}
+
+// RecalculateBalance computes a user's balance by summing all balance_log entries.
+// Returns (sum, error). The returned sum is the authoritative balance.
+func (r *Repository) RecalculateBalance(userID int64) (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, errors.New("repository not initialized")
+	}
+
+	var sum struct {
+		Total int64
+	}
+	err := r.db.Model(&model.BalanceLog{}).
+		Select("COALESCE(SUM(amount), 0) AS total").
+		Where("user_id = ?", userID).
+		Scan(&sum).Error
+	if err != nil {
+		return 0, err
+	}
+	return sum.Total, nil
+}
+
+// VerifyBalanceSignatures checks all balance_log entries with non-empty signatures.
+// Returns a list of entries with invalid signatures.
+func (r *Repository) VerifyBalanceSignatures() ([]model.BalanceLog, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+
+	var entries []model.BalanceLog
+	err := r.db.Where("signature != ''").Order("id ASC").Find(&entries).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var invalid []model.BalanceLog
+	for _, entry := range entries {
+		if !VerifyBalanceLogSignature(&entry) {
+			invalid = append(invalid, entry)
+		}
+	}
+	return invalid, nil
+}
+
+// VerifyAllBalances checks that user.balance matches the SUM of balance_log entries.
+// Returns a list of (userID, dbBalance, logSum) for mismatches.
+func (r *Repository) VerifyAllBalances() ([]interface{}, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+
+	var users []model.User
+	err := r.db.Select("id, user, balance").Find(&users).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var mismatches []interface{}
+	for _, u := range users {
+		logSum, err := r.RecalculateBalance(u.ID)
+		if err != nil {
+			continue
+		}
+		if u.Balance != logSum {
+			mismatches = append(mismatches, map[string]int64{
+				"user_id":     u.ID,
+				"db_balance":  u.Balance,
+				"log_sum":     logSum,
+				"diff":        u.Balance - logSum,
+			})
+		}
+	}
+	return mismatches, nil
 }
 
 func (r *Repository) UpdateUserBuyTrafficConfig(userID int64, autoBuyTraffic int, buyTrafficAmount, buyTrafficPrice int64) error {
@@ -1135,6 +1242,7 @@ func (r *Repository) ReplaceForwardPorts(forwardID int64, entries []struct {
 		if len(entries) == 0 {
 			return nil
 		}
+
 		rows := make([]model.ForwardPort, 0, len(entries))
 		for _, e := range entries {
 			rows = append(rows, model.ForwardPort{
@@ -1146,6 +1254,24 @@ func (r *Repository) ReplaceForwardPorts(forwardID int64, entries []struct {
 		}
 		return tx.Create(&rows).Error
 	})
+}
+
+func (r *Repository) CountNodes() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Node{}).Count(&count).Error
+	return count, err
+}
+
+func (r *Repository) CountTunnels() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Tunnel{}).Count(&count).Error
+	return count, err
+}
+
+func (r *Repository) CountUsers() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.User{}).Where("role_id != ?", 0).Count(&count).Error
+	return count, err
 }
 
 func (r *Repository) RenewUserWithBalance(userID, renewalAmount, newExpTime, now int64) error {
@@ -1190,6 +1316,21 @@ func (r *Repository) RenewUserWithBalance(userID, renewalAmount, newExpTime, now
 		Reason:          "自动续费",
 	}
 	err = tx.Create(log).Error
+	if err != nil {
+		return err
+	}
+
+	balanceLog := &model.BalanceLog{
+		UserID:        userID,
+		UserName:      user.User,
+		Amount:        -renewalAmount,
+		BalanceBefore: user.Balance,
+		BalanceAfter:  user.Balance - renewalAmount,
+		Reason:        "自动续费",
+		CreatedTime:   now,
+		Signature:     SignBalanceLog(userID, -renewalAmount, user.Balance, user.Balance-renewalAmount, now, "自动续费"),
+	}
+	err = tx.Create(balanceLog).Error
 	if err != nil {
 		return err
 	}

@@ -959,3 +959,17 @@ type UserTrafficBuyLog struct {
 }
 
 func (UserTrafficBuyLog) TableName() string { return "user_traffic_buy_log" }
+
+type BalanceLog struct {
+	ID            int64  `gorm:"primaryKey;autoIncrement"`
+	UserID        int64  `gorm:"column:user_id;not null;index:idx_balance_log_user_id"`
+	UserName      string `gorm:"column:user_name;type:varchar(100);not null"`
+	Amount        int64  `gorm:"column:amount;not null"`          // +充值 -消费 (分)
+	BalanceBefore int64  `gorm:"column:balance_before;not null"`  // 变动前余额
+	BalanceAfter  int64  `gorm:"column:balance_after;not null"`   // 变动后余额
+	Reason        string `gorm:"column:reason;type:varchar(200);not null"`
+	CreatedTime   int64  `gorm:"column:created_time;not null"`
+	Signature     string `gorm:"column:signature;type:varchar(128);not null"` // HMAC-SHA256
+}
+
+func (BalanceLog) TableName() string { return "balance_log" }

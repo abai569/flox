@@ -574,6 +574,7 @@ export interface LicenseInfo {
   has_license_key: boolean;
   license_key: string;
   domain: string;
+  tier?: 'free' | 'premium' | 'blocked';
 }
 
 export const getLicenseInfo = () => Network.post<LicenseInfo>("/license/info");

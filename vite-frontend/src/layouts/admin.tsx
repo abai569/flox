@@ -73,6 +73,7 @@ export default function AdminLayout({
     reason?: string;
     configured: boolean;
     has_license_key: boolean;
+    tier?: string;
   } | null>(null);
   const isMobile = useMobileBreakpoint();
 
@@ -579,54 +580,37 @@ export default function AdminLayout({
         className={`flex flex-col flex-1 ${isMobile ? "min-h-0" : "h-full overflow-hidden"}`}
       >
         {/* 授权状态横幅 */}
-        {licenseInfo && !licenseInfo.has_license_key && (
-          <div className="bg-yellow-500 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2 z-20 shadow-md">
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-              />
+        {licenseInfo && licenseInfo.tier === 'blocked' && (
+          <div className="bg-red-600 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2 z-20 shadow-md">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
             </svg>
-            <span>体验模式（已限制权限），请前往</span>
-            <span
-              className="font-bold underline cursor-pointer"
-              onClick={() => navigate("/config")}
-            >
+            <span>{licenseInfo.reason || "授权无效"}，请前往</span>
+            <span className="font-bold underline cursor-pointer" onClick={() => navigate("/config")}>
               设置 {'>'} 授权码配置
             </span>
-            <span>输入授权码和面板域名以解除限制</span>
+            <span>检查授权配置</span>
           </div>
         )}
-        {licenseInfo && licenseInfo.has_license_key && !licenseInfo.valid && (
-          <div className="bg-red-600 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2 z-20 shadow-md">
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-              />
+        {licenseInfo && (licenseInfo.tier === 'free' || (!licenseInfo.has_license_key && !licenseInfo.tier)) && (
+          <div className="bg-yellow-500 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2 z-20 shadow-md">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
             </svg>
-            <span>
-              {licenseInfo.reason || "授权无效"}
-              ，请前往
+            <span>免费版（已限制：5 节点 / 5 隧道 / 1 用户 / 25 转发），请前往</span>
+            <span className="font-bold underline cursor-pointer" onClick={() => navigate("/config")}>
+              设置 {'>'} 授权码配置
             </span>
-            <span
-              className="font-bold underline cursor-pointer"
-              onClick={() => navigate("/config")}
-            >
+            <span>输入授权码以解除限制</span>
+          </div>
+        )}
+        {licenseInfo && licenseInfo.has_license_key && !licenseInfo.valid && licenseInfo.tier !== 'blocked' && (
+          <div className="bg-red-600 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2 z-20 shadow-md">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+            </svg>
+            <span>{licenseInfo.reason || "授权无效"}，请前往</span>
+            <span className="font-bold underline cursor-pointer" onClick={() => navigate("/config")}>
               设置 {'>'} 授权码配置
             </span>
             <span>检查授权配置</span>
@@ -663,15 +647,22 @@ export default function AdminLayout({
 
           {/* 中间：授权信息 (全局可见) */}
           <div className="flex-1 flex justify-start items-center h-full mx-4 overflow-hidden">
-            {licenseInfo && !licenseInfo.has_license_key ? (
+            {licenseInfo && (licenseInfo.tier === 'free' || (!licenseInfo.has_license_key && !licenseInfo.tier)) ? (
+              <div className="flex items-center gap-1 text-xs text-yellow-600 dark:text-yellow-400 truncate">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+                </svg>
+                <span className="truncate">免费版：5 节点 / 5 隧道 / 1 用户 / 25 转发，商业授权请联系管理员</span>
+                <a href="https://t.me/erflvx" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 flex-shrink-0 underline whitespace-nowrap">
+                  TG群组
+                </a>
+              </div>
+            ) : licenseInfo && licenseInfo.tier === 'blocked' ? (
               <div className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 truncate">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
                 </svg>
-                <span className="truncate">体验模式：免费个人用户已限制最多5个节点、5个隧道和新增1个用户，商业用户请联系管理员获取授权</span>
-                <a href="https://t.me/erflvx" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 flex-shrink-0 underline whitespace-nowrap">
-                  TG群组
-                </a>
+                <span className="truncate font-bold">{licenseInfo.reason || "授权无效"}</span>
               </div>
             ) : licenseInfo && licenseInfo.configured && (
               <div className="flex items-center justify-start h-full overflow-hidden whitespace-nowrap">
