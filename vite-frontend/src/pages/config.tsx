@@ -1122,7 +1122,7 @@ export default function ConfigPage() {
                 onChange={(e) => setHmacKey(e.target.value)}
               />
               <p className="text-xs text-gray-400">
-                管理员没主动要求，就不用填
+                管理员没主动要求就不用填，保存自动返回默认值
               </p>
             </div>
           </div>
