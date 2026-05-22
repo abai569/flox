@@ -1,0 +1,1 @@
+import{c as r,Q as a,j as e,m as o}from"./chunks/framework.BPKcPtvA.js";const c=JSON.parse('{"title":"FLVX 官方文档","description":"","frontmatter":{},"headers":[],"relativePath":"index.md","filePath":"index.md"}'),l={name:"index.md"};function n(s,t,i,d,h,g){return a(),e("div",null,[...t[0]||(t[0]=[o("",12)])])}const p=r(l,[["render",n]]);export{c as __pageData,p as default};
