@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"go-backend/internal/http/response"
 	"go-backend/internal/middleware"
@@ -79,11 +78,16 @@ func (h *Handler) licenseTransfer(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("✅ 转让成功: %s -> %s", transferResult.OldDomain, transferResult.NewDomain)
 
+	// 转让成功后，不自动修改当前面板的本地域名配置。
+	// 面板将继续使用旧域名进行验证，因域名不匹配自动失效。
+	// (原代码会强制改为新域名，导致面板误以为转让成功，未失效)
+	/*
 	now := time.Now().UnixMilli()
 	h.repo.UpsertConfig("server_domain", req.NewDomain, now)
-
 	middleware.UpdateCheckParams(lsURL, licenseKey, req.NewDomain)
-	go middleware.TriggerAsyncCheck()
+	*/
+
+	go middleware.TriggerAsyncCheck() // 立即触发验证，让面板尽快检测到失效
 
 	response.WriteJSON(w, response.OK(map[string]interface{}{
 		"old_domain": transferResult.OldDomain,
