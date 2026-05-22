@@ -12,6 +12,7 @@ import { Spinner } from "@/shadcn-bridge/heroui/spinner";
 import { Divider } from "@/shadcn-bridge/heroui/divider";
 import { Switch } from "@/shadcn-bridge/heroui/switch";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@/shadcn-bridge/heroui/modal";
 import {
   updateConfigs,
   exportBackup,
@@ -204,6 +205,7 @@ export default function ConfigPage() {
   const [licenseSaving, setLicenseSaving] = useState(false);
   const [licenseStatus, setLicenseStatus] = useState<LicenseInfo | null>(null);
   const [transferDomain, setTransferDomain] = useState("");
+  const [transferConfirmOpen, setTransferConfirmOpen] = useState(false);
 
   // 权限检查
   useEffect(() => {
@@ -259,11 +261,11 @@ export default function ConfigPage() {
       const res = await getLicenseInfo();
       if (res.code === 0 && res.data) {
         setLicenseStatus(res.data);
-      if (res.data.has_license_key) {
-        setLicenseKey(res.data.license_key || "");
-        setLicenseDomain(res.data.domain || "");
-        setHmacKey(res.data.hmac_key || "");
-      }
+        if (res.data.has_license_key) {
+          setLicenseKey(res.data.license_key || "");
+          setLicenseDomain(res.data.domain || "");
+          setHmacKey(res.data.hmac_key || "");
+        }
       } else {
         setLicenseKey("");
         setLicenseDomain("");
@@ -291,15 +293,19 @@ export default function ConfigPage() {
       setLicenseSaving(false);
     }
   };
-  const handleTransferLicense = async () => {
+  const handleTransferLicense = () => {
     if (!transferDomain.trim()) {
       toast.error("请输入新域名");
       return;
     }
+    setTransferConfirmOpen(true);
+  };
+  const confirmTransferLicense = async () => {
     if (!licenseStatus?.has_license_key) {
       toast.error("请先配置授权");
       return;
     }
+    setTransferConfirmOpen(false);
     setLicenseSaving(true);
     try {
       const res = await transferLicense(transferDomain.trim());
@@ -781,62 +787,127 @@ export default function ConfigPage() {
           </CardHeader>
           <Divider />
           <CardBody className="space-y-6 pt-8 md:pt-8">
-          {CONFIG_ITEMS.map((item, index) => {
-            // 检查配置项是否应该显示
-            if (!shouldShowItem(item)) {
-              return null;
-            }
-            // 计算是否是最后一个显示的项目（用于决定是否显示分隔线）
-            const remainingItems = CONFIG_ITEMS.slice(index + 1).filter(
-              shouldShowItem,
-            );
-            const isLastItem = remainingItems.length === 0;
+            {CONFIG_ITEMS.map((item, index) => {
+              // 检查配置项是否应该显示
+              if (!shouldShowItem(item)) {
+                return null;
+              }
+              // 计算是否是最后一个显示的项目（用于决定是否显示分隔线）
+              const remainingItems = CONFIG_ITEMS.slice(index + 1).filter(
+                shouldShowItem,
+              );
+              const isLastItem = remainingItems.length === 0;
 
-            return (
-              <div key={item.key}>
-                {/* 🎯 如果是开关(switch)，使用 justify-between 左右排列；如果是其他，使用 space-y-3 上下排列 */}
-                <div
-                  className={
-                    item.type === "switch"
-                      ? "flex justify-between items-center gap-4"
-                      : "space-y-3"
-                  }
-                >
-                  {/* 左侧：标题和描述 */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      {item.label}
-                    </label>
-                    {item.description && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 whitespace-pre-wrap">
-                        {item.description}
-                      </p>
-                    )}
-                  </div>
-                  {/* 右侧/下方：配置组件 */}
-                  {/* flex-shrink-0 防止开关被长文本挤变形 */}
+              return (
+                <div key={item.key}>
+                  {/* 🎯 如果是开关(switch)，使用 justify-between 左右排列；如果是其他，使用 space-y-3 上下排列 */}
                   <div
-                    className={item.type === "switch" ? "flex-shrink-0" : ""}
+                    className={
+                      item.type === "switch"
+                        ? "flex justify-between items-center gap-4"
+                        : "space-y-3"
+                    }
                   >
-                    {renderConfigItem(item)}
+                    {/* 左侧：标题和描述 */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        {item.label}
+                      </label>
+                      {item.description && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 whitespace-pre-wrap">
+                          {item.description}
+                        </p>
+                      )}
+                    </div>
+                    {/* 右侧/下方：配置组件 */}
+                    {/* flex-shrink-0 防止开关被长文本挤变形 */}
+                    <div
+                      className={item.type === "switch" ? "flex-shrink-0" : ""}
+                    >
+                      {renderConfigItem(item)}
+                    </div>
                   </div>
+                  {/* 分隔线 */}
+                  {!isLastItem && <Divider className="mt-6" />}
                 </div>
-                {/* 分隔线 */}
-                {!isLastItem && <Divider className="mt-6" />}
-              </div>
-            );
-          })}
-          <Divider className="my-2" />
-          <div className="space-y-3">
-            <div className="flex flex-col gap-1 mt-5">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                更新通道
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                稳定版仅匹配纯数字版本；开发版仅匹配包含 alpha / beta / rc
-                的版本。
-              </p>
-            </div>
+              );
+            })}
+
+            {/* 👇 完美靠齐卡片右侧的悬浮保存按钮 */}
+            <AnimatePresence>
+              {hasChanges && (
+                <motion.div
+                  animate={{ y: 0, opacity: 1 }}
+                  className="sticky fixed bottom-8 z-50 pointer-events-none flex justify-end mt-6"
+                  exit={{ y: 100, opacity: 0 }}
+                  initial={{ y: 100, opacity: 0 }}
+                  transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                >
+                  {/* 内部容器添加 pointer-events-auto */}
+                  <div className="pointer-events-auto flex items-center gap-3 bg-white dark:bg-default-900 rounded-full shadow-2xl border border-default-200 dark:border-default-700 px-5 py-3">
+                    {/* 提示图标 */}
+                    <div className="flex items-center gap-2 text-warning-600 dark:text-warning-400">
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                        />
+                      </svg>
+                      <span className="text-sm font-medium whitespace-nowrap">
+                        配置已变更
+                      </span>
+                    </div>
+                    {/* 分隔线 */}
+                    <div className="w-px h-5 bg-default-200 dark:bg-default-700" />
+                    {/* 保存按钮 */}
+                    <Button
+                      className="rounded-full font-medium text-white min-w-[100px]"
+                      color="primary"
+                      isLoading={saving}
+                      size="sm"
+                      startContent={
+                        !saving && (
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              d="M5 13l4 4L19 7"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                            />
+                          </svg>
+                        )
+                      }
+                      onPress={handleSave}
+                    >
+                      {saving ? "保存中" : "保存"}
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </CardBody>
+        </Card>
+        <Card className="mt-6 shadow-md">
+          <CardHeader className="pb-6">
+            <h2 className="text-xl font-semibold">更新通道</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody className="space-y-4 pt-8 md:pt-8">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              稳定版仅匹配纯数字版本；开发版匹配包含 alpha/beta/dev/rc 的版本。
+            </p>
             <Select
               selectedKeys={[updateChannel]}
               size="md"
@@ -858,367 +929,323 @@ export default function ConfigPage() {
                 开发版
               </SelectItem>
             </Select>
-          </div>
-          {/* 👇 完美靠齐卡片右侧的悬浮保存按钮 */}
-          <AnimatePresence>
-            {hasChanges && (
-              <motion.div
-                animate={{ y: 0, opacity: 1 }}
-                className="sticky fixed bottom-8 z-50 pointer-events-none flex justify-end mt-6"
-                exit={{ y: 100, opacity: 0 }}
-                initial={{ y: 100, opacity: 0 }}
-                transition={{ type: "spring", damping: 20, stiffness: 300 }}
-              >
-                {/* 内部容器添加 pointer-events-auto */}
-                <div className="pointer-events-auto flex items-center gap-3 bg-white dark:bg-default-900 rounded-full shadow-2xl border border-default-200 dark:border-default-700 px-5 py-3">
-                  {/* 提示图标 */}
-                  <div className="flex items-center gap-2 text-warning-600 dark:text-warning-400">
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                      />
-                    </svg>
-                    <span className="text-sm font-medium whitespace-nowrap">
-                      配置已变更
-                    </span>
-                  </div>
-                  {/* 分隔线 */}
-                  <div className="w-px h-5 bg-default-200 dark:bg-default-700" />
-                  {/* 保存按钮 */}
-                  <Button
-                    className="rounded-full font-medium text-white min-w-[100px]"
-                    color="primary"
-                    isLoading={saving}
-                    size="sm"
-                    startContent={
-                      !saving && (
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            d="M5 13l4 4L19 7"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                          />
-                        </svg>
-                      )
-                    }
-                    onPress={handleSave}
-                  >
-                    {saving ? "保存中" : "保存"}
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </CardBody>
-      </Card>
-    </div>
+          </CardBody>
+        </Card>
+      </div>
 
-    {/* 右栏：公告管理、导出数据、授权码配置 */}
-    <div className="space-y-6">
-      <Card className="shadow-md">
-        <CardHeader className="pb-6">
-          <div className="flex justify-between items-center w-full gap-4">
-            <div>
-              <h2 className="text-xl font-semibold">公告管理</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                设置首页显示的公告内容，启用后将在首页顶部展示
-              </p>
-            </div>
-            {!announcementLoading && (
-              <Switch
-                color="primary"
-                isSelected={announcement.enabled === 1}
-                size="md"
-                onValueChange={(checked) =>
-                  setAnnouncement({
-                    ...announcement,
-                    enabled: checked ? 1 : 0,
-                  })
-                }
-              >
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                  {announcement.enabled === 1 ? "已启用" : "未启用"}
-                </span>
-              </Switch>
-            )}
-          </div>
-        </CardHeader>
-        <Divider />
-        <CardBody className="space-y-4 pt-6 md:pt-6">
-          {announcementLoading ? (
-            <div className="flex justify-center py-8">
-              <Spinner size="lg" />
-            </div>
-          ) : (
-            <>
-              {/* 👇 下面变得非常清爽，只剩下输入框和保存按钮 */}
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                公告内容
-                <span className="ml-2 text-xs text-gray-400 dark:text-gray-500 font-normal">
-                  公告支持 Markdown 语法，链接会在新标签页打开
-                </span>
-              </p>
-              <Textarea
-                label=""
-                minRows={4}
-                placeholder="支持 Markdown，例如：**加粗**、[链接](https://example.com)、- 列表"
-                value={announcement.content}
-                variant="bordered"
-                onChange={(e) =>
-                  setAnnouncement({ ...announcement, content: e.target.value })
-                }
-              />
-              <div className="flex justify-end mt-2 pt-4 border-t border-divider/50">
-                <Button
-                  color="primary"
-                  isLoading={announcementSaving}
-                  onPress={saveAnnouncement}
-                >
-                  保存公告
-                </Button>
-              </div>
-            </>
-          )}
-        </CardBody>
-      </Card>
-      {/* 主题设置
-      <div className="mt-6 shadow-md">
-        <ThemeSettings />
-      </div> */}
-      {/* 导出全部数据 */}
-      <Card className="mt-6 shadow-md">
-        <CardHeader className="pb-6">
-          <div className="flex justify-between items-center w-full">
-            <div>
-              <h2 className="text-xl font-semibold">导出数据</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                导出系统所有数据为 JSON 格式文件
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <Divider />
-        <CardBody className="space-y-6 pt-8 md:pt-8">
-          {/* 导出部分 */}
-          <div className="flex flex-col gap-4">
-            {/* 第一行：标题 和 导出按钮 */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">导出数据</h3>
-              <Button
-                color="primary"
-                isLoading={exporting}
-                onPress={handleExportAll}
-              >
-                {exporting ? "导出中..." : "一键导出"}
-              </Button>
-            </div>
-
-            {/* 第二行及以下：下拉框 和 提示文字 */}
-            <div className="flex flex-col gap-1.5">
-              <Select
-                classNames={{ trigger: "min-w-[150px]" }}
-                label="选择导出范围，一键导出为json格式文件"
-                selectedKeys={[exportMode]}
-                size="sm"
-                variant="bordered"
-                onSelectionChange={(keys) => {
-                  const key = Array.from(keys)[0] as string;
-
-                  if (key === "core" || key === "full") {
-                    setExportMode(key);
-                  }
-                }}
-              >
-                <SelectItem key="core">快速导出（核心数据）</SelectItem>
-                <SelectItem key="full">完整导出（所有数据）</SelectItem>
-              </Select>
-              <span className="text-xs text-gray-500 ml-1">
-                {exportMode === "core"
-                  ? "仅用户/节点/隧道/规则等数据，不包含日志和统计，文件较小，适合快速备份"
-                  : "包含所有表和配置项，文件更大，适合完全备份"}
-              </span>
-            </div>
-          </div>
-          <Divider />
-          {/* 导入部分 */}
-          <div className="flex flex-col gap-4">
-            {/* 第一行：大标题 和 导入按钮 */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">导入数据</h3>
-              <Button
-                color="primary"
-                isLoading={importing}
-                onPress={() => backupFileInputRef.current?.click()}
-              >
-                {importing ? "导入中..." : "一键导入"}
-              </Button>
-            </div>
-
-            {/* 第二行及以下：提示文字 和 选中文件状态 */}
-            <div className="flex flex-col gap-1.5">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                从json备份文件恢复数据
-              </p>
-              {importFileName && (
-                <p className="text-xs text-primary">已选择：{importFileName}</p>
-              )}
-            </div>
-
-            {/* 隐藏的 input，保持不变 */}
-            <input
-              ref={backupFileInputRef}
-              accept=".json"
-              className="hidden"
-              type="file"
-              onChange={handleFileChange}
-            />
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* 授权码配置 */}
-      <Card className="shadow-md">
-        <CardHeader className="pb-6">
-          <div className="flex justify-between items-center w-full gap-4">
-            <div>
-		<h2 className="text-xl font-semibold">授权配置</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  输入域名和授权码激活授权服务，授权码留空自动生成7天体验授权
-                </p>
-            </div>
-          </div>
-        </CardHeader>
-        <Divider />
-        <CardBody className="space-y-6 pt-8 md:pt-8">
-          <div className="space-y-5">
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                面板域名
-              </label>
-              <Input
-                classNames={{ input: "text-sm" }}
-                placeholder="自己的面板域名"
-                size="md"
-                value={licenseDomain}
-                variant="bordered"
-                onChange={(e) => setLicenseDomain(e.target.value)}
-              />
-            </div>            
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                授权码
-              </label>
-              <Input
-                classNames={{ input: "text-sm" }}
-                placeholder="留空自动生成7天体验授权"
-                size="md"
-                value={licenseKey}
-                variant="bordered"
-                onChange={(e) => setLicenseKey(e.target.value)}
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                flvx密钥
-              </label>
-              <Input
-                classNames={{ input: "text-sm" }}
-                placeholder="联系管理员获取（flvx_ 开头）"
-                size="md"
-                value={hmacKey}
-                variant="bordered"
-                onChange={(e) => setHmacKey(e.target.value)}
-              />
-              <p className="text-xs text-gray-400">
-                管理员没主动要求就不用填，保存自动返回默认值
-              </p>
-            </div>
-          </div>
-          <div className="flex justify-between items-center pt-4 border-t border-divider/50">
-            <div className="flex items-center gap-2">
-              {licenseStatus && (
-                <span className={`text-xs font-medium ${licenseStatus.tier === 'premium' ? "text-green-600" : licenseStatus.tier === 'blocked' ? "text-red-600" : "text-yellow-600"}`}>
-                  {licenseStatus.is_trial && licenseStatus.valid
-                    ? `体验版，剩余 ${licenseStatus.trial_remaining_days} 天`
-                    : licenseStatus.tier === 'premium'
-                      ? `商业版，授权剩余 ${licenseStatus.expire_time ? Math.floor((licenseStatus.expire_time - Date.now()) / 86400000) : "？"} 天`
-                      : licenseStatus.tier === 'blocked'
-                        ? `授权已阻断：${licenseStatus.reason || "未知原因"}`
-                        : "免费版（5 节点 / 5 隧道 / 1 用户）"}
-                </span>
-              )}
-            </div>
-            <Button
-              color="primary"
-              isLoading={licenseSaving}
-              size="sm"
-              onPress={handleLicenseSave}
-            >
-              {licenseSaving ? "保存中" : "保存验证"}
-            </Button>
-          </div>
-        </CardBody>
-      </Card>
-
-      {/* 授权转让 */}
-      {licenseStatus?.valid && licenseStatus?.has_license_key && !licenseStatus?.is_trial && (
+      {/* 右栏：公告管理、导出数据、授权码配置 */}
+      <div className="space-y-6">
         <Card className="shadow-md">
           <CardHeader className="pb-6">
             <div className="flex justify-between items-center w-full gap-4">
               <div>
-                <h2 className="text-xl font-semibold">授权转让</h2>
+                <h2 className="text-xl font-semibold">公告管理</h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  转让授权到新域名，旧域名将立即失效
+                  设置首页显示的公告内容，启用后将在首页顶部展示
+                </p>
+              </div>
+              {!announcementLoading && (
+                <Switch
+                  color="primary"
+                  isSelected={announcement.enabled === 1}
+                  size="md"
+                  onValueChange={(checked) =>
+                    setAnnouncement({
+                      ...announcement,
+                      enabled: checked ? 1 : 0,
+                    })
+                  }
+                >
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                    {announcement.enabled === 1 ? "已启用" : "未启用"}
+                  </span>
+                </Switch>
+              )}
+            </div>
+          </CardHeader>
+          <Divider />
+          <CardBody className="space-y-4 pt-6 md:pt-6">
+            {announcementLoading ? (
+              <div className="flex justify-center py-8">
+                <Spinner size="lg" />
+              </div>
+            ) : (
+              <>
+                {/* 👇 下面变得非常清爽，只剩下输入框和保存按钮 */}
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                  公告内容
+                  <span className="ml-2 text-xs text-gray-400 dark:text-gray-500 font-normal">
+                    公告支持 Markdown 语法，链接会在新标签页打开
+                  </span>
+                </p>
+                <Textarea
+                  label=""
+                  minRows={4}
+                  placeholder="支持 Markdown，例如：**加粗**、[链接](https://example.com)、- 列表"
+                  value={announcement.content}
+                  variant="bordered"
+                  onChange={(e) =>
+                    setAnnouncement({ ...announcement, content: e.target.value })
+                  }
+                />
+                <div className="flex justify-end mt-2 pt-4 border-t border-divider/50">
+                  <Button
+                    color="primary"
+                    isLoading={announcementSaving}
+                    onPress={saveAnnouncement}
+                  >
+                    保存公告
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardBody>
+        </Card>
+        {/* 主题设置
+      <div className="mt-6 shadow-md">
+        <ThemeSettings />
+      </div> */}
+        {/* 导出全部数据 */}
+        <Card className="mt-6 shadow-md">
+          <CardHeader className="pb-6">
+            <div className="flex justify-between items-center w-full">
+              <div>
+                <h2 className="text-xl font-semibold">导出数据</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  导出系统所有数据为 JSON 格式文件
                 </p>
               </div>
             </div>
           </CardHeader>
           <Divider />
           <CardBody className="space-y-6 pt-8 md:pt-8">
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                新域名
-              </label>
-              <Input
-                classNames={{ input: "text-sm" }}
-                placeholder="请输入转让后的新面板域名"
-                size="md"
-                value={transferDomain}
-                variant="bordered"
-                onChange={(e) => setTransferDomain(e.target.value)}
-              />
-              <p className="text-xs text-gray-400">
-                转让后旧域名授权立即失效，每 3 天可转让一次
-              </p>
+            {/* 导出部分 */}
+            <div className="flex flex-col gap-4">
+              {/* 第一行：标题 和 导出按钮 */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">导出数据</h3>
+                <Button
+                  color="primary"
+                  isLoading={exporting}
+                  onPress={handleExportAll}
+                >
+                  {exporting ? "导出中..." : "一键导出"}
+                </Button>
+              </div>
+
+              {/* 第二行及以下：下拉框 和 提示文字 */}
+              <div className="flex flex-col gap-1.5">
+                <Select
+                  classNames={{ trigger: "min-w-[150px]" }}
+                  label="选择导出范围，一键导出为json格式文件"
+                  selectedKeys={[exportMode]}
+                  size="sm"
+                  variant="bordered"
+                  onSelectionChange={(keys) => {
+                    const key = Array.from(keys)[0] as string;
+
+                    if (key === "core" || key === "full") {
+                      setExportMode(key);
+                    }
+                  }}
+                >
+                  <SelectItem key="core">快速导出（核心数据）</SelectItem>
+                  <SelectItem key="full">完整导出（所有数据）</SelectItem>
+                </Select>
+                <span className="text-xs text-gray-500 ml-1">
+                  {exportMode === "core"
+                    ? "仅用户/节点/隧道/规则等数据，不包含日志和统计，文件较小，适合快速备份"
+                    : "包含所有表和配置项，文件更大，适合完全备份"}
+                </span>
+              </div>
             </div>
-            <div className="text-gray-400 flex justify-end pt-4 border-t border-divider/50">
+            <Divider />
+            {/* 导入部分 */}
+            <div className="flex flex-col gap-4">
+              {/* 第一行：大标题 和 导入按钮 */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">导入数据</h3>
+                <Button
+                  color="primary"
+                  isLoading={importing}
+                  onPress={() => backupFileInputRef.current?.click()}
+                >
+                  {importing ? "导入中..." : "一键导入"}
+                </Button>
+              </div>
+
+              {/* 第二行及以下：提示文字 和 选中文件状态 */}
+              <div className="flex flex-col gap-1.5">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  从json备份文件恢复数据
+                </p>
+                {importFileName && (
+                  <p className="text-xs text-primary">已选择：{importFileName}</p>
+                )}
+              </div>
+
+              {/* 隐藏的 input，保持不变 */}
+              <input
+                ref={backupFileInputRef}
+                accept=".json"
+                className="hidden"
+                type="file"
+                onChange={handleFileChange}
+              />
+            </div>
+          </CardBody>
+        </Card>
+
+        {/* 授权配置 */}
+        <Card className="shadow-md">
+          <CardHeader className="pb-6">
+            <div className="flex justify-between items-center w-full gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">授权配置</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  输入域名和授权码激活授权服务，授权码留空自动生成7天体验授权
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <Divider />
+          <CardBody className="space-y-6 pt-8 md:pt-8">
+            <div className="space-y-5">
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  面板域名
+                </label>
+                <Input
+                  classNames={{ input: "text-sm" }}
+                  placeholder="自己的面板域名"
+                  size="md"
+                  value={licenseDomain}
+                  variant="bordered"
+                  onChange={(e) => setLicenseDomain(e.target.value)}
+                />
+              </div>
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  授权码
+                </label>
+                <Input
+                  classNames={{ input: "text-sm" }}
+                  placeholder="留空自动生成7天体验授权"
+                  size="md"
+                  value={licenseKey}
+                  variant="bordered"
+                  onChange={(e) => setLicenseKey(e.target.value)}
+                />
+              </div>
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  flvx密钥
+                </label>
+                <Input
+                  classNames={{ input: "text-sm" }}
+                  placeholder="联系管理员获取（flvx_ 开头）"
+                  size="md"
+                  value={hmacKey}
+                  variant="bordered"
+                  onChange={(e) => setHmacKey(e.target.value)}
+                />
+                <p className="text-xs text-gray-400">
+                  管理员没主动要求就不用填，保存自动返回默认值
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-4 border-t border-divider/50">
+              <div className="flex items-center gap-2">
+                {licenseStatus && (
+                  <span className={`text-xs font-medium ${licenseStatus.tier === 'premium' ? "text-green-600" : licenseStatus.tier === 'blocked' ? "text-red-600" : "text-yellow-600"}`}>
+                    {licenseStatus.is_trial && licenseStatus.valid
+                      ? `体验版，剩余 ${licenseStatus.trial_remaining_days} 天`
+                      : licenseStatus.tier === 'premium'
+                        ? `商业版，授权剩余 ${licenseStatus.expire_time ? Math.floor((licenseStatus.expire_time - Date.now()) / 86400000) : "？"} 天`
+                        : licenseStatus.tier === 'blocked'
+                          ? `授权已阻断：${licenseStatus.reason || "未知原因"}`
+                          : "免费版（5 节点 / 5 隧道 / 1 用户）"}
+                  </span>
+                )}
+              </div>
               <Button
                 color="primary"
                 isLoading={licenseSaving}
                 size="sm"
-                onPress={handleTransferLicense}
+                onPress={handleLicenseSave}
               >
-                确认转让
+                {licenseSaving ? "保存中" : "保存验证"}
               </Button>
             </div>
           </CardBody>
         </Card>
-      )}
+
+        {/* 授权转让 */}
+        {licenseStatus?.valid && licenseStatus?.has_license_key && !licenseStatus?.is_trial && (
+          <Card className="shadow-md">
+            <CardHeader className="pb-6">
+              <div className="flex justify-between items-center w-full gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold">授权转让</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    转让授权到新域名，旧域名将立即失效
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <Divider />
+            <CardBody className="space-y-6 pt-8 md:pt-8">
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  新域名
+                </label>
+                <Input
+                  classNames={{ input: "text-sm" }}
+                  placeholder="请输入转让后的新面板域名"
+                  size="md"
+                  value={transferDomain}
+                  variant="bordered"
+                  onChange={(e) => setTransferDomain(e.target.value)}
+                />
+                <p className="text-xs text-gray-400">
+                  转让后旧域名授权立即失效，每 3 天可转让一次
+                </p>
+              </div>
+              <div className="text-gray-400 flex justify-end pt-4 border-t border-divider/50">
+                <Button
+                  color="primary"
+                  isLoading={licenseSaving}
+                  size="sm"
+                  onPress={handleTransferLicense}
+                >
+                  开始转让
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+        <Modal isOpen={transferConfirmOpen} onClose={() => setTransferConfirmOpen(false)}>
+          <ModalContent>
+            <ModalHeader>确认转让授权</ModalHeader>
+            <ModalBody>
+              <p className="text-sm">
+                确认要转让授权到 <span className="font-semibold text-primary">{transferDomain}</span> 吗？
+              </p>
+              <p className="text-xs text-danger mt-2">
+                转让后旧域名授权将立即失效，请认真核对域名
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button color="default" onPress={() => setTransferConfirmOpen(false)}>
+                取消
+              </Button>
+              <Button color="primary" isLoading={licenseSaving} onPress={confirmTransferLicense}>
+                确认
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+      </div>
     </div>
-  </div>
   );
 }
