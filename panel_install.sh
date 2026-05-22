@@ -288,8 +288,8 @@ show_menu() {
   echo "1. 安装面板"
   echo "2. 更新面板"
   echo "3. 卸载面板"
-  echo "4. 迁移到 PostgreSQL"
-  echo "5. 退出"
+  # echo "4. 迁移到 PostgreSQL"
+  echo "4. 退出"
   echo "==============================================="
 }
 
@@ -789,7 +789,7 @@ main() {
   # 显示交互式菜单
   while true; do
     show_menu
-    read -p "请输入选项 (1-5): " choice
+    read -p "请输入选项 (1-4): " choice
 
     case $choice in
       1)
@@ -808,17 +808,12 @@ main() {
         exit 0
         ;;
       4)
-        migrate_to_postgres
-#        delete_self
-        exit 0
-        ;;
-      5)
         echo "👋 退出脚本"
 #        delete_self
         exit 0
         ;;
       *)
-        echo "❌ 无效选项，请输入 1-5"
+        echo "❌ 无效选项，请输入 1-4"
         echo ""
         ;;
     esac
