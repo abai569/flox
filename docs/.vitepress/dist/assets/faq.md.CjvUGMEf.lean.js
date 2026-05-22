@@ -1,0 +1,1 @@
+import{c as e,Q as t,j as a,m as r}from"./chunks/framework.BPKcPtvA.js";const g=JSON.parse('{"title":"常见问题 (FAQ)","description":"","frontmatter":{},"headers":[],"relativePath":"faq.md","filePath":"faq.md"}'),d={name:"faq.md"};function c(l,o,s,n,i,q){return t(),a("div",null,[...o[0]||(o[0]=[r("",22)])])}const p=e(d,[["render",c]]);export{g as __pageData,p as default};
