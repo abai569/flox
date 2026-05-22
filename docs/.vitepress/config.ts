@@ -5,6 +5,7 @@ export default defineConfig({
   titleTemplate: ':title – FLVX 官方文档',
   description: '高性能流量转发管理系统',
   lang: 'zh-CN',
+  base: '/flvx/',
   ignoreDeadLinks: true,
   themeConfig: {
     nav: [

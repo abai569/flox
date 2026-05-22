@@ -1,0 +1,1 @@
+import{c as r,Q as o,j as e,m as l}from"./chunks/framework.GMXXjwDt.js";const g=JSON.parse('{"title":"使用指南","description":"","frontmatter":{},"headers":[],"relativePath":"usage.md","filePath":"usage.md"}'),i={name:"usage.md"};function t(n,a,s,d,h,u){return o(),e("div",null,[...a[0]||(a[0]=[l("",19)])])}const c=r(i,[["render",t]]);export{g as __pageData,c as default};

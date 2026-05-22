@@ -1,0 +1,1 @@
+import{c as a,Q as i,j as t,m as l}from"./chunks/framework.GMXXjwDt.js";const c=JSON.parse('{"title":"安装部署指南","description":"","frontmatter":{},"headers":[],"relativePath":"install.md","filePath":"install.md"}'),e={name:"install.md"};function n(h,s,p,d,r,o){return i(),t("div",null,[...s[0]||(s[0]=[l("",52)])])}const g=a(e,[["render",n]]);export{c as __pageData,g as default};
