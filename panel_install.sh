@@ -288,8 +288,8 @@ show_menu() {
   echo "1. 安装面板"
   echo "2. 更新面板"
   echo "3. 卸载面板"
-  # echo "4. 迁移到 PostgreSQL"
-  echo "4. 退出"
+  echo "4. 备份数据"
+  echo "5. 退出"
   echo "==============================================="
 }
 
@@ -762,6 +762,98 @@ migrate_to_postgres() {
 
 
 
+# 备份面板数据
+backup_panel_data() {
+  local install_dir backup_base timestamp backup_dir current_db_type
+  local postgres_user postgres_db backup_size
+
+  echo "📦 开始备份面板数据..."
+
+  install_dir="/opt/flvx-svc"
+  backup_base="/root/flvxbackup"
+
+  if [[ ! -d "$install_dir" ]]; then
+    echo "❌ 未检测到面板安装（/opt/flvx-svc 不存在），请先安装面板"
+    return 1
+  fi
+
+  cd "$install_dir"
+  check_docker
+
+  timestamp=$(date +"%Y%m%d_%H%M%S")
+  backup_dir="${backup_base}/flvx_backup_${timestamp}"
+  mkdir -p "$backup_dir"
+
+  # 备份配置文件
+  echo "📋 备份配置文件..."
+  if [[ -f ".env" ]]; then
+    cp .env "$backup_dir/.env"
+    echo "  .env → 已备份"
+  fi
+  if [[ -f "docker-compose.yml" ]]; then
+    cp docker-compose.yml "$backup_dir/docker-compose.yml"
+    echo "  docker-compose.yml → 已备份"
+  fi
+
+  # 检测数据库类型并备份
+  current_db_type=$(get_current_db_type)
+  echo "🗄️ 当前数据库类型：$current_db_type"
+
+  if [[ "$current_db_type" == "sqlite" ]]; then
+    echo "📦 备份 SQLite 数据库（在线热备）..."
+    if docker cp flvx-svc-backend:/app/data/gost.db "$backup_dir/gost.db" 2>/dev/null; then
+      echo "  gost.db → 已备份"
+    else
+      echo "❌ SQLite 数据库备份失败，请检查容器是否运行"
+      return 1
+    fi
+
+  elif [[ "$current_db_type" == "postgres" ]]; then
+    postgres_user=$(get_env_var "POSTGRES_USER")
+    postgres_db=$(get_env_var "POSTGRES_DB")
+    postgres_user=${postgres_user:-flvx_svc}
+    postgres_db=${postgres_db:-flvx_svc}
+
+    echo "📦 备份 PostgreSQL 数据库（在线热备）..."
+    if docker exec flvx-svc-postgres pg_dump -U "$postgres_user" -d "$postgres_db" > "$backup_dir/backup.sql" 2>/dev/null; then
+      echo "  backup.sql → 已备份"
+    else
+      echo "❌ PostgreSQL 数据库备份失败，请检查容器是否运行"
+      return 1
+    fi
+  fi
+
+  # 计算备份大小
+  backup_size=$(du -sh "$backup_dir" | cut -f1)
+
+  echo ""
+  echo "==============================================="
+  echo "              备份完成"
+  echo "==============================================="
+  echo "📁 备份目录：$backup_dir"
+  echo "📊 备份大小：$backup_size"
+  echo ""
+  echo "📄 备份文件列表："
+  ls -lh "$backup_dir"
+  echo ""
+  echo "⚠️  重要提示："
+  echo "   请立即下载备份文件到本地电脑安全保存！"
+  echo "   以防服务器数据丢失或损坏。"
+  echo ""
+  echo "   💡 推荐下载方式："
+  echo "   方式一 (SCP)："
+  echo "     scp -r root@<服务器IP>:$backup_dir ~/flvx_backup_${timestamp}"
+  echo ""
+  echo "   方式二 (SFTP 工具)："
+  echo "     使用 WinSCP / FileZilla 等工具连接服务器后下载到本地"
+  echo ""
+  echo "   方式三 (本地路径)："
+  echo "     如在本地 macOS/Linux 运行脚本，直接复制该目录即可"
+  echo "==============================================="
+}
+
+
+
 # 卸载功能
 uninstall_panel() {
   echo "🗑️ 开始卸载面板..."
@@ -856,31 +948,31 @@ main() {
   # 显示交互式菜单
   while true; do
     show_menu
-    read -p "请输入选项 (1-4): " choice
+    read -p "请输入选项 (1-5): " choice
 
     case $choice in
       1)
         install_panel
-#        delete_self
         exit 0
         ;;
       2)
         update_panel
-#        delete_self
         exit 0
         ;;
       3)
         uninstall_panel
-#        delete_self
         exit 0
         ;;
       4)
+        backup_panel_data
+        echo ""
+        ;;
+      5)
         echo "👋 退出脚本"
-#        delete_self
         exit 0
         ;;
       *)
-        echo "❌ 无效选项，请输入 1-4"
+        echo "❌ 无效选项，请输入 1-5"
         echo ""
         ;;
     esac
