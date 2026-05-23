@@ -27,6 +27,7 @@ import { siteConfig } from "@/config/site";
 import { getAdminFlag, getSessionName } from "@/utils/session";
 import { useScrollTopOnPathChange } from "@/hooks/useScrollTopOnPathChange";
 import { useThemeContext } from "@/themes/context";
+import { GlobalPullToRefresh } from "@/components/global-pull-to-refresh";
 
 interface MenuItem {
   path: string;
@@ -616,7 +617,8 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* 主内容区域 */}
-      <main className="flex-1 bg-gray-100 dark:bg-black relative pb-8 pt-14">
+      <main id="h5-main" className="flex-1 bg-gray-100 dark:bg-black relative pb-8 pt-14 overflow-y-auto">
+        <GlobalPullToRefresh />
         {children}
       </main>
 

@@ -1,8 +1,13 @@
-import type { ForwardApiItem, NodeApiItem, UserQuotaHistoryItem } from "@/api/types";
+import type {
+  ForwardApiItem,
+  NodeApiItem,
+  UserQuotaHistoryItem,
+} from "@/api/types";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import {
   getAnnouncement,
   getDashboardNodeExpiryList,
@@ -407,34 +412,40 @@ export const useDashboardData = (): DashboardDataState => {
     };
   }, [loadAnnouncement, loadNodeExpiryData, loadPackageData]);
 
-  const fetchQuotaHistory = useCallback(
-    async () => {
-      try {
-        const res = await getUserQuotaHistory(userInfo.id, 50);
-        if (isMountedRef.current && res.code === 0) {
-          setQuotaHistory(res.data || []);
-        }
-      } catch {
-        // silent
-      }
-    },
-    [userInfo.id],
-  );
+  const refresh = useCallback(() => {
+    void loadPackageData({ notifyOnError: true });
+    void loadAnnouncement();
+    if (isAdmin) {
+      void loadNodeExpiryData();
+    }
+  }, [isAdmin, loadAnnouncement, loadNodeExpiryData, loadPackageData]);
 
-  const deleteQuotaHistory = useCallback(
-    async (id: number) => {
-      try {
-        const res = await deleteUserQuotaHistory(id);
-        if (isMountedRef.current && res.code === 0) {
-          setQuotaHistory((prev) => prev.filter((item) => item.id !== id));
-          toast.success("已删除");
-        }
-      } catch {
-        toast.error("删除失败");
+  usePullToRefresh(refresh);
+
+  const fetchQuotaHistory = useCallback(async () => {
+    try {
+      const res = await getUserQuotaHistory(userInfo.id, 50);
+
+      if (isMountedRef.current && res.code === 0) {
+        setQuotaHistory(res.data || []);
       }
-    },
-    [],
-  );
+    } catch {
+      // silent
+    }
+  }, [userInfo.id]);
+
+  const deleteQuotaHistory = useCallback(async (id: number) => {
+    try {
+      const res = await deleteUserQuotaHistory(id);
+
+      if (isMountedRef.current && res.code === 0) {
+        setQuotaHistory((prev) => prev.filter((item) => item.id !== id));
+        toast.success("已删除");
+      }
+    } catch {
+      toast.error("删除失败");
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") {

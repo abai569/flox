@@ -1,7 +1,5 @@
 import { useEffect, useState, useRef } from "react";
 
-import { Spinner } from "@/shadcn-bridge/heroui/spinner";
-
 export function GlobalPullToRefresh() {
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,21 +68,29 @@ export function GlobalPullToRefresh() {
       if (currentDistance.current >= THRESHOLD) {
         setRefreshing(true);
         setPullDistance(THRESHOLD - 20);
-        window.location.reload();
+        window.dispatchEvent(new CustomEvent("flvx:pulltorefresh"));
       } else {
         setPullDistance(0);
         currentDistance.current = 0;
       }
     };
 
+    const onRefreshDone = () => {
+      setRefreshing(false);
+      setPullDistance(0);
+      currentDistance.current = 0;
+    };
+
     document.addEventListener("touchstart", onTouchStart, { passive: true });
     document.addEventListener("touchmove", onTouchMove, { passive: false });
     document.addEventListener("touchend", onTouchEnd);
+    window.addEventListener("flvx:pulltorefresh:done", onRefreshDone);
 
     return () => {
       document.removeEventListener("touchstart", onTouchStart);
       document.removeEventListener("touchmove", onTouchMove);
       document.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("flvx:pulltorefresh:done", onRefreshDone);
     };
   }, []);
 
@@ -99,34 +105,25 @@ export function GlobalPullToRefresh() {
         marginTop: "-40px",
       }}
     >
-      <div className="bg-content1 shadow-lg rounded-full px-4 py-2 flex items-center gap-2 border border-divider">
-        {refreshing ? (
-          <>
-            <Spinner size="sm" />
-            <span className="text-sm font-medium text-foreground">
-              刷新中...
-            </span>
-          </>
-        ) : (
-          <>
-            <svg
-              className={`w-4 h-4 text-default-500 transition-transform duration-200 ${pullDistance >= 60 ? "rotate-180" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-              />
-            </svg>
-            <span className="text-sm font-medium text-default-500">
-              {pullDistance >= 60 ? "松开刷新" : "下拉刷新"}
-            </span>
-          </>
-        )}
+      <div className="flex justify-center">
+        <div className="w-10 h-10 bg-white dark:bg-neutral-800 rounded-full flex items-center justify-center shadow-md ring-1 ring-gray-100 dark:ring-neutral-700">
+          <svg
+            className={`w-8 h-8 text-[#3b5998] dark:text-slate-400 ${refreshing ? "animate-spin" : ""}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2" // 🌟 粗细依然在这里随便调：1.5 偏细，2 是标准，2.5 偏粗
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              // 下拉时跟随手指旋转
+              transform: !refreshing ? `rotate(${pullDistance * 4}deg)` : undefined, 
+            }}
+          >
+            {/* 真正的极简缺口圆环 */}
+            <path d="M 16.5 4.21 A 9 9 0 1 1 7.5 4.21" />
+          </svg>
+        </div>
       </div>
     </div>
   );

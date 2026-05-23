@@ -98,6 +98,7 @@ import {
 } from "@/pages/forward/import-format";
 import { buildForwardOrder, FORWARD_ORDER_KEY } from "@/pages/forward/order";
 import { PageLoadingState } from "@/components/page-state";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 // import { useMobileBreakpoint } from "@/hooks/useMobileBreakpoint";
 import { saveOrder } from "@/utils/order-storage";
 import { JwtUtil } from "@/utils/jwt";
@@ -2141,6 +2142,7 @@ export default function ForwardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  usePullToRefresh(loadData);
   // 定时刷新连接数（每5秒）
   useEffect(() => {
     const interval = setInterval(() => {

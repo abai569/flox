@@ -29,6 +29,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { TunnelGroupManager } from "./tunnel/tunnel-group-manager";
 
 import { SearchBar } from "@/components/search-bar";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { AnimatedPage } from "@/components/animated-page";
 import { BatchActionResultModal } from "@/components/batch-action-result-modal";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
@@ -549,6 +550,7 @@ export default function TunnelPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  usePullToRefresh(loadData);
   const resetDeleteState = useCallback(() => {
     setDeleteLoading(false);
     setDeletePreviewLoading(false);

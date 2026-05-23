@@ -9,6 +9,7 @@ import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { getMonitorNodes } from "@/api";
 import { MonitorView } from "@/pages/node/monitor-view";
 import { TunnelMonitorView } from "@/pages/node/tunnel-monitor-view";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 type MonitorNode = {
   id: number;
@@ -26,15 +27,21 @@ export default function MonitorPage() {
   const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
     try {
       const saved = localStorage.getItem("monitor-view-mode");
+
       if (saved === "grid" || saved === "list") return saved;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
+
     return "list";
   });
   const [activeTab, setActiveTab] = useState<MonitorTab>(() => {
     try {
       const saved = localStorage.getItem("monitor-active-tab");
+
       if (saved === "nodes" || saved === "tunnels") return saved as MonitorTab;
     } catch {}
+
     return "nodes";
   });
 
@@ -49,7 +56,13 @@ export default function MonitorPage() {
   const toggleViewMode = useCallback(() => {
     setViewMode((prev) => {
       const next = prev === "list" ? "grid" : "list";
-      try { localStorage.setItem("monitor-view-mode", next); } catch { /* ignore */ }
+
+      try {
+        localStorage.setItem("monitor-view-mode", next);
+      } catch {
+        /* ignore */
+      }
+
       return next;
     });
   }, []);
@@ -84,6 +97,7 @@ export default function MonitorPage() {
   useEffect(() => {
     void loadNodes();
   }, [loadNodes]);
+  usePullToRefresh(loadNodes);
 
   useEffect(() => {
     const timer = window.setInterval(() => {

@@ -33,6 +33,7 @@ import {
 } from "@/api";
 import { PageLoadingState } from "@/components/page-state";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 const LIMIT_VIEW_MODE_KEY = "limit_view_mode";
 
 interface SpeedLimitRule {
@@ -89,10 +90,6 @@ export default function LimitPage() {
   });
   // 表单验证错误
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
-
-  useEffect(() => {
-    loadData();
-  }, []);
   // 加载所有数据
   const loadData = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -110,6 +107,11 @@ export default function LimitPage() {
       if (showLoading) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+  usePullToRefresh(loadData);
   // 视图模式切换
   const handleViewModeToggle = useCallback((mode: "card" | "list") => {
     setViewMode(mode);

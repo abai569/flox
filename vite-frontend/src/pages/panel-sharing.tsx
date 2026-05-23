@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "react-hot-toast";
 
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
@@ -189,6 +190,16 @@ export default function PanelSharingPage() {
       loadRemoteUsage();
     }
   }, [selectedTab, loadShares, loadNodes, loadRemoteUsage]);
+  const refresh = useCallback(() => {
+    if (selectedTab === "my-shares") {
+      loadShares();
+      loadNodes();
+    } else if (selectedTab === "remote-nodes") {
+      loadRemoteUsage();
+    }
+  }, [selectedTab, loadShares, loadNodes, loadRemoteUsage]);
+
+  usePullToRefresh(refresh);
   const handleCreateShare = async () => {
     if (!shareForm.name || !shareForm.nodeId) {
       toast.error("请填写必要信息");

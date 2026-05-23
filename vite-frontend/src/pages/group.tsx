@@ -41,6 +41,7 @@ import {
   updateUserGroup,
 } from "@/api";
 import { getAdminFlag } from "@/utils/session";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 interface TunnelItem {
   id: number;
   name: string;
@@ -234,6 +235,7 @@ export default function GroupPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  usePullToRefresh(loadData);
   const openCreateTunnelGroup = () => {
     setEditingTunnelGroup(null);
     setGroupName("");

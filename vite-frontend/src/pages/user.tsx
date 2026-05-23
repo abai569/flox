@@ -99,6 +99,7 @@ import { EditIcon, DeleteIcon, EyeIcon, EyeOffIcon } from "@/components/icons";
 import { PageLoadingState } from "@/components/page-state";
 import type { UserRenewalLog } from "@/types";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { removeItemsById, replaceItemById } from "@/utils/list-state";
 
 // 扩展 User 类型，添加流量历史相关字段
@@ -770,6 +771,7 @@ export default function UserPage() {
   useEffect(() => {
     void loadUsers();
   }, [loadUsers]);
+  usePullToRefresh(loadUsers);
   useEffect(() => {
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);

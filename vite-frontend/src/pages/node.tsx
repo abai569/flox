@@ -101,6 +101,7 @@ import {
 import { useNodeOfflineTimers } from "@/pages/node/use-node-offline-timers";
 import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { loadStoredOrder, saveOrder } from "@/utils/order-storage";
 // TypeScript 全局类型扩展
 declare global {
@@ -826,6 +827,7 @@ export default function NodePage() {
   useEffect(() => {
     loadNodes();
   }, [loadNodes]);
+  usePullToRefresh(loadNodes);
   useEffect(() => {
     if (!usingPollingFallback) {
       return;
