@@ -193,7 +193,8 @@ func (e *systemUpgradeExecutor) helperScript() string {
 
 		// 兼容 Nerdctl 和标准 Docker 的智能提取逻辑
 		`for img in $(docker images | grep 'ghcr.io/abai569' | awk '{if ($1 ~ /:/) print $1; else print $1":"$2}'); do`,
-		`  if [ -n "$NEW_VER" ] && echo "$img" | grep -q "$NEW_VER"; then`,
+		`  TAG=$(echo "$img" | awk -F: '{print $NF}')`,
+		`  if [ -n "$NEW_VER" ] && [ "$TAG" = "$NEW_VER" ]; then`,
 		`    continue`,
 		`  fi`,
 		`  docker rmi -f "$img" 2>/dev/null || true`, // 👈 必须加 -f，否则残留占用会导致清理静默失败
