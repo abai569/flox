@@ -82,15 +82,7 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o instal
 
 ---
 
-## 三、反向代理配置（必须）
-
-由于系统强制要求通过 HTTPS 域名访问以验证授权，因此必须配置反向代理。
-
-**如果不配置反代：**
-- 无法获取 HTTPS 证书，面板将无法通过校验
-- 授权验证将失败（提示“必须通过 HTTPS 域名访问面板”）
-
-推荐新手直接使用 **Caddy**，它可以自动申请和续期免费 SSL 证书。若选择 **Nginx**，请自行配置证书。
+## 三、反向代理配置
 
 ### 方案一：Nginx 反向代理
 
