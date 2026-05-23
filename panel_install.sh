@@ -841,17 +841,9 @@ backup_panel_data() {
   echo "   以防服务器数据丢失或损坏。"
   echo ""
   echo "   💡 推荐下载方式："
-  echo "   方式一 (SCP)："
-  echo "     scp -r root@<服务器IP>:$backup_dir ~/flvx_backup_${timestamp}"
-  echo ""
-  echo "   方式二 (SFTP 工具)："
-  echo "     使用 WinSCP / FileZilla 等工具连接服务器后下载到本地"
-  echo ""
-  echo "   方式三 (本地路径)："
-  echo "     如在本地 macOS/Linux 运行脚本，直接复制该目录即可"
+  echo "     使用 FinalShell / WinSCP等工具连接服务器后下载到本地"
   echo "==============================================="
 }
-
 
 
 # 卸载功能
