@@ -72,7 +72,7 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o instal
 
 ```bash
 # 替换 <面板地址> 和 <密钥>
-./install.sh -a "http://1.2.3.4:6365" -s "your_node_secret"
+./install.sh -a "http://1.2.3.4:63665" -s "your_node_secret"
 ```
 
 ### 3. 验证安装
@@ -82,11 +82,90 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o instal
 
 ---
 
-## 三、Caddy 反向代理（可选）
+## 三、反向代理配置（必须）
 
-如果需要通过域名访问面板并自动获取 HTTPS 证书，可以使用 Caddy 作为反向代理。
+由于系统强制要求通过 HTTPS 域名访问以验证授权，因此必须配置反向代理。
 
-### 1. 安装 Caddy
+**如果不配置反代：**
+- 无法获取 HTTPS 证书，面板将无法通过校验
+- 授权验证将失败（提示“必须通过 HTTPS 域名访问面板”）
+
+推荐新手直接使用 **Caddy**，它可以自动申请和续期免费 SSL 证书。若选择 **Nginx**，请自行配置证书。
+
+### 方案一：Nginx 反向代理
+
+#### 1. 安装 Nginx
+
+```bash
+# Debian / Ubuntu
+sudo apt update && sudo apt install -y nginx
+
+# CentOS / RHEL
+sudo yum install -y epel-release && sudo yum install -y nginx
+```
+
+#### 2. 配置 Nginx
+
+创建站点配置文件：
+
+```bash
+sudo nano /etc/nginx/conf.d/flvx.conf
+```
+
+将以下内容粘贴到配置文件中（替换 `yourdomain.com` 为你的域名）：
+
+```nginx
+server {
+    listen 80;
+    server_name yourdomain.com;
+    # 强制跳转到 HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name yourdomain.com;
+
+    # SSL 证书配置（使用 Let's Encrypt 或自有证书）
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:63666;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+    }
+}
+```
+
+> ⚠️ **注意**：请根据实际情况修改 `yourdomain.com`、证书路径和端口号。
+
+#### 3. 测试并重载 Nginx
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+#### 4. 可选：使用 Certbot 申请 Let's Encrypt 证书
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+证书会自动配置到 Nginx 中，无需手动修改配置文件。
+
+---
+
+### 方案二：Caddy 反向代理
+
+Caddy 的优势在于自动申请和续期 HTTPS 证书，无需手动配置 SSL。
+
+#### 1. 安装 Caddy
 
 ```bash
 # Debian / Ubuntu
@@ -99,7 +178,7 @@ sudo apt install caddy
 
 其他系统请参考 [Caddy 官方安装文档](https://caddyserver.com/docs/install)。
 
-### 2. 配置 Caddyfile
+#### 2. 配置 Caddyfile
 
 编辑 Caddy 配置文件：
 
@@ -107,29 +186,35 @@ sudo apt install caddy
 sudo nano /etc/caddy/Caddyfile
 ```
 
-#### 面板域名配置
-
-将 `panel.example.com` 替换为你自己的域名：
+将以下内容粘贴到配置文件中（替换 `yourdomain.com` 为你的域名）：
 
 ```caddyfile
-panel.example.com {
-    reverse_proxy localhost:6366
+yourdomain.com {
+    reverse_proxy http://127.0.0.1:63666 {
+        header_up Host {host}
+    }
 }
 ```
 
-Caddy 会自动为域名申请和续期 HTTPS 证书，无需额外配置。
+Caddy 会自动处理：
+- `X-Forwarded-For`
+- `X-Forwarded-Proto`
+- `X-Forwarded-Host`
+- 自动申请和续期 HTTPS 证书
 
-### 3. 重启 Caddy
+#### 3. 重启 Caddy
 
 ```bash
 sudo systemctl restart caddy
 ```
 
-### 4. 注意事项
+---
+
+### 注意事项
 
 - 确保域名已正确解析到服务器 IP。
-- 确保服务器防火墙放行了 **80** 和 **443** 端口（Caddy 自动申请证书需要）。
-- 使用 Caddy 反向代理后，可以在 `.env` 中将前端端口改为仅监听本地，避免直接暴露：
+- 确保服务器防火墙放行了 **80** 和 **443** 端口（证书申请需要 80 端口）。
+- 使用反向代理后，可以在 `.env` 中将前端端口改为仅监听本地，避免直接暴露：
   ```
-  FRONTEND_PORT=127.0.0.1:6366
+  FRONTEND_PORT=127.0.0.1:63666
   ```
