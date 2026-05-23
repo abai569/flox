@@ -593,8 +593,8 @@ export interface LicenseInfo {
 }
 
 export const getLicenseInfo = () => Network.post<LicenseInfo>("/license/info");
-export const updateLicenseConfig = (licenseKey: string, domain: string, hmacKey?: string) =>
-  Network.post("/license/config", { license_key: licenseKey, domain, hmac_key: hmacKey });
+export const updateLicenseConfig = (licenseKey: string, domain: string, hmacKey?: string, actualDomain?: string, actualProtocol?: string) =>
+  Network.post("/license/config", { license_key: licenseKey, domain, hmac_key: hmacKey, actual_domain: actualDomain, actual_protocol: actualProtocol });
 export const transferLicense = (newDomain: string) =>
   Network.post("/license/transfer", { new_domain: newDomain });
 

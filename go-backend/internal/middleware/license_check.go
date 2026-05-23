@@ -16,16 +16,20 @@ import (
 
 // LicenseVerifier handles license verification with remote server
 type LicenseVerifier struct {
-	serverURL  string
-	licenseKey string
-	domain     string
-	httpClient *http.Client
+	serverURL      string
+	licenseKey     string
+	domain         string
+	accessDomain   string
+	accessProtocol string
+	httpClient     *http.Client
 }
 
 // VerifyRequest is the request body for license verification
 type VerifyRequest struct {
-	LicenseKey string `json:"license_key"`
-	Domain     string `json:"domain"`
+	LicenseKey     string `json:"license_key"`
+	Domain         string `json:"domain"`
+	AccessDomain   string `json:"access_domain,omitempty"`
+	AccessProtocol string `json:"access_protocol,omitempty"`
 }
 
 // VerifyResponse is the response body for license verification
@@ -71,12 +75,14 @@ func VerifyResponseSignature(resp *VerifyResponse, secret string) bool {
 var globalLicenseState = &licenseState{}
 
 // NewLicenseVerifier creates a new LicenseVerifier instance
-func NewLicenseVerifier(serverURL, licenseKey, domain string) *LicenseVerifier {
+func NewLicenseVerifier(serverURL, licenseKey, domain, accessDomain, accessProtocol string) *LicenseVerifier {
 	return &LicenseVerifier{
-		serverURL:  serverURL,
-		licenseKey: licenseKey,
-		domain:     domain,
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		serverURL:      serverURL,
+		licenseKey:     licenseKey,
+		domain:         domain,
+		accessDomain:   accessDomain,
+		accessProtocol: accessProtocol,
+		httpClient:     &http.Client{Timeout: 10 * time.Second},
 	}
 }
 
@@ -87,8 +93,10 @@ func (v *LicenseVerifier) Verify(ctx context.Context) (*VerifyResponse, error) {
 	}
 
 	reqBody := VerifyRequest{
-		LicenseKey: v.licenseKey,
-		Domain:     v.domain,
+		LicenseKey:     v.licenseKey,
+		Domain:         v.domain,
+		AccessDomain:   v.accessDomain,
+		AccessProtocol: v.accessProtocol,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -147,12 +155,14 @@ var checkParams struct {
 	serverURL        string
 	licenseKey       string
 	domain           string
+	accessDomain     string
+	accessProtocol   string
 	domainFromConfig string
 	mu               sync.RWMutex
 }
 
 // StartLicenseVerification starts license verification and stores the result
-func StartLicenseVerification(serverURL, licenseKey, domain string) error {
+func StartLicenseVerification(serverURL, licenseKey, domain, accessDomain, accessProtocol string) error {
 	if serverURL == "" || licenseKey == "" {
 		globalLicenseState.mu.Lock()
 		globalLicenseState.valid = false
@@ -162,11 +172,12 @@ func StartLicenseVerification(serverURL, licenseKey, domain string) error {
 		return nil
 	}
 
-	// 保存参数以便后续手动触发
 	checkParams.mu.Lock()
 	checkParams.serverURL = serverURL
 	checkParams.licenseKey = licenseKey
 	checkParams.domain = domain
+	checkParams.accessDomain = accessDomain
+	checkParams.accessProtocol = accessProtocol
 	checkParams.mu.Unlock()
 
 	// 立即执行一次验证
@@ -214,6 +225,8 @@ func ForceSyncCheck() {
 	serverURL := checkParams.serverURL
 	licenseKey := checkParams.licenseKey
 	domain := checkParams.domain
+	accessDomain := checkParams.accessDomain
+	accessProtocol := checkParams.accessProtocol
 	checkParams.mu.Unlock()
 
 	if serverURL == "" || licenseKey == "" {
@@ -225,7 +238,7 @@ func ForceSyncCheck() {
 		return
 	}
 
-	verifier := NewLicenseVerifier(serverURL, licenseKey, domain)
+	verifier := NewLicenseVerifier(serverURL, licenseKey, domain, accessDomain, accessProtocol)
 
 	// Use a shorter timeout for page refresh to avoid long UI blocking (3 seconds)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -260,6 +273,8 @@ func doVerify() error {
 	serverURL := checkParams.serverURL
 	licenseKey := checkParams.licenseKey
 	domain := checkParams.domain
+	accessDomain := checkParams.accessDomain
+	accessProtocol := checkParams.accessProtocol
 	checkParams.mu.Unlock()
 
 	if serverURL == "" || licenseKey == "" {
@@ -271,7 +286,7 @@ func doVerify() error {
 		return nil
 	}
 
-	verifier := NewLicenseVerifier(serverURL, licenseKey, domain)
+	verifier := NewLicenseVerifier(serverURL, licenseKey, domain, accessDomain, accessProtocol)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -384,11 +399,13 @@ func UpdateServerDomainFromConfig(domain string) {
 }
 
 // UpdateCheckParams updates the stored check parameters for license verification
-func UpdateCheckParams(serverURL, licenseKey, domain string) {
+func UpdateCheckParams(serverURL, licenseKey, domain, accessDomain, accessProtocol string) {
 	checkParams.mu.Lock()
 	defer checkParams.mu.Unlock()
 	checkParams.serverURL = serverURL
 	checkParams.licenseKey = licenseKey
 	checkParams.domain = domain
+	checkParams.accessDomain = accessDomain
+	checkParams.accessProtocol = accessProtocol
 }
 

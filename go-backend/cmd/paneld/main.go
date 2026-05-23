@@ -59,7 +59,7 @@ func main() {
 	if cfg.LicenseServerURL != "" && cfg.LicenseKey != "" {
 		log.Printf("🔐 开始验证授权...")
 		domain := middleware.GetServerDomain()
-		if err := middleware.StartLicenseVerification(cfg.LicenseServerURL, cfg.LicenseKey, domain); err != nil {
+		if err := middleware.StartLicenseVerification(cfg.LicenseServerURL, cfg.LicenseKey, domain, domain, "https:"); err != nil {
 			log.Printf("⚠️  授权验证失败：%v", err)
 		} else {
 			valid, expireTime, reason, _ := middleware.GetLicenseState()

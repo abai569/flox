@@ -20,9 +20,11 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		LicenseKey string `json:"license_key"`
-		Domain     string `json:"domain"`
-		HmacKey    string `json:"hmac_key"`
+		LicenseKey     string `json:"license_key"`
+		Domain         string `json:"domain"`
+		HmacKey        string `json:"hmac_key"`
+		ActualDomain   string `json:"actual_domain"`
+		ActualProtocol string `json:"actual_protocol"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -31,6 +33,18 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 
 	if req.Domain == "" {
 		response.WriteJSON(w, response.ErrDefault("面板域名不能为空"))
+		return
+	}
+
+	// 校验：必须通过 HTTPS 访问
+	if req.ActualProtocol != "https:" {
+		response.WriteJSON(w, response.ErrDefault("必须通过 HTTPS 域名访问面板"))
+		return
+	}
+
+	// 校验：实际访问域名必须与填写域名一致
+	if req.ActualDomain != req.Domain {
+		response.WriteJSON(w, response.ErrDefault("实际访问域名与填写域名不一致"))
 		return
 	}
 
@@ -72,7 +86,7 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	middleware.UpdateCheckParams(url, actualLicenseKey, req.Domain)
+	middleware.UpdateCheckParams(url, actualLicenseKey, req.Domain, req.ActualDomain, req.ActualProtocol)
 	go middleware.TriggerAsyncCheck()
 
 	go func() {

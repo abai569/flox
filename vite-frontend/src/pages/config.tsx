@@ -280,7 +280,13 @@ export default function ConfigPage() {
     }
     setLicenseSaving(true);
     try {
-      const res = await updateLicenseConfig(licenseKey.trim(), licenseDomain.trim(), hmacKey.trim());
+      const res = await updateLicenseConfig(
+        licenseKey.trim(),
+        licenseDomain.trim(),
+        hmacKey.trim(),
+        window.location.hostname,
+        window.location.protocol,
+      );
       if (res.code === 0) {
         toast.success("授权配置已提交，正在后台验证...");
         setTimeout(() => window.location.reload(), 1500);
