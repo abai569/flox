@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"bytes"
@@ -59,17 +59,22 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 	// 授权码为空时自动生成7天体验授权
 	actualLicenseKey := req.LicenseKey
 	if actualLicenseKey == "" {
-		// 优先检查本地数据库是否已有对应域名的授权，避免重复生成或覆盖
+		// 优先检查本地是否已有授权，避免重复生成
 		existingDomainCfg, _ := h.repo.GetConfigByName("server_domain")
 		existingKeyCfg, _ := h.repo.GetConfigByName("license_key")
 
 		if existingDomainCfg != nil && existingDomainCfg.Value == req.Domain {
 			if existingKeyCfg != nil && existingKeyCfg.Value != "" {
-				actualLicenseKey = existingKeyCfg.Value
+				// 修复：检查本地旧 Key 是否还有效
+				if !isLicenseKeyValid(url, existingKeyCfg.Value, req.Domain) {
+					log.Println("⚠️ 本地缓存的授权已失效，将申请新体验授权")
+				} else {
+					actualLicenseKey = existingKeyCfg.Value
+				}
 			}
 		}
 
-		// 如果没有本地缓存的授权，则向远程请求体验授权
+		// 如果没有本地缓存的授权（或已失效），则向远程请求体验授权
 		if actualLicenseKey == "" {
 			trialKey, err := requestTrialLicense(url, req.Domain)
 			if err != nil {
@@ -111,6 +116,27 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(map[string]interface{}{
 		"triggered_check": true,
 	}))
+}
+
+// isLicenseKeyValid checks if a license key is still valid by calling the verify API.
+func isLicenseKeyValid(serverURL, licenseKey, domain string) bool {
+	body, _ := json.Marshal(map[string]string{
+		"license_key": licenseKey,
+		"domain":      domain,
+	})
+	resp, err := http.Post(serverURL+"/api/verify", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Valid bool `json:"valid"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false
+	}
+	return result.Valid
 }
 
 func requestTrialLicense(serverURL, domain string) (string, error) {
