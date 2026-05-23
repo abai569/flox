@@ -791,10 +791,6 @@ backup_panel_data() {
     cp .env "$backup_dir/.env"
     echo "  .env → 已备份"
   fi
-  if [[ -f "docker-compose.yml" ]]; then
-    cp docker-compose.yml "$backup_dir/docker-compose.yml"
-    echo "  docker-compose.yml → 已备份"
-  fi
 
   # 检测数据库类型并备份
   current_db_type=$(get_current_db_type)
@@ -920,11 +916,14 @@ restore_panel_data() {
     return 1
   fi
 
-  read -p "请选择要恢复的备份编号 (1-$((idx-1)))，或输入 q 取消: " backup_choice
+  read -p "请选择要恢复的备份编号 (1-$((idx-1)))，回车默认 1 最新备份或输入 q 取消: " backup_choice
+
   if [[ "$backup_choice" == "q" || "$backup_choice" == "Q" ]]; then
     echo "❌ 取消恢复操作"
     return 0
   fi
+
+  backup_choice=${backup_choice:-1}
 
   if ! [[ "$backup_choice" =~ ^[0-9]+$ ]] || [[ "$backup_choice" -lt 1 ]] || [[ "$backup_choice" -gt $((idx-1)) ]]; then
     echo "❌ 无效的选择"
@@ -987,23 +986,14 @@ restore_panel_data() {
     fi
   fi
 
-  # 恢复配置文件（可选）
+  # 恢复配置文件（包含授权信息）
   if [[ -f "$backup_dir/.env" ]]; then
     echo ""
-    echo "📋 检测到备份中包含 .env 配置文件"
-    read -p "是否同时恢复 .env 配置文件？(y/N): " restore_env
-    if [[ "$restore_env" == "y" || "$restore_env" == "Y" ]]; then
+    echo "📋 检测到备份中包含 .env 配置文件(包含授权信息)"
+    read -p "是否同时恢复 .env 配置文件？回车默认恢复或输入 N 跳过: " restore_env
+    if [[ "$restore_env" != "n" && "$restore_env" != "N" ]]; then
       cp "$backup_dir/.env" "$install_dir/.env"
       echo "  .env → 已恢复"
-    fi
-  fi
-
-  if [[ -f "$backup_dir/docker-compose.yml" ]]; then
-    echo ""
-    read -p "是否同时恢复 docker-compose.yml 配置文件？(y/N): " restore_compose
-    if [[ "$restore_compose" == "y" || "$restore_compose" == "Y" ]]; then
-      cp "$backup_dir/docker-compose.yml" "$install_dir/docker-compose.yml"
-      echo "  docker-compose.yml → 已恢复"
     fi
   fi
 
