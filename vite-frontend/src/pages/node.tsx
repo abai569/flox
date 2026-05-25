@@ -43,7 +43,6 @@ import {
   useDisclosure,
 } from "@/shadcn-bridge/heroui/modal";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
-import { Switch } from "@/shadcn-bridge/heroui/switch";
 import { Spinner } from "@/shadcn-bridge/heroui/spinner";
 import { Alert } from "@/shadcn-bridge/heroui/alert";
 import { Link } from "@/shadcn-bridge/heroui/link";
@@ -349,8 +348,6 @@ export default function NodePage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
-  const [protocolDisabled, setProtocolDisabled] = useState(false);
-  const [protocolDisabledReason, setProtocolDisabledReason] = useState("");
   const [form, setForm] = useState<NodeForm>({
     id: null,
     name: "",
@@ -988,8 +985,6 @@ export default function NodePage() {
     setIsEdit(false);
     setDialogVisible(true);
     resetForm();
-    setProtocolDisabled(true);
-    setProtocolDisabledReason("节点未在线，等待节点上线后再设置");
   };
   const handleEdit = (node: Node) => {
     setDialogTitle("编辑节点");
@@ -1013,12 +1008,6 @@ export default function NodePage() {
       tls: typeof node.tls === "number" ? node.tls : 1,
       socks: typeof node.socks === "number" ? node.socks : 1,
     });
-    const offline = node.connectionStatus !== "online";
-
-    setProtocolDisabled(offline);
-    setProtocolDisabledReason(
-      offline ? "节点未在线，等待节点上线后再设置" : "",
-    );
     setDialogVisible(true);
   };
   const handleDelete = (node: Node) => {
@@ -3163,156 +3152,6 @@ export default function NodePage() {
                         }
                       />
                     </div>
-                    <div>
-                      <div className="text-sm font-medium text-default-700 mb-2">
-                        屏蔽协议
-                      </div>
-                      <div className="text-xs text-default-500 mb-2">
-                        开启开关以屏蔽对应协议
-                      </div>
-                      {protocolDisabled && (
-                        <Alert
-                          className="mb-2"
-                          color="warning"
-                          description={
-                            protocolDisabledReason || "等待节点上线后再设置"
-                          }
-                          variant="flat"
-                        />
-                      )}
-                      <div
-                        className={`grid grid-cols-1 sm:grid-cols-3 gap-3 bg-default-50 dark:bg-default-100 p-3 rounded-md border border-default-200 dark:border-default-100/30 ${
-                          protocolDisabled ? "opacity-70" : ""
-                        }`}
-                      >
-                        <div className="px-3 py-3 rounded-lg bg-white dark:bg-default-50 border border-default-200 dark:border-default-100/30 hover:border-primary-200 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <svg
-                              aria-hidden="true"
-                              className="w-4 h-4 text-default-500"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              viewBox="0 0 24 24"
-                            >
-                              <rect height="16" rx="2" width="20" x="2" y="4" />
-                              <path d="M2 10h20" />
-                            </svg>
-                            <div className="text-sm font-medium text-default-700">
-                              HTTP
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="text-xs text-default-500">
-                              禁用/启用
-                            </div>
-                            <Switch
-                              isDisabled={protocolDisabled}
-                              isSelected={form.http === 1}
-                              size="sm"
-                              onValueChange={(v) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  http: v ? 1 : 0,
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="mt-1 text-xs text-default-400">
-                            {form.http === 1 ? "已开启" : "已关闭"}
-                          </div>
-                        </div>
-                        <div className="px-3 py-3 rounded-lg bg-white dark:bg-default-50 border border-default-200 dark:border-default-100/30 hover:border-primary-200 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <svg
-                              aria-hidden="true"
-                              className="w-4 h-4 text-default-500"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="M6 10V7a6 6 0 1 1 12 0v3" />
-                              <rect
-                                height="10"
-                                rx="2"
-                                width="16"
-                                x="4"
-                                y="10"
-                              />
-                            </svg>
-                            <div className="text-sm font-medium text-default-700">
-                              TLS
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="text-xs text-default-500">
-                              禁用/启用
-                            </div>
-                            <Switch
-                              isDisabled={protocolDisabled}
-                              isSelected={form.tls === 1}
-                              size="sm"
-                              onValueChange={(v) =>
-                                setForm((prev) => ({ ...prev, tls: v ? 1 : 0 }))
-                              }
-                            />
-                          </div>
-                          <div className="mt-1 text-xs text-default-400">
-                            {form.tls === 1 ? "已开启" : "已关闭"}
-                          </div>
-                        </div>
-                        <div className="px-3 py-3 rounded-lg bg-white dark:bg-default-50 border border-default-200 dark:border-default-100/30 hover:border-primary-200 transition-colors">
-                          <div className="flex items-center gap-2 mb-2">
-                            <svg
-                              aria-hidden="true"
-                              className="w-4 h-4 text-default-500"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                              <polyline points="7 10 12 15 17 10" />
-                              <line x1="12" x2="12" y1="15" y2="3" />
-                            </svg>
-                            <div className="text-sm font-medium text-default-700">
-                              SOCKS
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="text-xs text-default-500">
-                              禁用/启用
-                            </div>
-                            <Switch
-                              isDisabled={protocolDisabled}
-                              isSelected={form.socks === 1}
-                              size="sm"
-                              onValueChange={(v) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  socks: v ? 1 : 0,
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="mt-1 text-xs text-default-400">
-                            {form.socks === 1 ? "已开启" : "已关闭"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <Alert
-                      color="danger"
-                      description="请不要在出口节点执行屏蔽协议，否则可能影响转发；屏蔽协议仅需在入口节点执行。"
-                      variant="flat"
-                    />
                   </div>
                 </AccordionItem>
               </Accordion>

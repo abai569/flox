@@ -10,6 +10,9 @@ interface TunnelFormInput {
   outNodeId?: TunnelChainNode[];
   chainNodes?: TunnelChainNode[][];
   trafficRatio: number;
+  http: number;
+  tls: number;
+  socks: number;
 }
 
 interface TunnelNodeInput {
@@ -31,6 +34,9 @@ export const createTunnelFormDefaults = () => {
     status: 1,
     tunnelGroupId: null as number | null,
     remark: "",
+    http: 0,
+    tls: 0,
+    socks: 0,
   };
 };
 
