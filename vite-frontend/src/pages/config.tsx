@@ -1062,7 +1062,7 @@ export default function ConfigPage() {
           <CardHeader className="pb-6">
             <div className="flex justify-between items-center w-full">
               <div>
-                <h2 className="text-xl font-semibold">导出数据</h2>
+                <h2 className="text-xl font-semibold">数据备份</h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   导出系统所有数据为 JSON 格式文件
                 </p>
@@ -1075,7 +1075,7 @@ export default function ConfigPage() {
             <div className="flex flex-col gap-4">
               {/* 第一行：标题 和 导出按钮 */}
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">导出数据</h3>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">导出数据</h3>
                 <Button
                   color="primary"
                   isLoading={exporting}
@@ -1116,7 +1116,7 @@ export default function ConfigPage() {
             <div className="flex flex-col gap-4">
               {/* 第一行：大标题 和 导入按钮 */}
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">导入数据</h3>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">导入数据</h3>
                 <Button
                   color="primary"
                   isLoading={importing}
