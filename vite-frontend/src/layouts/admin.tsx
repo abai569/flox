@@ -936,7 +936,7 @@ export default function AdminLayout({
                   />
                 </svg>
                 <span className="truncate">
-                  免费版：5 节点 / 5 隧道 / 1 用户，商业授权请联系管理员
+                  免费版：5 节点 / 5 隧道 / 1 用户，正式授权请联系管理员
                 </span>
                 <a
                   className="text-blue-600 dark:text-blue-400 flex-shrink-0 underline whitespace-nowrap"

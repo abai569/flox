@@ -39,7 +39,7 @@ curl -L https://github.com/abai569/flvx/releases/download/2.1.0/install.sh -o in
 
 ## 授权激活
 
-本系统采用商业授权模式，需要 License 才能使用全部功能。
+本系统采用正式授权模式，需要 License 才能使用全部功能。
 
 ### 获取 License
 

@@ -126,7 +126,7 @@ func CheckResourceLimit(resourceType string, currentCount int) error {
         return nil
     }
     if currentCount >= limit {
-        return fmt.Errorf("免费版最多 %d 个%s，请配置商业授权以解除限制", limit, resourceType)
+        return fmt.Errorf("免费版最多 %d 个%s，请配置正式授权以解除限制", limit, resourceType)
     }
     return nil
 }
@@ -193,7 +193,7 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
     if tier == middleware.TierFree {
         count, err := h.repo.CountNodes()
         if err == nil && count >= 5 {
-            response.WriteJSON(w, response.Err(403, "免费版最多 5 个节点，请配置商业授权"))
+            response.WriteJSON(w, response.Err(403, "免费版最多 5 个节点，请配置正式授权"))
             return
         }
     }

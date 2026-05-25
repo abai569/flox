@@ -26,17 +26,17 @@ func TrialGuard(next http.Handler, r *repo.Repository) http.Handler {
 		switch req.URL.Path {
 		case "/api/v1/node/create":
 			if c, _ := r.CountNodes(); c >= 5 {
-				response.WriteJSON(w, response.Err(403, "免费版限制：节点最多 5 个，请配置商业授权以解除限制"))
+				response.WriteJSON(w, response.Err(403, "免费版限制：节点最多 5 个，请配置正式授权以解除限制"))
 				return
 			}
 		case "/api/v1/tunnel/create":
 			if c, _ := r.CountTunnels(); c >= 5 {
-				response.WriteJSON(w, response.Err(403, "免费版限制：隧道最多 5 个，请配置商业授权以解除限制"))
+				response.WriteJSON(w, response.Err(403, "免费版限制：隧道最多 5 个，请配置正式授权以解除限制"))
 				return
 			}
 		case "/api/v1/user/create":
 			if c, _ := r.CountUsers(); c >= 1 {
-				response.WriteJSON(w, response.Err(403, "免费版限制：用户最多 1 个，请配置商业授权以解除限制"))
+				response.WriteJSON(w, response.Err(403, "免费版限制：用户最多 1 个，请配置正式授权以解除限制"))
 				return
 			}
 		}

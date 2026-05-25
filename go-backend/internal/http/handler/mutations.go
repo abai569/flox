@@ -49,7 +49,7 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 	if tier == middleware.TierFree {
 		count, err := h.repo.CountUsers()
 		if err == nil && count >= 1 {
-			response.WriteJSON(w, response.Err(403, "免费版最多 1 个用户，请配置商业授权"))
+			response.WriteJSON(w, response.Err(403, "免费版最多 1 个用户，请配置正式授权"))
 			return
 		}
 	}
@@ -630,7 +630,7 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
 	if tier == middleware.TierFree {
 		count, err := h.repo.CountNodes()
 		if err == nil && count >= 5 {
-			response.WriteJSON(w, response.Err(403, "免费版最多 5 个节点，请配置商业授权"))
+			response.WriteJSON(w, response.Err(403, "免费版最多 5 个节点，请配置正式授权"))
 			return
 		}
 	}
@@ -1214,7 +1214,7 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	if tier == middleware.TierFree {
 		count, err := h.repo.CountTunnels()
 		if err == nil && count >= 5 {
-			response.WriteJSON(w, response.Err(403, "免费版最多 5 个隧道，请配置商业授权"))
+			response.WriteJSON(w, response.Err(403, "免费版最多 5 个隧道，请配置正式授权"))
 			return
 		}
 	}
@@ -2696,7 +2696,7 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 	if tier == middleware.TierFree {
 		count, err := h.repo.CountForwards()
 		if err == nil && count >= 25 {
-			response.WriteJSON(w, response.Err(403, "免费版最多 25 条转发规则，请配置商业授权"))
+			response.WriteJSON(w, response.Err(403, "免费版最多 25 条转发规则，请配置正式授权"))
 			return
 		}
 	}

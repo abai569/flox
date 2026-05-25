@@ -390,7 +390,7 @@ func CheckResourceLimit(resourceType string, currentCount int) error {
 		return nil
 	}
 	if currentCount >= limit {
-		return fmt.Errorf("免费版最多 %d 个%s，请配置商业授权以解除限制", limit, resourceType)
+		return fmt.Errorf("免费版最多 %d 个%s，请配置正式授权以解除限制", limit, resourceType)
 	}
 	return nil
 }
