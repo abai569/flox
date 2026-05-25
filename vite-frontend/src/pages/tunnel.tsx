@@ -339,8 +339,8 @@ const renderBestExitState = (state?: BestExitState | null) => {
   return (
     <div
       className={`mt-1 text-[11px] leading-4 ${isWaiting
-          ? "text-default-500"
-          : "text-emerald-700 dark:text-emerald-300"
+        ? "text-default-500"
+        : "text-emerald-700 dark:text-emerald-300"
         }`}
       title={title || undefined}
     >
@@ -3933,41 +3933,46 @@ export default function TunnelPage() {
                   <div className="text-md text-foreground font-medium font-semibold mb-2">
                     协议过滤
                   </div>
-                  <div className="flex flex-wrap gap-x-6 gap-y-2 bg-default-50 dark:bg-default-100 p-3 rounded-md border border-default-200 dark:border-default-100/30">
-                    <Checkbox
-                      isSelected={form.socks === 1}
-                      onValueChange={(v) =>
-                        setForm((prev) => ({ ...prev, socks: v ? 1 : 0 }))
-                      }
-                    >
-                      SOCKS
-                    </Checkbox>
-                    <Checkbox
-                      isSelected={form.http === 1}
-                      onValueChange={(v) =>
-                        setForm((prev) => ({ ...prev, http: v ? 1 : 0 }))
-                      }
-                    >
-                      HTTP
-                    </Checkbox>
-                    <Checkbox
-                      isSelected={form.tls === 1}
-                      onValueChange={(v) =>
-                        setForm((prev) => ({ ...prev, tls: v ? 1 : 0 }))
-                      }
-                    >
-                      TLS
-                    </Checkbox>
-                  </div>
-                  <div className="mt-2">
-                    <Checkbox
-                      isSelected={form.blockOther === 1}
-                      onValueChange={(v) =>
-                        setForm((prev) => ({ ...prev, blockOther: v ? 1 : 0 }))
-                      }
-                    >
-                      屏蔽未识别协议（开启后仅放行已识别的协议，其余全部拦截）
-                    </Checkbox>
+                  <div className="bg-default-50 dark:bg-default-100 p-3 rounded-md border border-default-200 dark:border-default-100/30">
+                    <div className="flex flex-wrap gap-x-6 gap-y-2">
+                      <Checkbox
+                        isSelected={form.socks === 1}
+                        onValueChange={(v) =>
+                          setForm((prev) => ({ ...prev, socks: v ? 1 : 0 }))
+                        }
+                      >
+                        SOCKS
+                      </Checkbox>
+                      <Checkbox
+                        isSelected={form.http === 1}
+                        onValueChange={(v) =>
+                          setForm((prev) => ({ ...prev, http: v ? 1 : 0 }))
+                        }
+                      >
+                        HTTP
+                      </Checkbox>
+                      <Checkbox
+                        isSelected={form.tls === 1}
+                        onValueChange={(v) =>
+                          setForm((prev) => ({ ...prev, tls: v ? 1 : 0 }))
+                        }
+                      >
+                        TLS
+                      </Checkbox>
+                    </div>
+                    <div className="mt-2">
+                      <Checkbox
+                        isSelected={form.blockOther === 1}
+                        onValueChange={(v) =>
+                          setForm((prev) => ({ ...prev, blockOther: v ? 1 : 0 }))
+                        }
+                      >
+                        屏蔽其它协议
+                      </Checkbox>
+                      <div className="text-xs text-default-400 mt-1">
+                        仅放行第 1 行未勾选的协议，其余全部拦截
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <Alert
@@ -4365,10 +4370,10 @@ export default function TunnelPage() {
                                       <tr
                                         key={index}
                                         className={`hover:bg-default-50 dark:hover:bg-gray-700/50 ${isDiagnosing
-                                            ? "bg-warning-50 dark:bg-warning-900/20"
-                                            : isSuccess
-                                              ? "bg-white dark:bg-gray-800"
-                                              : "bg-danger-50 dark:bg-danger-900/30"
+                                          ? "bg-warning-50 dark:bg-warning-900/20"
+                                          : isSuccess
+                                            ? "bg-white dark:bg-gray-800"
+                                            : "bg-danger-50 dark:bg-danger-900/30"
                                           }`}
                                       >
                                         <td className="px-3 py-2">
@@ -4378,8 +4383,8 @@ export default function TunnelPage() {
                                             ) : (
                                               <span
                                                 className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${isSuccess
-                                                    ? "bg-success text-white"
-                                                    : "bg-danger text-white"
+                                                  ? "bg-success text-white"
+                                                  : "bg-danger text-white"
                                                   }`}
                                               >
                                                 {isSuccess ? "✓" : "✗"}
@@ -4421,8 +4426,8 @@ export default function TunnelPage() {
                                           {isSuccess ? (
                                             <span
                                               className={`font-semibold ${(result.packetLoss || 0) > 0
-                                                  ? "text-warning"
-                                                  : "text-success"
+                                                ? "text-warning"
+                                                : "text-success"
                                                 }`}
                                             >
                                               {result.packetLoss?.toFixed(1)}%
@@ -4532,10 +4537,10 @@ export default function TunnelPage() {
                                   <div
                                     key={index}
                                     className={`border rounded-lg p-3 ${isDiagnosing
-                                        ? "border-warning-200 dark:border-warning-300/30 bg-warning-50 dark:bg-warning-900/20"
-                                        : isSuccess
-                                          ? "border-divider bg-white dark:bg-gray-800"
-                                          : "border-danger-200 dark:border-danger-300/30 bg-danger-50 dark:bg-danger-900/30"
+                                      ? "border-warning-200 dark:border-warning-300/30 bg-warning-50 dark:bg-warning-900/20"
+                                      : isSuccess
+                                        ? "border-divider bg-white dark:bg-gray-800"
+                                        : "border-danger-200 dark:border-danger-300/30 bg-danger-50 dark:bg-danger-900/30"
                                       }`}
                                   >
                                     <div className="flex items-start gap-2 mb-2">
@@ -4544,8 +4549,8 @@ export default function TunnelPage() {
                                       ) : (
                                         <span
                                           className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${isSuccess
-                                              ? "bg-success text-white"
-                                              : "bg-danger text-white"
+                                            ? "bg-success text-white"
+                                            : "bg-danger text-white"
                                             }`}
                                         >
                                           {isSuccess ? "✓" : "✗"}
@@ -4582,8 +4587,8 @@ export default function TunnelPage() {
                                         <div className="text-center">
                                           <div
                                             className={`text-lg font-bold ${(result.packetLoss || 0) > 0
-                                                ? "text-warning"
-                                                : "text-success"
+                                              ? "text-warning"
+                                              : "text-success"
                                               }`}
                                           >
                                             {result.packetLoss?.toFixed(1)}%
@@ -4611,8 +4616,8 @@ export default function TunnelPage() {
                                       <div className="mt-2 pt-2 border-t border-divider">
                                         <div
                                           className={`text-xs ${isDiagnosing
-                                              ? "text-warning"
-                                              : "text-danger"
+                                            ? "text-warning"
+                                            : "text-danger"
                                             }`}
                                         >
                                           {isDiagnosing
