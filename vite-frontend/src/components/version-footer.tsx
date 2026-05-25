@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@/shadcn-bridge/heroui/modal";
+
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@/shadcn-bridge/heroui/modal";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
 import { Spinner } from "@/shadcn-bridge/heroui/spinner";
-
 import { siteConfig } from "@/config/site";
 import {
   UPDATE_CHANNEL_CHANGED_EVENT,
@@ -17,6 +23,25 @@ import { getPanelReleases, type PanelReleaseItem } from "@/api";
 import { runSystemUpgrade } from "@/api/index";
 
 const FALLBACK_GITHUB_REPO = "https://github.com/abai569/flvx";
+const UPGRADE_DISMISS_KEY = "upgrade_dismissed_date";
+
+const isUpgradeDismissedToday = (): boolean => {
+  try {
+    const dismissed = localStorage.getItem(UPGRADE_DISMISS_KEY);
+
+    if (!dismissed) return false;
+    const dismissedDate = new Date(dismissed);
+    const today = new Date();
+
+    return (
+      dismissedDate.getFullYear() === today.getFullYear() &&
+      dismissedDate.getMonth() === today.getMonth() &&
+      dismissedDate.getDate() === today.getDate()
+    );
+  } catch {
+    return false;
+  }
+};
 
 interface VersionFooterProps {
   version: string;
@@ -50,6 +75,7 @@ export function VersionFooter({
   const [panelLatestVersion, setPanelLatestVersion] = useState<string | null>(
     null,
   );
+  const [notificationOpen, setNotificationOpen] = useState(false);
 
   useEffect(() => {
     const handleChannelChange = () => {
@@ -103,10 +129,17 @@ export function VersionFooter({
     };
   }, [channel, version]);
 
+  useEffect(() => {
+    if (updateAvailable && showUpdateInfo && !isUpgradeDismissedToday()) {
+      setNotificationOpen(true);
+    }
+  }, [updateAvailable, showUpdateInfo]);
+
   const loadReleases = async () => {
     setReleasesLoading(true);
     try {
       const res = await getPanelReleases(channel);
+
       if (res.code === 0 && res.data) {
         setReleases(res.data);
         if (!panelLatestVersion && res.data.length > 0) {
@@ -130,6 +163,7 @@ export function VersionFooter({
     setUpgrading(true);
     try {
       const res = await runSystemUpgrade(selectedVersion || undefined, channel);
+
       if (res.code === 0) {
         setUpgradeModalOpen(false);
         toast.success(res.data?.message || "升级已触发，面板将自动重启");
@@ -146,6 +180,35 @@ export function VersionFooter({
     }
   };
 
+  const handleDirectUpgrade = async () => {
+    setNotificationOpen(false);
+    setUpgrading(true);
+    try {
+      const res = await runSystemUpgrade(
+        latestUpdateVersion || undefined,
+        channel,
+      );
+
+      if (res.code === 0) {
+        toast.success(res.data?.message || "升级已触发，面板将自动重启");
+        setTimeout(() => {
+          window.location.reload();
+        }, 60000);
+      } else {
+        toast.error(res.msg || "升级失败");
+        setUpgrading(false);
+      }
+    } catch (err) {
+      toast.error("升级失败：" + (err as Error).message);
+      setUpgrading(false);
+    }
+  };
+
+  const handleDismissNotification = () => {
+    localStorage.setItem(UPGRADE_DISMISS_KEY, new Date().toISOString());
+    setNotificationOpen(false);
+  };
+
   return (
     <>
       <div className={containerClassName}>
@@ -158,15 +221,14 @@ export function VersionFooter({
                 {latestUpdateVersion}
               </span>
             </>
-          )}
-          {" "}
+          )}{" "}
           {showUpdateInfo && (
             <Button
-              size="sm"
-              color="primary"
               className="inline-flex h-[16px] px-1.5 text-[9px] min-w-0 rounded-xs font-semibold [&>span]:text-[9px]"
-              onPress={handleOpenUpgradeModal}
+              color="primary"
               isLoading={upgrading}
+              size="sm"
+              onPress={handleOpenUpgradeModal}
             >
               升级
             </Button>
@@ -184,6 +246,70 @@ export function VersionFooter({
           </a>
         </p>
       </div>
+
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
+        }}
+        isOpen={notificationOpen}
+        placement="center"
+        scrollBehavior="outside"
+        size="sm"
+        onOpenChange={setNotificationOpen}
+      >
+        <ModalContent>
+          {(_onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <h2 className="text-xl font-bold">发现新版本</h2>
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm w-full">
+                    <div className="text-default-500 text-left">
+                      当前版本：
+                      <span className="font-medium text-default-900 dark:text-white">
+                        v{version}
+                      </span>
+                    </div>
+                    <div className="text-default-500 text-left">
+                      最新版本：
+                      <span className="font-medium text-primary">
+                        {latestUpdateVersion ? `v${latestUpdateVersion}` : "-"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-default-500">
+                    是否立即升级面板？
+                  </div>
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 list-disc list-outside pl-4 text-xs text-danger-600/80 dark:text-danger-400/80">
+                    <p className="list-item">升级将重启面板和后端服务</p>
+                    <p className="list-item">升级过程中面板将暂时不可用</p>
+                    <p className="list-item">升级失败会自动回滚到原版本</p>
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter className="flex gap-2">
+                <Button
+                  isDisabled={upgrading}
+                  variant="flat"
+                  onPress={handleDismissNotification}
+                >
+                  忽略
+                </Button>
+                <Button
+                  color="primary"
+                  isLoading={upgrading}
+                  onPress={handleDirectUpgrade}
+                >
+                  升级
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
 
       <Modal
         backdrop="blur"
@@ -211,11 +337,18 @@ export function VersionFooter({
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4 text-sm w-full">
                       <div className="text-default-500 text-left">
-                        当前版本：<span className="font-medium text-default-900 dark:text-white">v{version}</span>
+                        当前版本：
+                        <span className="font-medium text-default-900 dark:text-white">
+                          v{version}
+                        </span>
                       </div>
                       <div className="text-default-500 text-left">
-                        目标版本：<span className="font-medium text-default-900 dark:text-white">
-                          {selectedVersion || (panelLatestVersion ? `v${panelLatestVersion}` : "最新版本")}
+                        目标版本：
+                        <span className="font-medium text-default-900 dark:text-white">
+                          {selectedVersion ||
+                            (panelLatestVersion
+                              ? `v${panelLatestVersion}`
+                              : "最新版本")}
                         </span>
                       </div>
                     </div>
@@ -225,6 +358,7 @@ export function VersionFooter({
                       selectedKeys={selectedVersion ? [selectedVersion] : []}
                       onSelectionChange={(keys) => {
                         const selected = Array.from(keys)[0] as string;
+
                         setSelectedVersion(selected || "");
                       }}
                     >
@@ -257,7 +391,7 @@ export function VersionFooter({
                 )}
               </ModalBody>
               <ModalFooter>
-                <Button variant="flat" onPress={onClose} isDisabled={upgrading}>
+                <Button isDisabled={upgrading} variant="flat" onPress={onClose}>
                   取消
                 </Button>
                 <Button
