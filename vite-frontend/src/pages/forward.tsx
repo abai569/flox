@@ -2465,9 +2465,9 @@ export default function ForwardPage() {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    // 检测 IPv6 地址：包含 [ 或多个冒号（IPv6 有多个冒号，IPv4:端口 只有一个冒号）
-    const colonCount = (form.remoteAddr.match(/:/g) || []).length;
-    const hasIPv6Target = form.remoteAddr.includes("[") || colonCount > 1;
+    // 检测 IPv6 地址：按行判断，避免多行域名误判
+    const lines = form.remoteAddr.split("\n").map((l) => l.trim()).filter(Boolean);
+    const hasIPv6Target = lines.some((line) => line.includes("[") || (line.match(/:/g) || []).length > 1);
     if (form.mode === "nftables" && hasIPv6Target) {
       toast("nftables 模式不支持 IPv4 客户端转发到 IPv6 落地机，请改用 gost 模式", {
         icon: "⚠️",
