@@ -32,13 +32,14 @@ func (r *Repository) CreateProduct(name, description, productType string, price,
 	return p, nil
 }
 
-func (r *Repository) UpdateProduct(id int64, name, description string, price, value int64, sortOrder, status int) error {
+func (r *Repository) UpdateProduct(id int64, name, description, productType string, price, value int64, sortOrder, status int) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 
 	updates := map[string]interface{}{
 		"name":       name,
+		"type":       productType,
 		"price":      price,
 		"value":      value,
 		"sort_order": sortOrder,

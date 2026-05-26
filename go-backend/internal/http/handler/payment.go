@@ -11,6 +11,19 @@ import (
 	"go-backend/internal/store/model"
 )
 
+func (h *Handler) paymentStats(w http.ResponseWriter, r *http.Request) {
+	paidAmount, paidOrders, pendingOrders, err := h.repo.GetPaymentStats()
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OK(map[string]int64{
+		"paidAmount":    paidAmount,
+		"paidOrders":    paidOrders,
+		"pendingOrders": pendingOrders,
+	}))
+}
+
 func (h *Handler) listAllPaymentConfigs(w http.ResponseWriter, r *http.Request) {
 	list, err := h.repo.ListPaymentConfigs()
 	if err != nil {

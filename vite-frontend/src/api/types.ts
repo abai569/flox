@@ -730,3 +730,46 @@ export interface PayOrderResult {
 	payAmount: string;
 	orderNo: string;
 }
+
+// ─── Billing ─────────────────────────────────────────────────────────
+
+export interface RedeemCodeItem {
+	id: number;
+	code: string;
+	type: "plan" | "balance";
+	planId?: number;
+	durationDays?: number;
+	amountCents?: number;
+	isActive: number;
+	usedByUserId?: number;
+	usedByUsername?: string;
+	usedAt?: number;
+	startsAt?: number;
+	expiresAt?: number;
+	createdAt: number;
+}
+
+export interface DiscountCodeItem {
+	id: number;
+	code: string;
+	type: "percent" | "amount";
+	value: number;
+	maxUses: number;
+	usedCount: number;
+	planIds?: string;
+	isActive: number;
+	startsAt?: number;
+	expiresAt?: number;
+	createdAt: number;
+}
+
+export interface BalanceLogItem {
+	id: number;
+	userId: number;
+	userName: string;
+	amount: number;
+	balanceBefore: number;
+	balanceAfter: number;
+	reason: string;
+	createdTime: number;
+}

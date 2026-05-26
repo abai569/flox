@@ -243,6 +243,8 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.Product{},
 		&model.Order{},
 		&model.PaymentConfig{},
+		&model.RedeemCode{},
+		&model.DiscountCode{},
 	}
 
 	if db.Dialector.Name() != "sqlite" {
@@ -260,6 +262,13 @@ func autoMigrateAll(db *gorm.DB) error {
 	// 执行数据迁移
 	if err := migrateTunnelGroupNew(db); err != nil {
 		return fmt.Errorf("migrate tunnel group new: %w", err)
+	}
+
+	// 创建 system_setting 表（key-value 配置）
+	if !db.Migrator().HasTable("system_setting") {
+		if err := db.Exec(`CREATE TABLE system_setting (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`).Error; err != nil {
+			return fmt.Errorf("create system_setting table: %w", err)
+		}
 	}
 
 	// 手动迁移：为 user 表添�?name 字段（备注）

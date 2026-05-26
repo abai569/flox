@@ -131,6 +131,17 @@ func (r *Repository) ListExpiredPendingOrders(minutes int) ([]*model.Order, erro
 	return list, nil
 }
 
+func (r *Repository) GetPaymentStats() (paidAmount int64, paidOrders int64, pendingOrders int64, err error) {
+	if r == nil || r.db == nil {
+		return 0, 0, 0, errors.New("repository not initialized")
+	}
+
+	r.db.Model(&model.Order{}).Where("status = 1").Select("COALESCE(SUM(amount),0)").Scan(&paidAmount)
+	r.db.Model(&model.Order{}).Where("status = 1").Count(&paidOrders)
+	r.db.Model(&model.Order{}).Where("status = 0").Count(&pendingOrders)
+	return
+}
+
 func (r *Repository) BatchCancelOrders(ids []int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")

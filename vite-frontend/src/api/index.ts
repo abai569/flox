@@ -60,6 +60,9 @@ import type {
   OrderApiItem,
   PayOrderResult,
   PaymentChannelItem,
+  RedeemCodeItem,
+  DiscountCodeItem,
+  BalanceLogItem,
 } from "./types";
 
 import axios from "axios";
@@ -904,3 +907,47 @@ export const getOrderStatus = (orderId: number) =>
 
 export const getPaymentConfigs = () =>
 	Network.post<PaymentChannelItem[]>("/payment/config");
+
+// ─── Billing ─────────────────────────────────────────────────────────
+
+export const getBillingFeatureStatus = () =>
+	Network.post<{ redemptionEnabled: number; discountEnabled: number }>("/billing/feature-status");
+
+export const setBillingFeatureStatus = (data: { redemptionEnabled?: number; discountEnabled?: number }) =>
+	Network.post("/billing/feature-status/save", data);
+
+export const getRedeemCodes = () =>
+	Network.post<RedeemCodeItem[]>("/billing/redeem/list");
+
+export const createRedeemCodes = (data: {
+	type: string;
+	code?: string;
+	count?: number;
+	planId?: number;
+	durationDays?: number;
+	amountCents?: number;
+	startsAt?: number;
+	expiresAt?: number;
+}) => Network.post<{ codes: RedeemCodeItem[] }>("/billing/redeem/create", data);
+
+export const deleteRedeemCode = (id: number) =>
+	Network.post("/billing/redeem/delete", { id });
+
+export const getDiscountCodes = () =>
+	Network.post<DiscountCodeItem[]>("/billing/discount/list");
+
+export const createDiscountCode = (data: {
+	code: string;
+	type: string;
+	value: number;
+	maxUses?: number;
+	planIds?: number[];
+	startsAt?: number;
+	expiresAt?: number;
+}) => Network.post<DiscountCodeItem>("/billing/discount/create", data);
+
+export const deleteDiscountCode = (id: number) =>
+	Network.post("/billing/discount/delete", { id });
+
+export const getBalanceLogs = (data?: { userId?: number; page?: number; size?: number }) =>
+	Network.post<{ list: BalanceLogItem[]; total: number; page: number; size: number }>("/billing/balance-log/list", data || {});

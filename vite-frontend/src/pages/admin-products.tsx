@@ -5,6 +5,7 @@ import { AnimatedPage } from "@/components/animated-page";
 import { SearchBar } from "@/components/search-bar";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input } from "@/shadcn-bridge/heroui/input";
+import { Textarea } from "@/shadcn-bridge/heroui/input";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
 import {
   Table,
@@ -15,6 +16,7 @@ import {
   TableCell,
 } from "@/shadcn-bridge/heroui/table";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
+import { Card, CardBody } from "@/shadcn-bridge/heroui/card";
 import {
   Modal,
   ModalContent,
@@ -38,12 +40,18 @@ const productTypeOptions = [
   { value: "time", label: "时长续费" },
 ];
 
+const typeBadgeColor: Record<string, "primary" | "warning" | "success"> = {
+  recharge: "warning",
+  traffic: "primary",
+  time: "success",
+};
+
 interface ProductForm {
   id?: number;
   name: string;
   description: string;
   type: string;
-  price: number;
+  priceYuan: string;
   value: number;
   sortOrder: number;
   status: number;
@@ -53,10 +61,16 @@ const defaultForm: ProductForm = {
   name: "",
   description: "",
   type: "traffic",
-  price: 0,
+  priceYuan: "0",
   value: 0,
   sortOrder: 0,
   status: 1,
+};
+
+const typeUnit: Record<string, string> = {
+  recharge: "分",
+  traffic: "GB",
+  time: "天",
 };
 
 export default function AdminProductsPage() {
@@ -93,6 +107,12 @@ export default function AdminProductsPage() {
     !searchKeyword || p.name?.toLowerCase().includes(searchKeyword.toLowerCase())
   );
 
+  const activeCount = products.filter((p) => p.status === 1).length;
+  const typeCounts: Record<string, number> = {};
+  for (const p of products) {
+    typeCounts[p.type] = (typeCounts[p.type] || 0) + 1;
+  }
+
   const handleAdd = () => {
     setForm({ ...defaultForm });
     setIsEdit(false);
@@ -105,7 +125,7 @@ export default function AdminProductsPage() {
       name: item.name,
       description: item.description || "",
       type: item.type,
-      price: item.price,
+      priceYuan: (item.price / 100).toFixed(2),
       value: item.value,
       sortOrder: item.sortOrder || 0,
       status: item.status,
@@ -121,7 +141,17 @@ export default function AdminProductsPage() {
     }
     setSubmitLoading(true);
     try {
-      const data = { ...form };
+      const priceFen = Math.round(parseFloat(form.priceYuan || "0") * 100);
+      const data = {
+        id: form.id,
+        name: form.name,
+        description: form.description,
+        type: form.type,
+        price: priceFen,
+        value: form.value,
+        sortOrder: form.sortOrder,
+        status: form.status,
+      };
       const res = isEdit ? await updateProduct(data) : await createProduct(data);
       if (res.code === 0) {
         toast.success(isEdit ? "更新成功" : "创建成功");
@@ -163,7 +193,7 @@ export default function AdminProductsPage() {
 
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">商品管理</h1>
         <div className="flex gap-2">
           <SearchBar
@@ -180,6 +210,40 @@ export default function AdminProductsPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardBody className="py-4">
+            <div className="text-sm text-gray-400 mb-1">商品总数</div>
+            <div className="text-2xl font-semibold">{products.length}</div>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody className="py-4">
+            <div className="text-sm text-gray-400 mb-1">上架</div>
+            <div className="text-2xl font-semibold text-green-600">{activeCount}</div>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody className="py-4">
+            <div className="text-sm text-gray-400 mb-1">下架</div>
+            <div className="text-2xl font-semibold text-gray-400">{products.length - activeCount}</div>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardBody className="py-4">
+            <div className="text-sm text-gray-400 mb-1">类型分布</div>
+            <div className="text-base">
+              {productTypeOptions.map((opt) => (
+                <span key={opt.value} className="mr-2">
+                  {opt.label}
+                  <span className="ml-1 font-semibold">{typeCounts[opt.value] || 0}</span>
+                </span>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+
       <Table>
         <TableHeader>
           <TableColumn>名称</TableColumn>
@@ -193,13 +257,21 @@ export default function AdminProductsPage() {
         <TableBody>
           {filtered.map((item) => {
             const typeLabel = productTypeOptions.find((t) => t.value === item.type)?.label || item.type;
-            const typeUnit = item.type === "traffic" ? "GB" : item.type === "time" ? "天" : "分";
             return (
               <TableRow key={item.id}>
-                <TableCell>{item.name}</TableCell>
-                <TableCell>{typeLabel}</TableCell>
-                <TableCell>{(item.price / 100).toFixed(2)} 元</TableCell>
-                <TableCell>{item.value} {typeUnit}</TableCell>
+                <TableCell>
+                  <div className="font-medium">{item.name}</div>
+                  {item.description && (
+                    <div className="text-xs text-gray-400 truncate max-w-40">{item.description}</div>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Chip color={typeBadgeColor[item.type] || "default"} size="sm" variant="flat">
+                    {typeLabel}
+                  </Chip>
+                </TableCell>
+                <TableCell className="font-mono">{(item.price / 100).toFixed(2)} 元</TableCell>
+                <TableCell>{item.value} {typeUnit[item.type] || ""}</TableCell>
                 <TableCell>{item.sortOrder}</TableCell>
                 <TableCell>
                   <Chip color={item.status === 1 ? "success" : "default"} size="sm">
@@ -225,24 +297,31 @@ export default function AdminProductsPage() {
           <ModalBody className="space-y-4">
             <Input label="商品名称" value={form.name} variant="bordered"
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
-            <Input label="描述" value={form.description} variant="bordered"
-              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
-            <Select label="类型" variant="bordered"
-              selectedKeys={[form.type]}
-              onSelectionChange={(keys) => {
-                const val = Array.from(keys)[0] as string;
-                if (val) setForm((p) => ({ ...p, type: val }));
-              }}>
-              {productTypeOptions.map((opt) => (
-                <SelectItem key={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </Select>
-            <Input label="价格 (分)" type="number" value={String(form.price)} variant="bordered"
-              onChange={(e) => setForm((p) => ({ ...p, price: parseInt(e.target.value) || 0 }))} />
-            <Input label="价值 (流量GB/天数/充值分数)" type="number" value={String(form.value)} variant="bordered"
-              onChange={(e) => setForm((p) => ({ ...p, value: parseInt(e.target.value) || 0 }))} />
-            <Input label="排序" type="number" value={String(form.sortOrder)} variant="bordered"
-              onChange={(e) => setForm((p) => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))} />
+            <div className="space-y-1">
+              <label className="text-sm text-gray-400">说明</label>
+              <Textarea value={form.description} variant="bordered" className="w-full min-h-20"
+                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="类型" variant="bordered"
+                selectedKeys={[form.type]}
+                onSelectionChange={(keys) => {
+                  const val = Array.from(keys)[0] as string;
+                  if (val) setForm((p) => ({ ...p, type: val }));
+                }}>
+                {productTypeOptions.map((opt) => (
+                  <SelectItem key={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </Select>
+              <Input label="价格 (元)" type="number" step="0.01" min="0" value={form.priceYuan} variant="bordered"
+                onChange={(e) => setForm((p) => ({ ...p, priceYuan: e.target.value }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="价值" type="number" min="0" value={String(form.value)} variant="bordered"
+                onChange={(e) => setForm((p) => ({ ...p, value: parseInt(e.target.value) || 0 }))} />
+              <Input label="排序" type="number" min="0" value={String(form.sortOrder)} variant="bordered"
+                onChange={(e) => setForm((p) => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))} />
+            </div>
             <Select label="状态" variant="bordered"
               selectedKeys={[String(form.status)]}
               onSelectionChange={(keys) => {
@@ -252,6 +331,11 @@ export default function AdminProductsPage() {
               <SelectItem key="1">上架</SelectItem>
               <SelectItem key="0">下架</SelectItem>
             </Select>
+            <div className="text-xs text-gray-400">
+              {form.type === "recharge" ? "价值单位：分（充值到余额）" :
+               form.type === "traffic" ? "价值单位：GB（增加流量）" :
+               "价值单位：天（延长有效期）"}
+            </div>
           </ModalBody>
           <ModalFooter>
             <Button variant="flat" onPress={() => setModalOpen(false)}>取消</Button>

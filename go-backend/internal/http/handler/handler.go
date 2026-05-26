@@ -355,10 +355,22 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/payment/pay", h.payOrder)
 	mux.HandleFunc("/api/v1/payment/callback/yipay", h.yipayCallback)
 	mux.HandleFunc("/api/v1/payment/callback/usdt", h.usdtCallback)
+	mux.HandleFunc("/api/v1/payment/stats", h.paymentStats)
 	mux.HandleFunc("/api/v1/payment/config", h.getPaymentConfigs)
 	mux.HandleFunc("/api/v1/payment/config/save", h.savePaymentConfig)
 	mux.HandleFunc("/api/v1/payment/config/admin/list", h.listAllPaymentConfigs)
 	mux.HandleFunc("/api/v1/payment/config/delete", h.deletePaymentConfig)
+
+	// Billing
+	mux.HandleFunc("/api/v1/billing/redeem/create", h.createRedeemCodes)
+	mux.HandleFunc("/api/v1/billing/redeem/list", h.listRedeemCodes)
+	mux.HandleFunc("/api/v1/billing/redeem/delete", h.deleteRedeemCode)
+	mux.HandleFunc("/api/v1/billing/discount/create", h.createDiscountCode)
+	mux.HandleFunc("/api/v1/billing/discount/list", h.listDiscountCodes)
+	mux.HandleFunc("/api/v1/billing/discount/delete", h.deleteDiscountCode)
+	mux.HandleFunc("/api/v1/billing/balance-log/list", h.listBalanceLogs)
+	mux.HandleFunc("/api/v1/billing/feature-status", h.getBillingFeatureStatus)
+	mux.HandleFunc("/api/v1/billing/feature-status/save", h.setBillingFeatureStatus)
 
 	mux.HandleFunc("/flow/test", h.flowTest)
 	mux.HandleFunc("/flow/config", h.flowConfig)

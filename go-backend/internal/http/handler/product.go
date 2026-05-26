@@ -51,13 +51,15 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sortOrder := asInt(req["sort_order"], asInt(req["sortOrder"], 0))
+
 	product, err := h.repo.CreateProduct(
 		name,
 		asString(req["description"]),
 		asString(req["type"]),
 		asInt64(req["price"], 0),
 		asInt64(req["value"], 0),
-		asInt(req["sort_order"], 0),
+		sortOrder,
 		asInt(req["status"], 1),
 	)
 	if err != nil {
@@ -93,10 +95,14 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	productType := asString(req["type"])
+	sortOrder := asInt(req["sort_order"], asInt(req["sortOrder"], 0))
+
 	if err := h.repo.UpdateProduct(
 		id, name, asString(req["description"]),
+		productType,
 		asInt64(req["price"], 0), asInt64(req["value"], 0),
-		asInt(req["sort_order"], 0), asInt(req["status"], 1),
+		sortOrder, asInt(req["status"], 1),
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
