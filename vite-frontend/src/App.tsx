@@ -19,7 +19,6 @@ import OrdersPage from "@/pages/orders";
 import AdminProductsPage from "@/pages/admin-products";
 import AdminOrdersPage from "@/pages/admin-orders";
 import AdminPaymentPage from "@/pages/admin-payment";
-import AdminBillingPage from "@/pages/admin-billing";
 import { SettingsPage } from "@/pages/settings";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
@@ -248,7 +247,7 @@ function App() {
       <Route
         element={
           <ProtectedRoute>
-            <AdminBillingPage />
+            <AdminPaymentPage />
           </ProtectedRoute>
         }
         path="/admin/billing"
