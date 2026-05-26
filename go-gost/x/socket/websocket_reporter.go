@@ -26,7 +26,6 @@ import (
 	"github.com/go-gost/x/registry"
 	"github.com/go-gost/x/service"
 	"github.com/go-gost/x/stats"
-	"github.com/go-gost/x/nftables"
 	"github.com/go-gost/x/traffic"
 	"github.com/gorilla/websocket"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -196,8 +195,9 @@ type WebSocketReporter struct {
 	aesCrypto         *crypto.AESCrypto // AES 加密器
 	publicIPReported  bool              // 是否已上报公网 IP
 	serviceName       string            // 服务名
-	nftablesMgr       NftablesManagerInterface // nftables manager (platform-specific)
-	nftablesCounters []nftables.CounterResult // nftables counter cache
+	nftablesMgr          NftablesManagerInterface // nftables manager (platform-specific)
+	nftablesPrevCounters map[int64]uint64          // forwardID → last total bytes
+	nftablesPrevMu       sync.Mutex
 }
 
 var wsDial = func(dialer *websocket.Dialer, rawURL string) (*websocket.Conn, *http.Response, error) {
@@ -224,9 +224,10 @@ func NewWebSocketReporter(serverURL string, secret string) *WebSocketReporter {
 		configInterval: 10 * time.Minute, // 配置上报间隔
 		ctx:            ctx,
 		cancel:         cancel,
-		connected:      false,
-		connecting:     false,
-		aesCrypto:      aesCrypto,
+		connected:            false,
+		connecting:           false,
+		aesCrypto:            aesCrypto,
+		nftablesPrevCounters: make(map[int64]uint64),
 	}
 }
 
@@ -855,6 +856,9 @@ func (w *WebSocketReporter) handleConnection() {
 				return
 			}
 
+			// 轮询 nftables 内核计数器并注入流量统计
+			w.pollNftablesCounters()
+
 			// 获取系统信息并发送
 			sysInfo := w.collectSystemInfo()
 			if err := w.sendSystemInfo(sysInfo); err != nil {
@@ -941,6 +945,41 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 		ServiceName:            w.serviceName,
 		ServiceConnections:     collectServiceConnections(),
 		ForwardMetrics:         collectForwardMetrics(),
+	}
+}
+
+// pollNftablesCounters 轮询 nftables 内核计数器，计算速率并注入流量统计
+func (w *WebSocketReporter) pollNftablesCounters() {
+	if w.nftablesMgr == nil {
+		return
+	}
+
+	counters := w.nftablesMgr.RefreshCounters()
+	if len(counters) == 0 {
+		return
+	}
+
+	w.nftablesPrevMu.Lock()
+	defer w.nftablesPrevMu.Unlock()
+
+	if w.nftablesPrevCounters == nil {
+		w.nftablesPrevCounters = make(map[int64]uint64)
+	}
+
+	for _, c := range counters {
+		key := c.ForwardID
+		total := c.Bytes
+		prev, exists := w.nftablesPrevCounters[key]
+		if exists && total > prev {
+			delta := total - prev
+			// Feed into ForwardStatsManager – the existing BandwidthCalculator will
+			// compute InSpeed/OutSpeed from accumulated InBytes/OutBytes.
+			// nftables DNAT counters track all forwarded traffic (single direction),
+			// split evenly between inbound and outbound for natural UI display.
+			stats.AddForwardTraffic(c.ForwardID, 0, 0, "", 0, c.Port, true, delta/2)
+			stats.AddForwardTraffic(c.ForwardID, 0, 0, "", 0, c.Port, false, delta/2)
+		}
+		w.nftablesPrevCounters[key] = total
 	}
 }
 

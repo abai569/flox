@@ -8,7 +8,13 @@ type Manager struct{}
 
 type RuleState struct{}
 
-type CounterResult struct{}
+type CounterResult struct {
+	ForwardID int64  `json:"forward_id"`
+	Protocol  string `json:"protocol"`
+	Port      int    `json:"port"`
+	Packets   uint64 `json:"packets"`
+	Bytes     uint64 `json:"bytes"`
+}
 
 func NewManager() (*Manager, error) {
 	return nil, errors.New("nftables not supported on this platform")
@@ -35,6 +41,10 @@ func (m *Manager) DeleteRule(forwardID int64, protocol string) error {
 }
 
 func (m *Manager) GetCounters() []CounterResult {
+	return nil
+}
+
+func (m *Manager) RefreshCounters() []CounterResult {
 	return nil
 }
 

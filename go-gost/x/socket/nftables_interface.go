@@ -11,5 +11,6 @@ type NftablesManagerInterface interface {
 	DeleteRule(forwardID int64, protocol string) error
 	DeleteRuleWithPort(forwardID int64, protocol string, port int) error
 	GetCounters() []nftables.CounterResult
+	RefreshCounters() []nftables.CounterResult
 	ResetCounters() error
 }

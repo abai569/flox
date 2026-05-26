@@ -592,6 +592,118 @@ func (m *Manager) GetCounters() []CounterResult {
 	return results
 }
 
+// RefreshCounters fetches latest counter values from kernel via conn.GetRules().
+// It matches kernel rules to stored rules by protocol + port, and returns fresh counter data.
+func (m *Manager) RefreshCounters() []CounterResult {
+	rules, err := m.getPreroutingRules()
+	if err != nil {
+		return m.GetCounters()
+	}
+
+	// Parse kernel rules: extract proto+port from Cmp expressions, counter values
+	type kernelEntry struct {
+		protocol string
+		port     int
+		packets  uint64
+		bytes    uint64
+	}
+	var kernelEntries []kernelEntry
+
+	for _, rule := range rules {
+		var protocol string
+		var port int
+		var packets, bytes uint64
+		protoFound := false
+		portFound := false
+		counterFound := false
+
+		for _, e := range rule.Exprs {
+			switch ex := e.(type) {
+			case *expr.Cmp:
+				// Proto match (1 byte) or port match (2 bytes)
+				if len(ex.Data) == 1 {
+					switch ex.Data[0] {
+					case unix.IPPROTO_TCP:
+						protocol = "tcp"
+						protoFound = true
+					case unix.IPPROTO_UDP:
+						protocol = "udp"
+						protoFound = true
+					}
+				} else if len(ex.Data) == 2 {
+					port = int(ex.Data[0])<<8 | int(ex.Data[1])
+					portFound = true
+				}
+			case *expr.Counter:
+				packets = ex.Packets
+				bytes = ex.Bytes
+				counterFound = true
+			}
+		}
+
+		if protoFound && portFound && counterFound {
+			kernelEntries = append(kernelEntries, kernelEntry{
+				protocol: protocol,
+				port:     port,
+				packets:  packets,
+				bytes:    bytes,
+			})
+		}
+	}
+
+	// Build port_protocol lookup from kernel entries
+	kernelMap := make(map[string]kernelEntry)
+	for _, ke := range kernelEntries {
+		key := fmt.Sprintf("%s_%d", ke.protocol, ke.port)
+		kernelMap[key] = ke
+	}
+
+	// Match against stored rules and return fresh counters
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var results []CounterResult
+	for _, rs := range m.rules {
+		key := fmt.Sprintf("%s_%d", rs.Protocol, rs.Port)
+		if ke, ok := kernelMap[key]; ok {
+			// Update in-memory counter objects so GetCounters also returns fresh data
+			if rs.Rule != nil {
+				for _, e := range rs.Rule.Exprs {
+					if ctr, ok := e.(*expr.Counter); ok {
+						ctr.Packets = ke.packets
+						ctr.Bytes = ke.bytes
+						break
+					}
+				}
+			}
+			results = append(results, CounterResult{
+				ForwardID: rs.ForwardID,
+				Protocol:  ke.protocol,
+				Port:      ke.port,
+				Packets:   ke.packets,
+				Bytes:     ke.bytes,
+			})
+		} else {
+			// Fallback to in-memory counter
+			if rs.Rule != nil {
+				for _, e := range rs.Rule.Exprs {
+					if ctr, ok := e.(*expr.Counter); ok {
+						results = append(results, CounterResult{
+							ForwardID: rs.ForwardID,
+							Protocol:  rs.Protocol,
+							Port:      rs.Port,
+							Packets:   ctr.Packets,
+							Bytes:     ctr.Bytes,
+						})
+						break
+					}
+				}
+			}
+		}
+	}
+	return results
+}
+
 func (m *Manager) ResetCounters() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

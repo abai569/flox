@@ -164,8 +164,6 @@ func (w *WebSocketReporter) handleGetNftablesCounters(data json.RawMessage) erro
 			Bytes:     c.Bytes,
 		})
 	}
-
-	w.nftablesCounters = results
 	return nil
 }
 
@@ -178,6 +176,8 @@ func (w *WebSocketReporter) handleResetNftablesCounters(data json.RawMessage) er
 	if err := w.nftablesMgr.ResetCounters(); err != nil {
 		return fmt.Errorf("reset counters: %w", err)
 	}
-	w.nftablesCounters = nil
+	w.nftablesPrevMu.Lock()
+	w.nftablesPrevCounters = make(map[int64]uint64)
+	w.nftablesPrevMu.Unlock()
 	return nil
 }
