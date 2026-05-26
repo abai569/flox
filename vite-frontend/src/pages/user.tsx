@@ -1793,9 +1793,6 @@ export default function UserPage() {
                     备注
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                    监控权限
-                  </TableColumn>
-                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
                     流量限制
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[150px] text-left">
@@ -1824,6 +1821,9 @@ export default function UserPage() {
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
                     自动购流
+                  </TableColumn>
+                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                    监控权限
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[240px] text-left">
                     操作
@@ -1893,29 +1893,6 @@ export default function UserPage() {
                             >
                               {user.name || user.user}
                             </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <div
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              monitorPermissionLevelMap.has(user.id)
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-default-500/10 text-default-500"
-                            }`}
-                          >
-                            {monitorPermissionLevelMap.has(user.id) ? (
-                              <>
-                                <EyeIcon className="w-3 h-3" />
-                                {monitorPermissionLevelMap.get(user.id) === 1
-                                  ? "全开"
-                                  : "同步"}
-                              </>
-                            ) : (
-                              <>
-                                <EyeOffIcon className="w-3 h-3" />
-                                已关闭
-                              </>
-                            )}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -2091,6 +2068,31 @@ export default function UserPage() {
                             }`}
                           >
                             {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <div
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              monitorPermissionLevelMap.get(user.id) === 1
+                                ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                                : monitorPermissionLevelMap.has(user.id)
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
+                          >
+                            {monitorPermissionLevelMap.has(user.id) ? (
+                              <>
+                                <EyeIcon className="w-3 h-3" />
+                                {monitorPermissionLevelMap.get(user.id) === 1
+                                  ? "全开"
+                                  : "同步"}
+                              </>
+                            ) : (
+                              <>
+                                <EyeOffIcon className="w-3 h-3" />
+                                禁用
+                              </>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -2401,9 +2403,11 @@ export default function UserPage() {
                               </span>
                               <div
                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  monitorPermissionLevelMap.has(user.id)
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : "bg-default-500/10 text-default-500"
+                                  monitorPermissionLevelMap.get(user.id) === 1
+                                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                    : monitorPermissionLevelMap.has(user.id)
+                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
                                 }`}
                               >
                                 {monitorPermissionLevelMap.has(user.id) ? (
@@ -2417,7 +2421,7 @@ export default function UserPage() {
                                 ) : (
                                   <>
                                     <EyeOffIcon className="w-3 h-3" />
-                                    已关闭
+                                    禁用
                                   </>
                                 )}
                               </div>
