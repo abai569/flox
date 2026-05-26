@@ -290,7 +290,8 @@ show_menu() {
   echo "3. 卸载面板"
   echo "4. 备份数据"
   echo "5. 恢复数据"
-  echo "6. 退出"
+  echo "6. 域名反代"
+  echo "7. 退出"
   echo "==============================================="
 }
 
@@ -426,14 +427,6 @@ get_config_params() {
   read -p "后端端口（默认 63665）: " BACKEND_PORT
   BACKEND_PORT=${BACKEND_PORT:-63665}
 
-  CADDY_DOMAIN=""
-  echo ""
-  read -p "启用 Caddy 反代？(输入 y 将自动安装并配置 HTTPS 证书): " enable_caddy
-  if [[ "$enable_caddy" == "y" || "$enable_caddy" == "Y" ]]; then
-    read -p "请输入绑定域名: " user_domain
-    CADDY_DOMAIN="$user_domain"
-  fi
-
   POSTGRES_DB="flvx_svc"
   POSTGRES_USER="flvx_svc"
   POSTGRES_PASSWORD=$(generate_random)
@@ -490,15 +483,6 @@ install_panel() {
   if check_ipv6_support; then
     echo "🚀 系统支持 IPv6，自动启用 IPv6 配置..."
     configure_docker_ipv6
-  fi
-
-  # 自动安装并配置 Caddy 反代
-  if [[ -n "$CADDY_DOMAIN" ]]; then
-    if setup_caddy "$CADDY_DOMAIN" "$FRONTEND_PORT"; then
-      FR="127.0.0.1"
-      FRONTEND_PORT="${FR}:${FRONTEND_PORT}"
-      echo "🔒 前端端口已转为本地监听: $FRONTEND_PORT"
-    fi
   fi
 
   cat > .env <<EOF
@@ -1083,13 +1067,53 @@ CADDY_EOF
   return 0
 }
 
+configure_caddy_interactive() {
+  local install_dir domain port
+
+  install_dir="/opt/flvx-svc"
+
+  if [[ ! -d "$install_dir" ]]; then
+    echo "❌ 未检测到面板安装（/opt/flvx-svc 不存在），请先安装面板"
+    return 1
+  fi
+
+  cd "$install_dir"
+
+  if [[ ! -f ".env" ]]; then
+    echo "❌ 未找到 .env 文件，请先安装面板"
+    return 1
+  fi
+
+  port=$(get_env_var "FRONTEND_PORT")
+  port=${port:-63666}
+
+  echo " 配置 Caddy 反代"
+  echo "📌 当前前端端口：$port"
+  echo ""
+
+  read -p "请输入绑定域名：" domain
+  while [[ -z "$domain" ]]; do
+    echo "❌ 域名不能为空，请重新输入"
+    read -p "请输入绑定域名：" domain
+  done
+
+  if setup_caddy "$domain" "$port"; then
+    echo ""
+    echo "✅ Caddy 配置成功"
+    echo "   访问地址：https://$domain"
+  else
+    echo "❌ Caddy 配置失败"
+    return 1
+  fi
+}
+
 # 主逻辑
 main() {
 
   # 显示交互式菜单
   while true; do
     show_menu
-    read -p "请输入选项 (1-6): " choice
+    read -p "请输入选项 (1-7): " choice
 
     case $choice in
       1)
@@ -1113,11 +1137,15 @@ main() {
         echo ""
         ;;
       6)
+        configure_caddy_interactive
+        echo ""
+        ;;
+      7)
         echo "👋 退出脚本"
         exit 0
         ;;
       *)
-        echo "❌ 无效选项，请输入 1-6"
+        echo "❌ 无效选项，请输入 1-7"
         echo ""
         ;;
     esac
