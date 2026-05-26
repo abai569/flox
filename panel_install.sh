@@ -434,32 +434,36 @@ get_config_params() {
     CADDY_DOMAIN="$user_domain"
   fi
 
-  echo "请选择数据库类型："
-  echo "1. SQLite（默认）"
-  echo "2. PostgreSQL"
-  read -p "数据库类型（1/2，默认 1）: " DB_CHOICE
-  case "$DB_CHOICE" in
-    2)
-      DB_TYPE="postgres"
-      ;;
-    ""|1)
-      DB_TYPE="sqlite"
-      ;;
-    *)
-      echo "⚠️ 输入无效，默认使用 SQLite"
-      DB_TYPE="sqlite"
-      ;;
-  esac
+  # 注释数据库选择，固定使用 SQLite
+  # echo "请选择数据库类型："
+  # echo "1. SQLite（默认）"
+  # echo "2. PostgreSQL"
+  # read -p "数据库类型（1/2，默认 1）: " DB_CHOICE
+  # case "$DB_CHOICE" in
+  #   2)
+  #     DB_TYPE="postgres"
+  #     ;;
+  #   ""|1)
+  #     DB_TYPE="sqlite"
+  #     ;;
+  #   *)
+  #     echo "⚠️  输入无效，默认使用 SQLite"
+  #     DB_TYPE="sqlite"
+  #     ;;
+  # esac
 
   POSTGRES_DB="flvx_svc"
   POSTGRES_USER="flvx_svc"
   POSTGRES_PASSWORD=$(generate_random)
 
-  if [[ "$DB_TYPE" == "postgres" ]]; then
-    DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
-  else
-    DATABASE_URL=""
-  fi
+  # 固定使用 SQLite
+  DB_TYPE="sqlite"
+  DATABASE_URL=""
+  # if [[ "$DB_TYPE" == "postgres" ]]; then
+  #   DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+  # else
+  #   DATABASE_URL=""
+  # fi
 
   # 生成 JWT 密钥
   JWT_SECRET=$(generate_random)
