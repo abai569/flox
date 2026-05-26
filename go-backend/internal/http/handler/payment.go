@@ -11,6 +11,39 @@ import (
 	"go-backend/internal/store/model"
 )
 
+func (h *Handler) listAllPaymentConfigs(w http.ResponseWriter, r *http.Request) {
+	list, err := h.repo.ListPaymentConfigs()
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if list == nil {
+		list = []*model.PaymentConfig{}
+	}
+	response.WriteJSON(w, response.OK(list))
+}
+
+func (h *Handler) deletePaymentConfig(w http.ResponseWriter, r *http.Request) {
+	var req map[string]interface{}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+
+	channel := asString(req["channel"])
+	if channel == "" {
+		response.WriteJSON(w, response.ErrDefault("支付渠道不能为空"))
+		return
+	}
+
+	if err := h.repo.DeletePaymentConfig(channel); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	response.WriteJSON(w, response.OKEmpty())
+}
+
 func (h *Handler) yipayCallback(w http.ResponseWriter, r *http.Request) {
 	gateway, err := payment.GetGateway("YIPAY", h.repo)
 	if err != nil {

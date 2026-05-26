@@ -18,6 +18,7 @@ import ShopPage from "@/pages/shop";
 import OrdersPage from "@/pages/orders";
 import AdminProductsPage from "@/pages/admin-products";
 import AdminOrdersPage from "@/pages/admin-orders";
+import AdminPaymentPage from "@/pages/admin-payment";
 import { SettingsPage } from "@/pages/settings";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
@@ -234,6 +235,14 @@ function App() {
           </ProtectedRoute>
         }
         path="/admin/orders"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AdminPaymentPage />
+          </ProtectedRoute>
+        }
+        path="/admin/payment"
       />
       <Route element={<SettingsPage />} path="/settings" />
     </Routes>

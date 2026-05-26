@@ -357,6 +357,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/payment/callback/usdt", h.usdtCallback)
 	mux.HandleFunc("/api/v1/payment/config", h.getPaymentConfigs)
 	mux.HandleFunc("/api/v1/payment/config/save", h.savePaymentConfig)
+	mux.HandleFunc("/api/v1/payment/config/admin/list", h.listAllPaymentConfigs)
+	mux.HandleFunc("/api/v1/payment/config/delete", h.deletePaymentConfig)
 
 	mux.HandleFunc("/flow/test", h.flowTest)
 	mux.HandleFunc("/flow/config", h.flowConfig)
