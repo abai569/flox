@@ -22,7 +22,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(7)
+	h.jobsWG.Add(8)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -32,6 +32,7 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runHealthChecks(ctx)
 	go h.runTunnelQualityProber(ctx)
 	go h.runNftablesDomainRefreshLoop(ctx)
+	go h.runCancelExpiredOrdersLoop(ctx)
 }
 
 func (h *Handler) StopBackgroundJobs() {
@@ -506,4 +507,44 @@ func (h *Handler) runNftablesDomainRefreshJob() {
 			delete(h.nftablesDomainCache, fid)
 		}
 	}
+}
+
+func (h *Handler) runCancelExpiredOrdersLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Minute):
+			h.cancelExpiredOrders()
+		}
+	}
+}
+
+func (h *Handler) cancelExpiredOrders() {
+	if h == nil || h.repo == nil {
+		return
+	}
+
+	orders, err := h.repo.ListExpiredPendingOrders(30)
+	if err != nil {
+		log.Printf("[orders] 查询超时订单失败: %v", err)
+		return
+	}
+	if len(orders) == 0 {
+		return
+	}
+
+	ids := make([]int64, 0, len(orders))
+	for _, o := range orders {
+		ids = append(ids, o.ID)
+	}
+
+	if err := h.repo.BatchCancelOrders(ids); err != nil {
+		log.Printf("[orders] 取消超时订单失败: %v", err)
+		return
+	}
+
+	log.Printf("[orders] 已取消 %d 个超时未支付订单", len(ids))
 }

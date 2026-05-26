@@ -564,8 +564,9 @@ export default function DashboardPage() {
                 bottomContent={
                   <div className="mt-1 flex items-center gap-1">
                     <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                    <span className="text-xs text-success">
-                      请联系管理员手动充值余额
+                    <span className="text-xs text-primary cursor-pointer hover:underline"
+                      onClick={() => window.location.href = "/shop"}>
+                      去充值
                     </span>
                   </div>
                 }

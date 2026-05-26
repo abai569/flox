@@ -56,6 +56,10 @@ import type {
   SystemUpgradeRunApiData,
   SystemUpgradeVersionApiData,
   TrafficHistoryItem,
+  ProductApiItem,
+  OrderApiItem,
+  PayOrderResult,
+  PaymentChannelItem,
 } from "./types";
 
 import axios from "axios";
@@ -851,11 +855,52 @@ export const checkSystemUpgrade = (channel: ReleaseChannel = "stable") =>
   });
 
 export const runSystemUpgrade = (
-  version?: string,
-  channel: ReleaseChannel = "stable",
+	version?: string,
+	channel: ReleaseChannel = "stable",
 ) =>
-  Network.post<SystemUpgradeRunApiData>(
-    "/system/upgrade",
-    { version: version || "", channel },
-    { timeout: 60 * 1000 },
-  );
+	Network.post<SystemUpgradeRunApiData>(
+		"/system/upgrade",
+		{ version: version || "", channel },
+		{ timeout: 60 * 1000 },
+	);
+
+// ─── Payment & Shop ──────────────────────────────────────────────────
+
+export const getProductList = (params?: Record<string, unknown>) =>
+	Network.post<ProductApiItem[]>("/product/list", params || {});
+
+export const createProduct = (data: Record<string, unknown>) =>
+	Network.post("/product/create", data);
+
+export const updateProduct = (data: Record<string, unknown>) =>
+	Network.post("/product/update", data);
+
+export const deleteProduct = (id: number) =>
+	Network.post("/product/delete", { id });
+
+export const updateProductOrder = (ids: number[]) =>
+	Network.post("/product/update-order", { ids });
+
+export const createOrder = (data: { productId: number; payCurrency: string }) =>
+	Network.post<{ orderId: number; orderNo: string; status: number; amount: number }>("/order/create", {
+		product_id: data.productId,
+		pay_currency: data.payCurrency,
+	});
+
+export const payOrder = (orderId: number) =>
+	Network.post<PayOrderResult>("/payment/pay", { order_id: orderId });
+
+export const getOrderList = (params?: Record<string, unknown>) =>
+	Network.post<{ list: OrderApiItem[]; total: number; page: number; size: number }>("/order/list", params || {});
+
+export const getAdminOrderList = (params?: Record<string, unknown>) =>
+	Network.post<{ list: OrderApiItem[]; total: number; page: number; size: number }>("/order/admin/list", params || {});
+
+export const cancelOrder = (id: number) =>
+	Network.post("/order/cancel", { id });
+
+export const getOrderStatus = (orderId: number) =>
+	Network.post("/order/status", { order_id: orderId });
+
+export const getPaymentConfigs = () =>
+	Network.post<PaymentChannelItem[]>("/payment/config");

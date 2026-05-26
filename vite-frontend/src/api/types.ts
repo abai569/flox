@@ -676,10 +676,57 @@ export interface SystemUpgradeCheckApiData extends SystemUpgradeVersionApiData {
 }
 
 export interface SystemUpgradeRunApiData {
-  version: string;
-  channel: "stable" | "dev";
-  composeAsset: string;
-  helperContainer: string;
-  backendImageId: string;
-  message: string;
+	version: string;
+	channel: "stable" | "dev";
+	composeAsset: string;
+	helperContainer: string;
+	backendImageId: string;
+	message: string;
+}
+
+// ─── Payment & Shop ──────────────────────────────────────────────────
+
+export interface ProductApiItem {
+	id: number;
+	name: string;
+	description: string;
+	type: "recharge" | "traffic" | "time";
+	price: number;
+	value: number;
+	sortOrder: number;
+	status: number;
+	createdAt: number;
+	updatedAt: number;
+	[key: string]: unknown;
+}
+
+export interface OrderApiItem {
+	id: number;
+	orderNo: string;
+	userId: number;
+	userName: string;
+	productId: number;
+	productName: string;
+	productType: string;
+	amount: number;
+	payCurrency: "BALANCE" | "USDT" | "YIPAY";
+	status: number;
+	payTime: number;
+	payUrl: string;
+	payAddress: string;
+	txHash: string;
+	createdAt: number;
+	[key: string]: unknown;
+}
+
+export interface PaymentChannelItem {
+	channel: string;
+	enabled: number;
+}
+
+export interface PayOrderResult {
+	payUrl: string;
+	payAddress: string;
+	payAmount: string;
+	orderNo: string;
 }

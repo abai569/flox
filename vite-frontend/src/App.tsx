@@ -14,6 +14,10 @@ import ProfilePage from "@/pages/profile";
 import LimitPage from "@/pages/limit";
 import ConfigPage from "@/pages/config";
 import PanelSharingPage from "@/pages/panel-sharing";
+import ShopPage from "@/pages/shop";
+import OrdersPage from "@/pages/orders";
+import AdminProductsPage from "@/pages/admin-products";
+import AdminOrdersPage from "@/pages/admin-orders";
 import { SettingsPage } from "@/pages/settings";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
@@ -198,6 +202,38 @@ function App() {
           </ProtectedRoute>
         }
         path="/panel-sharing"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <ShopPage />
+          </ProtectedRoute>
+        }
+        path="/shop"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <OrdersPage />
+          </ProtectedRoute>
+        }
+        path="/orders"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AdminProductsPage />
+          </ProtectedRoute>
+        }
+        path="/admin/products"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AdminOrdersPage />
+          </ProtectedRoute>
+        }
+        path="/admin/orders"
       />
       <Route element={<SettingsPage />} path="/settings" />
     </Routes>

@@ -2502,6 +2502,55 @@ func (r *Repository) CreateNodeTrafficResetLog(params *NodeTrafficResetLogCreate
 	return r.cleanupNodeTrafficResetLogs(params.NodeID)
 }
 
+// DeductUserBalance atomically deducts balance if sufficient. Returns false if insufficient.
+func (r *Repository) DeductUserBalance(userID int64, amount int64) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+
+	result := r.db.Model(&model.User{}).
+		Where("id = ? AND balance >= ?", userID, amount).
+		Update("balance", gorm.Expr("balance - ?", amount))
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+// IncreaseUserBalance increases a user's balance by the given amount.
+func (r *Repository) IncreaseUserBalance(userID int64, amount int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		Update("balance", gorm.Expr("balance + ?", amount)).Error
+}
+
+// IncreaseUserFlow increases a user's base flow by the given GB amount.
+func (r *Repository) IncreaseUserFlow(userID int64, amountGB int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		Update("base_flow", gorm.Expr("base_flow + ?", amountGB)).Error
+}
+
+// ExtendUserExpiry extends a user's expiry time by the given number of days.
+func (r *Repository) ExtendUserExpiry(userID int64, days int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	extension := days * 86400
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		Update("exp_time", gorm.Expr("exp_time + ?", extension)).Error
+}
+
 func (r *Repository) cleanupNodeTrafficResetLogs(nodeID int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")

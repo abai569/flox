@@ -81,6 +81,9 @@ type TunnelMetric = model.TunnelMetric
 type ServiceMonitor = model.ServiceMonitor
 type ServiceMonitorResult = model.ServiceMonitorResult
 type TunnelQuality = model.TunnelQuality
+type Product = model.Product
+type OrderModel = model.Order
+type PaymentConfig = model.PaymentConfig
 
 // ─── Repository ──────────────────────────────────────────────────────
 
@@ -237,6 +240,9 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.UserTrafficBuyLog{},
 		&model.BalanceLog{},
 		&model.UserTrafficHistory{},
+		&model.Product{},
+		&model.Order{},
+		&model.PaymentConfig{},
 	}
 
 	if db.Dialector.Name() != "sqlite" {

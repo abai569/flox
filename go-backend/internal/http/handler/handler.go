@@ -339,6 +339,25 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node-tag/delete", h.nodeTagHandler.delete)
 	mux.HandleFunc("/api/v1/node-tag/assign", h.nodeTagHandler.assign)
 
+	// Payment & Shop
+	mux.HandleFunc("/api/v1/product/list", h.listProducts)
+	mux.HandleFunc("/api/v1/product/create", h.createProduct)
+	mux.HandleFunc("/api/v1/product/update", h.updateProduct)
+	mux.HandleFunc("/api/v1/product/delete", h.deleteProduct)
+	mux.HandleFunc("/api/v1/product/update-order", h.updateProductOrder)
+
+	mux.HandleFunc("/api/v1/order/create", h.createOrder)
+	mux.HandleFunc("/api/v1/order/list", h.listOrders)
+	mux.HandleFunc("/api/v1/order/admin/list", h.listAllOrders)
+	mux.HandleFunc("/api/v1/order/cancel", h.cancelOrder)
+	mux.HandleFunc("/api/v1/order/status", h.getOrderStatus)
+
+	mux.HandleFunc("/api/v1/payment/pay", h.payOrder)
+	mux.HandleFunc("/api/v1/payment/callback/yipay", h.yipayCallback)
+	mux.HandleFunc("/api/v1/payment/callback/usdt", h.usdtCallback)
+	mux.HandleFunc("/api/v1/payment/config", h.getPaymentConfigs)
+	mux.HandleFunc("/api/v1/payment/config/save", h.savePaymentConfig)
+
 	mux.HandleFunc("/flow/test", h.flowTest)
 	mux.HandleFunc("/flow/config", h.flowConfig)
 	mux.HandleFunc("/flow/upload", h.flowUpload)
