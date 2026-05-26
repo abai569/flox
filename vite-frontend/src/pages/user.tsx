@@ -1793,9 +1793,6 @@ export default function UserPage() {
                     备注
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                    用户状态
-                  </TableColumn>
-                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
                     监控权限
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
@@ -1818,6 +1815,9 @@ export default function UserPage() {
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
                     可用余额
+                  </TableColumn>
+                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                    用户状态
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
                     自动续费
@@ -1893,13 +1893,6 @@ export default function UserPage() {
                             >
                               {user.name || user.user}
                             </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${userStatus.color === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
-                          >
-                            {userStatus.text}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -2070,6 +2063,13 @@ export default function UserPage() {
                           >
                             {user.balance != null ? `${user.balance}元` : "-"}
                           </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <div
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${userStatus.color === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
+                          >
+                            {userStatus.text}
+                          </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
