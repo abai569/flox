@@ -1354,6 +1354,10 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		ListID:        tunnelListID,
 		TunnelGroupID: tunnelTunnelGroupID,
 		Remark:        sql.NullString{String: strings.TrimSpace(asString(req["remark"])), Valid: req["remark"] != nil},
+		HTTP:          asInt(req["http"], 0),
+		TLS:           asInt(req["tls"], 0),
+		Socks:         asInt(req["socks"], 0),
+		BlockOther:    asInt(req["blockOther"], 0),
 	}
 	if err := tx.Create(&tunnel).Error; err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -1402,6 +1406,19 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Apply protocol blocking settings to entry nodes
+	httpVal := asInt(req["http"], 0)
+	tlsVal := asInt(req["tls"], 0)
+	socksVal := asInt(req["socks"], 0)
+	blockOtherVal := asInt(req["blockOther"], 0)
+	for _, inNode := range runtimeState.InNodes {
+		if inNode.NodeID > 0 {
+			if currentStatus, _, _, _, _, _ := h.repo.GetNodeStatusFields(inNode.NodeID); currentStatus == 1 {
+				_ = h.applyNodeProtocolChange(inNode.NodeID, httpVal, tlsVal, socksVal, blockOtherVal)
+			}
+		}
+	}
+
 	response.WriteJSON(w, response.OKEmpty())
 }
 
@@ -1579,6 +1596,10 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		tunnelGroupID,
 		asString(req["remark"]),
 		now,
+		asInt(req["http"], 0),
+		asInt(req["tls"], 0),
+		asInt(req["socks"], 0),
+		asInt(req["blockOther"], 0),
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -1661,6 +1682,19 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	if updatedTunnel == nil {
 		response.WriteJSON(w, response.Err(-2, "tunnel not found after update"))
 		return
+	}
+
+	// Apply protocol blocking settings to entry nodes
+	httpVal := asInt(req["http"], 0)
+	tlsVal := asInt(req["tls"], 0)
+	socksVal := asInt(req["socks"], 0)
+	blockOtherVal := asInt(req["blockOther"], 0)
+	for _, nodeID := range newEntryNodeIDs {
+		if nodeID > 0 {
+			if currentStatus, _, _, _, _, _ := h.repo.GetNodeStatusFields(nodeID); currentStatus == 1 {
+				_ = h.applyNodeProtocolChange(nodeID, httpVal, tlsVal, socksVal, blockOtherVal)
+			}
+		}
 	}
 
 	response.WriteJSON(w, response.OK(updatedTunnel))

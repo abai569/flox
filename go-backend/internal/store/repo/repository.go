@@ -1400,6 +1400,10 @@ func (r *Repository) ListTunnels() ([]map[string]interface{}, error) {
 			"chainNodes":    make([][]map[string]interface{}, 0),
 			"tunnelGroupId": tunnelGroupID,
 			"remark":        nullableString(t.Remark),
+			"http":          t.HTTP,
+			"tls":           t.TLS,
+			"socks":         t.Socks,
+			"blockOther":    t.BlockOther,
 		}
 		orderedIDs = append(orderedIDs, t.ID)
 	}
