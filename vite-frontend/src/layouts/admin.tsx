@@ -223,7 +223,11 @@ export default function AdminLayout({
       label: "订单",
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+          <path
+            clipRule="evenodd"
+            d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+            fillRule="evenodd"
+          />
         </svg>
       ),
       adminOnly: true,
@@ -234,7 +238,11 @@ export default function AdminLayout({
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
-          <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+          <path
+            clipRule="evenodd"
+            d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z"
+            fillRule="evenodd"
+          />
         </svg>
       ),
       adminOnly: true,
@@ -260,7 +268,11 @@ export default function AdminLayout({
       userOnly: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v7h-2l-1 2H8l-1-2H5V5z" clipRule="evenodd" />
+          <path
+            clipRule="evenodd"
+            d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v7h-2l-1 2H8l-1-2H5V5z"
+            fillRule="evenodd"
+          />
         </svg>
       ),
     },
@@ -585,12 +597,41 @@ export default function AdminLayout({
       `}
       >
         {/* Logo 区域 */}
-        <div className="px-5 h-14 flex items-center overflow-hidden whitespace-nowrap box-border">
+        <div className={`px-5 flex items-center overflow-hidden whitespace-nowrap box-border ${isCollapsed ? "flex-col justify-center h-auto py-3 gap-1" : "flex-row h-[50px]"}`}>
           <div className="flex-shrink-0 flex items-center justify-center w-10">
             <BrandLogo size={28} />
           </div>
+          {!isMobile && isCollapsed && (
+            <button
+              className="flex-shrink-0 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 w-7 h-7 rounded-md flex items-center justify-center transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+              type="button"
+              onClick={toggleCollapse}
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <rect
+                  x="3"
+                  y="3"
+                  width="18"
+                  height="18"
+                  rx="2"
+                  ry="2"
+                  strokeWidth={1.5}
+                />
+                <path
+                  d="M9 3v18"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          )}
           <div
-            className={`transition-all duration-300 overflow-hidden ${isCollapsed ? "max-w-0 opacity-0 ml-0" : "max-w-[180px] opacity-100 ml-2"}`}
+            className={`transition-all duration-300 overflow-hidden flex-1 flex items-center justify-between ${isCollapsed ? "max-w-0 opacity-0 ml-0" : "max-w-[180px] opacity-100 ml-2"}`}
           >
             <a
               className={`text-sm font-bold overflow-hidden whitespace-nowrap text-ellipsis transition-colors cursor-pointer no-underline ${
@@ -613,6 +654,35 @@ export default function AdminLayout({
             >
               {siteConfig.name}
             </a>
+            {!isMobile && (
+              <button
+                className="flex-shrink-0 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 w-7 h-7 rounded-md flex items-center justify-center transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                type="button"
+                onClick={toggleCollapse}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <rect
+                    x="3"
+                    y="3"
+                    width="18"
+                    height="18"
+                    rx="2"
+                    ry="2"
+                    strokeWidth={1.5}
+                  />
+                  <path
+                    d="M9 3v18"
+                    strokeWidth={1.5}
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -629,8 +699,8 @@ export default function AdminLayout({
                   <motion.button
                     aria-disabled={isMonitorBlocked}
                     className={`
-                       w-full flex items-center p-2 rounded-lg text-left
-                       relative min-h-[44px] overflow-hidden transition-colors
+                       w-full flex items-center p-1 rounded-lg text-left
+                       relative min-h-[20px] overflow-hidden transition-colors
                        ${isMonitorBlocked ? "opacity-60" : ""}
                        ${
                          isActive
@@ -668,7 +738,7 @@ export default function AdminLayout({
                         whileHover={{ opacity: 1 }}
                       />
                     )}
-                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center relative z-10">
+                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center relative z-10">
                       {item.icon}
                     </div>
                     <div
@@ -699,48 +769,7 @@ export default function AdminLayout({
             />
           </div>
 
-          {/* 桌面端折叠按钮 */}
-          {!isMobile && (
-            <Button
-              isIconOnly
-              className="flex-shrink-0 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 min-w-0 w-10 h-10 rounded-full ml-auto"
-              size="sm"
-              variant="flat"
-              onPress={toggleCollapse}
-            >
-              {isCollapsed ? (
-                // 向右扩展的提示
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                </svg>
-              ) : (
-                // 向左收起的提示
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                </svg>
-              )}
-            </Button>
-          )}
+          {/* 桌面端折叠按钮已移至顶部 Logo 区域 */}
         </div>
       </aside>
 

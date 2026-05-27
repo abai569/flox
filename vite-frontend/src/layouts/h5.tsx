@@ -214,7 +214,11 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       adminOnly: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+          <path
+            clipRule="evenodd"
+            d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+            fillRule="evenodd"
+          />
         </svg>
       ),
     },
@@ -225,7 +229,11 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
-          <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+          <path
+            clipRule="evenodd"
+            d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z"
+            fillRule="evenodd"
+          />
         </svg>
       ),
     },
@@ -249,7 +257,11 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       userOnly: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v7h-2l-1 2H8l-1-2H5V5z" clipRule="evenodd" />
+          <path
+            clipRule="evenodd"
+            d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v7h-2l-1 2H8l-1-2H5V5z"
+            fillRule="evenodd"
+          />
         </svg>
       ),
     },
@@ -637,10 +649,10 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
               return (
                 <li key={item.path}>
                   <button
-                    className={`w-full flex items-center p-3 rounded-lg text-left relative min-h-[44px] overflow-hidden transition-colors ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
+                    className={`w-full flex items-center p-1 rounded-lg text-left relative min-h-[20px] overflow-hidden transition-colors ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
                     onClick={() => handleMenuClick(item)}
                   >
-                    <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center relative z-10">
+                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center relative z-10">
                       {item.icon}
                     </div>
                     <div className="flex items-center opacity-100 ml-3">
