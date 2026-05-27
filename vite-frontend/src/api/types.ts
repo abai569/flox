@@ -557,6 +557,8 @@ export interface MonitorNodeMetricsApiItem extends MonitorNodeApiItem {
   diskUsage: number;
   netInSpeed: number;
   netOutSpeed: number;
+  netInBytes: number;
+  netOutBytes: number;
   uptime: number;
   tcpConns: number;
   load1: number;

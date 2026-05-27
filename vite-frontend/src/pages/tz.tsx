@@ -29,6 +29,14 @@ function formatBytesPerSecond(bps: number): string {
   return `${parseFloat((bps / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
+function formatBytes(bytes: number): string {
+  if (!bytes) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
 function formatUptime(seconds: number): string {
   if (!seconds) return "-";
   const days = Math.floor(seconds / 86400);
@@ -51,6 +59,8 @@ interface NodeMetrics {
   diskUsage: number;
   netInSpeed: number;
   netOutSpeed: number;
+  netInBytes: number;
+  netOutBytes: number;
   uptime: number;
   tcpConns: number;
   load1: number;
@@ -62,6 +72,8 @@ const emptyMetrics: NodeMetrics = {
   diskUsage: 0,
   netInSpeed: 0,
   netOutSpeed: 0,
+  netInBytes: 0,
+  netOutBytes: 0,
   uptime: 0,
   tcpConns: 0,
   load1: 0,
@@ -186,10 +198,13 @@ export default function TZPage() {
           >
             <TableHeader>
               <TableColumn align="center" className="w-[60px] text-center">状态</TableColumn>
-              <TableColumn>节点监控名称</TableColumn>
+              <TableColumn>
+                节点监控名称
+                <span className="text-primary-600 font-bold text-[10px] ml-1">^{validNodes.length}个</span>
+              </TableColumn>
               <TableColumn>速率</TableColumn>
+              <TableColumn>流量</TableColumn>
               <TableColumn>开机时长</TableColumn>
-              <TableColumn>连接数</TableColumn>
               <TableColumn>CPU</TableColumn>
               <TableColumn>RAM</TableColumn>
               <TableColumn>存储</TableColumn>
@@ -232,19 +247,53 @@ export default function TZPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs font-mono">{hasMetric ? formatUptime(node.uptime) : "-"}</span>
+                      <div className="flex flex-col gap-2 py-1 text-xs whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 font-mono text-default-600">
+                          <span className="w-[86px] text-right inline-block">{hasMetric ? formatBytes(node.netOutBytes) : "-"}</span>
+                          <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50">
+                            <ArrowUp className="w-3 h-3" strokeWidth={2.5} />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-mono text-default-600">
+                          <span className="w-[86px] text-right inline-block">{hasMetric ? formatBytes(node.netInBytes) : "-"}</span>
+                          <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50">
+                            <ArrowDown className="w-3 h-3" strokeWidth={2.5} />
+                          </div>
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs font-mono">{hasMetric ? node.tcpConns : "-"}</span>
+                      <span className="text-xs font-mono text-default-500 whitespace-nowrap">{hasMetric ? formatUptime(node.uptime) : "-"}</span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs font-mono">{hasMetric ? `${node.cpuUsage.toFixed(1)}%` : "-"}</span>
+                      <div className="flex items-center gap-2">
+                        {hasMetric ? (
+                          <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.cpuUsage)} size="sm" value={node.cpuUsage} />
+                        ) : (
+                          <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                        )}
+                        <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.cpuUsage.toFixed(1)}%` : "-"}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs font-mono">{hasMetric ? `${node.memoryUsage.toFixed(1)}%` : "-"}</span>
+                      <div className="flex items-center gap-2">
+                        {hasMetric ? (
+                          <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.memoryUsage)} size="sm" value={node.memoryUsage} />
+                        ) : (
+                          <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                        )}
+                        <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.memoryUsage.toFixed(1)}%` : "-"}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs font-mono">{hasMetric ? `${node.diskUsage.toFixed(1)}%` : "-"}</span>
+                      <div className="flex items-center gap-2">
+                        {hasMetric ? (
+                          <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.diskUsage)} size="sm" value={node.diskUsage} />
+                        ) : (
+                          <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                        )}
+                        <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.diskUsage.toFixed(1)}%` : "-"}</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -269,6 +318,8 @@ function ServerCard({ node }: { node: MonitorNodeMetricsApiItem }) {
         diskUsage: node.diskUsage,
         netInSpeed: node.netInSpeed,
         netOutSpeed: node.netOutSpeed,
+        netInBytes: node.netInBytes,
+        netOutBytes: node.netOutBytes,
         uptime: node.uptime,
         tcpConns: node.tcpConns,
         load1: node.load1,

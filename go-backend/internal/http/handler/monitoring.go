@@ -1137,6 +1137,8 @@ type monitorPublicNodeMetricsItem struct {
 	DiskUsage   float64 `json:"diskUsage"`
 	NetInSpeed  int64   `json:"netInSpeed"`
 	NetOutSpeed int64   `json:"netOutSpeed"`
+	NetInBytes  int64   `json:"netInBytes"`
+	NetOutBytes int64   `json:"netOutBytes"`
 	Uptime      int64   `json:"uptime"`
 	TCPConns    int64   `json:"tcpConns"`
 	Load1       float64 `json:"load1"`
@@ -1183,6 +1185,8 @@ func (h *Handler) monitorPublicNodeMetricsHandler(w http.ResponseWriter, r *http
 			item.DiskUsage = metric.DiskUsage
 			item.NetInSpeed = metric.NetInSpeed
 			item.NetOutSpeed = metric.NetOutSpeed
+			item.NetInBytes = metric.NetInBytes
+			item.NetOutBytes = metric.NetOutBytes
 			item.Uptime = metric.Uptime
 			item.TCPConns = metric.TCPConns
 			item.Load1 = metric.Load1
