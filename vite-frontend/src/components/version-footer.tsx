@@ -176,7 +176,7 @@ export function VersionFooter({
               size="sm"
               onPress={handleDirectUpgrade}
             >
-              UPGRADE
+              UP
             </Button>
           )}
         </p>
@@ -247,9 +247,9 @@ export function VersionFooter({
                 <Button
                   color="primary"
                   isLoading={upgrading}
-                  onPress={handleDirectUpgrade}
+                  onPress={() => setNotificationOpen(true)}
                 >
-                  UPGRADE
+                  UP
                 </Button>
               </ModalFooter>
             </>
