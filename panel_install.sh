@@ -1185,9 +1185,6 @@ main() {
     update_panel
     exit $?
   fi
-    update_panel
-    exit $?
-  fi
 
   # 无交互卸载
   if [[ "$1" == "uninstall" ]]; then
