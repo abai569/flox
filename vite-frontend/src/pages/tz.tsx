@@ -17,7 +17,7 @@ type MonitorNode = {
   version?: string;
 };
 
-export default function PublicMonitorPage() {
+export default function TZPage() {
   const [nodes, setNodes] = useState<MonitorNodeApiItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

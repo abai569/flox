@@ -92,7 +92,7 @@ export const Navbar = () => {
               className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
               title="节点监控"
               onClick={() => {
-                window.open("/public-monitor", "_blank");
+                window.open("/tz", "_blank");
               }}
             >
               <svg

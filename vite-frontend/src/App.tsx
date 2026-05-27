@@ -5,7 +5,7 @@ import IndexPage from "@/pages/index";
 import ChangePasswordPage from "@/pages/change-password";
 import DashboardPage from "@/pages/dashboard";
 import MonitorPage from "@/pages/monitor";
-import PublicMonitorPage from "@/pages/public-monitor";
+import TZPage from "@/pages/tz";
 import ForwardPage from "@/pages/forward";
 import TunnelPage from "@/pages/tunnel";
 import NodePage from "@/pages/node";
@@ -115,7 +115,7 @@ function App() {
   return (
     <Routes>
       <Route element={<LoginRoute />} path="/" />
-      <Route element={<PublicMonitorPage />} path="/public-monitor" />
+      <Route element={<TZPage />} path="/tz" />
       <Route
         element={
           <ProtectedRoute skipLayout={true}>
