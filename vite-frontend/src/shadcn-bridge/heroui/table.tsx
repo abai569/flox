@@ -152,10 +152,10 @@ export function TableColumn({
   align = "start",
   className,
   ...props
-}: React.ComponentProps<"th"> & { align?: "start" | "center" | "end" }) {
+}: Omit<React.ComponentProps<"th">, "align"> & { align?: "left" | "center" | "right" | "start" | "end" }) {
   const { thClassName } = React.useContext(TableStyleContext);
 
-  const alignClass = align === "center" ? "text-center" : align === "end" ? "text-right" : "text-left";
+  const alignClass = align === "center" ? "text-center" : (align === "end" || align === "right") ? "text-right" : "text-left";
 
   return (
     <th
