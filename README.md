@@ -51,8 +51,8 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 ---
 
 ## Original Project
-- **Name**: flvx-svc
-- **Source**: https://github.com/bqlpfy/flvx-svc
+- **Name**: FLVX转发面板
+- **Source**: https://github.com/Sagit-chu/flvx
 - **License**: Apache License 2.0
 
 ## Modifications
