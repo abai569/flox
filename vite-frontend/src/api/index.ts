@@ -709,6 +709,9 @@ export const runServiceMonitor = (id: number) =>
 export const getMonitorNodes = () =>
   Network.get<MonitorNodeApiItem[]>("/monitor/nodes");
 
+export const getMonitorNodesPublic = () =>
+  Network.getPublic<MonitorNodeApiItem[]>("/monitor/public/nodes");
+
 export const getMonitorAccess = () =>
   Network.get<MonitorAccessApiData>("/monitor/access");
 
@@ -858,96 +861,124 @@ export const checkSystemUpgrade = (channel: ReleaseChannel = "stable") =>
   });
 
 export const runSystemUpgrade = (
-	version?: string,
-	channel: ReleaseChannel = "stable",
+  version?: string,
+  channel: ReleaseChannel = "stable",
 ) =>
-	Network.post<SystemUpgradeRunApiData>(
-		"/system/upgrade",
-		{ version: version || "", channel },
-		{ timeout: 60 * 1000 },
-	);
+  Network.post<SystemUpgradeRunApiData>(
+    "/system/upgrade",
+    { version: version || "", channel },
+    { timeout: 60 * 1000 },
+  );
 
 // ─── Payment & Shop ──────────────────────────────────────────────────
 
 export const getProductList = (params?: Record<string, unknown>) =>
-	Network.post<ProductApiItem[]>("/product/list", params || {});
+  Network.post<ProductApiItem[]>("/product/list", params || {});
 
 export const createProduct = (data: Record<string, unknown>) =>
-	Network.post("/product/create", data);
+  Network.post("/product/create", data);
 
 export const updateProduct = (data: Record<string, unknown>) =>
-	Network.post("/product/update", data);
+  Network.post("/product/update", data);
 
 export const deleteProduct = (id: number) =>
-	Network.post("/product/delete", { id });
+  Network.post("/product/delete", { id });
 
 export const updateProductOrder = (ids: number[]) =>
-	Network.post("/product/update-order", { ids });
+  Network.post("/product/update-order", { ids });
 
 export const createOrder = (data: { productId: number; payCurrency: string }) =>
-	Network.post<{ orderId: number; orderNo: string; status: number; amount: number }>("/order/create", {
-		product_id: data.productId,
-		pay_currency: data.payCurrency,
-	});
+  Network.post<{
+    orderId: number;
+    orderNo: string;
+    status: number;
+    amount: number;
+  }>("/order/create", {
+    product_id: data.productId,
+    pay_currency: data.payCurrency,
+  });
 
 export const payOrder = (orderId: number) =>
-	Network.post<PayOrderResult>("/payment/pay", { order_id: orderId });
+  Network.post<PayOrderResult>("/payment/pay", { order_id: orderId });
 
 export const getOrderList = (params?: Record<string, unknown>) =>
-	Network.post<{ list: OrderApiItem[]; total: number; page: number; size: number }>("/order/list", params || {});
+  Network.post<{
+    list: OrderApiItem[];
+    total: number;
+    page: number;
+    size: number;
+  }>("/order/list", params || {});
 
 export const getAdminOrderList = (params?: Record<string, unknown>) =>
-	Network.post<{ list: OrderApiItem[]; total: number; page: number; size: number }>("/order/admin/list", params || {});
+  Network.post<{
+    list: OrderApiItem[];
+    total: number;
+    page: number;
+    size: number;
+  }>("/order/admin/list", params || {});
 
 export const cancelOrder = (id: number) =>
-	Network.post("/order/cancel", { id });
+  Network.post("/order/cancel", { id });
 
 export const getOrderStatus = (orderId: number) =>
-	Network.post("/order/status", { order_id: orderId });
+  Network.post("/order/status", { order_id: orderId });
 
 export const getPaymentConfigs = () =>
-	Network.post<PaymentChannelItem[]>("/payment/config");
+  Network.post<PaymentChannelItem[]>("/payment/config");
 
 // ─── Billing ─────────────────────────────────────────────────────────
 
 export const getBillingFeatureStatus = () =>
-	Network.post<{ redemptionEnabled: number; discountEnabled: number }>("/billing/feature-status");
+  Network.post<{ redemptionEnabled: number; discountEnabled: number }>(
+    "/billing/feature-status",
+  );
 
-export const setBillingFeatureStatus = (data: { redemptionEnabled?: number; discountEnabled?: number }) =>
-	Network.post("/billing/feature-status/save", data);
+export const setBillingFeatureStatus = (data: {
+  redemptionEnabled?: number;
+  discountEnabled?: number;
+}) => Network.post("/billing/feature-status/save", data);
 
 export const getRedeemCodes = () =>
-	Network.post<RedeemCodeItem[]>("/billing/redeem/list");
+  Network.post<RedeemCodeItem[]>("/billing/redeem/list");
 
 export const createRedeemCodes = (data: {
-	type: string;
-	code?: string;
-	count?: number;
-	planId?: number;
-	durationDays?: number;
-	amountCents?: number;
-	startsAt?: number;
-	expiresAt?: number;
+  type: string;
+  code?: string;
+  count?: number;
+  planId?: number;
+  durationDays?: number;
+  amountCents?: number;
+  startsAt?: number;
+  expiresAt?: number;
 }) => Network.post<{ codes: RedeemCodeItem[] }>("/billing/redeem/create", data);
 
 export const deleteRedeemCode = (id: number) =>
-	Network.post("/billing/redeem/delete", { id });
+  Network.post("/billing/redeem/delete", { id });
 
 export const getDiscountCodes = () =>
-	Network.post<DiscountCodeItem[]>("/billing/discount/list");
+  Network.post<DiscountCodeItem[]>("/billing/discount/list");
 
 export const createDiscountCode = (data: {
-	code: string;
-	type: string;
-	value: number;
-	maxUses?: number;
-	planIds?: number[];
-	startsAt?: number;
-	expiresAt?: number;
+  code: string;
+  type: string;
+  value: number;
+  maxUses?: number;
+  planIds?: number[];
+  startsAt?: number;
+  expiresAt?: number;
 }) => Network.post<DiscountCodeItem>("/billing/discount/create", data);
 
 export const deleteDiscountCode = (id: number) =>
-	Network.post("/billing/discount/delete", { id });
+  Network.post("/billing/discount/delete", { id });
 
-export const getBalanceLogs = (data?: { userId?: number; page?: number; size?: number }) =>
-	Network.post<{ list: BalanceLogItem[]; total: number; page: number; size: number }>("/billing/balance-log/list", data || {});
+export const getBalanceLogs = (data?: {
+  userId?: number;
+  page?: number;
+  size?: number;
+}) =>
+  Network.post<{
+    list: BalanceLogItem[];
+    total: number;
+    page: number;
+    size: number;
+  }>("/billing/balance-log/list", data || {});

@@ -1079,6 +1079,52 @@ func (h *Handler) monitorPermissionAssign(w http.ResponseWriter, r *http.Request
 	response.WriteJSON(w, response.OKEmpty())
 }
 
+type monitorPublicNodeListItem struct {
+	ID          int64  `json:"id"`
+	Inx         int    `json:"inx"`
+	Name        string `json:"name"`
+	Status      int    `json:"status"`
+	Version     string `json:"version"`
+	UpdatedTime int64  `json:"updatedTime"`
+}
+
+func (h *Handler) monitorPublicNodeListHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	cfg, err := h.repo.GetConfigByName("login_monitor_link")
+	if err != nil || cfg == nil || cfg.Value != "true" {
+		response.WriteJSON(w, response.OK([]monitorPublicNodeListItem{}))
+		return
+	}
+
+	nodes, err := h.repo.ListMonitorNodes()
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	items := make([]monitorPublicNodeListItem, 0, len(nodes))
+	for _, n := range nodes {
+		updated := int64(0)
+		if n.UpdatedTime.Valid {
+			updated = n.UpdatedTime.Int64
+		}
+		items = append(items, monitorPublicNodeListItem{
+			ID:          n.ID,
+			Inx:         n.Inx,
+			Name:        n.Name,
+			Status:      n.Status,
+			Version:     n.Version.String,
+			UpdatedTime: updated,
+		})
+	}
+
+	response.WriteJSON(w, response.OK(items))
+}
+
 func (h *Handler) monitorPermissionRemove(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))

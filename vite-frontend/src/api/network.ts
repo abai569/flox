@@ -74,6 +74,38 @@ function isTokenExpired(response: ApiResponse<unknown>) {
 }
 
 const Network = {
+  getPublic: function <T = unknown>(
+    path: string = "",
+    data: unknown = {},
+    options: RequestOptions = {},
+  ): Promise<ApiResponse<T>> {
+    return new Promise(function (resolve) {
+      if (baseURL === "") {
+        resolve({ code: -1, msg: " - 请先设置面板地址", data: null as T });
+
+        return;
+      }
+
+      axios
+        .get(path, {
+          params: data,
+          timeout: options.timeout ?? 30000,
+        })
+        .then(function (response: AxiosResponse<ApiResponse<T>>) {
+          resolve(response.data);
+        })
+        .catch(function (error: unknown) {
+          const errorMessage = extractApiErrorMessage(error);
+
+          resolve({
+            code: -1,
+            msg: errorMessage,
+            data: null as T,
+          });
+        });
+    });
+  },
+
   get: function <T = unknown>(
     path: string = "",
     data: unknown = {},

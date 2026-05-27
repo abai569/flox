@@ -5,6 +5,7 @@ import IndexPage from "@/pages/index";
 import ChangePasswordPage from "@/pages/change-password";
 import DashboardPage from "@/pages/dashboard";
 import MonitorPage from "@/pages/monitor";
+import PublicMonitorPage from "@/pages/public-monitor";
 import ForwardPage from "@/pages/forward";
 import TunnelPage from "@/pages/tunnel";
 import NodePage from "@/pages/node";
@@ -64,15 +65,21 @@ const ProtectedRoute = ({
   return <Layout>{children}</Layout>;
 };
 
-// 登录页面路由组件 - 已登录则重定向到dashboard
+// 登录页面路由组件 - 已登录则重定向到dashboard（或 sessionStorage 中的重定向地址）
 const LoginRoute = () => {
   const authenticated = isLoggedIn();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (authenticated) {
-      // 使用 React Router 导航，避免无限跳转
-      navigate("/dashboard", { replace: true });
+      const redirect = sessionStorage.getItem("login_redirect");
+
+      if (redirect) {
+        sessionStorage.removeItem("login_redirect");
+        navigate(redirect, { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
     }
   }, [authenticated, navigate]);
 
@@ -108,6 +115,7 @@ function App() {
   return (
     <Routes>
       <Route element={<LoginRoute />} path="/" />
+      <Route element={<PublicMonitorPage />} path="/public-monitor" />
       <Route
         element={
           <ProtectedRoute skipLayout={true}>

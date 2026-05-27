@@ -308,6 +308,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 
 	mux.HandleFunc("/api/v1/monitor/access", h.monitorAccessHandler)
+	mux.HandleFunc("/api/v1/monitor/public/nodes", h.monitorPublicNodeListHandler)
 	mux.HandleFunc("/api/v1/monitor/nodes/", h.monitorNodeMetricsHandler)
 	mux.HandleFunc("/api/v1/monitor/nodes", h.monitorNodeListHandler)
 	mux.HandleFunc("/api/v1/monitor/tunnels", h.monitorTunnelListHandler)
