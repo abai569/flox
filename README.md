@@ -51,8 +51,8 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 ---
 
 ## Original Project
-- **Name**: flvx-svc
-- **Source**: https://github.com/bqlpfy/flvx-svc
+- **Name**: flux-panel
+- **Source**: https://github.com/bqlpfy/flux-panel
 - **License**: Apache License 2.0
 
 ## Modifications
