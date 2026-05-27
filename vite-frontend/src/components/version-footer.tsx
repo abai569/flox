@@ -112,8 +112,11 @@ export function VersionFooter({
 
     void checkUpdate();
 
+    const interval = setInterval(checkUpdate, 24 * 60 * 60 * 1000);
+
     return () => {
       active = false;
+      clearInterval(interval);
     };
   }, [channel, version]);
 

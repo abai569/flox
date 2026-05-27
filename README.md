@@ -19,12 +19,25 @@
 ---
 ### Docker Compose部署
 
-| 操作 | 命令 | 说明 |
-| :--- | :--- | :--- |
-| **交互式安装** | `bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)` | 手动输入配置，安装最新版 |
-| **指定版本安装** | `bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 版本号` | 手动输入配置，安装指定版本 |
-| **一键升级** | `bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) update` | **无交互**，自动停止服务并升级到最新版 |
-| **一键卸载** | `bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) uninstall` | **无交互**，停止并删除所有容器与数据 |
+**交互式安装（最新版）：**
+```bash
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)
+```
+
+**指定版本安装：**
+```bash
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 3.6.5
+```
+
+**一键升级（无交互）：**
+```bash
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) update
+```
+
+**一键卸载（无交互）：**
+```bash
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) uninstall
+```
 
 > ⚠️ 升级时会自动检测并兼容带 `v` 或不带 `v` 的版本号格式。
 
