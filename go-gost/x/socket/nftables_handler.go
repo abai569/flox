@@ -177,7 +177,7 @@ func (w *WebSocketReporter) handleResetNftablesCounters(data json.RawMessage) er
 		return fmt.Errorf("reset counters: %w", err)
 	}
 	w.nftablesPrevMu.Lock()
-	w.nftablesPrevCounters = make(map[int64]uint64)
+	w.nftablesPrevCounters = make(map[string]uint64)
 	w.nftablesPrevMu.Unlock()
 	return nil
 }

@@ -196,7 +196,7 @@ type WebSocketReporter struct {
 	publicIPReported  bool              // 是否已上报公网 IP
 	serviceName       string            // 服务名
 	nftablesMgr          NftablesManagerInterface // nftables manager (platform-specific)
-	nftablesPrevCounters map[int64]uint64          // forwardID → last total bytes
+	nftablesPrevCounters map[string]uint64          // "forwardID_protocol" → last total bytes
 	nftablesPrevMu       sync.Mutex
 }
 
@@ -227,7 +227,7 @@ func NewWebSocketReporter(serverURL string, secret string) *WebSocketReporter {
 		connected:            false,
 		connecting:           false,
 		aesCrypto:            aesCrypto,
-		nftablesPrevCounters: make(map[int64]uint64),
+		nftablesPrevCounters: make(map[string]uint64),
 	}
 }
 
@@ -963,23 +963,44 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 	defer w.nftablesPrevMu.Unlock()
 
 	if w.nftablesPrevCounters == nil {
-		w.nftablesPrevCounters = make(map[int64]uint64)
+		w.nftablesPrevCounters = make(map[string]uint64)
 	}
 
+	// 收集按 forwardID 聚合的 delta（TCP+UDP 合并）
+	type deltaEntry struct {
+		forwardID int64
+		port      int
+		protocol  string
+		delta     uint64
+	}
+	var deltas []deltaEntry
+
 	for _, c := range counters {
-		key := c.ForwardID
+		key := fmt.Sprintf("%d_%s", c.ForwardID, c.Protocol)
 		total := c.Bytes
 		prev, exists := w.nftablesPrevCounters[key]
 		if exists && total > prev {
 			delta := total - prev
-			// Feed into ForwardStatsManager – the existing BandwidthCalculator will
-			// compute InSpeed/OutSpeed from accumulated InBytes/OutBytes.
-			// nftables DNAT counters track all forwarded traffic (single direction),
-			// split evenly between inbound and outbound for natural UI display.
-			stats.AddForwardTraffic(c.ForwardID, 0, 0, "", 0, c.Port, true, delta/2)
-			stats.AddForwardTraffic(c.ForwardID, 0, 0, "", 0, c.Port, false, delta/2)
+			deltas = append(deltas, deltaEntry{
+				forwardID: c.ForwardID,
+				port:      c.Port,
+				protocol:  c.Protocol,
+				delta:     delta,
+			})
 		}
 		w.nftablesPrevCounters[key] = total
+	}
+
+	// 注入流量统计
+	for _, d := range deltas {
+		// ForwardStatsManager → BandwidthCalculator 计算实时 InSpeed/OutSpeed
+		// 50/50 拆分使面板上下行都有显示（实际方向不可知）
+		stats.AddForwardTraffic(d.forwardID, 0, 0, "", 0, d.port, true, d.delta/2)
+		stats.AddForwardTraffic(d.forwardID, 0, 0, "", 0, d.port, false, d.delta/2)
+
+		// GlobalTrafficManager → HTTP batch /flow/upload → 更新 DB in_flow/out_flow
+		serviceName := fmt.Sprintf("%d_0_0_%s", d.forwardID, d.protocol)
+		service.GetGlobalTrafficManager().AddTraffic(serviceName, int64(d.delta/2), int64(d.delta/2))
 	}
 }
 
