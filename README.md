@@ -19,13 +19,8 @@
 ---
 ### Docker Compose部署
 #### 快速部署（安装最新版）
-面板端：
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)
-```
-节点端：
-```bash
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh)
 ```
 #### 默认管理员账号
 
@@ -36,13 +31,8 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh)
 
 ---
 #### 安装/升级特定版本
-面板端（以 3.6.5 为例）：
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 3.6.5
-```
-节点端（以 3.6.5 为例）：
-```bash
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh) 3.6.5
 ```
 
 #### PostgreSQL 部署（Docker Compose）
