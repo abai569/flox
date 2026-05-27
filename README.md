@@ -21,15 +21,11 @@
 #### 快速部署（安装最新版）
 面板端：
 ```bash
-curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
-```
-面板端（一行命令，自动下载并执行）：
-```bash
 bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)
 ```
 节点端：
 ```bash
-curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh)
 ```
 #### 默认管理员账号
 
@@ -40,17 +36,13 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o instal
 
 ---
 #### 安装/升级特定版本
-面板端（以 2.1.0 为例）：
+面板端（以 3.6.5 为例）：
 ```bash
-# 方式一：一行命令，自动升级到指定版本（无交互）
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 2.1.0
-
-# 方式二：下载后执行，安装时交互式输入配置
-curl -L https://github.com/abai569/flvx/releases/download/2.1.0/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 3.6.5
 ```
-节点端（以 2.1.0 为例）：
+节点端（以 3.6.5 为例）：
 ```bash
-curl -L https://github.com/abai569/flvx/releases/download/2.1.0/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh) 3.6.5
 ```
 
 #### PostgreSQL 部署（Docker Compose）
@@ -87,7 +79,7 @@ docker compose up -d
 如果你是通过 `panel_install.sh` 安装面板，推荐直接使用脚本菜单一键迁移：
 
 ```bash
-./panel_install.sh
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)
 # 选择 4. 迁移到 PostgreSQL
 ```
 
