@@ -266,13 +266,13 @@ export default function TZPage() {
             }}
           >
             <TableHeader>
-              <TableColumn align="center" className="w-[60px] text-center">状态</TableColumn>
+              <TableColumn>状态</TableColumn>
               <TableColumn>
                 节点监控名称
                 <span className="text-primary-600 font-bold text-[10px] ml-1">^{validNodes.length}个</span>
               </TableColumn>
-              <TableColumn align="end">速率</TableColumn>
-              <TableColumn align="end">流量</TableColumn>
+              <TableColumn>速率</TableColumn>
+              <TableColumn>流量</TableColumn>
               <TableColumn>开机时长</TableColumn>
               <TableColumn>CPU</TableColumn>
               <TableColumn>RAM</TableColumn>

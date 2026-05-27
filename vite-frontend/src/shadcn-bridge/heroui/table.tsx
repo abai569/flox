@@ -149,7 +149,7 @@ export const TableBody = React.forwardRef<
 });
 
 export function TableColumn({
-  align = "start",
+  align = "center",
   className,
   ...props
 }: Omit<React.ComponentProps<"th">, "align"> & { align?: "left" | "center" | "right" | "start" | "end" }) {
