@@ -300,68 +300,80 @@ export default function TZPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-2 py-1 text-xs whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 font-mono text-success-500">
-                          <span className="w-[86px] text-left inline-block">{hasMetric ? formatBytesPerSecond(node.netOutSpeed) : "-"}</span>
-                          <div className="flex items-center justify-center p-[3px] rounded-full bg-success-50 dark:bg-success-500/10 text-success-500">
-                            <ArrowUp className="w-3 h-3" strokeWidth={2.5} />
+                      <div className="flex justify-center">
+                        <div className="flex flex-col gap-2 py-1 text-xs whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 font-mono text-success-500">
+                            <span className="w-[86px] text-left inline-block">{hasMetric ? formatBytesPerSecond(node.netOutSpeed) : "-"}</span>
+                            <div className="flex items-center justify-center p-[3px] rounded-full bg-success-50 dark:bg-success-500/10 text-success-500">
+                              <ArrowUp className="w-3 h-3" strokeWidth={2.5} />
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono text-primary-500">
-                          <span className="w-[86px] text-left inline-block">{hasMetric ? formatBytesPerSecond(node.netInSpeed) : "-"}</span>
-                          <div className="flex items-center justify-center p-[3px] rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-500">
-                            <ArrowDown className="w-3 h-3" strokeWidth={2.5} />
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-2 py-1 text-xs whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 font-mono text-default-600">
-                          <span className="w-[86px] text-left inline-block">{hasMetric ? formatBytes(node.netOutBytes) : "-"}</span>
-                          <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50">
-                            <ArrowUp className="w-3 h-3" strokeWidth={2.5} />
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 font-mono text-default-600">
-                          <span className="w-[86px] text-left inline-block">{hasMetric ? formatBytes(node.netInBytes) : "-"}</span>
-                          <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50">
-                            <ArrowDown className="w-3 h-3" strokeWidth={2.5} />
+                          <div className="flex items-center gap-1.5 font-mono text-primary-500">
+                            <span className="w-[86px] text-left inline-block">{hasMetric ? formatBytesPerSecond(node.netInSpeed) : "-"}</span>
+                            <div className="flex items-center justify-center p-[3px] rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-500">
+                              <ArrowDown className="w-3 h-3" strokeWidth={2.5} />
+                            </div>
                           </div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-xs font-mono text-default-500 whitespace-nowrap">{hasMetric ? formatUptime(node.uptime) : "-"}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {hasMetric ? (
-                          <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.cpuUsage)} size="sm" value={node.cpuUsage} />
-                        ) : (
-                          <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
-                        )}
-                        <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.cpuUsage.toFixed(1)}%` : "-"}</span>
+                      <div className="flex justify-center">
+                        <div className="flex flex-col gap-2 py-1 text-xs whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 font-mono text-default-600">
+                            <span className="w-[86px] text-left inline-block">{hasMetric ? formatBytes(node.netOutBytes) : "-"}</span>
+                            <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50">
+                              <ArrowUp className="w-3 h-3" strokeWidth={2.5} />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-mono text-default-600">
+                            <span className="w-[86px] text-left inline-block">{hasMetric ? formatBytes(node.netInBytes) : "-"}</span>
+                            <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50">
+                              <ArrowDown className="w-3 h-3" strokeWidth={2.5} />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {hasMetric ? (
-                          <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.memoryUsage)} size="sm" value={node.memoryUsage} />
-                        ) : (
-                          <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
-                        )}
-                        <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.memoryUsage.toFixed(1)}%` : "-"}</span>
+                      <div className="flex justify-center">
+                        <span className="text-xs font-mono text-default-500 whitespace-nowrap">{hasMetric ? formatUptime(node.uptime) : "-"}</span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        {hasMetric ? (
-                          <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.diskUsage)} size="sm" value={node.diskUsage} />
-                        ) : (
-                          <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
-                        )}
-                        <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.diskUsage.toFixed(1)}%` : "-"}</span>
+                      <div className="flex justify-center">
+                        <div className="flex items-center gap-2">
+                          {hasMetric ? (
+                            <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.cpuUsage)} size="sm" value={node.cpuUsage} />
+                          ) : (
+                            <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                          )}
+                          <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.cpuUsage.toFixed(1)}%` : "-"}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-center">
+                        <div className="flex items-center gap-2">
+                          {hasMetric ? (
+                            <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.memoryUsage)} size="sm" value={node.memoryUsage} />
+                          ) : (
+                            <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                          )}
+                          <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.memoryUsage.toFixed(1)}%` : "-"}</span>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-center">
+                        <div className="flex items-center gap-2">
+                          {hasMetric ? (
+                            <Progress className="w-[40px] md:w-[60px]" color={getColorByUsage(node.diskUsage)} size="sm" value={node.diskUsage} />
+                          ) : (
+                            <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                          )}
+                          <span className="text-xs font-mono w-9 text-right text-default-500">{hasMetric ? `${node.diskUsage.toFixed(1)}%` : "-"}</span>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
