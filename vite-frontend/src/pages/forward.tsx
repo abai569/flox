@@ -3966,7 +3966,7 @@ export default function ForwardPage() {
       >
         {">"}
       </Button>
-      <span className="text-default-400 text-sm ml-2">每页</span>
+      {/* <span className="text-default-400 text-sm ml-2">每页</span> */}
       <select
         className="text-sm border border-input rounded px-2 py-1 bg-background"
         value={forwardPageSize}
@@ -4056,7 +4056,7 @@ export default function ForwardPage() {
       >
         {">"}
       </Button>
-      <span className="text-default-400 text-sm ml-2">每页</span>
+      {/* <span className="text-default-400 text-sm ml-2">每页</span> */}
       <select
         className="text-sm border border-input rounded px-2 py-1 bg-background"
         value={groupPageSize}
