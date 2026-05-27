@@ -77,6 +77,7 @@ type Server struct {
 
 	mu                    sync.RWMutex
 	admins                map[*connWrap]struct{}
+	publics               map[*connWrap]struct{}
 	nodes                 map[int64]*nodeSession
 	byConn                map[*websocket.Conn]*nodeSession
 	pending               map[string]pendingRequest
@@ -231,6 +232,7 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
 		admins:                make(map[*connWrap]struct{}),
+		publics:               make(map[*connWrap]struct{}),
 		nodes:                 make(map[int64]*nodeSession),
 		byConn:                make(map[*websocket.Conn]*nodeSession),
 		pending:               make(map[string]pendingRequest),
@@ -268,6 +270,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if typeVal == "2" {
+		s.handlePublic(w, r)
+		return
+	}
+
 	http.Error(w, "bad request", http.StatusBadRequest)
 }
 
@@ -292,6 +299,38 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 		close(done)
 		s.mu.Lock()
 		delete(s.admins, cw)
+		s.mu.Unlock()
+		_ = conn.Close()
+	}()
+
+	for {
+		if _, _, err := conn.ReadMessage(); err != nil {
+			return
+		}
+	}
+}
+
+func (s *Server) handlePublic(w http.ResponseWriter, r *http.Request) {
+	conn, err := s.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return
+	}
+	cw := &connWrap{conn: conn}
+	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
+	done := make(chan struct{})
+	go startKeepalive(cw, done)
+
+	s.mu.Lock()
+	s.publics[cw] = struct{}{}
+	s.mu.Unlock()
+
+	defer func() {
+		close(done)
+		s.mu.Lock()
+		delete(s.publics, cw)
 		s.mu.Unlock()
 		_ = conn.Close()
 	}()
@@ -705,19 +744,25 @@ func (s *Server) broadcastStatus(nodeID int64, status int) {
 		"data": status,
 	}
 	raw, _ := json.Marshal(payload)
-	s.broadcastToAdmins(string(raw))
+	msg := string(raw)
+	s.broadcastToAdmins(msg)
+	s.broadcastToPublics(msg)
 }
 
 func (s *Server) broadcastInfo(nodeID int64, data string) {
 	payload := broadcastMessage{ID: nodeID, Type: "info", Data: data}
 	raw, _ := json.Marshal(payload)
-	s.broadcastToAdmins(string(raw))
+	msg := string(raw)
+	s.broadcastToAdmins(msg)
+	s.broadcastToPublics(msg)
 }
 
 func (s *Server) broadcastTyped(nodeID int64, msgType string, data string) {
 	payload := broadcastMessage{ID: nodeID, Type: msgType, Data: data}
 	raw, _ := json.Marshal(payload)
-	s.broadcastToAdmins(string(raw))
+	msg := string(raw)
+	s.broadcastToAdmins(msg)
+	s.broadcastToPublics(msg)
 }
 
 func (s *Server) BroadcastToAdmins(message string) {
@@ -742,6 +787,30 @@ func (s *Server) BroadcastToAdmins(message string) {
 
 func (s *Server) broadcastToAdmins(message string) {
 	s.BroadcastToAdmins(message)
+}
+
+func (s *Server) broadcastToPublics(message string) {
+	s.BroadcastToPublics(message)
+}
+
+func (s *Server) BroadcastToPublics(message string) {
+	s.mu.RLock()
+	publics := make([]*connWrap, 0, len(s.publics))
+	for c := range s.publics {
+		publics = append(publics, c)
+	}
+	s.mu.RUnlock()
+
+	for _, c := range publics {
+		c.mu.Lock()
+		_ = c.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+		err := c.conn.WriteMessage(websocket.TextMessage, []byte(message))
+		_ = c.conn.SetWriteDeadline(time.Time{})
+		c.mu.Unlock()
+		if err != nil {
+			log.Printf("websocket public broadcast failed: %v", err)
+		}
+	}
 }
 
 func decryptIfNeeded(payload []byte, crypto *security.AESCrypto, secret string) string {

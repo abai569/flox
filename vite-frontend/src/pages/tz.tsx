@@ -20,6 +20,7 @@ import { DistroIcon, parseDistroFromVersion, getDistroColor } from "@/components
 import { Activity, ArrowDown, ArrowUp, Clock } from "lucide-react";
 import { getMonitorNodesPublicMetrics } from "@/api";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { usePublicNodeRealtime } from "@/hooks/use-public-node-realtime";
 
 function formatBytesPerSecond(bps: number): string {
   if (!bps) return "0 B/s";
@@ -51,6 +52,12 @@ function getColorByUsage(usage?: number): "default" | "primary" | "success" | "w
   if (usage >= 75) return "warning";
   if (usage >= 50) return "primary";
   return "success";
+}
+
+function norm(v: unknown): number {
+  if (typeof v === "number") return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
 interface NodeMetrics {
@@ -117,13 +124,62 @@ export default function TZPage() {
     }
   }, []);
 
-  useEffect(() => { void loadNodes(); }, [loadNodes]);
-  usePullToRefresh(loadNodes);
+  const handleRealtimeMessage = useCallback((parsed: { id?: string | number; type?: string; data?: unknown }) => {
+    const nodeId = Number(parsed.id);
+    if (!nodeId || nodeId <= 0) return;
+
+    if (parsed.type === "status") {
+      const isOnline = Number(parsed.data) === 1;
+      setNodes((prev) => {
+        const idx = prev.findIndex((n) => n.id === nodeId);
+        if (idx === -1) return prev;
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], status: isOnline ? 1 : 0 };
+        return updated;
+      });
+      return;
+    }
+
+    if (parsed.type === "metric") {
+      const payload = typeof parsed.data === "string" ? JSON.parse(parsed.data) : parsed.data;
+      if (!payload || typeof payload !== "object") return;
+
+      setNodes((prev) => {
+        const idx = prev.findIndex((n) => n.id === nodeId);
+        if (idx === -1) return prev;
+        const node = prev[idx];
+        const updated = [...prev];
+        updated[idx] = {
+          ...node,
+          status: 1,
+          cpuUsage: norm(payload.cpu_usage ?? payload.cpuUsage),
+          memoryUsage: norm(payload.memory_usage ?? payload.memoryUsage),
+          diskUsage: norm(payload.disk_usage ?? payload.diskUsage),
+          netInSpeed: norm(payload.net_in_speed ?? payload.netInSpeed),
+          netOutSpeed: norm(payload.net_out_speed ?? payload.netOutSpeed),
+          netInBytes: norm(payload.bytes_received ?? payload.bytesReceived ?? payload.netInBytes),
+          netOutBytes: norm(payload.bytes_transmitted ?? payload.bytesTransmitted ?? payload.netOutBytes),
+          uptime: norm(payload.uptime),
+          tcpConns: norm(payload.tcp_conns ?? payload.tcpConns),
+          load1: norm(payload.load1),
+        };
+        return updated;
+      });
+    }
+  }, []);
+
+  const { wsConnected, wsConnecting } = usePublicNodeRealtime({
+    onMessage: handleRealtimeMessage,
+    enabled: true,
+  });
 
   useEffect(() => {
-    const timer = window.setInterval(() => { void loadNodes(); }, 30_000);
-    return () => window.clearInterval(timer);
-  }, [loadNodes]);
+    if (!wsConnected) return;
+    void loadNodes();
+  }, [wsConnected, loadNodes]);
+
+  useEffect(() => { void loadNodes(); }, [loadNodes]);
+  usePullToRefresh(loadNodes);
 
   const validNodes = useMemo(() => nodes.filter((n) => Number(n.id) > 0), [nodes]);
   const onlineCount = validNodes.filter((n) => n.status === 1).length;
@@ -146,8 +202,21 @@ export default function TZPage() {
         {!error && (
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 text-xs text-default-500">
-              <div className="w-2 h-2 rounded-full bg-default-300" />
-              <span>实时未连接</span>
+              {wsConnected ? (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-success" />
+                </span>
+              ) : (
+                <div className={`w-2 h-2 rounded-full ${wsConnecting ? "bg-warning" : "bg-default-300"}`} />
+              )}
+              <span>
+                {wsConnected
+                  ? "实时已连接"
+                  : wsConnecting
+                    ? "实时连接中"
+                    : "实时未连接"}
+              </span>
             </div>
             <Chip className="rounded-md" color="primary" size="sm" variant="flat">
               节点 {onlineCount}/{validNodes.length}
@@ -202,8 +271,8 @@ export default function TZPage() {
                 节点监控名称
                 <span className="text-primary-600 font-bold text-[10px] ml-1">^{validNodes.length}个</span>
               </TableColumn>
-              <TableColumn>速率</TableColumn>
-              <TableColumn>流量</TableColumn>
+              <TableColumn className="text-right">速率</TableColumn>
+              <TableColumn className="text-right">流量</TableColumn>
               <TableColumn>开机时长</TableColumn>
               <TableColumn>CPU</TableColumn>
               <TableColumn>RAM</TableColumn>
