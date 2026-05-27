@@ -108,21 +108,12 @@ maybe_proxy_url() {
 }
 
 resolve_latest_release_tag() {
-  local effective_url tag api_tag latest_url api_url
+  local tag
 
-  latest_url="https://github.com/${REPO}/releases/latest"
-  api_url="https://api.github.com/repos/${REPO}/releases/latest"
-
-  effective_url=$(curl -fsSL -o /dev/null -w '%{url_effective}' -L "$(maybe_proxy_url "$latest_url")" 2>/dev/null || true)
-  tag="${effective_url##*/}"
-  if [[ -n "$tag" && "$tag" != "latest" ]]; then
+  # 使用 /releases 端点（包含 Pre-release），按创建时间倒序，取第一条
+  tag=$(curl -fsSL --max-time 10 "https://api.github.com/repos/${REPO}/releases?per_page=1" 2>/dev/null | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+  if [[ -n "$tag" ]]; then
     echo "$tag"
-    return 0
-  fi
-
-  api_tag=$(curl -fsSL "$(maybe_proxy_url "$api_url")" 2>/dev/null | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || true)
-  if [[ -n "$api_tag" ]]; then
-    echo "$api_tag"
     return 0
   fi
 
@@ -1040,6 +1031,7 @@ restore_panel_data() {
 
 # 卸载功能
 uninstall_panel() {
+  local non_interactive="${1:-false}"
   echo "🗑️ 开始卸载面板..."
   
   # 切换到安装目录
@@ -1063,10 +1055,14 @@ uninstall_panel() {
     echo "✅ docker-compose.yml 下载完成"
   fi
 
-  read -p "确认卸载面板吗？此操作将停止并删除所有容器和数据 (y/N): " confirm
-  if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-    echo "❌ 取消卸载"
-    return 0
+  if [[ "$non_interactive" != "true" ]]; then
+    read -p "确认卸载面板吗？此操作将停止并删除所有容器和数据 (y/N): " confirm
+    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+      echo "❌ 取消卸载"
+      return 0
+    fi
+  else
+    echo "🔶 无交互模式：自动确认卸载"
   fi
 
   echo "🛑 停止并删除容器、镜像、卷..."
@@ -1167,12 +1163,33 @@ main() {
 
   # 指定版本时直接升级（无交互）
   if [[ -n "$ARG_VERSION" ]]; then
-    echo "🔄 指定版本：$ARG_VERSION，直接进入更新流程..."
+    echo " 指定版本：$ARG_VERSION，直接进入更新流程..."
     if [[ ! -d "/opt/flvx-svc" ]]; then
       echo "❌ 未检测到面板安装，请先执行安装操作"
       exit 1
     fi
     update_panel
+    exit $?
+  fi
+
+  # 无参数 update 直接升级到最新版
+  if [[ "$1" == "update" ]]; then
+    echo "🔄 直接进入更新流程（最新版）..."
+    if [[ ! -d "/opt/flvx-svc" ]]; then
+      echo "❌ 未检测到面板安装，请先执行安装操作"
+      exit 1
+    fi
+    ARG_VERSION=""
+    update_panel
+    exit $?
+  fi
+    update_panel
+    exit $?
+  fi
+
+  # 无交互卸载
+  if [[ "$1" == "uninstall" ]]; then
+    uninstall_panel "true"
     exit $?
   fi
 

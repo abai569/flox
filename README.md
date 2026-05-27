@@ -18,10 +18,16 @@
 ## 部署流程
 ---
 ### Docker Compose部署
-#### 快速部署（安装最新版）
-```bash
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)
-```
+
+| 操作 | 命令 | 说明 |
+| :--- | :--- | :--- |
+| **交互式安装** | `bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)` | 手动输入配置，安装最新版 |
+| **指定版本安装** | `bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) <版本号>` | 手动输入配置，安装指定版本 |
+| **一键升级** | `bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) update` | **无交互**，自动停止服务并升级到最新版 |
+| **一键卸载** | `bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) uninstall` | **无交互**，停止并删除所有容器与数据 |
+
+> ⚠️ 升级时会自动检测并兼容带 `v` 或不带 `v` 的版本号格式。
+
 #### 默认管理员账号
 
 - **账号**: admin_user
@@ -30,11 +36,6 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 > ⚠️ 首次登录后请立即修改默认密码！
 
 ---
-#### 安装/升级特定版本
-以3.6.5版本为例，如需指定其他版本，请更改版本号
-```bash
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 3.6.5
-```
 
 #### PostgreSQL 部署（Docker Compose）
 

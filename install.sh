@@ -750,6 +750,12 @@ uninstall_service() {
 
 # 主逻辑
 main() {
+  # 支持直接传参操作 (用于 bash <(curl ...)> uninstall 模式)
+  if [[ "$1" == "uninstall" ]]; then
+    uninstall_service
+    exit $?
+  fi
+
   if [[ -n "$SERVER_ADDR" && -n "$SECRET" ]]; then
     install_service
     exit 0
