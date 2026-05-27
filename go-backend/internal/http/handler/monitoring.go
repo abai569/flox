@@ -1125,6 +1125,75 @@ func (h *Handler) monitorPublicNodeListHandler(w http.ResponseWriter, r *http.Re
 	response.WriteJSON(w, response.OK(items))
 }
 
+type monitorPublicNodeMetricsItem struct {
+	ID          int64   `json:"id"`
+	Inx         int     `json:"inx"`
+	Name        string  `json:"name"`
+	Status      int     `json:"status"`
+	Version     string  `json:"version"`
+	UpdatedTime int64   `json:"updatedTime"`
+	CPUUsage    float64 `json:"cpuUsage"`
+	MemUsage    float64 `json:"memoryUsage"`
+	DiskUsage   float64 `json:"diskUsage"`
+	NetInSpeed  int64   `json:"netInSpeed"`
+	NetOutSpeed int64   `json:"netOutSpeed"`
+	Uptime      int64   `json:"uptime"`
+	TCPConns    int64   `json:"tcpConns"`
+	Load1       float64 `json:"load1"`
+}
+
+func (h *Handler) monitorPublicNodeMetricsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	cfg, err := h.repo.GetConfigByName("login_monitor_link")
+	if err != nil || cfg == nil || cfg.Value != "true" {
+		response.WriteJSON(w, response.OK([]monitorPublicNodeMetricsItem{}))
+		return
+	}
+
+	nodes, err := h.repo.ListMonitorNodes()
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	items := make([]monitorPublicNodeMetricsItem, 0, len(nodes))
+	for _, n := range nodes {
+		updated := int64(0)
+		if n.UpdatedTime.Valid {
+			updated = n.UpdatedTime.Int64
+		}
+
+		item := monitorPublicNodeMetricsItem{
+			ID:          n.ID,
+			Inx:         n.Inx,
+			Name:        n.Name,
+			Status:      n.Status,
+			Version:     n.Version.String,
+			UpdatedTime: updated,
+		}
+
+		metric, err := h.repo.GetLatestNodeMetric(n.ID)
+		if err == nil && metric != nil {
+			item.CPUUsage = metric.CPUUsage
+			item.MemUsage = metric.MemUsage
+			item.DiskUsage = metric.DiskUsage
+			item.NetInSpeed = metric.NetInSpeed
+			item.NetOutSpeed = metric.NetOutSpeed
+			item.Uptime = metric.Uptime
+			item.TCPConns = metric.TCPConns
+			item.Load1 = metric.Load1
+		}
+
+		items = append(items, item)
+	}
+
+	response.WriteJSON(w, response.OK(items))
+}
+
 func (h *Handler) monitorPermissionRemove(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))

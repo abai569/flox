@@ -551,6 +551,17 @@ export interface MonitorNodeApiItem {
   updatedTime: number;
 }
 
+export interface MonitorNodeMetricsApiItem extends MonitorNodeApiItem {
+  cpuUsage: number;
+  memoryUsage: number;
+  diskUsage: number;
+  netInSpeed: number;
+  netOutSpeed: number;
+  uptime: number;
+  tcpConns: number;
+  load1: number;
+}
+
 export interface MonitorTunnelApiItem {
   id: number;
   inx: number;

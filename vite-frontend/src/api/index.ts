@@ -48,6 +48,7 @@ import type {
   ServiceMonitorLimitsApiData,
   ServiceMonitorMutationPayload,
   MonitorNodeApiItem,
+  MonitorNodeMetricsApiItem,
   MonitorTunnelApiItem,
   TunnelQualityApiItem,
   MonitorAccessApiData,
@@ -711,6 +712,9 @@ export const getMonitorNodes = () =>
 
 export const getMonitorNodesPublic = () =>
   Network.getPublic<MonitorNodeApiItem[]>("/monitor/public/nodes");
+
+export const getMonitorNodesPublicMetrics = () =>
+  Network.getPublic<MonitorNodeMetricsApiItem[]>("/monitor/public/nodes/metrics");
 
 export const getMonitorAccess = () =>
   Network.get<MonitorAccessApiData>("/monitor/access");
