@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 import { AnimatedPage } from "@/components/animated-page";
 import { Button } from "@/shadcn-bridge/heroui/button";
+import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
 import {
   Table,
@@ -21,6 +23,7 @@ import {
 } from "@/shadcn-bridge/heroui/modal";
 import { getOrderList, payOrder, cancelOrder } from "@/api";
 import type { OrderApiItem } from "@/api/types";
+import Network from "@/api/network";
 import { PageLoadingState } from "@/components/page-state";
 
 const statusMap: Record<number, { label: string; color: "warning" | "success" | "default" | "danger" }> = {
@@ -35,7 +38,12 @@ const currencyLabel: Record<string, string> = {
 };
 
 export default function MyPackagesPage() {
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const [pageLoading, setPageLoading] = useState(true);
+  const [subData, setSubData] = useState<{
+    subscription: { id: number; packageId: number; startAt: number; expireAt: number; autoRenew: number; status: number } | null;
+    package: { id: number; name: string; description: string; trafficLimit: number; portCount: number; speedLimit: number; maxRules: number; maxConnections: number; maxIPAccess: number } | null;
+  } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const isFirstLoad = useRef(true);
   const [orders, setOrders] = useState<OrderApiItem[]>([]);
@@ -52,17 +60,26 @@ export default function MyPackagesPage() {
   const loadData = useCallback(async () => {
     if (!isFirstLoad.current) setRefreshing(true);
     try {
-      const res = await getOrderList({ page, size: 10, status: parseInt(statusFilter) });
-      if (res.code === 0) {
-        setOrders(res.data.list || []);
-        setTotal(res.data.total || 0);
+      const [orderRes, subRes] = await Promise.all([
+        getOrderList({ page, size: 10, status: parseInt(statusFilter) }),
+        Network.post<{
+          subscription: { id: number; packageId: number; startAt: number; expireAt: number; autoRenew: number; status: number } | null;
+          package: { id: number; name: string; description: string; trafficLimit: number; portCount: number; speedLimit: number; maxRules: number; maxConnections: number; maxIPAccess: number } | null;
+        }>("/user/my-subscription"),
+      ]);
+      if (orderRes.code === 0) {
+        setOrders(orderRes.data.list || []);
+        setTotal(orderRes.data.total || 0);
       } else {
-        toast.error(res.msg || "获取订单失败");
+        toast.error(orderRes.msg || "获取订单失败");
+      }
+      if (subRes.code === 0) {
+        setSubData(subRes.data);
       }
     } catch {
-      toast.error("获取订单失败");
+      toast.error("获取数据失败");
     } finally {
-      setLoading(false);
+      setPageLoading(false);
       setRefreshing(false);
       isFirstLoad.current = false;
     }
@@ -74,8 +91,15 @@ export default function MyPackagesPage() {
     if (isFirstLoad.current) { isFirstLoad.current = false; return; }
     setRefreshing(true);
     (async () => {
-      const res = await getOrderList({ page, size: 10, status: parseInt(statusFilter) });
-      if (res.code === 0) { setOrders(res.data.list || []); setTotal(res.data.total || 0); }
+      const [orderRes, subRes] = await Promise.all([
+        getOrderList({ page, size: 10, status: parseInt(statusFilter) }),
+        Network.post<{
+          subscription: { id: number; packageId: number; startAt: number; expireAt: number; autoRenew: number; status: number } | null;
+          package: { id: number; name: string; description: string; trafficLimit: number; portCount: number; speedLimit: number; maxRules: number; maxConnections: number; maxIPAccess: number } | null;
+        }>("/user/my-subscription"),
+      ]);
+      if (orderRes.code === 0) { setOrders(orderRes.data.list || []); setTotal(orderRes.data.total || 0); }
+      if (subRes.code === 0) { setSubData(subRes.data); }
       setRefreshing(false);
     })();
   }, [statusFilter]);
@@ -98,12 +122,76 @@ export default function MyPackagesPage() {
     } catch { toast.error("网络错误"); }
   };
 
-  if (loading) return <PageLoadingState message="加载订单中..." />;
+  if (pageLoading) return <PageLoadingState message="加载中..." />;
 
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">
       <h1 className="text-2xl font-bold mb-6">我的</h1>
 
+      {subData?.subscription ? (
+        <section className="mb-6">
+          <h2 className="text-lg font-semibold mb-3">套餐详情</h2>
+          <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center w-full">
+              <span className="font-medium text-lg">{subData.package?.name || "未知套餐"}</span>
+              <Chip color="success" size="sm" variant="flat">生效中</Chip>
+            </div>
+          </CardHeader>
+          <CardBody>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-default-400">有效期</span>
+                <p className="font-medium">
+                  {subData.subscription.startAt > 0 ? new Date(subData.subscription.startAt * 1000).toLocaleDateString() : "-"}
+                  {" ~ "}
+                  {subData.subscription.expireAt > 0 ? new Date(subData.subscription.expireAt * 1000).toLocaleDateString() : "-"}
+                </p>
+              </div>
+              <div>
+                <span className="text-default-400">剩余</span>
+                <p className="font-medium">
+                  {subData.subscription.expireAt > 0
+                    ? Math.max(0, Math.ceil((subData.subscription.expireAt * 1000 - Date.now()) / 86400000)) : "-"} 天
+                </p>
+              </div>
+              <div>
+                <span className="text-default-400">流量</span>
+                <p className="font-medium">{subData.package!.trafficLimit > 0 ? `${subData.package!.trafficLimit} GB` : "不限"}</p>
+              </div>
+              <div>
+                <span className="text-default-400">端口</span>
+                <p className="font-medium">{subData.package!.portCount > 0 ? subData.package!.portCount : "不限"}</p>
+              </div>
+              <div>
+                <span className="text-default-400">限速</span>
+                <p className="font-medium">{subData.package!.speedLimit > 0 ? `${subData.package!.speedLimit} Mbps` : "不限"}</p>
+              </div>
+              <div>
+                <span className="text-default-400">规则/连接/IP</span>
+                <p className="font-medium">
+                  {subData.package!.maxRules > 0 ? subData.package!.maxRules : "∞"} /
+                  {subData.package!.maxConnections > 0 ? subData.package!.maxConnections : "∞"} /
+                  {subData.package!.maxIPAccess > 0 ? subData.package!.maxIPAccess : "∞"}
+                </p>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+        </section>
+      ) : (
+        <section className="mb-6">
+          <h2 className="text-lg font-semibold mb-3">套餐详情</h2>
+          <Card>
+          <CardBody className="text-center py-8">
+            <p className="text-default-500 mb-3">暂无有效套餐</p>
+            <Button color="primary" variant="flat" onPress={() => navigate("/shop")}>前往商城购买</Button>
+          </CardBody>
+        </Card>
+        </section>
+      )}
+
+      <h2 className="text-lg font-semibold mb-3">订单记录</h2>
       <div className="flex items-center gap-3 mb-4">
         <div className="flex flex-wrap gap-2">
           {["-1", "0", "1", "2", "3"].map((key) => {

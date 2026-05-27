@@ -252,14 +252,6 @@ function App() {
         }
         path="/admin/payment"
       />
-      <Route
-        element={
-          <ProtectedRoute>
-            <AdminPaymentPage />
-          </ProtectedRoute>
-        }
-        path="/admin/billing"
-      />
       <Route element={<SettingsPage />} path="/settings" />
     </Routes>
   );

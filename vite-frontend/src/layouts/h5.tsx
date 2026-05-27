@@ -129,7 +129,6 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
     {
       path: "/monitor",
       label: "监控",
-      adminOnly: false,
       icon: (
         <svg
           className="w-5 h-5"
