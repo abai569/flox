@@ -7,7 +7,7 @@ const CHANNEL_STABLE: UpdateReleaseChannel = "stable";
 const CHANNEL_DEV: UpdateReleaseChannel = "dev";
 
 const stableVersionPattern = /^\d+(?:\.\d+)+$/;
-const testKeywordPattern = /(alpha|beta|rc)/i;
+const testKeywordPattern = /(alpha|beta|rc|dev)/i;
 
 const VERSION_CACHE_TTL_MS = 10 * 60 * 1000;
 

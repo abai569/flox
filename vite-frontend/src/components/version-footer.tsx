@@ -176,7 +176,7 @@ export function VersionFooter({
               size="sm"
               onPress={handleDirectUpgrade}
             >
-              升级
+              UPGRADE
             </Button>
           )}
         </p>
@@ -249,7 +249,7 @@ export function VersionFooter({
                   isLoading={upgrading}
                   onPress={handleDirectUpgrade}
                 >
-                  升级
+                  UPGRADE
                 </Button>
               </ModalFooter>
             </>
