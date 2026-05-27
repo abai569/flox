@@ -290,21 +290,6 @@ jobs:
           sed -i "s|image: .*flvx-svc-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
           sed -i "s|image: .*flvx-svc-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
 
-          # 复制并修改安装脚本
-          cp install.sh ./artifacts/install.sh
-          cp install-auto.sh ./artifacts/install-auto.sh
-          cp panel_install.sh ./artifacts/panel_install.sh
-
-          # 替换仓库地址和版本号
-          # sed -i "s|bqlpfy/flux-panel|${REPO}|g" ./artifacts/install.sh
-          # sed -i "s|bqlpfy/flux-panel|${REPO}|g" ./artifacts/panel_install.sh
-          # sed -i "s|2.0.7-beta|${VERSION}|g" ./artifacts/install.sh
-          # sed -i "s|2.0.7-beta|${VERSION}|g" ./artifacts/panel_install.sh
-
-          # 注入固定版本号，使从 Release 页下载的脚本只安装该版本
-          sed -i "s|^PINNED_VERSION=\"\"|PINNED_VERSION=\"${VERSION}\"|" ./artifacts/install.sh
-          sed -i "s|^PINNED_VERSION=\"\"|PINNED_VERSION=\"${VERSION}\"|" ./artifacts/panel_install.sh
-
           # 构建离线包（amd64）
           echo "📦 构建离线包 (amd64)..."
           mkdir -p ./artifacts/offline-amd64
@@ -368,20 +353,12 @@ jobs:
 
           **Panel (安装此版本 ${VERSION}):**
           \`\`\`bash
-          curl -L https://github.com/${{ github.repository }}/releases/download/${VERSION}/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
+          bash <(curl -L https://raw.githubusercontent.com/${{ github.repository }}/main/panel_install.sh) ${VERSION}
           \`\`\`
 
-          **Node (安装此版本 ${VERSION}):**
+          **安装最新版面板:**
           \`\`\`bash
-          curl -L https://github.com/${{ github.repository }}/releases/download/${VERSION}/install.sh -o install.sh && chmod +x install.sh && ./install.sh
-          \`\`\`
-
-          **安装最新版:**
-          \`\`\`bash
-          # 面板端
-          curl -L https://raw.githubusercontent.com/${{ github.repository }}/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
-          # 节点端
-          curl -L https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+          bash <(curl -L https://raw.githubusercontent.com/${{ github.repository }}/main/panel_install.sh)
           \`\`\`" \
             --repo ${{ github.repository }}
 
@@ -393,11 +370,6 @@ jobs:
           echo "📤 上传 GOST 校验文件..."
           gh release upload "${VERSION}" ./artifacts/gost-amd64.sha256 --clobber
           gh release upload "${VERSION}" ./artifacts/gost-arm64.sha256 --clobber
-
-          echo "📤 上传安装脚本..."
-          gh release upload "${VERSION}" ./artifacts/install.sh --clobber
-          gh release upload "${VERSION}" ./artifacts/install-auto.sh --clobber
-          gh release upload "${VERSION}" ./artifacts/panel_install.sh --clobber
 
           echo "📤 上传 Docker Compose 配置文件..."
           gh release upload "${VERSION}" ./artifacts/docker-compose-v4.yml --clobber

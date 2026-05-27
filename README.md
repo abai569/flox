@@ -31,6 +31,7 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 
 ---
 #### 安装/升级特定版本
+以3.6.5版本为例，如需指定其他版本，请更改版本号
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 3.6.5
 ```
