@@ -640,6 +640,9 @@ update_panel() {
   
   # 然后再完全停止
   $DOCKER_CMD down
+  
+  # 释放端口缓冲
+  sleep 2
 
   echo "⬇️ 拉取最新镜像..."
   if [[ "$CURRENT_DB_TYPE" == "postgres" ]]; then
@@ -670,8 +673,8 @@ update_panel() {
   
   # 解决 Nerdctl/Docker 格式不兼容以及 $1 提取错误 (如 Tag 和 ID 粘连) 的问题
   # 使用正则提取标准镜像格式：ghcr.io/abai569/<名称>:<版本>
-  # 排除当前最新版本 $LATEST_VERSION
-  OLD_IMAGES=$(docker images 2>/dev/null | grep -v "WARNING" | grep -oE 'ghcr.io/abai569/[^:]+:[^[:space:]":]+' | grep -v ":${LATEST_VERSION}$" | sort -u)
+  # 排除当前最新版本 $UPDATE_VERSION
+  OLD_IMAGES=$(docker images 2>/dev/null | grep -v "WARNING" | grep -oE 'ghcr.io/abai569/[^:]+:[^[:space:]":]+' | grep -v ":${UPDATE_VERSION}$" | sort -u)
   
   if [ -n "$OLD_IMAGES" ]; then
     echo " 发现旧版本面板镜像，正在强制删除："
