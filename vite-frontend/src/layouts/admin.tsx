@@ -597,41 +597,12 @@ export default function AdminLayout({
       `}
       >
         {/* Logo 区域 */}
-        <div className={`px-5 flex items-center overflow-hidden whitespace-nowrap box-border ${isCollapsed ? "flex-col justify-center h-auto py-3 gap-1" : "flex-row h-[50px]"}`}>
+        <div className="px-5 h-14 flex items-center overflow-hidden whitespace-nowrap box-border">
           <div className="flex-shrink-0 flex items-center justify-center w-10">
             <BrandLogo size={28} />
           </div>
-          {!isMobile && isCollapsed && (
-            <button
-              className="flex-shrink-0 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 w-7 h-7 rounded-md flex items-center justify-center transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-              type="button"
-              onClick={toggleCollapse}
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <rect
-                  x="3"
-                  y="3"
-                  width="18"
-                  height="18"
-                  rx="2"
-                  ry="2"
-                  strokeWidth={1.5}
-                />
-                <path
-                  d="M9 3v18"
-                  strokeWidth={1.5}
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          )}
           <div
-            className={`transition-all duration-300 overflow-hidden flex-1 flex items-center justify-between ${isCollapsed ? "max-w-0 opacity-0 ml-0" : "max-w-[180px] opacity-100 ml-2"}`}
+            className={`transition-all duration-300 overflow-hidden ${isCollapsed ? "max-w-0 opacity-0 ml-0" : "max-w-[180px] opacity-100 ml-2"}`}
           >
             <a
               className={`text-sm font-bold overflow-hidden whitespace-nowrap text-ellipsis transition-colors cursor-pointer no-underline ${
@@ -654,35 +625,6 @@ export default function AdminLayout({
             >
               {siteConfig.name}
             </a>
-            {!isMobile && (
-              <button
-                className="flex-shrink-0 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 w-7 h-7 rounded-md flex items-center justify-center transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-                type="button"
-                onClick={toggleCollapse}
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <rect
-                    x="3"
-                    y="3"
-                    width="18"
-                    height="18"
-                    rx="2"
-                    ry="2"
-                    strokeWidth={1.5}
-                  />
-                  <path
-                    d="M9 3v18"
-                    strokeWidth={1.5}
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </button>
-            )}
           </div>
         </div>
 
@@ -699,8 +641,8 @@ export default function AdminLayout({
                   <motion.button
                     aria-disabled={isMonitorBlocked}
                     className={`
-                       w-full flex items-center p-1 rounded-lg text-left
-                       relative min-h-[20px] overflow-hidden transition-colors
+                       w-full flex items-center p-2 rounded-lg text-left
+                       relative min-h-[44px] overflow-hidden transition-colors
                        ${isMonitorBlocked ? "opacity-60" : ""}
                        ${
                          isActive
@@ -738,7 +680,7 @@ export default function AdminLayout({
                         whileHover={{ opacity: 1 }}
                       />
                     )}
-                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center relative z-10">
+                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center relative z-10">
                       {item.icon}
                     </div>
                     <div
@@ -769,7 +711,48 @@ export default function AdminLayout({
             />
           </div>
 
-          {/* 桌面端折叠按钮已移至顶部 Logo 区域 */}
+          {/* 桌面端折叠按钮 */}
+          {!isMobile && (
+            <Button
+              isIconOnly
+              className="flex-shrink-0 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 min-w-0 w-10 h-10 rounded-full ml-auto"
+              size="sm"
+              variant="flat"
+              onPress={toggleCollapse}
+            >
+              {isCollapsed ? (
+                // 向右扩展的提示
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                  />
+                </svg>
+              ) : (
+                // 向左收起的提示
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                  />
+                </svg>
+              )}
+            </Button>
+          )}
         </div>
       </aside>
 

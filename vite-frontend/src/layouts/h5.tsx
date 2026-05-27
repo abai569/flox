@@ -649,10 +649,10 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
               return (
                 <li key={item.path}>
                   <button
-                    className={`w-full flex items-center p-1 rounded-lg text-left relative min-h-[20px] overflow-hidden transition-colors ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
+                    className={`w-full flex items-center p-3 rounded-lg text-left relative min-h-[44px] overflow-hidden transition-colors ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
                     onClick={() => handleMenuClick(item)}
                   >
-                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center relative z-10">
+                    <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center relative z-10">
                       {item.icon}
                     </div>
                     <div className="flex items-center opacity-100 ml-3">
