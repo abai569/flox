@@ -23,6 +23,10 @@
 ```bash
 curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
+面板端（一行命令，自动下载并执行）：
+```bash
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)
+```
 节点端：
 ```bash
 curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
@@ -35,11 +39,13 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o instal
 > ⚠️ 首次登录后请立即修改默认密码！
 
 ---
-#### 安装特定版本
-从 [Releases](https://github.com/abai569/flvx/releases) 页面复制对应版本的安装命令，脚本会自动安装该版本而非最新版。
-
+#### 安装/升级特定版本
 面板端（以 2.1.0 为例）：
 ```bash
+# 方式一：一行命令，自动升级到指定版本（无交互）
+bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 2.1.0
+
+# 方式二：下载后执行，安装时交互式输入配置
 curl -L https://github.com/abai569/flvx/releases/download/2.1.0/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
 节点端（以 2.1.0 为例）：
