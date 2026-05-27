@@ -589,7 +589,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
       const saved = localStorage.getItem("monitor-metric-type");
 
       if (saved) return saved as MetricType;
-    } catch {}
+    } catch { }
 
     return "cpu";
   });
@@ -597,7 +597,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
   useEffect(() => {
     try {
       localStorage.setItem("monitor-metric-type", activeMetricType);
-    } catch {}
+    } catch { }
   }, [activeMetricType]);
 
   useEffect(() => {
@@ -612,7 +612,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
       const saved = localStorage.getItem("monitor-metrics-range");
 
       if (saved) return Number(saved);
-    } catch {}
+    } catch { }
 
     return 60 * 60 * 1000;
   });
@@ -620,7 +620,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
   useEffect(() => {
     try {
       localStorage.setItem("monitor-metrics-range", String(metricsRangeMs));
-    } catch {}
+    } catch { }
   }, [metricsRangeMs]);
 
   const [serviceMonitors, setServiceMonitors] = useState<
@@ -658,7 +658,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
         const saved = localStorage.getItem("monitor-service-range");
 
         if (saved) return Number(saved);
-      } catch {}
+      } catch { }
 
       return 60 * 60 * 1000;
     },
@@ -670,7 +670,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
         "monitor-service-range",
         String(serviceMonitorRangeMs),
       );
-    } catch {}
+    } catch { }
   }, [serviceMonitorRangeMs]);
 
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
@@ -681,7 +681,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
       const saved = localStorage.getItem("monitor-results-limit");
 
       if (saved) return Number(saved);
-    } catch {}
+    } catch { }
 
     return 20;
   });
@@ -689,7 +689,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
   useEffect(() => {
     try {
       localStorage.setItem("monitor-results-limit", String(resultsLimit));
-    } catch {}
+    } catch { }
   }, [resultsLimit]);
   const [resultsLoading, setResultsLoading] = useState(false);
 
@@ -1389,8 +1389,8 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
   const detailServiceMonitors =
     detailNodeId != null
       ? serviceMonitors.filter(
-          (m) => m.nodeId === detailNodeId || m.nodeId === 0,
-        )
+        (m) => m.nodeId === detailNodeId || m.nodeId === 0,
+      )
       : serviceMonitors;
 
   return (
@@ -1494,32 +1494,25 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                 aria-label="节点列表"
                 className="overflow-x-auto min-w-full"
                 classNames={{
-                  th: "bg-default-100/50 text-default-600 font-semibold text-foreground text-sm border-b border-divider py-3 uppercase tracking-wider whitespace-nowrap",
-                  td: "border-b border-divider/50 group-data-[last=true]:border-b-0 align-middle",
+                  th: "bg-default-100/50 text-default-600 font-semibold text-foreground text-sm border-b border-divider py-3 uppercase tracking-wider whitespace-nowrap text-center",
+                  td: "border-b border-divider/50 group-data-[last=true]:border-b-0 align-middle text-center p-2",
                   tr: "hover:bg-default-50/50 transition-colors",
                 }}
               >
                 <TableHeader>
-                  <TableColumn align="center" className="w-[60px] text-center">
-                    状态
-                  </TableColumn>
-                  <TableColumn align="center" className="w-[60px] text-center">
-                    查看
-                  </TableColumn>
-
-                  <TableColumn>
+                  <TableColumn align="center" className="w-[60px]">状态</TableColumn>
+                  <TableColumn align="center" className="w-[60px]">查看</TableColumn>
+                  <TableColumn align="center">
                     节点监控名称
-                    <span className="text-primary-600 font-bold text-[10px] ml-1">
-                      ^{nodes.length}个
-                    </span>
+                    <span className="text-primary-600 font-bold text-[10px] ml-1">^{nodes.length}个</span>
                   </TableColumn>
-                  <TableColumn>速率</TableColumn>
-                  <TableColumn>流量</TableColumn>
-                  <TableColumn>开机时长</TableColumn>
-                  <TableColumn className="min-w-[90px]">连接数</TableColumn>
-                  <TableColumn>CPU</TableColumn>
-                  <TableColumn>RAM</TableColumn>
-                  <TableColumn>存储</TableColumn>
+                  <TableColumn align="center">速率</TableColumn>
+                  <TableColumn align="center">流量</TableColumn>
+                  <TableColumn align="center">开机时长</TableColumn>
+                  <TableColumn align="center" className="min-w-[90px]">连接数</TableColumn>
+                  <TableColumn align="center">CPU</TableColumn>
+                  <TableColumn align="center">RAM</TableColumn>
+                  <TableColumn align="center">存储</TableColumn>
                 </TableHeader>
                 <TableBody emptyContent="暂无节点">
                   {nodes.map((node) => {
@@ -1537,9 +1530,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                       >
                         <TableCell>
                           <div className="flex justify-center w-full">
-                            <div
-                              className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-danger"}`}
-                            />
+                            <div className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-danger"}`} />
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1557,17 +1548,16 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                             </Button>
                           </div>
                         </TableCell>
-
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-center gap-2 w-full">
                             <DistroIcon
                               className="w-4 h-4 flex-shrink-0"
                               distro={parseDistroFromVersion(node.version)}
                               style={{
                                 color: isOnline
                                   ? getDistroColor(
-                                      parseDistroFromVersion(node.version),
-                                    )
+                                    parseDistroFromVersion(node.version),
+                                  )
                                   : undefined,
                               }}
                             />
@@ -1577,27 +1567,27 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-col gap-2 py-1 text-xs whitespace-nowrap">
-                            <div className="flex items-center gap-1.5 font-mono text-success-500">
-                              <span className="w-[86px] text-left inline-block">
+                          <div className="flex flex-col items-center gap-2 py-1 text-xs whitespace-nowrap w-full">
+                            <div className="flex items-center justify-center gap-1.5 font-mono text-success-500 w-full">
+                              <span className="w-[76px] text-center inline-block tabular-nums">
                                 {metric
                                   ? formatBytesPerSecond(metric.netOutSpeed)
                                   : "-"}
                               </span>
-                              <div className="flex items-center justify-center p-[3px] rounded-full bg-success-50 dark:bg-success-500/10 text-success-500">
+                              <div className="flex items-center justify-center p-[3px] rounded-full bg-success-50 dark:bg-success-500/10 text-success-500 shrink-0">
                                 <ArrowUp
                                   className="w-3 h-3"
                                   strokeWidth={2.5}
                                 />
                               </div>
                             </div>
-                            <div className="flex items-center gap-1.5 font-mono text-primary-500">
-                              <span className="w-[86px] text-left inline-block">
+                            <div className="flex items-center justify-center gap-1.5 font-mono text-primary-500 w-full">
+                              <span className="w-[76px] text-center inline-block tabular-nums">
                                 {metric
                                   ? formatBytesPerSecond(metric.netInSpeed)
                                   : "-"}
                               </span>
-                              <div className="flex items-center justify-center p-[3px] rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-500">
+                              <div className="flex items-center justify-center p-[3px] rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-500 shrink-0">
                                 <ArrowDown
                                   className="w-3 h-3"
                                   strokeWidth={2.5}
@@ -1607,23 +1597,23 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-col gap-2 py-1 text-xs whitespace-nowrap">
-                            <div className="flex items-center gap-1.5 font-mono text-default-600">
-                              <span className="w-[86px] text-left inline-block">
+                          <div className="flex flex-col items-center gap-2 py-1 text-xs whitespace-nowrap w-full">
+                            <div className="flex items-center justify-center gap-1.5 font-mono text-default-600 w-full">
+                              <span className="w-[76px] text-center inline-block tabular-nums">
                                 {metric ? formatBytes(metric.netOutBytes) : "-"}
                               </span>
-                              <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50">
+                              <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50 shrink-0">
                                 <ArrowUp
                                   className="w-3 h-3"
                                   strokeWidth={2.5}
                                 />
                               </div>
                             </div>
-                            <div className="flex items-center gap-1.5 font-mono text-default-600">
-                              <span className="w-[86px] text-left inline-block">
+                            <div className="flex items-center justify-center gap-1.5 font-mono text-default-600 w-full">
+                              <span className="w-[76px] text-center inline-block tabular-nums">
                                 {metric ? formatBytes(metric.netInBytes) : "-"}
                               </span>
-                              <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50">
+                              <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50 shrink-0">
                                 <ArrowDown
                                   className="w-3 h-3"
                                   strokeWidth={2.5}
@@ -1633,18 +1623,20 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="font-mono text-xs text-default-500 whitespace-nowrap">
-                            {metric ? formatUptime(metric.uptime) : "-"}
-                          </span>
+                          <div className="flex justify-center w-full">
+                            <span className="font-mono text-xs text-default-500 whitespace-nowrap tabular-nums">
+                              {metric ? formatUptime(metric.uptime) : "-"}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-col gap-1.5 text-xs font-mono text-default-500 px-1">
+                          <div className="flex flex-col items-center gap-1.5 text-xs font-mono text-default-500 px-1 w-full tabular-nums">
                             <div>TCP {metric ? metric.tcpConns : "-"}</div>
                             <div>UDP {metric ? metric.udpConns : "-"}</div>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-center gap-2 w-full">
                             {metric ? (
                               <Progress
                                 className="w-[40px] md:w-[60px]"
@@ -1655,13 +1647,13 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                             ) : (
                               <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
                             )}
-                            <span className="text-xs font-mono w-9 text-right text-default-500">
+                            <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
                               {metric ? `${metric.cpuUsage.toFixed(1)}%` : "-"}
                             </span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-center gap-2 w-full">
                             {metric ? (
                               <Progress
                                 className="w-[40px] md:w-[60px]"
@@ -1672,7 +1664,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                             ) : (
                               <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
                             )}
-                            <span className="text-xs font-mono w-9 text-right text-default-500">
+                            <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
                               {metric
                                 ? `${metric.memoryUsage.toFixed(1)}%`
                                 : "-"}
@@ -1680,7 +1672,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-center gap-2 w-full">
                             {metric ? (
                               <Progress
                                 className="w-[40px] md:w-[60px]"
@@ -1691,7 +1683,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                             ) : (
                               <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
                             )}
-                            <span className="text-xs font-mono w-9 text-right text-default-500">
+                            <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
                               {metric ? `${metric.diskUsage.toFixed(1)}%` : "-"}
                             </span>
                           </div>
@@ -1709,69 +1701,60 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
       {/* ====== DETAIL VIEW ====== */}
       {!accessDenied && detailNodeId && (
         <>
-          {/* 详情页头部 - 无下划线一体化布局 */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
-            <div className="flex items-center gap-3">
-              <Button
-                size="sm"
-                variant="flat"
-                onPress={() => setDetailNodeId(null)}
-              >
-                <ArrowLeft className="w-4 h-4" />
-                返回
-              </Button>
-              <div className="h-4 w-[1px] bg-divider hidden sm:block" />
-              <div className="flex items-center gap-2">
-                <DistroIcon
-                  className="w-5 h-5"
-                  distro={parseDistroFromVersion(detailNode?.version)}
-                  style={{
-                    color:
-                      detailNode?.connectionStatus === "online"
-                        ? getDistroColor(
-                            parseDistroFromVersion(detailNode?.version),
-                          )
-                        : undefined,
-                  }}
-                />
-                <h3 className="text-lg font-semibold text-foreground">
-                  {detailNode?.name || `节点 #${detailNodeId}`}
-                </h3>
-                <Chip
-                  className="rounded-md"
-                  color={
-                    detailNode?.connectionStatus === "online"
-                      ? "success"
-                      : "danger"
-                  }
+          {/* 详情页统一头部 */}
+          <Card className="border border-divider bg-content1 shadow-sm">
+            <CardBody className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 px-4">
+              <div className="flex items-center gap-4">
+                <Button
                   size="sm"
                   variant="flat"
+                  className="bg-default-100 hover:bg-default-200 font-medium"
+                  onPress={() => setDetailNodeId(null)}
                 >
-                  {detailNode?.connectionStatus === "online" ? "在线" : "离线"}
-                </Chip>
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  返回列表
+                </Button>
+                <div className="w-[1px] h-5 bg-divider hidden sm:block"></div>
+                <div className="flex items-center gap-2.5">
+                  <DistroIcon
+                    className="w-5 h-5"
+                    distro={parseDistroFromVersion(detailNode?.version)}
+                    style={{
+                      color:
+                        detailNode?.connectionStatus === "online"
+                          ? getDistroColor(parseDistroFromVersion(detailNode?.version))
+                          : undefined,
+                    }}
+                  />
+                  <h3 className="text-lg font-bold text-foreground">
+                    {detailNode?.name || `节点 #${detailNodeId}`}
+                  </h3>
+                  <Chip
+                    className="rounded-md font-medium"
+                    color={detailNode?.connectionStatus === "online" ? "success" : "danger"}
+                    size="sm"
+                    variant="flat"
+                  >
+                    {detailNode?.connectionStatus === "online" ? "在线" : "离线"}
+                  </Chip>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-default-500 bg-content1 px-3 py-1.5 rounded-full border border-divider shadow-sm mt-3 sm:mt-0">
-              {wsConnected ? (
-                <LiveDot />
-              ) : (
-                <div
-                  className={`w-2 h-2 rounded-full ${wsConnecting ? "bg-warning" : "bg-default-300"}`}
-                />
-              )}
-              <span className="font-medium">
-                {wsConnected
-                  ? "实时已连接"
-                  : wsConnecting
-                    ? "实时连接中"
-                    : "实时未连接"}
-              </span>
-            </div>
-          </div>
+              <div className="flex items-center gap-2 text-xs text-default-600 bg-default-100/50 px-3 py-1.5 rounded-full border border-divider">
+                {wsConnected ? (
+                  <LiveDot />
+                ) : (
+                  <div className={`w-2 h-2 rounded-full ${wsConnecting ? "bg-warning" : "bg-default-300"}`} />
+                )}
+                <span className="font-medium">
+                  {wsConnected ? "实时已连接" : wsConnecting ? "实时连接中" : "实时未连接"}
+                </span>
+              </div>
+            </CardBody>
+          </Card>
 
           {/* Realtime KPI cards */}
           {detailRealtimeMetric && (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
                 {
                   label: "CPU",
@@ -1957,8 +1940,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                               }}
                             >
                               <div
-                                className={`w-2 h-2 rounded-full shrink-0 mr-1 ${
-                                  monitor.enabled !== 1
+                                className={`w-2 h-2 rounded-full shrink-0 mr-1 ${monitor.enabled !== 1
                                     ? "bg-default-300"
                                     : !lr
                                       ? "bg-default-400"
@@ -1969,7 +1951,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                                         : isActive
                                           ? "bg-white"
                                           : "bg-danger"
-                                }`}
+                                  }`}
                               />
                               {monitor.name}
                             </Button>
@@ -1991,7 +1973,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                               每秒测试，30秒上报
                             </span>
                             {activeLatestResult &&
-                            Number.isFinite(activeLatestResult.latencyMs) ? (
+                              Number.isFinite(activeLatestResult.latencyMs) ? (
                               <span className="font-mono text-xs font-semibold text-success">
                                 {activeLatestResult.latencyMs.toFixed(0)}ms
                               </span>
@@ -2338,7 +2320,7 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                 description={`最小 ${resolvedServiceMonitorLimits.minIntervalSec}s（扫描周期 ${resolvedServiceMonitorLimits.checkerScanIntervalSec}s）`}
                 errorMessage={
                   monitorForm.intervalSec <
-                  resolvedServiceMonitorLimits.minIntervalSec
+                    resolvedServiceMonitorLimits.minIntervalSec
                     ? `不能小于 ${resolvedServiceMonitorLimits.minIntervalSec}s`
                     : undefined
                 }
@@ -2363,16 +2345,16 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
                 errorMessage={
                   monitorForm.timeoutSec <
                     resolvedServiceMonitorLimits.minTimeoutSec ||
-                  monitorForm.timeoutSec >
+                    monitorForm.timeoutSec >
                     resolvedServiceMonitorLimits.maxTimeoutSec
                     ? `需在 ${resolvedServiceMonitorLimits.minTimeoutSec}-${resolvedServiceMonitorLimits.maxTimeoutSec}s 范围内`
                     : undefined
                 }
                 isInvalid={
                   monitorForm.timeoutSec <
-                    resolvedServiceMonitorLimits.minTimeoutSec ||
+                  resolvedServiceMonitorLimits.minTimeoutSec ||
                   monitorForm.timeoutSec >
-                    resolvedServiceMonitorLimits.maxTimeoutSec
+                  resolvedServiceMonitorLimits.maxTimeoutSec
                 }
                 label="超时时间(秒)"
                 type="number"

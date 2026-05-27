@@ -490,7 +490,7 @@ export function TunnelMonitorView({
       const saved = localStorage.getItem("tunnel-monitor-quality-range");
 
       if (saved) return Number(saved);
-    } catch {}
+    } catch { }
 
     return 60 * 60 * 1000;
   });
@@ -501,7 +501,7 @@ export function TunnelMonitorView({
         "tunnel-monitor-quality-range",
         String(qualityRangeMs),
       );
-    } catch {}
+    } catch { }
   }, [qualityRangeMs]);
 
   // Tunnel traffic metrics for chart
@@ -515,7 +515,7 @@ export function TunnelMonitorView({
       const saved = localStorage.getItem("tunnel-monitor-traffic-range");
 
       if (saved) return Number(saved);
-    } catch {}
+    } catch { }
 
     return 60 * 60 * 1000;
   });
@@ -526,7 +526,7 @@ export function TunnelMonitorView({
         "tunnel-monitor-traffic-range",
         String(tunnelRangeMs),
       );
-    } catch {}
+    } catch { }
   }, [tunnelRangeMs]);
 
   // --- Load tunnel list ---
@@ -847,44 +847,45 @@ export function TunnelMonitorView({
 
     return (
       <div className="space-y-6">
-        {/* 详情页头部 - 无下划线一体化布局 */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
-          <div className="flex items-center gap-3">
-            <Button
-              size="sm"
-              variant="flat"
-              onPress={() => {
-                setDetailTunnelId(null);
-                setQualityHistory([]);
-                setTunnelMetrics([]);
-              }}
-            >
-              <ArrowLeft className="w-4 h-4" />
-              返回
-            </Button>
-            <div className="h-4 w-[1px] bg-divider hidden sm:block" />
-            <div className="flex items-center gap-2">
-              <ArrowRightLeft
-                className={`w-5 h-5 ${detailTunnel.status === 1 ? "text-success" : "text-default-400"}`}
-              />
-              <h3 className="text-lg font-semibold text-foreground">
-                {detailTunnel.name}
-              </h3>
-              <Chip
-                className="rounded-md"
-                color={detailTunnel.status === 1 ? "success" : "danger"}
+        {/* 详情页统一头部 */}
+        <Card className="border border-divider bg-content1 shadow-sm">
+          <CardBody className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 px-4">
+            <div className="flex items-center gap-4">
+              <Button
                 size="sm"
                 variant="flat"
+                className="bg-default-100 hover:bg-default-200 font-medium"
+                onPress={() => {
+                  setDetailTunnelId(null);
+                  setQualityHistory([]);
+                  setTunnelMetrics([]);
+                }}
               >
-                {detailTunnel.status === 1 ? "启用" : "禁用"}
-              </Chip>
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                返回列表
+              </Button>
+              <div className="w-[1px] h-5 bg-divider hidden sm:block"></div>
+              <div className="flex items-center gap-2.5">
+                <ArrowRightLeft
+                  className={`w-5 h-5 ${detailTunnel.status === 1 ? "text-success" : "text-default-400"}`}
+                />
+                <h3 className="text-lg font-bold text-foreground">{detailTunnel.name}</h3>
+                <Chip
+                  className="rounded-md font-medium"
+                  color={detailTunnel.status === 1 ? "success" : "danger"}
+                  size="sm"
+                  variant="flat"
+                >
+                  {detailTunnel.status === 1 ? "启用" : "禁用"}
+                </Chip>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-default-500 bg-content1 px-3 py-1.5 rounded-full border border-divider shadow-sm mt-3 sm:mt-0">
-            <LiveDot />
-            <span className="font-medium">实时已连接</span>
-          </div>
-        </div>
+            <div className="flex items-center gap-2 text-xs text-default-600 bg-default-100/50 px-3 py-1.5 rounded-full border border-divider">
+              <LiveDot />
+              <span className="font-medium">实时已连接</span>
+            </div>
+          </CardBody>
+        </Card>
 
         {/* Quality KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1187,26 +1188,22 @@ export function TunnelMonitorView({
             className="overflow-x-auto min-w-full"
             classNames={{
               th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider whitespace-nowrap",
-              td: "border-b border-divider/50 group-data-[last=true]:border-b-0 align-middle",
+              td: "border-b border-divider/50 group-data-[last=true]:border-b-0 align-middle p-3",
               tr: "hover:bg-default-50/50 transition-colors",
             }}
           >
             <TableHeader>
-              <TableColumn align="center" className="w-[60px] text-center">
-                状态
-              </TableColumn>
-              <TableColumn align="center" className="w-[60px] text-center">
-                查看
-              </TableColumn>
-              <TableColumn>
+              <TableColumn align="center" className="w-[60px] text-center">状态</TableColumn>
+              <TableColumn align="center" className="w-[100px] text-center">查看</TableColumn>
+              <TableColumn align="start">
                 隧道监控名称
                 <span className="text-primary-600 font-bold text-[10px] ml-1">
                   ^{tunnels.length}个
                 </span>
               </TableColumn>
-              <TableColumn>入口→出口</TableColumn>
-              <TableColumn>出口→Bing</TableColumn>
-              <TableColumn>更新时间</TableColumn>
+              <TableColumn align="start">入口→出口</TableColumn>
+              <TableColumn align="start">出口→Bing</TableColumn>
+              <TableColumn align="center" className="text-center">更新时间</TableColumn>
             </TableHeader>
             <TableBody emptyContent="暂无隧道">
               {tunnels.map((tunnel) => {
@@ -1260,16 +1257,18 @@ export function TunnelMonitorView({
                       />
                     </TableCell>
                     <TableCell>
-                      {quality?.timestamp ? (
-                        <span className="text-xs text-default-500 flex items-center gap-1 whitespace-nowrap">
-                          <LiveDot />
-                          {new Date(quality.timestamp).toLocaleTimeString(
-                            "zh-CN",
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-default-400">-</span>
-                      )}
+                      <div className="flex justify-center w-full">
+                        {quality?.timestamp ? (
+                          <span className="text-xs text-default-500 flex items-center gap-1 whitespace-nowrap tabular-nums">
+                            <LiveDot />
+                            {new Date(quality.timestamp).toLocaleTimeString(
+                              "zh-CN",
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-default-400">-</span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
