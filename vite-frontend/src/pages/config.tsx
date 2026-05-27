@@ -122,6 +122,12 @@ const CONFIG_ITEMS: ConfigItem[] = [
     type: "switch",
   },
   {
+    key: "login_monitor_link",
+    label: "登录页监控入口",
+    description: "开启后，登录页右上角显示监控入口按钮，点击可查看节点实时状态",
+    type: "switch",
+  },
+  {
     key: "cloudflare_site_key",
     label: "Cloudflare Site Key",
     placeholder: "请输入 Cloudflare Site Key",
