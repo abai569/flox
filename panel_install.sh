@@ -158,8 +158,45 @@ resolve_version() {
 # 根据版本号设置 compose 下载地址
 set_compose_urls_by_version() {
   local version="$1"
+  CURRENT_VERSION="$version"
   DOCKER_COMPOSEV4_URL=$(maybe_proxy_url "https://github.com/${REPO}/releases/download/${version}/docker-compose-v4.yml")
   DOCKER_COMPOSEV6_URL=$(maybe_proxy_url "https://github.com/${REPO}/releases/download/${version}/docker-compose-v6.yml")
+}
+
+# 替版本号翻转 v 前缀（有则去，无则加），供下载失败时重试
+toggle_v_prefix() {
+  local ver="$1"
+  if [[ "$ver" == v* ]]; then
+    echo "${ver#v}"
+  else
+    echo "v${ver}"
+  fi
+}
+
+# 下载 compose 文件，失败时自动尝试翻转 v 前缀
+download_compose_file() {
+  local url="$1"
+  local output="$2"
+  local alt_version
+
+  echo "📡 下载配置文件..."
+  if curl -fsSL -o "$output" "$url" 2>/dev/null && [[ -s "$output" ]] && ! grep -q "Not Found" "$output" 2>/dev/null; then
+    return 0
+  fi
+
+  # 第一次失败，尝试翻转 v 前缀
+  alt_version=$(toggle_v_prefix "$CURRENT_VERSION")
+  if [[ "$alt_version" != "$CURRENT_VERSION" ]]; then
+    echo "⚠️  切换版本格式重试：$alt_version"
+    set_compose_urls_by_version "$alt_version"
+    url=$(get_docker_compose_url)
+    if curl -fsSL -o "$output" "$url" 2>/dev/null && [[ -s "$output" ]] && ! grep -q "Not Found" "$output" 2>/dev/null; then
+      CURRENT_VERSION="$alt_version"
+      return 0
+    fi
+  fi
+
+  return 1
 }
 
 # 全局下载地址配置（默认获取最新版本；也可用 VERSION=... 覆盖）
@@ -482,9 +519,12 @@ install_panel() {
 
   echo "🔽 下载必要文件..."
   DOCKER_COMPOSE_URL=$(get_docker_compose_url)
-  echo "📡 选择配置文件：$(basename "$DOCKER_COMPOSE_URL")"
-  curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
-  echo "✅ 文件准备完成"
+  if download_compose_file "$DOCKER_COMPOSE_URL" docker-compose.yml; then
+    echo "✅ 文件准备完成"
+  else
+    echo "❌ 配置文件下载失败，请检查版本号是否正确"
+    return 1
+  fi
 
   # 自动检测并配置 IPv6 支持
   if check_ipv6_support; then
@@ -496,7 +536,7 @@ install_panel() {
 JWT_SECRET=$JWT_SECRET
 FRONTEND_PORT=$FRONTEND_PORT
 BACKEND_PORT=$BACKEND_PORT
-FLUX_VERSION=$RESOLVED_VERSION
+FLUX_VERSION=$CURRENT_VERSION
 
 DB_TYPE=$DB_TYPE
 DATABASE_URL=$DATABASE_URL
@@ -580,13 +620,16 @@ update_panel() {
     echo "🆕 最新版本：$UPDATE_VERSION"
   fi
   set_compose_urls_by_version "$UPDATE_VERSION"
-  upsert_env_var ".env" "FLUX_VERSION" "$UPDATE_VERSION"
 
   echo "🔽 下载最新配置文件..."
   DOCKER_COMPOSE_URL=$(get_docker_compose_url)
-  echo "📡 选择配置文件：$(basename "$DOCKER_COMPOSE_URL")"
-  curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
-  echo "✅ 下载完成"
+  if download_compose_file "$DOCKER_COMPOSE_URL" docker-compose.yml; then
+    echo "✅ 下载完成"
+  else
+    echo "❌ 配置文件下载失败，请检查版本号是否正确"
+    return 1
+  fi
+  upsert_env_var ".env" "FLUX_VERSION" "$CURRENT_VERSION"
 
   # 自动检测并配置 IPv6 支持
   if check_ipv6_support; then
