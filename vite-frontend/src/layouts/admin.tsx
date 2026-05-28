@@ -1078,12 +1078,12 @@ export default function AdminLayout({
                           : 0;
                         const isExpiringSoon = daysLeft < 5;
                         const textColorClass = isExpiringSoon
-                          ? "text-red-500 font-bold dark:text-red-400"
-                          : "text-green-600 dark:text-green-400";
+                          ? "text-xs text-red-500 dark:text-red-400"
+                          : "text-xs text-green-600 dark:text-green-400";
 
                         return (
                           <span
-                            className={`${textColorClass} text-sm md:text-base truncate`}
+                            className={`${textColorClass} text-xs md:text-base truncate`}
                           >
                             授权剩余 {daysLeft} 天
                             {isExpiringSoon ? " (即将过期)" : ""}
@@ -1102,7 +1102,7 @@ export default function AdminLayout({
           )}
 
           {/* 右侧：用户菜单 */}
-          <div className="flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-1">
             {/* 用户菜单 */}
             <Dropdown placement="bottom-end">
               <DropdownTrigger>

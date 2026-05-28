@@ -28,6 +28,7 @@ import {
   getStoreStatus,
 } from "@/api";
 import { safeLogout } from "@/utils/logout";
+import { isRestricted } from "@/utils/session";
 import { siteConfig } from "@/config/site";
 import { getAdminFlag, getSessionName } from "@/utils/session";
 import { useScrollTopOnPathChange } from "@/hooks/useScrollTopOnPathChange";
@@ -41,6 +42,7 @@ interface MenuItem {
   adminOnly?: boolean;
   userOnly?: boolean;
   target?: string;
+  restrictedAccessible?: boolean;
 }
 
 interface PasswordForm {
@@ -60,6 +62,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
   const [storeEnabled, setStoreEnabled] = useState(true);
   const [monitorAllowed, setMonitorAllowed] = useState<boolean | null>(null);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
+  const restricted = isRestricted();
   const [licenseInfo, setLicenseInfo] = useState<null | {
     valid: boolean;
     configured: boolean;
@@ -85,6 +88,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
     {
       path: "/dashboard",
       label: "主页",
+      restrictedAccessible: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
@@ -198,6 +202,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
     {
       path: "/shop",
       label: "商城",
+      restrictedAccessible: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
@@ -267,6 +272,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
     {
       path: "/myhome",
       label: "我的",
+      restrictedAccessible: true,
       userOnly: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -326,6 +332,12 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
   const hideMobileMenu = () => setMobileMenuVisible(false);
 
   const handleMenuClick = (item: MenuItem) => {
+    if (restricted && !item.restrictedAccessible) {
+      toast.error("请先购买套餐恢复全部功能");
+      hideMobileMenu();
+
+      return;
+    }
     if (item.path === "/shop" && !storeEnabled) {
       toast.error("商城已关闭，仅支持手动分配");
       hideMobileMenu();
@@ -674,11 +686,13 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
             {filteredMenuItems.map((item) => {
               const isActive = location.pathname === item.path;
               const isStoreBlocked = item.path === "/shop" && !storeEnabled;
+              const isRestrictedBlocked = restricted && !item.restrictedAccessible;
+              const isBlocked = isStoreBlocked || isRestrictedBlocked;
 
               return (
                 <li key={item.path}>
                   <button
-                    className={`w-full flex items-center p-1 rounded-lg text-left relative min-h-[20px] overflow-hidden transition-colors ${isStoreBlocked ? "opacity-40 cursor-not-allowed" : ""} ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : isStoreBlocked ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
+                    className={`w-full flex items-center p-1 rounded-lg text-left relative min-h-[20px] overflow-hidden transition-colors ${isBlocked ? "opacity-40 cursor-not-allowed" : ""} ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : isBlocked ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
                     onClick={() => handleMenuClick(item)}
                   >
                     <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center relative z-10">

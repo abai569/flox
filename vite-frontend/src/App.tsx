@@ -28,7 +28,7 @@ import { isRestricted } from "@/utils/session";
 import { siteConfig, updateSiteConfig } from "@/config/site";
 import { useH5Mode } from "@/hooks/useH5Mode";
 
-const RESTRICTED_PATHS = ["/myhome", "/shop"];
+const RESTRICTED_PATHS = ["/myhome", "/shop", "/dashboard"];
 
 // 简化的路由保护组件 - 使用 React Router 导航避免循环
 const ProtectedRoute = ({
