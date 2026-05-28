@@ -1488,17 +1488,13 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 		if existingUser.ExpTime > newExpTime {
 			newExpTime = existingUser.ExpTime
 		}
-		newNum := pkg.PortCount
+		newNum := pkg.MaxRules
 		if existingUser.Num > newNum {
 			newNum = existingUser.Num
 		}
 		newSpeedLimit := pkg.SpeedLimit
 		if existingUser.SpeedLimit > newSpeedLimit {
 			newSpeedLimit = existingUser.SpeedLimit
-		}
-		newMaxRules := pkg.MaxRules
-		if existingUser.MaxRules > newMaxRules {
-			newMaxRules = existingUser.MaxRules
 		}
 		newMaxConns := pkg.MaxConnections
 		if existingUser.MaxConnections > newMaxConns {
@@ -1513,7 +1509,6 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 			"num":             newNum,
 			"exp_time":        newExpTime,
 			"speed_limit":     newSpeedLimit,
-			"max_rules":       newMaxRules,
 			"max_connections": newMaxConns,
 			"max_ip_access":   newMaxIP,
 			"updated_time":    now,
@@ -1602,17 +1597,13 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 		if existingUser.ExpTime > newExpTime {
 			newExpTime = existingUser.ExpTime
 		}
-		newNum := pkg.PortCount
+		newNum := pkg.MaxRules
 		if existingUser.Num > newNum {
 			newNum = existingUser.Num
 		}
 		newSpeedLimit := pkg.SpeedLimit
 		if existingUser.SpeedLimit > newSpeedLimit {
 			newSpeedLimit = existingUser.SpeedLimit
-		}
-		newMaxRules := pkg.MaxRules
-		if existingUser.MaxRules > newMaxRules {
-			newMaxRules = existingUser.MaxRules
 		}
 		newMaxConns := pkg.MaxConnections
 		if existingUser.MaxConnections > newMaxConns {
@@ -1627,7 +1618,6 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 			"num":             newNum,
 			"exp_time":        newExpTime,
 			"speed_limit":     newSpeedLimit,
-			"max_rules":       newMaxRules,
 			"max_connections": newMaxConns,
 			"max_ip_access":   newMaxIP,
 			"updated_time":    now,
@@ -1693,8 +1683,8 @@ func (r *Repository) ResetUserPackageQuotas(userID int64) error {
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{
+			"num":             0,
 			"speed_limit":     0,
-			"max_rules":       0,
 			"max_connections": 0,
 			"max_ip_access":   0,
 			"updated_time":    time.Now().UnixMilli(),
