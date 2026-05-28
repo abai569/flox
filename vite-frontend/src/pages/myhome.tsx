@@ -143,16 +143,16 @@ export default function MyHomePage() {
               <div>
                 <span className="text-default-400">有效期</span>
                 <p className="font-medium">
-                  {subData.subscription.startAt > 0 ? new Date(subData.subscription.startAt * 1000).toLocaleDateString() : "-"}
+                  {subData.subscription.startAt > 0 ? new Date(subData.subscription.startAt).toLocaleDateString() : "-"}
                   {" ~ "}
-                  {subData.subscription.expireAt > 0 ? new Date(subData.subscription.expireAt * 1000).toLocaleDateString() : "-"}
+                  {subData.subscription.expireAt > 0 ? new Date(subData.subscription.expireAt).toLocaleDateString() : "-"}
                 </p>
               </div>
               <div>
                 <span className="text-default-400">剩余</span>
                 <p className="font-medium">
                   {subData.subscription.expireAt > 0
-                    ? Math.max(0, Math.ceil((subData.subscription.expireAt * 1000 - Date.now()) / 86400000)) : "-"} 天
+                    ? Math.max(0, Math.ceil((subData.subscription.expireAt - Date.now()) / 86400000)) : "-"} 天
                 </p>
               </div>
               <div>

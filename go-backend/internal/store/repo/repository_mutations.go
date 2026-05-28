@@ -1664,7 +1664,7 @@ func (r *Repository) ListExpiredPackageSubscriptions() ([]*model.PackageSubscrip
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
 	var list []*model.PackageSubscription
 	if err := r.db.Where("status = 1 AND expire_at < ?", now).Find(&list).Error; err != nil {
 		return nil, err
@@ -3008,7 +3008,7 @@ func (r *Repository) ExtendUserExpiry(userID int64, days int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	extension := days * 86400
+	extension := days * 86400000
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
 		Update("exp_time", gorm.Expr("exp_time + ?", extension)).Error
