@@ -401,7 +401,8 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
     (item) =>
       (!item.adminOnly || isAdmin) &&
       (!item.userOnly || !isAdmin) &&
-      !(item.path === "/monitor" && monitorAllowed !== true),
+      !(item.path === "/monitor" && monitorAllowed !== true) &&
+      !(item.path === "/shop" && !isAdmin && !storeEnabled),
   );
 
   return (
