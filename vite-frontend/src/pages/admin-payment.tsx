@@ -142,7 +142,7 @@ export default function AdminPaymentPage() {
   const [configs, setConfigs] = useState<PaymentConfig[]>([]);
   const [stats, setStats] = useState<PaymentStats>({ paidAmount: 0, paidOrders: 0, pendingOrders: 0 });
   const [packages, setPackages] = useState<SubscriptionPackageApiItem[]>([]);
-  const [paymentTabKey, setPaymentTabKey] = useState("yipay");
+  const [paymentTabKey, setPaymentTabKey] = useState("usdt");
 
   const [yipay, setYipay] = useState<YiPayForm>(defaultYiPay);
   const [usdt, setUsdt] = useState<UsdtForm>(defaultUsdt);
@@ -524,8 +524,8 @@ export default function AdminPaymentPage() {
           {/* Sub tabs */}
           <div className="flex flex-wrap gap-2 mb-4">
             {[
-              { key: "yipay", label: "易支付" },
               { key: "usdt", label: "U支付" },
+              { key: "yipay", label: "易支付" },
               { key: "test", label: "测试下单" },
             ].map((tab) => (
               <Button key={tab.key} size="sm" variant={paymentTabKey === tab.key ? "solid" : "flat"} color={paymentTabKey === tab.key ? "primary" : "default"} onPress={() => setPaymentTabKey(tab.key)}>
@@ -543,12 +543,23 @@ export default function AdminPaymentPage() {
                 </div>
               </CardHeader>
               <CardBody className="p-4 space-y-4">
-                <Input label={<span className="text-sm text-gray-400 text-foreground">网关地址</span>} value={yipay.gateway_url} variant="bordered"
-                  onChange={(e) => setYipay((p) => ({ ...p, gateway_url: e.target.value }))} />
-                <Input label={<span className="text-sm text-gray-400 text-foreground">商户 PID</span>} value={yipay.pid} variant="bordered"
-                  onChange={(e) => setYipay((p) => ({ ...p, pid: e.target.value }))} />
-                <Input label={<span className="text-sm text-gray-400 text-foreground">商户密钥</span>} value={yipay.key} variant="bordered" type="password"
-                  onChange={(e) => setYipay((p) => ({ ...p, key: e.target.value }))} />
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">易支付网关</label>
+                    <Input variant="bordered" placeholder="https://pay.example.com" value={yipay.gateway_url}
+                      onChange={(e) => setYipay((p) => ({ ...p, gateway_url: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">商户 PID</label>
+                    <Input variant="bordered" placeholder="1000" value={yipay.pid}
+                      onChange={(e) => setYipay((p) => ({ ...p, pid: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">商户密钥</label>
+                    <Input variant="bordered" type="password" placeholder="商户密钥" value={yipay.key}
+                      onChange={(e) => setYipay((p) => ({ ...p, key: e.target.value }))} />
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">异步通知地址</label>
