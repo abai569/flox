@@ -30,6 +30,13 @@ import {
   TableRow,
   TableCell,
 } from "@/shadcn-bridge/heroui/table";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+} from "@/shadcn-bridge/heroui/modal";
 import { PageLoadingState } from "@/components/page-state";
 import Network from "@/api/network";
 import {
@@ -185,6 +192,11 @@ export default function AdminPaymentPage() {
     () => localStorage.getItem("adminPaymentLogUserFilter") || "all",
   );
   const [users, setUsers] = useState<UserApiItem[]>([]);
+  const [deleteLogConfirmOpen, setDeleteLogConfirmOpen] = useState(false);
+  const [deleteLogTarget, setDeleteLogTarget] = useState<BalanceLogItem | null>(
+    null,
+  );
+  const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
 
   const [redeemCodes, setRedeemCodes] = useState<RedeemCodeItem[]>([]);
   const [redeemType, setRedeemType] = useState<"plan" | "balance">("plan");
@@ -425,11 +437,20 @@ export default function AdminPaymentPage() {
       const res = await getAllUsers({ size: 1000 });
 
       if (res.code === 0) setUsers(Array.isArray(res.data) ? res.data : []);
-    } catch { }
+    } catch {}
   }, []);
 
-  const handleDeleteLog = async (log: BalanceLogItem) => {
-    if (!confirm(`确定删除流水 #${log.id}？`)) return;
+  const handleDeleteLog = (log: BalanceLogItem) => {
+    setDeleteLogTarget(log);
+    setDeleteLogConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteLog = async () => {
+    if (!deleteLogTarget) return;
+    const log = deleteLogTarget;
+
+    setDeleteLogConfirmOpen(false);
+    setDeleteLogTarget(null);
     const res = await deleteBalanceLog(log.id);
 
     if (res.code === 0) {
@@ -440,8 +461,12 @@ export default function AdminPaymentPage() {
     }
   };
 
-  const handleCleanupLogs = async () => {
-    if (!confirm("确定清理所有签名无效（signature=0）的流水记录？")) return;
+  const handleCleanupLogs = () => {
+    setCleanupConfirmOpen(true);
+  };
+
+  const handleConfirmCleanup = async () => {
+    setCleanupConfirmOpen(false);
     const res = await cleanupBalanceLogs();
 
     if (res.code === 0) {
@@ -794,6 +819,7 @@ export default function AdminPaymentPage() {
                           config: JSON.stringify(rest),
                           enabled: v ? 1 : 0,
                         });
+
                         if (res?.code === 0) {
                           toast.success("设置成功");
                           loadPaymentData();
@@ -925,21 +951,25 @@ export default function AdminPaymentPage() {
                         const updated = { ...prev, enabled: v };
                         const { enabled: _, secret_key: sk, ...rest } = updated;
                         const cfg: Record<string, unknown> = { ...rest };
+
                         if (sk) cfg.secret_key = sk;
                         Network.post("/payment/config/save", {
                           channel: "USDT",
                           config: JSON.stringify(cfg),
                           enabled: v ? 1 : 0,
-                        }).then((res) => {
-                          if (res?.code === 0) {
-                            toast.success("设置成功");
-                            loadPaymentData();
-                          } else {
-                            toast.error(res?.msg || "保存失败");
-                          }
-                        }).catch(() => {
-                          toast.error("保存失败");
-                        });
+                        })
+                          .then((res) => {
+                            if (res?.code === 0) {
+                              toast.success("设置成功");
+                              loadPaymentData();
+                            } else {
+                              toast.error(res?.msg || "保存失败");
+                            }
+                          })
+                          .catch(() => {
+                            toast.error("保存失败");
+                          });
+
                         return updated;
                       });
                     }}
@@ -1298,13 +1328,17 @@ export default function AdminPaymentPage() {
             <div className="flex items-center gap-2">
               <Select
                 className="w-24"
+                selectedKeys={logUserId === "all" ? ["all"] : [logUserId]}
                 size="sm"
                 variant="bordered"
-                selectedKeys={logUserId === "all" ? ["all"] : [logUserId]}
                 onSelectionChange={(keys) => {
                   const val = Array.from(keys)[0] as string;
+
                   setLogUserId(val || "all");
-                  localStorage.setItem("adminPaymentLogUserFilter", val || "all");
+                  localStorage.setItem(
+                    "adminPaymentLogUserFilter",
+                    val || "all",
+                  );
                   setLogPage(1);
                 }}
               >
@@ -1358,8 +1392,12 @@ export default function AdminPaymentPage() {
                 <TableHeader>
                   <TableColumn className="whitespace-nowrap">用户</TableColumn>
                   <TableColumn className="whitespace-nowrap">金额</TableColumn>
-                  <TableColumn className="whitespace-nowrap">变动前</TableColumn>
-                  <TableColumn className="whitespace-nowrap">变动后</TableColumn>
+                  <TableColumn className="whitespace-nowrap">
+                    变动前
+                  </TableColumn>
+                  <TableColumn className="whitespace-nowrap">
+                    变动后
+                  </TableColumn>
                   <TableColumn className="whitespace-nowrap">原因</TableColumn>
                   <TableColumn className="whitespace-nowrap">时间</TableColumn>
                   <TableColumn className="whitespace-nowrap">操作</TableColumn>
@@ -1847,10 +1885,14 @@ export default function AdminPaymentPage() {
                 }}
               >
                 <TableHeader>
-                  <TableColumn className="whitespace-nowrap">兑换码</TableColumn>
+                  <TableColumn className="whitespace-nowrap">
+                    兑换码
+                  </TableColumn>
                   <TableColumn className="whitespace-nowrap">类型</TableColumn>
                   <TableColumn className="whitespace-nowrap">内容</TableColumn>
-                  <TableColumn className="whitespace-nowrap">有效期</TableColumn>
+                  <TableColumn className="whitespace-nowrap">
+                    有效期
+                  </TableColumn>
                   <TableColumn className="whitespace-nowrap">
                     使用情况
                   </TableColumn>
@@ -2332,6 +2374,103 @@ export default function AdminPaymentPage() {
           </div>
         </>
       )}
+
+      <Modal
+        isOpen={deleteLogConfirmOpen}
+        placement="center"
+        size="sm"
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteLogConfirmOpen(false);
+            setDeleteLogTarget(null);
+          }
+        }}
+      >
+        <ModalContent>
+          <ModalHeader className="text-danger flex items-center gap-2">
+            <svg
+              className="w-5 h-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            确认删除
+          </ModalHeader>
+          <ModalBody>
+            <div className="text-sm text-default-600 space-y-2">
+              <p>删除流水后不可恢复，用户的余额不会自动变动。</p>
+              {deleteLogTarget && (
+                <p className="text-xs text-default-400">
+                  #{deleteLogTarget.id} | 用户: {deleteLogTarget.userName} |{" "}
+                  {deleteLogTarget.reason}
+                </p>
+              )}
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="flat"
+              onPress={() => {
+                setDeleteLogConfirmOpen(false);
+                setDeleteLogTarget(null);
+              }}
+            >
+              取消
+            </Button>
+            <Button color="danger" onPress={handleConfirmDeleteLog}>
+              确认
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        isOpen={cleanupConfirmOpen}
+        placement="center"
+        size="sm"
+        onOpenChange={(open) => {
+          if (!open) setCleanupConfirmOpen(false);
+        }}
+      >
+        <ModalContent>
+          <ModalHeader className="text-danger flex items-center gap-2">
+            <svg
+              className="w-5 h-5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            确认清理
+          </ModalHeader>
+          <ModalBody>
+            <p className="text-sm text-default-600">
+              将删除所有签名无效（signature=0）的余额流水记录。此操作不会自动调整用户余额，清理后建议手动核对。
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setCleanupConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button color="danger" onPress={handleConfirmCleanup}>
+              确认
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </AnimatedPage>
   );
 }

@@ -22,7 +22,8 @@ import {
 } from "@/shadcn-bridge/heroui/modal";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
-import { getAdminOrderList, getAllUsers, getPaymentStats } from "@/api";
+import { Input } from "@/shadcn-bridge/heroui/input";
+import { getAdminOrderList, getAllUsers, getPaymentStats, deleteOrder, updateOrder } from "@/api";
 import type { OrderApiItem, UserApiItem } from "@/api/types";
 import { PageLoadingState } from "@/components/page-state";
 
@@ -61,6 +62,11 @@ export default function AdminOrdersPage() {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailOrder, setDetailOrder] = useState<OrderApiItem | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editOrder, setEditOrder] = useState<OrderApiItem | null>(null);
+  const [editForm, setEditForm] = useState({ status: "", amount: "", productName: "", payCurrency: "" });
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<OrderApiItem | null>(null);
   const [stats, setStats] = useState({ paidAmount: 0, paidOrders: 0, pendingOrders: 0 });
 
   const loadData = useCallback(async () => {
@@ -148,6 +154,60 @@ export default function AdminOrdersPage() {
   const handleViewDetail = (order: OrderApiItem) => {
     setDetailOrder(order);
     setDetailModalOpen(true);
+  };
+
+  const handleDeleteOrder = (order: OrderApiItem) => {
+    setDeleteTarget(order);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    const order = deleteTarget;
+    setDeleteConfirmOpen(false);
+    setDeleteTarget(null);
+    const force = order.status === 1;
+    const res = await deleteOrder(order.id, force);
+    if (res.code === 0) {
+      toast.success("删除成功");
+      loadData();
+    } else {
+      toast.error(res.msg || "删除失败");
+    }
+  };
+
+  const handleOpenEdit = (order: OrderApiItem) => {
+    setEditOrder(order);
+    setEditForm({
+      status: String(order.status),
+      amount: String(order.amount / 100),
+      productName: order.productName,
+      payCurrency: order.payCurrency,
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editOrder) return;
+    const updates: Record<string, unknown> = { id: editOrder.id };
+    const newStatus = parseInt(editForm.status);
+    if (!isNaN(newStatus) && newStatus !== editOrder.status) updates.status = newStatus;
+    const newAmount = Math.round(parseFloat(editForm.amount) * 100);
+    if (!isNaN(newAmount) && newAmount !== editOrder.amount) updates.amount = newAmount;
+    if (editForm.productName !== editOrder.productName) updates.productName = editForm.productName;
+    if (editForm.payCurrency !== editOrder.payCurrency) updates.payCurrency = editForm.payCurrency;
+    if (Object.keys(updates).length <= 1) {
+      toast.error("无更改");
+      return;
+    }
+    const res = await updateOrder(updates);
+    if (res.code === 0) {
+      toast.success("保存成功");
+      setEditModalOpen(false);
+      loadData();
+    } else {
+      toast.error(res.msg || "保存失败");
+    }
   };
 
   if (loading) return <PageLoadingState message="加载订单中..." />;
@@ -302,9 +362,11 @@ export default function AdminOrdersPage() {
                     {order.createdAt ? new Date(order.createdAt * 1000).toLocaleString() : "-"}
                   </TableCell>
                   <TableCell>
-                    <Button color="primary" size="sm" variant="flat" onPress={() => handleViewDetail(order)}>
-                      详情
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button color="primary" size="sm" variant="flat" onPress={() => handleViewDetail(order)}>详情</Button>
+                      <Button color="warning" size="sm" variant="flat" onPress={() => handleOpenEdit(order)}>编辑</Button>
+                      <Button color="danger" size="sm" variant="flat" onPress={() => handleDeleteOrder(order)}>删除</Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -359,6 +421,74 @@ export default function AdminOrdersPage() {
           </ModalBody>
           <ModalFooter>
             <Button variant="flat" onPress={() => { setDetailModalOpen(false); setDetailOrder(null); }}>关闭</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={editModalOpen} placement="center" size="lg"
+        onOpenChange={(open) => { if (!open) { setEditModalOpen(false); setEditOrder(null); } }}>
+        <ModalContent>
+          <ModalHeader>编辑订单</ModalHeader>
+          <ModalBody>
+            {editOrder && (
+              <div className="space-y-3">
+                <div className="text-xs text-gray-400">订单号: {editOrder.orderNo}</div>
+                <Input label="状态" size="sm" variant="bordered"
+                  value={editForm.status}
+                  onValueChange={(v) => setEditForm(f => ({ ...f, status: v }))}
+                  description="0=待支付 1=已完成 2=已取消 3=已退款"
+                />
+                <Input label="金额 (元)" size="sm" variant="bordered" type="number" step="0.01"
+                  value={editForm.amount}
+                  onValueChange={(v) => setEditForm(f => ({ ...f, amount: v }))}
+                />
+                <Input label="商品名称" size="sm" variant="bordered"
+                  value={editForm.productName}
+                  onValueChange={(v) => setEditForm(f => ({ ...f, productName: v }))}
+                />
+                <Input label="支付方式" size="sm" variant="bordered"
+                  value={editForm.payCurrency}
+                  onValueChange={(v) => setEditForm(f => ({ ...f, payCurrency: v }))}
+                  description="BALANCE / USDT / YIPAY"
+                />
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => { setEditModalOpen(false); setEditOrder(null); }}>取消</Button>
+            <Button color="primary" onPress={handleSaveEdit}>保存</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={deleteConfirmOpen} placement="center" size="sm"
+        onOpenChange={(open) => { if (!open) { setDeleteConfirmOpen(false); setDeleteTarget(null); } }}>
+        <ModalContent>
+          <ModalHeader className="text-danger flex items-center gap-1">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            确认删除
+          </ModalHeader>
+          <ModalBody>
+            <div className="text-sm text-default-600 space-y-2">
+              <p>
+                {deleteTarget?.status === 1
+                  ? '此订单已完成，删除后不会退还余额。'
+                  : '删除后不可恢复。'}
+              </p>
+              {deleteTarget && (
+                <p className="text-xs text-default-400">订单号: {deleteTarget.orderNo} | 用户: {deleteTarget.userName}</p>
+              )}
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => { setDeleteConfirmOpen(false); setDeleteTarget(null); }}>
+              取消
+            </Button>
+            <Button color="danger" onPress={handleConfirmDelete}>
+              确认
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
