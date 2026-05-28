@@ -3,6 +3,7 @@ export const SESSION_STORAGE_KEYS = {
   roleId: "role_id",
   name: "name",
   admin: "admin",
+  restricted: "restricted",
 } as const;
 
 export interface SessionData {
@@ -16,6 +17,7 @@ export interface LoginSessionPayload {
   token: string;
   role_id: number;
   name: string;
+  restricted?: boolean;
 }
 
 const SESSION_EVENT_NAME = "sessionUpdated";
@@ -59,6 +61,10 @@ export const getAdminFlag = (): boolean => {
   return isAdmin;
 };
 
+export const isRestricted = (): boolean => {
+  return localStorage.getItem(SESSION_STORAGE_KEYS.restricted) === "true";
+};
+
 export const readSession = (): SessionData => {
   return {
     token: getToken(),
@@ -76,6 +82,10 @@ export const writeLoginSession = (payload: LoginSessionPayload): void => {
     SESSION_STORAGE_KEYS.admin,
     String(payload.role_id === 0),
   );
+  localStorage.setItem(
+    SESSION_STORAGE_KEYS.restricted,
+    String(payload.restricted ?? false),
+  );
   window.dispatchEvent(new Event(SESSION_EVENT_NAME));
 };
 
@@ -84,6 +94,7 @@ export const clearSession = (): void => {
   localStorage.removeItem(SESSION_STORAGE_KEYS.roleId);
   localStorage.removeItem(SESSION_STORAGE_KEYS.name);
   localStorage.removeItem(SESSION_STORAGE_KEYS.admin);
+  localStorage.removeItem(SESSION_STORAGE_KEYS.restricted);
   window.dispatchEvent(new Event(SESSION_EVENT_NAME));
 };
 

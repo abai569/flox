@@ -6116,6 +6116,13 @@ func (h *Handler) userRegister(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("用户名或密码不能为空"))
 		return
 	}
+
+	regCfg, _ := h.repo.GetConfigByName("registration_enabled")
+	if regCfg != nil && regCfg.Value == "0" {
+		response.WriteJSON(w, response.ErrDefault("注册已关闭"))
+		return
+	}
+
 	exists, err := h.repo.UserExists(req.User)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -6126,7 +6133,8 @@ func (h *Handler) userRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now().UnixMilli()
-	userID, err := h.repo.CreateUser(req.User, security.MD5(req.Password), 1, 0, 0, 1, 0, 1, now, 0, 0, 0)
+	expTime := time.Now().Add(72 * time.Hour).UnixMilli()
+	userID, err := h.repo.CreateUser(req.User, security.MD5(req.Password), 1, expTime, 0, 1, 0, 1, now, 0, 0, 0)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return

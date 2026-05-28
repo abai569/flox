@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { motion } from "framer-motion";
@@ -49,6 +49,15 @@ export default function IndexPage() {
   const [registerForm, setRegisterForm] = useState({ user: "", password: "", confirm: "" });
   const [registerErrors, setRegisterErrors] = useState<Partial<typeof registerForm>>({});
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [regEnabled, setRegEnabled] = useState(true);
+
+  useEffect(() => {
+    getConfigByName("registration_enabled").then((res) => {
+      if (res.code === 0 && res.data) {
+        setRegEnabled(res.data.value !== "0");
+      }
+    }).catch(() => {});
+  }, []);
 
   // 验证表单
   const validateForm = (): boolean => {
@@ -251,6 +260,7 @@ export default function IndexPage() {
                   {loading ? (showCaptcha ? "验证中..." : "登录中...") : "登录"}
                 </Button>
 
+                {regEnabled && (
                 <div className="text-center mt-2">
                   <button
                     className="text-sm text-primary hover:underline"
@@ -260,6 +270,7 @@ export default function IndexPage() {
                     没有账号？立即注册
                   </button>
                 </div>
+                )}
               </div>
             </CardBody>
           </Card>

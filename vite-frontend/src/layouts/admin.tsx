@@ -24,6 +24,7 @@ import { VersionFooter } from "@/components/version-footer";
 import { SunFilledIcon, MoonFilledIcon } from "@/components/icons";
 import { getLicenseInfo, getMonitorAccess, updatePassword } from "@/api";
 import { safeLogout } from "@/utils/logout";
+import { isRestricted } from "@/utils/session";
 import { siteConfig } from "@/config/site";
 import { useMobileBreakpoint } from "@/hooks/useMobileBreakpoint";
 import { getAdminFlag, getSessionName } from "@/utils/session";
@@ -35,6 +36,7 @@ interface MenuItem {
   icon: React.ReactNode;
   adminOnly?: boolean;
   userOnly?: boolean;
+  restrictedAccessible?: boolean;
 }
 
 interface PasswordForm {
@@ -82,6 +84,7 @@ export default function AdminLayout({
   } | null>(null);
   const { effectiveMode, setMode } = useThemeContext();
   const isMobile = useMobileBreakpoint();
+  const restricted = isRestricted();
 
   // 免费版横幅关闭状态
   const [isBannerClosed, setIsBannerClosed] = useState(false);
@@ -95,6 +98,7 @@ export default function AdminLayout({
     {
       path: "/dashboard",
       label: "主页",
+      restrictedAccessible: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
@@ -202,6 +206,7 @@ export default function AdminLayout({
     {
       path: "/shop",
       label: "商城",
+      restrictedAccessible: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
           <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
@@ -212,8 +217,9 @@ export default function AdminLayout({
       path: "/admin/plans",
       label: "套餐",
       icon: (
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 8a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zm6-6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zm0 8a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path d="M9 12l2 2 4-4"/>
+          <circle cx="12" cy="12" r="9"/>
         </svg>
       ),
       adminOnly: true,
@@ -265,6 +271,7 @@ export default function AdminLayout({
     {
       path: "/myhome",
       label: "我的",
+      restrictedAccessible: true,
       userOnly: true,
       icon: (
         <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -467,6 +474,13 @@ export default function AdminLayout({
 
   // 菜单点击处理
   const handleMenuClick = (path: string) => {
+    if (restricted) {
+      const item = menuItems.find((m) => m.path === path);
+      if (item && !item.restrictedAccessible) {
+        toast.error("请先购买套餐恢复全部功能");
+        return;
+      }
+    }
     if (path === "/monitor" && monitorAllowed !== true) {
       if (monitorAllowed == null) {
         toast("正在检查监控权限，请稍后重试");
@@ -635,20 +649,21 @@ export default function AdminLayout({
               const isActive = location.pathname === item.path;
               const isMonitor = item.path === "/monitor";
               const isMonitorBlocked = isMonitor && monitorAllowed !== true;
+              const isRestrictedBlocked = restricted && !item.restrictedAccessible;
 
               return (
                 <li key={item.path}>
                   <motion.button
-                    aria-disabled={isMonitorBlocked}
+                    aria-disabled={isMonitorBlocked || isRestrictedBlocked}
                     className={`
                        w-full flex items-center p-1 rounded-lg text-left
                        relative min-h-[20px] overflow-hidden transition-colors
-                       ${isMonitorBlocked ? "opacity-60" : ""}
+                       ${isMonitorBlocked || isRestrictedBlocked ? "opacity-40 cursor-not-allowed" : ""}
                        ${
                          isActive
                            ? "text-primary-600 dark:text-primary-300"
-                           : isMonitorBlocked
-                             ? "text-gray-500 dark:text-gray-400"
+                           : isMonitorBlocked || isRestrictedBlocked
+                             ? "text-gray-400 dark:text-gray-500"
                              : "text-gray-700 dark:text-gray-200"
                        }
                      `}
@@ -656,7 +671,9 @@ export default function AdminLayout({
                       isCollapsed
                         ? isMonitorBlocked
                           ? `${item.label} (无权限)`
-                          : item.label
+                          : isRestrictedBlocked
+                            ? `${item.label} (请先购买套餐)`
+                            : item.label
                         : undefined
                     }
                     transition={{ duration: 0.15 }}

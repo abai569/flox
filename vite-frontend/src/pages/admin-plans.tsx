@@ -303,47 +303,57 @@ export default function AdminPlansPage() {
         </Card>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-md">
-        <Table classNames={{ th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle", td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0", tr: "hover:bg-default-50/50 transition-colors" }}>
+      <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
+        <Table classNames={{ th: "bg-default-100/50 text-default-600 font-semibold text-xs border-b border-divider py-2 uppercase tracking-wider text-left align-middle", td: "py-2 border-b border-divider/50 group-data-[last=true]:border-b-0 text-sm", tr: "hover:bg-default-50/50 transition-colors" }} className="min-w-[640px]">
           <TableHeader>
-            <TableColumn className="whitespace-nowrap">套餐</TableColumn>
-            <TableColumn className="whitespace-nowrap">价格/有效期</TableColumn>
-            <TableColumn className="whitespace-nowrap">资源</TableColumn>
-            <TableColumn className="whitespace-nowrap">限制</TableColumn>
-            <TableColumn className="whitespace-nowrap">状态</TableColumn>
-            <TableColumn className="whitespace-nowrap">操作</TableColumn>
+            <TableColumn className="whitespace-nowrap min-w-[120px]">名称</TableColumn>
+            <TableColumn className="whitespace-nowrap min-w-[140px]">价格</TableColumn>
+            <TableColumn className="whitespace-nowrap min-w-[100px]">隧道组</TableColumn>
+            <TableColumn className="whitespace-nowrap min-w-[200px]">限制</TableColumn>
+            <TableColumn className="whitespace-nowrap min-w-[140px]">状态</TableColumn>
+            <TableColumn className="whitespace-nowrap min-w-[80px]">操作</TableColumn>
           </TableHeader>
           <TableBody>
             {pkgList.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>
-                  <div className="font-medium">{item.name}</div>
-                  {item.description && <div className="text-xs text-gray-400 truncate max-w-40">{item.description}</div>}
+                  <div className="font-medium text-sm">{item.name}</div>
+                  {item.description && <div className="text-xs text-gray-400 truncate max-w-48">{item.description}</div>}
                 </TableCell>
                 <TableCell>
-                  <div className="font-mono">{(item.price / 100).toFixed(2)} 元</div>
-                  <div className="text-xs text-gray-400">{durationLabel(item.validityDays)}</div>
+                  <div className="text-sm whitespace-nowrap">¥{(item.price / 100).toFixed(2)} / {durationLabel(item.validityDays)}</div>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    <Chip size="sm" variant="flat">{item.trafficLimit > 0 ? `${item.trafficLimit} GB` : "不限流量"}</Chip>
-                    {/* <Chip size="sm" variant="flat">{item.portCount > 0 ? `${item.portCount} 端口` : "不限端口"}</Chip> */}
+                    {(item.tunnelGroupIds || []).length === 0 && <span className="text-xs text-gray-400">未关联</span>}
+                    {(item.tunnelGroupIds || []).map((gid) => {
+                      const tg = tunnelGroups.find((g) => g.id === gid);
+                      return tg ? (
+                        <span key={gid} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">{tg.name}</span>
+                      ) : null;
+                    })}
                   </div>
                 </TableCell>
                 <TableCell className="text-xs text-gray-500">
-                  <div>规则 {item.maxRules || "不限"} · 连接 {item.maxConnections || "不限"}{/* · IP {item.maxIPAccess || "不限"} */}</div>
-                  <div>{item.speedLimit > 0 ? `${item.speedLimit} Mbps` : "不限速"}</div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <Chip color={item.enabled === 1 ? "success" : "default"} size="sm" variant="flat">{item.enabled === 1 ? "启用" : "停用"}</Chip>
-                    <Chip color={item.shopVisible === 1 ? "primary" : "default"} size="sm" variant="flat">{item.shopVisible === 1 ? "商店可见" : "后台分配"}</Chip>
+                  <div className="space-y-0.5">
+                    <div>规则 {item.maxRules > 0 ? item.maxRules : "不限"} · 流量 {item.trafficLimit > 0 ? `${item.trafficLimit} GB` : "不限"}</div>
+                    <div>连接 {item.maxConnections > 0 ? item.maxConnections : "不限"} · 单 IP {item.maxIPAccess > 0 ? item.maxIPAccess : "不限"} · 限速 {item.speedLimit > 0 ? `${item.speedLimit} Mbps` : "不限"}</div>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="flat" onPress={() => handlePkgEdit(item)}>编辑</Button>
-                    <Button size="sm" color="danger" variant="flat" onPress={() => handlePkgDelete(item)}>删除</Button>
+                  <div className="flex flex-row gap-1 shrink-0">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}>{item.enabled === 1 ? "启用" : "停用"}</span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}>{item.shopVisible === 1 ? "商店可见" : "后台分配"}</span>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button isIconOnly className="min-w-0 w-8 h-8" size="sm" variant="flat" onPress={() => handlePkgEdit(item)}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L18.732 3.732z" /></svg>
+                    </Button>
+                    <Button isIconOnly className="min-w-0 w-8 h-8" color="danger" size="sm" variant="flat" onPress={() => handlePkgDelete(item)}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -362,10 +372,6 @@ export default function AdminPlansPage() {
                 <Input label="套餐名称" value={pkgForm.name} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, name: e.target.value }))} />
                 <Input label="价格 (元)" type="number" step="0.01" min="0" value={pkgForm.priceYuan} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, priceYuan: e.target.value }))} />
               </div>
-              <div className="space-y-1">
-                <label className="text-sm text-gray-400">说明</label>
-                <Textarea value={pkgForm.description} variant="bordered" className="w-full min-h-20" onChange={(e) => setPkgForm((p) => ({ ...p, description: e.target.value }))} />
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <Select label="有效期" variant="bordered" selectedKeys={[String(pkgForm.validityDays)]} onSelectionChange={(keys) => { const val = Array.from(keys)[0] as string; if (val) setPkgForm((p) => ({ ...p, validityDays: parseInt(val) || 30 })); }}>
                   {durationOptions.map((d) => <SelectItem key={String(d.value)}>{d.label}</SelectItem>)}
@@ -381,32 +387,37 @@ export default function AdminPlansPage() {
                 <Input label="最大连接数 (0=不限)" type="number" min="0" value={String(pkgForm.maxConnections)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, maxConnections: parseInt(e.target.value) || 0 }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                {/* <Input label="连续端口数 (0=不限)" type="number" min="0" value={String(pkgForm.portCount)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, portCount: parseInt(e.target.value) || 0 }))} /> */}                
+                {/* <Input label="连续端口数 (0=不限)" type="number" min="0" value={String(pkgForm.portCount)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, portCount: parseInt(e.target.value) || 0 }))} /> */}
                 {/* <Input label="单 IP 接入限制 (0=不限)" type="number" min="0" value={String(pkgForm.maxIPAccess)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, maxIPAccess: parseInt(e.target.value) || 0 }))} /> */}
               </div>
               <div className="flex flex-wrap gap-6">
                 <div className="flex flex-col gap-1">
                   <Switch isSelected={pkgForm.enabled} onValueChange={(v) => setPkgForm((p) => ({ ...p, enabled: v }))}>启用套餐</Switch>
-                  <span className="text-xs text-gray-400">关闭后用户无法购买</span>
+                  <span className="text-xs text-gray-400">启用套餐</span>
                 </div>
                 <div className="flex flex-col gap-1">
                   <Switch isSelected={pkgForm.shopVisible} onValueChange={(v) => setPkgForm((p) => ({ ...p, shopVisible: v }))}>商店可见</Switch>
-                  <span className="text-xs text-gray-400">关闭后只能后台分配</span>
+                  <span className="text-xs text-gray-400">商店售卖</span>
                 </div>
                 <div className="flex flex-col gap-1">
                   <Switch isSelected={pkgForm.autoRenew} onValueChange={(v) => setPkgForm((p) => ({ ...p, autoRenew: v }))}>自动续费</Switch>
-                  <span className="text-xs text-gray-400">到期前自动扣费续期</span>
+                  <span className="text-xs text-gray-400">自动续费</span>
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm text-gray-400">关联隧道分组</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-divider rounded-lg p-3">
+                <label className="text-sm text-foreground">关联隧道分组</label>
+                <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto border border-divider rounded-lg p-3">
                   {tunnelGroups.length === 0 && <span className="text-xs text-gray-400 col-span-full">暂无隧道分组</span>}
                   {tunnelGroups.map((tg) => (
                     <Checkbox key={tg.id} isSelected={pkgForm.tunnelGroupIds.includes(tg.id)} onValueChange={() => toggleTunnelGroup(tg.id)}>{tg.name}</Checkbox>
                   ))}
                 </div>
               </div>
+              <div className="space-y-1">
+                <label className="text-sm text-foreground">说明</label>
+                <Textarea value={pkgForm.description} variant="bordered" className="w-full min-h-10" onChange={(e) => setPkgForm((p) => ({ ...p, description: e.target.value }))} />
+              </div>
+
             </ModalBody>
           )}
           <ModalFooter>

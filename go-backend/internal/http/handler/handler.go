@@ -451,6 +451,12 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	nowMillis := time.Now().UnixMilli()
+	restricted := false
+	if user.ExpTime > 0 && user.ExpTime < nowMillis {
+		restricted = true
+	}
+
 	token, err := auth.GenerateToken(user.ID, user.User, user.RoleID, h.jwtSecret)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -462,6 +468,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		"token":                 token,
 		"name":                  user.User,
 		"role_id":               user.RoleID,
+		"restricted":            restricted,
 		"requirePasswordChange": requirePasswordChange,
 	}))
 }

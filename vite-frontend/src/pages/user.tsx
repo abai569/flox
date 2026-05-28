@@ -57,6 +57,7 @@ import {
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
 import { RadioGroup, Radio } from "@/shadcn-bridge/heroui/radio";
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
+import { Switch } from "@/shadcn-bridge/heroui/switch";
 import { DatePicker } from "@/shadcn-bridge/heroui/date-picker";
 import { DatePresets } from "@/shadcn-bridge/heroui/date-presets";
 import { Spinner } from "@/shadcn-bridge/heroui/spinner";
@@ -95,6 +96,8 @@ import {
   getUserQuotaHistory,
   deleteUserQuotaHistory,
   batchUpdateUserTunnelStatus,
+  getConfigByName,
+  updateConfig,
 } from "@/api";
 import { EditIcon, DeleteIcon, EyeIcon, EyeOffIcon } from "@/components/icons";
 import { PageLoadingState } from "@/components/page-state";
@@ -304,6 +307,8 @@ export default function UserPage() {
     useState<User | null>(null);
   const [renewalLogs, setRenewalLogs] = useState<UserRenewalLog[]>([]);
   const [renewalLogLoading, setRenewalLogLoading] = useState(false);
+  const [regOpen, setRegOpen] = useState(true);
+  const [regLoading, setRegLoading] = useState(false);
   // --- 监控权限相关状态 (来自 user 新) ---
   // Map<userId, fullAccess> where 0=scoped, 1=fullAccess; absent = no permission
   const [monitorPermissionLevelMap, setMonitorPermissionLevelMap] = useState<
@@ -549,6 +554,22 @@ export default function UserPage() {
     localStorage.setItem(USER_VIEW_MODE_KEY, mode);
     setSelectedUserIds(new Set());
   }, []);
+  const handleRegToggle = async (enabled: boolean) => {
+    setRegLoading(true);
+    try {
+      const res = await updateConfig("registration_enabled", enabled ? "1" : "0");
+      if (res.code === 0) {
+        setRegOpen(enabled);
+        toast.success(enabled ? "注册已开启" : "注册已关闭");
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("网络错误");
+    } finally {
+      setRegLoading(false);
+    }
+  };
   // 复制到剪贴板
   const copyToClipboard = (text: string, label: string) => {
     try {
@@ -797,6 +818,13 @@ export default function UserPage() {
   useEffect(() => {
     void loadUsers();
   }, [loadUsers]);
+  useEffect(() => {
+    getConfigByName("registration_enabled").then((res) => {
+      if (res.code === 0 && res.data) {
+        setRegOpen(res.data.value !== "0");
+      }
+    }).catch(() => {});
+  }, []);
   usePullToRefresh(loadUsers);
   useEffect(() => {
     if (searchDebounceRef.current) {
@@ -1663,7 +1691,7 @@ export default function UserPage() {
             }}
           />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-2">
           {batchMode ? (
             <>
               <Button
@@ -1708,7 +1736,6 @@ export default function UserPage() {
             </>
           ) : (
             <>
-              {/* 视图模式切换按钮 */}
               <Button
                 color={viewMode === "card" ? "primary" : "warning"}
                 size="sm"
@@ -1737,6 +1764,18 @@ export default function UserPage() {
                   归零
                 </Button>
               )}
+              <div className="ml-auto">
+                <Switch
+                  title="开启后允许用户自助注册账号"
+                  className="data-[state=unchecked]:bg-default-300"
+                  isSelected={regOpen}
+                  isLoading={regLoading}
+                  size="sm"
+                  onValueChange={handleRegToggle}
+                >
+                  开放注册
+                </Switch>
+              </div>
             </>
           )}
         </div>
@@ -4009,7 +4048,7 @@ export default function UserPage() {
                           ? "admin"
                           : "系统自动"}
                       </span>
-                      <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs text-default-500">
                           {formatDate(item.resetTime)}
                         </span>

@@ -69,7 +69,7 @@ export default function ShopPage() {
     if (selectedCurrency !== "BALANCE") {
       setSubmitting(true);
       try {
-        const createRes = await createPackageOrder({ packageId: selectedPackage.id, payCurrency: selectedCurrency });
+        const createRes = await createPackageOrder({ package_id: selectedPackage.id, pay_currency: selectedCurrency });
         if (createRes.code !== 0) {
           toast.error(createRes.msg || "下单失败");
           setSubmitting(false);
@@ -92,7 +92,7 @@ export default function ShopPage() {
     } else {
       setSubmitting(true);
       try {
-        const res = await createPackageOrder({ packageId: selectedPackage.id, payCurrency: "BALANCE" });
+        const res = await createPackageOrder({ package_id: selectedPackage.id, pay_currency: "BALANCE" });
         if (res.code === 0) {
           toast.success("购买成功");
           setBuyModalOpen(false);
@@ -128,7 +128,7 @@ export default function ShopPage() {
           <p className="text-sm mt-1">请联系管理员</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {packages.map((pkg) => (
             <Card key={pkg.id} className="border border-divider shadow-sm hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">

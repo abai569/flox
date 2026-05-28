@@ -37,7 +37,17 @@ func (h *Handler) listPackages(w http.ResponseWriter, r *http.Request) {
 	if items == nil {
 		items = []*model.SubscriptionPackage{}
 	}
-	response.WriteJSON(w, response.OK(items))
+	// Attach tunnel group IDs to each package
+	type PackageWithGroups struct {
+		*model.SubscriptionPackage
+		TunnelGroupIds []int64 `json:"tunnelGroupIds"`
+	}
+	result := make([]PackageWithGroups, len(items))
+	for i, pkg := range items {
+		tgIDs, _ := h.repo.GetPackageTunnelGroupIDs(pkg.ID)
+		result[i] = PackageWithGroups{SubscriptionPackage: pkg, TunnelGroupIds: tgIDs}
+	}
+	response.WriteJSON(w, response.OK(result))
 }
 
 func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
