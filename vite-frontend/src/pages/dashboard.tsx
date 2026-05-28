@@ -591,7 +591,7 @@ export default function DashboardPage() {
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold">
-                        {userInfo.balance ?? 0}元
+                        {((userInfo.balance ?? 0) / 100).toFixed(2)}元
                       </span>
                     </div>
                   </div>
@@ -700,7 +700,7 @@ export default function DashboardPage() {
                 }
                 value={
                   (autoRenewOverride ?? userInfo.autoRenew) === 1
-                    ? `${userInfo.renewalAmount ?? 0}元/月`
+                    ? `${((userInfo.renewalAmount ?? 0) / 100).toFixed(2)}元/月`
                     : "禁用"
                 }
               />

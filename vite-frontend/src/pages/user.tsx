@@ -180,8 +180,8 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
     monthlyUsedBytes: Number(item.monthlyUsedBytes ?? 0),
     disabledByQuota: Number(item.disabledByQuota ?? 0),
     quotaDisabledAt: Number(item.quotaDisabledAt ?? 0),
-    renewalAmount: Number(item.renewalAmount ?? 0),
-    balance: Number(item.balance ?? 0),
+    renewalAmount: Number(((item.renewalAmount ?? 0) / 100).toFixed(2)),
+    balance: Number(((item.balance ?? 0) / 100).toFixed(2)),
     autoRenew: Number(item.autoRenew ?? 0),
     autoBuyTraffic: Number(item.autoBuyTraffic ?? 0),
     buyTrafficAmount: Number(item.buyTrafficAmount ?? 0),
@@ -1025,6 +1025,8 @@ export default function UserPage() {
     try {
       const submitData: any = {
         ...userForm,
+        balance: Math.round(userForm.balance * 100),
+        renewalAmount: Math.round(userForm.renewalAmount * 100),
         expTime: userForm.expTime?.getTime() ?? 0,
         groupIds: userForm.groupIds ?? [],
       };
@@ -2907,11 +2909,11 @@ export default function UserPage() {
                           })
                           .replace(/\//g, "-")}
                       </TableCell>
-                      <TableCell className="text-success font-medium">
-                        {log.renewalAmount}
+                        <TableCell className="text-success font-medium">
+                        {(log.renewalAmount / 100).toFixed(2)}
                       </TableCell>
-                      <TableCell>{log.balanceBefore}</TableCell>
-                      <TableCell>{log.balanceAfter}</TableCell>
+                      <TableCell>{(log.balanceBefore / 100).toFixed(2)}</TableCell>
+                      <TableCell>{(log.balanceAfter / 100).toFixed(2)}</TableCell>
                       <TableCell>
                         {new Date(log.expTimeBefore)
                           .toLocaleDateString("zh-CN", {
