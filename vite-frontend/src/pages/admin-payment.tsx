@@ -92,10 +92,14 @@ interface YiPayForm {
 
 interface UsdtForm {
   enabled: boolean;
+  api_url: string;
   pid: string;
   secret_key: string;
-  api_url: string;
   notify_url: string;
+  return_url: string;
+  currency: string;
+  token: string;
+  network: string;
 }
 
 interface PaymentStats {
@@ -122,10 +126,14 @@ const defaultYiPay: YiPayForm = {
 
 const defaultUsdt: UsdtForm = {
   enabled: false,
+  api_url: "",
   pid: "",
   secret_key: "",
-  api_url: "",
   notify_url: "",
+  return_url: "",
+  currency: "cny",
+  token: "usdt",
+  network: "tron",
 };
 
 export default function AdminPaymentPage() {
@@ -219,8 +227,24 @@ export default function AdminPaymentPage() {
     if (usdtConfig) {
       try {
         const parsed = JSON.parse(usdtConfig.config);
-        setUsdt({ enabled: !!usdtConfig.enabled, notify_url: panelUrl + "/api/v1/payment/callback/usdt", ...parsed });
-      } catch { setUsdt((p) => ({ ...p, enabled: !!usdtConfig.enabled, notify_url: panelUrl + "/api/v1/payment/callback/usdt" })); }
+        setUsdt({
+          enabled: !!usdtConfig.enabled,
+          api_url: parsed.api_url || "",
+          pid: parsed.pid || "",
+          secret_key: "",
+          notify_url: parsed.notify_url || panelUrl + "/api/v1/payment/callback/usdt",
+          return_url: parsed.return_url || "",
+          currency: parsed.currency || "cny",
+          token: parsed.token || "usdt",
+          network: parsed.network || "tron",
+        });
+      } catch {
+        setUsdt({
+          ...defaultUsdt,
+          enabled: !!usdtConfig.enabled,
+          notify_url: panelUrl + "/api/v1/payment/callback/usdt",
+        });
+      }
     }
   }, [usdtConfig]);
 
@@ -552,45 +576,71 @@ export default function AdminPaymentPage() {
             <Card className="border border-gray-200 dark:border-default-200 shadow-md">
               <CardHeader>
                 <div className="flex items-center justify-between w-full">
-                  <h2 className="font-semibold text-foreground">USDT (Epusdt/GMPay)</h2>
+                  <h2 className="font-semibold text-foreground">USDT 支付</h2>
                   <Switch size="lg" isSelected={usdt.enabled} onValueChange={(v) => setUsdt((p) => ({ ...p, enabled: v }))} />
                 </div>
               </CardHeader>
               <CardBody className="p-4 space-y-4">
-                <div className="text-xs text-default-500">
-                  对接自托管 Epusdt (GMPay) 支付网关。请先在 Epusdt 管理后台创建商户获取 PID 和密钥。
+                <div className="text-xs text-default-500">对接自托管 Epusdt (GMPay) 支付网关。请先在 Epusdt 管理后台创建商户获取 PID 和密钥。</div>
+                <div>
+                  <label className="text-sm text-gray-400 text-foreground mb-1 block">U 支付网关</label>
+                  <Input variant="bordered" placeholder="https://epusdt.example.com" value={usdt.api_url}
+                    onChange={(e) => setUsdt((p) => ({ ...p, api_url: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 text-foreground mb-1 block">U 支付商户 PID</label>
+                  <Input variant="bordered" placeholder="1000" value={usdt.pid}
+                    onChange={(e) => setUsdt((p) => ({ ...p, pid: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 text-foreground mb-1 block">U 支付商户密钥</label>
+                  <Input variant="bordered" type="password" placeholder="留空不修改" value={usdt.secret_key}
+                    onChange={(e) => setUsdt((p) => ({ ...p, secret_key: e.target.value }))} />
+                  {usdtConfig && <p className="text-xs text-default-400 mt-1">已配置，留空不会修改现有密钥</p>}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm text-gray-400 mb-1 block text-foreground">服务器地址</label>
-                    <Input variant="bordered" placeholder="https://epusdt.example.com" value={usdt.api_url}
-                      onChange={(e) => setUsdt((p) => ({ ...p, api_url: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-400 mb-1 block text-foreground">商户 PID</label>
-                    <Input variant="bordered" placeholder="1000" value={usdt.pid}
-                      onChange={(e) => setUsdt((p) => ({ ...p, pid: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm text-gray-400 mb-1 block text-foreground">密钥 (Secret Key)</label>
-                    <Input variant="bordered" type="password" placeholder="商户密钥" value={usdt.secret_key}
-                      onChange={(e) => setUsdt((p) => ({ ...p, secret_key: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-400 text-foreground mb-1 block">异步通知地址</label>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">U 支付异步通知地址</label>
                     <div className="h-10 flex items-center justify-between px-3 border border-default-200 rounded-lg bg-gray-50 dark:bg-gray-900 text-sm">
                       <span className="truncate text-xs text-gray-600 dark:text-gray-400 mr-2">{panelUrl}/api/v1/payment/callback/usdt</span>
                       <Button size="sm" variant="flat" className="shrink-0" onPress={() => { navigator.clipboard.writeText(panelUrl + "/api/v1/payment/callback/usdt"); toast.success("已复制"); }}>复制</Button>
                     </div>
                   </div>
+                  <div>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">U 支付同步跳转地址</label>
+                    <Input variant="bordered" placeholder="https://your-domain.com/shop" value={usdt.return_url}
+                      onChange={(e) => setUsdt((p) => ({ ...p, return_url: e.target.value }))} />
+                  </div>
                 </div>
-                <div className="text-xs text-default-500">
-                  回调地址依赖面板公网地址。当前使用<code className="bg-default-100 dark:bg-default-800 px-1 rounded">{panelUrl}</code>，请确保 Epusdt 可以访问此地址。
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">U 支付法币</label>
+                    <Input variant="bordered" placeholder="cny" value={usdt.currency}
+                      onChange={(e) => setUsdt((p) => ({ ...p, currency: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">U 支付币种</label>
+                    <Input variant="bordered" placeholder="usdt" value={usdt.token}
+                      onChange={(e) => setUsdt((p) => ({ ...p, token: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">U 支付网络</label>
+                    <Select variant="bordered" selectedKeys={[usdt.network]}
+                      onSelectionChange={(keys) => { const v = Array.from(keys)[0] as string; if (v) setUsdt((p) => ({ ...p, network: v })); }}>
+                      <SelectItem key="tron">TRC-20</SelectItem>
+                      <SelectItem key="bsc">BEP-20</SelectItem>
+                      <SelectItem key="ethereum">ERC-20</SelectItem>
+                      <SelectItem key="polygon">Polygon</SelectItem>
+                    </Select>
+                  </div>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <Button color="primary" onPress={() => { const { enabled, ...rest } = usdt; saveConfig("USDT", enabled, rest); }}>保存配置</Button>
+                  <Button color="primary" onPress={() => {
+                    const { enabled, secret_key: sk, ...rest } = usdt;
+                    const cfg: Record<string, unknown> = { ...rest };
+                    if (sk) cfg.secret_key = sk;
+                    saveConfig("USDT", enabled, cfg);
+                  }}>保存配置</Button>
                 </div>
               </CardBody>
             </Card>

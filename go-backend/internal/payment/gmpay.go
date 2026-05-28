@@ -19,6 +19,10 @@ type GMPayConfig struct {
 	SecretKey string `json:"secret_key"`
 	APIURL    string `json:"api_url"`
 	NotifyURL string `json:"notify_url"`
+	ReturnURL string `json:"return_url"`
+	Currency  string `json:"currency"`
+	Token     string `json:"token"`
+	Network   string `json:"network"`
 }
 
 type gmpayGateway struct {
@@ -79,14 +83,30 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 	amountCNY := float64(order.Amount) / 100.0
 	amountStr := fmt.Sprintf("%.2f", amountCNY)
 
+	currency := g.config.Currency
+	if currency == "" {
+		currency = "cny"
+	}
+	token := g.config.Token
+	if token == "" {
+		token = "usdt"
+	}
+	network := g.config.Network
+	if network == "" {
+		network = "tron"
+	}
+
 	params := map[string]string{
 		"pid":        g.config.PID,
 		"order_id":   order.OrderNo,
-		"currency":   "cny",
-		"token":      "usdt",
-		"network":    "tron",
+		"currency":   currency,
+		"token":      token,
+		"network":    network,
 		"amount":     amountStr,
 		"notify_url": g.config.NotifyURL,
+	}
+	if g.config.ReturnURL != "" {
+		params["redirect_url"] = g.config.ReturnURL
 	}
 
 	retry := 0
