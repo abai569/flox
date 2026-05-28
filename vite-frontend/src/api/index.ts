@@ -1003,5 +1003,8 @@ export const getStoreStatus = () =>
 export const setStoreStatus = (data: { enabled: boolean }) =>
   Network.post("/package/store-status/save", data);
 
+export const getPaymentStats = () =>
+  Network.post<{ paidAmount: number; paidOrders: number; pendingOrders: number }>("/payment/stats");
+
 export const assignPackageToUser = (data: { userId: number; packageId: number }) =>
   Network.post("/package/assign", data);

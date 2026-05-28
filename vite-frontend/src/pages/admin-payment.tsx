@@ -588,7 +588,16 @@ export default function AdminPaymentPage() {
               <CardHeader>
                 <div className="flex items-center justify-between w-full">
                   <h2 className="font-semibold text-foreground">USDT 支付</h2>
-                  <Switch size="lg" isSelected={usdt.enabled} onValueChange={(v) => setUsdt((p) => ({ ...p, enabled: v }))} />
+                    <Switch size="lg" isSelected={usdt.enabled} onValueChange={async (v) => {
+                      setUsdt((p) => ({ ...p, enabled: v }));
+                      try {
+                        const { enabled, secret_key: sk, ...rest } = { ...usdt, enabled: v };
+                        const cfg: Record<string, unknown> = { ...rest };
+                        if (sk) cfg.secret_key = sk;
+                        const res = await Network.post("/payment/config/save", { channel: "USDT", config: JSON.stringify(cfg), enabled: v ? 1 : 0 });
+                        if (res?.code === 0) { toast.success("设置成功"); loadPaymentData(); } else { toast.error(res?.msg || "保存失败"); }
+                      } catch { toast.error("保存失败"); }
+                    }} />
                 </div>
               </CardHeader>
               <CardBody className="p-4 space-y-4">
@@ -648,11 +657,14 @@ export default function AdminPaymentPage() {
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
-                  <Button color="primary" onPress={() => {
-                    const { enabled, secret_key: sk, ...rest } = usdt;
-                    const cfg: Record<string, unknown> = { ...rest };
-                    if (sk) cfg.secret_key = sk;
-                    saveConfig("USDT", enabled, cfg);
+                  <Button color="primary" onPress={async () => {
+                    try {
+                      const { enabled, secret_key: sk, ...rest } = usdt;
+                      const cfg: Record<string, unknown> = { ...rest };
+                      if (sk) cfg.secret_key = sk;
+                      const res = await Network.post("/payment/config/save", { channel: "USDT", config: JSON.stringify(cfg), enabled: enabled ? 1 : 0 });
+                      if (res?.code === 0) { toast.success("保存成功"); loadPaymentData(); } else { toast.error(res?.msg || "保存失败"); }
+                    } catch { toast.error("保存失败"); }
                   }}>保存配置</Button>
                 </div>
               </CardBody>

@@ -723,7 +723,9 @@ export interface OrderApiItem {
 }
 
 export interface PaymentChannelItem {
+  id: number;
   channel: string;
+  config: string;
   enabled: number;
 }
 

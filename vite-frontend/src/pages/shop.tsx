@@ -53,15 +53,29 @@ export default function ShopPage() {
     setBuyModalOpen(true);
   };
 
+  const networkLabelMap: Record<string, string> = {
+    tron: "TRC-20",
+    bsc: "BEP-20",
+    ethereum: "ERC-20",
+    polygon: "Polygon",
+  };
+
   const availableChannels = [
     { channel: "BALANCE", label: "余额支付", desc: "使用账户余额" },
     ...payChannels
       .filter((c) => c.enabled)
-      .map((c) => ({
-        channel: c.channel,
-        label: c.channel === "USDT" ? "USDT (TRC-20)" : "易支付 (支付宝/微信)",
-        desc: c.channel === "USDT" ? "加密货币支付" : "扫码支付",
-      })),
+      .map((c) => {
+        let network = "TRC-20";
+        try {
+          const cfg = JSON.parse(c.config);
+          network = networkLabelMap[cfg.network] || "TRC-20";
+        } catch { /* ignore */ }
+        return {
+          channel: c.channel,
+          label: c.channel === "USDT" ? `USDT (${network})` : "易支付 (支付宝/微信)",
+          desc: c.channel === "USDT" ? "加密货币支付" : "扫码支付",
+        };
+      }),
   ];
 
   const handleConfirmBuy = async () => {

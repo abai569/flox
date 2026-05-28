@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { AnimatedPage } from "@/components/animated-page";
 import { SearchBar } from "@/components/search-bar";
 import { Button } from "@/shadcn-bridge/heroui/button";
+import { Card, CardBody } from "@/shadcn-bridge/heroui/card";
 import {
   Table,
   TableHeader,
@@ -21,7 +22,7 @@ import {
 } from "@/shadcn-bridge/heroui/modal";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
-import { getAdminOrderList, getAllUsers } from "@/api";
+import { getAdminOrderList, getAllUsers, getPaymentStats } from "@/api";
 import type { OrderApiItem, UserApiItem } from "@/api/types";
 import { PageLoadingState } from "@/components/page-state";
 
@@ -38,6 +39,10 @@ const currencyLabel: Record<string, string> = {
   YIPAY: "易支付",
 };
 
+function fmtMoney(cents: number) {
+  return (cents / 100).toFixed(2);
+}
+
 export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,22 +57,33 @@ export default function AdminOrdersPage() {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailOrder, setDetailOrder] = useState<OrderApiItem | null>(null);
+  const [stats, setStats] = useState({ paidAmount: 0, paidOrders: 0, pendingOrders: 0 });
 
   const loadData = useCallback(async () => {
     if (!isFirstLoad.current) setRefreshing(true);
     try {
-      const res = await getAdminOrderList({
-        page,
-        size: 10,
-        status: parseInt(statusFilter),
-        keyword,
-        userId: userFilter !== "all" ? Number(userFilter) : undefined,
-      });
-      if (res.code === 0) {
-        setOrders(res.data.list || []);
-        setTotal(res.data.total || 0);
+      const [orderRes, statsRes] = await Promise.all([
+        getAdminOrderList({
+          page,
+          size: 10,
+          status: parseInt(statusFilter),
+          keyword,
+          userId: userFilter !== "all" ? Number(userFilter) : undefined,
+        }),
+        getPaymentStats(),
+      ]);
+      if (orderRes.code === 0) {
+        setOrders(orderRes.data.list || []);
+        setTotal(orderRes.data.total || 0);
       } else {
-        toast.error(res.msg || "获取订单列表失败");
+        toast.error(orderRes.msg || "获取订单列表失败");
+      }
+      if (statsRes.code === 0) {
+        setStats({
+          paidAmount: statsRes.data.paidAmount || 0,
+          paidOrders: statsRes.data.paidOrders || 0,
+          pendingOrders: statsRes.data.pendingOrders || 0,
+        });
       }
     } catch {
       toast.error("获取订单列表失败");
@@ -140,6 +156,65 @@ export default function AdminOrdersPage() {
           onClose={handleCloseSearch}
           onOpen={() => setIsSearchVisible(true)}
         />
+      </div>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
+        <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
+          <CardBody className="p-3 lg:p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-default-500">已收金额</span>
+              <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-500/20">
+                <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C11.398 6.234 16 2.991 10 18zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 000 0z" />
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-xl font-bold text-green-600">{fmtMoney(stats.paidAmount)} 元</p>
+          </CardBody>
+        </Card>
+        <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
+          <CardBody className="p-3 lg:p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-default-500">已支付订单</span>
+              <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-500/20">
+                <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-xl font-bold text-emerald-600">{stats.paidOrders}</p>
+          </CardBody>
+        </Card>
+        <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
+          <CardBody className="p-3 lg:p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-default-500">待支付订单</span>
+              <div className="p-1.5 rounded-lg bg-orange-100 dark:bg-orange-500/20">
+                <svg className="w-4 h-4 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-xl font-bold text-orange-600">{stats.pendingOrders}</p>
+          </CardBody>
+        </Card>
+        <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
+          <CardBody className="p-3 lg:p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-default-500">总订单数</span>
+              <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-500/20">
+                <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                  <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm9.707 5.707a1 1 0 00-1.414-1.414L9 12.586l-1.293-1.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-xl font-bold text-purple-600">{total}</p>
+          </CardBody>
+        </Card>
       </div>
 
       <div className="flex items-center gap-3 mb-4">
