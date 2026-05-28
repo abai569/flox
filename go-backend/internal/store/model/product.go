@@ -2,23 +2,23 @@ package model
 
 // SubscriptionPackage 套餐订阅 — 定义资源配额和关联的隧道分组
 type SubscriptionPackage struct {
-	ID             int64  `gorm:"primaryKey;autoIncrement"`
-	Name           string `gorm:"column:name;type:varchar(100);not null"`
-	Description    string `gorm:"column:description;type:varchar(500);default:''"`
-	Price          int64  `gorm:"column:price;not null;default:0"`             // 分
-	ValidityDays   int    `gorm:"column:validity_days;default:0"`              // 0=永久
-	TrafficLimit   int64  `gorm:"column:traffic_limit;default:0"`              // GB, 0=不限
-	PortCount      int    `gorm:"column:port_count;default:0"`                 // 0=不限
-	SpeedLimit     int    `gorm:"column:speed_limit;default:0"`                // MB/s, 0=不限
-	MaxRules       int    `gorm:"column:max_rules;default:0"`                  // 0=不限
-	MaxConnections int    `gorm:"column:max_connections;default:0"`            // 0=不限
-	MaxIPAccess    int    `gorm:"column:max_ip_access;default:0"`              // 0=不限
-	AutoRenew      int    `gorm:"column:auto_renew;default:0"`                 // 套餐级自动续费开关
-	SortOrder      int    `gorm:"column:sort_order;default:0"`
-	Enabled        int    `gorm:"column:enabled;default:1"`                    // 启用
-	ShopVisible    int    `gorm:"column:shop_visible;default:1"`               // 商店可见
-	CreatedAt      int64  `gorm:"column:created_at;not null"`
-	UpdatedAt      int64  `gorm:"column:updated_at;not null"`
+	ID             int64  `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name           string `gorm:"column:name;type:varchar(100);not null" json:"name"`
+	Description    string `gorm:"column:description;type:varchar(500);default:''" json:"description"`
+	Price          int64  `gorm:"column:price;not null;default:0" json:"price"`             // 分
+	ValidityDays   int    `gorm:"column:validity_days;default:0" json:"validityDays"`       // 0=永久
+	TrafficLimit   int64  `gorm:"column:traffic_limit;default:0" json:"trafficLimit"`       // GB, 0=不限
+	PortCount      int    `gorm:"column:port_count;default:0" json:"portCount"`             // 0=不限
+	SpeedLimit     int    `gorm:"column:speed_limit;default:0" json:"speedLimit"`           // MB/s, 0=不限
+	MaxRules       int    `gorm:"column:max_rules;default:0" json:"maxRules"`               // 0=不限
+	MaxConnections int    `gorm:"column:max_connections;default:0" json:"maxConnections"`   // 0=不限
+	MaxIPAccess    int    `gorm:"column:max_ip_access;default:0" json:"maxIPAccess"`        // 0=不限
+	AutoRenew      int    `gorm:"column:auto_renew;default:0" json:"autoRenew"`             // 套餐级自动续费开关
+	SortOrder      int    `gorm:"column:sort_order;default:0" json:"sortOrder"`
+	Enabled        int    `gorm:"column:enabled;default:1" json:"enabled"`                  // 启用
+	ShopVisible    int    `gorm:"column:shop_visible;default:1" json:"shopVisible"`         // 商店可见
+	CreatedAt      int64  `gorm:"column:created_at;not null" json:"createdAt"`
+	UpdatedAt      int64  `gorm:"column:updated_at;not null" json:"updatedAt"`
 }
 
 func (SubscriptionPackage) TableName() string { return "subscription_package" }
