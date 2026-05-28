@@ -750,41 +750,15 @@ export default function AdminLayout({
           {!isMobile && (
             <Button
               isIconOnly
-              className="flex-shrink-0 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 min-w-0 w-8 h-8 rounded-full ml-auto"
+              className="flex-shrink-0 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300 min-w-0 w-6 h-6 rounded-full ml-auto"
               size="sm"
               variant="flat"
               onPress={toggleCollapse}
             >
               {isCollapsed ? (
-                // 向右扩展的提示
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                </svg>
+                <span className="text-xl text-gray-800">⮞</span>
               ) : (
-                // 向左收起的提示
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                  />
-                </svg>
+                <span className="text-xl text-gray-800">⮜</span>
               )}
             </Button>
           )}

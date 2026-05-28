@@ -54,7 +54,7 @@ export function VersionFooter({
   showUpdateInfo = true,
   containerClassName,
   versionClassName,
-  poweredClassName,
+  //poweredClassName,
   updateBadgeClassName,
 }: VersionFooterProps) {
   const [channel, setChannel] = useState<UpdateReleaseChannel>(
@@ -160,13 +160,13 @@ export function VersionFooter({
       <div className={containerClassName}>
         <p className={versionClassName}>
           {upgrading ? (
-            <span className="animate-pulse inline-flex items-center h-[18px] px-2 rounded text-[10px] font-semibold bg-primary text-primary-foreground">升级中...</span>
+            <span className="animate-pulse inline-flex items-center h-[18px] px-2 rounded dark:text-white text-[10px] font-semibold bg-primary text-primary-foreground">升级中...</span>
           ) : (
             <>
-              v{version}
+              <span className="text-gray-500 dark:text-white">{version}</span>
               {showUpdateInfo && updateAvailable && latestUpdateVersion && (
                 <>
-                  {" → "}
+                  <span className="text-primary-600 dark:text-white">{"⮕"}</span>
                   <span className={updateBadgeClassName} role="status">
                     {latestUpdateVersion}
                   </span>
@@ -174,21 +174,21 @@ export function VersionFooter({
               )}{" "}
               {showUpdateInfo && updateAvailable && (
                 <Button
-                  className="inline-flex h-[16px] px-1.5 text-[9px] min-w-0 rounded-xs font-semibold [&>span]:text-[9px]"
+                  className="inline-flex w-[12px] h-[16px] px-1.5 text-[9px] min-w-0 rounded-xs font-semibold [&>span]:text-[9px]"
                   color="danger"
                   size="sm"
                   onPress={() => setNotificationOpen(true)}
                 >
-                  UP
+                  ⬆
                 </Button>
               )}
             </>
           )}
         </p>
-        <p className={poweredClassName}>
+        <p className="text-[12px] text-gray-500 dark:text-white {poweredClassName}">
           Powered by{" "}
           <a
-            className="text-gray-500 dark:text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="text-[12px] text-gray-500 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
             href={siteConfig.github_repo}
             rel="noopener noreferrer"
             target="_blank"
@@ -221,13 +221,13 @@ export function VersionFooter({
                     <div className="text-default-500 text-left">
                       当前版本：
                       <span className="font-medium text-default-900 dark:text-white">
-                        v{version}
+                        {version}
                       </span>
                     </div>
                     <div className="text-default-500 text-left">
                       最新版本：
                       <span className="font-medium text-green-500 dark:text-green-400">
-                        {latestUpdateVersion ? `v${latestUpdateVersion}` : "-"}
+                        {latestUpdateVersion ? `${latestUpdateVersion}` : "-"}
                       </span>
                     </div>
                   </div>
