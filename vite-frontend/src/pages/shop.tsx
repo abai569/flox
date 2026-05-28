@@ -69,7 +69,7 @@ export default function ShopPage() {
     if (selectedCurrency !== "BALANCE") {
       setSubmitting(true);
       try {
-        const createRes = await createPackageOrder({ packageId: selectedPackage.id, payCurrency: selectedCurrency });
+        const createRes = await createPackageOrder({ package_id: selectedPackage.id, pay_currency: selectedCurrency });
         if (createRes.code !== 0) {
           toast.error(createRes.msg || "下单失败");
           setSubmitting(false);
@@ -92,7 +92,7 @@ export default function ShopPage() {
     } else {
       setSubmitting(true);
       try {
-        const res = await createPackageOrder({ packageId: selectedPackage.id, payCurrency: "BALANCE" });
+        const res = await createPackageOrder({ package_id: selectedPackage.id, pay_currency: "BALANCE" });
         if (res.code === 0) {
           toast.success("购买成功");
           setBuyModalOpen(false);

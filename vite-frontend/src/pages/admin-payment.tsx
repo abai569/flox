@@ -243,7 +243,7 @@ export default function AdminPaymentPage() {
     setTestLoading(true);
     try {
       const currency = testChannel === "BALANCE" ? "BALANCE" : (testChannel === "USDT" ? "USDT" : "YIPAY");
-      const createRes = await createPackageOrder({ packageId: Number(testPackageId), payCurrency: currency });
+      const createRes = await createPackageOrder({ package_id: Number(testPackageId), pay_currency: currency });
       if (createRes.code !== 0) {
         toast.error(createRes.msg || "创建订单失败");
         setTestLoading(false);
@@ -501,7 +501,7 @@ export default function AdminPaymentPage() {
           <div className="flex flex-wrap gap-2 mb-4">
             {[
               { key: "yipay", label: "易支付" },
-              { key: "usdt", label: "USDT" },
+              { key: "usdt", label: "U支付" },
               { key: "test", label: "测试下单" },
             ].map((tab) => (
               <Button key={tab.key} size="sm" variant={paymentTabKey === tab.key ? "solid" : "flat"} color={paymentTabKey === tab.key ? "primary" : "default"} onPress={() => setPaymentTabKey(tab.key)}>

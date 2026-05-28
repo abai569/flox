@@ -994,7 +994,7 @@ export const getPackageDetail = (id: number) =>
     tunnelGroupIds: number[];
   }>("/package/detail", { id });
 
-export const createPackageOrder = (data: { packageId: number; payCurrency: string }) =>
+export const createPackageOrder = (data: { package_id: number; pay_currency: string }) =>
   Network.post<{ orderId: number }>("/package/order/create", data);
 
 export const getStoreStatus = () =>
