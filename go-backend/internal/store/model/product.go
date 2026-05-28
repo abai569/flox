@@ -33,16 +33,16 @@ func (SubscriptionPackageTunnelGroup) TableName() string { return "subscription_
 
 // PackageSubscription 用户订阅记录
 type PackageSubscription struct {
-	ID        int64 `gorm:"primaryKey;autoIncrement"`
-	UserID    int64 `gorm:"column:user_id;not null;index"`
-	PackageID int64 `gorm:"column:package_id;not null"`
-	StartAt   int64 `gorm:"column:start_at;not null"`
-	ExpireAt  int64 `gorm:"column:expire_at;not null"`
-	AutoRenew int   `gorm:"column:auto_renew;default:0"`
-	Status    int   `gorm:"column:status;default:1"` // 1=active, 0=expired, 2=cancelled
-	OrderID   int64 `gorm:"column:order_id"`
-	CreatedAt int64 `gorm:"column:created_at;not null"`
-	UpdatedAt int64 `gorm:"column:updated_at;not null"`
+	ID        int64 `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID    int64 `gorm:"column:user_id;not null;index" json:"userId"`
+	PackageID int64 `gorm:"column:package_id;not null" json:"packageId"`
+	StartAt   int64 `gorm:"column:start_at;not null" json:"startAt"`
+	ExpireAt  int64 `gorm:"column:expire_at;not null" json:"expireAt"`
+	AutoRenew int   `gorm:"column:auto_renew;default:0" json:"autoRenew"`
+	Status    int   `gorm:"column:status;default:1" json:"status"`
+	OrderID   int64 `gorm:"column:order_id" json:"orderId"`
+	CreatedAt int64 `gorm:"column:created_at;not null" json:"createdAt"`
+	UpdatedAt int64 `gorm:"column:updated_at;not null" json:"updatedAt"`
 }
 
 func (PackageSubscription) TableName() string { return "package_subscription" }
