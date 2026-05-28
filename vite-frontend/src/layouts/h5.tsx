@@ -21,7 +21,7 @@ import { Input } from "@/shadcn-bridge/heroui/input";
 import { BrandLogo } from "@/components/brand-logo";
 import { VersionFooter } from "@/components/version-footer";
 import { SunFilledIcon, MoonFilledIcon } from "@/components/icons";
-import { getLicenseInfo, getMonitorAccess, updatePassword } from "@/api";
+import { getLicenseInfo, getMonitorAccess, updatePassword, getStoreStatus } from "@/api";
 import { safeLogout } from "@/utils/logout";
 import { siteConfig } from "@/config/site";
 import { getAdminFlag, getSessionName } from "@/utils/session";
@@ -52,6 +52,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [username, setUsername] = useState("");
+  const [storeEnabled, setStoreEnabled] = useState(true);
   const [monitorAllowed, setMonitorAllowed] = useState<boolean | null>(null);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [licenseInfo, setLicenseInfo] = useState<null | {
@@ -283,6 +284,12 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
     fetchLicense();
     const licenseInterval = setInterval(fetchLicense, 5 * 60 * 1000);
 
+    getStoreStatus().then((res) => {
+      if (res.code === 0 && res.data) {
+        setStoreEnabled(!!res.data.enabled);
+      }
+    });
+
     const adminFlag = getAdminFlag();
 
     if (adminFlag) {
@@ -308,6 +315,11 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
   const hideMobileMenu = () => setMobileMenuVisible(false);
 
   const handleMenuClick = (item: MenuItem) => {
+    if (item.path === "/shop" && !storeEnabled) {
+      toast.error("商城已关闭，仅支持手动分配");
+      hideMobileMenu();
+      return;
+    }
     if (item.target === "_blank") {
       window.open(item.path, "_blank");
     } else {
@@ -646,11 +658,12 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
           <ul className="space-y-1">
             {filteredMenuItems.map((item) => {
               const isActive = location.pathname === item.path;
+              const isStoreBlocked = item.path === "/shop" && !storeEnabled;
 
               return (
                 <li key={item.path}>
                   <button
-                    className={`w-full flex items-center p-1 rounded-lg text-left relative min-h-[20px] overflow-hidden transition-colors ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
+                    className={`w-full flex items-center p-1 rounded-lg text-left relative min-h-[20px] overflow-hidden transition-colors ${isStoreBlocked ? "opacity-40 cursor-not-allowed" : ""} ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : isStoreBlocked ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
                     onClick={() => handleMenuClick(item)}
                   >
                     <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center relative z-10">

@@ -22,7 +22,7 @@ import { Input } from "@/shadcn-bridge/heroui/input";
 import { BrandLogo } from "@/components/brand-logo";
 import { VersionFooter } from "@/components/version-footer";
 import { SunFilledIcon, MoonFilledIcon } from "@/components/icons";
-import { getLicenseInfo, getMonitorAccess, updatePassword } from "@/api";
+import { getLicenseInfo, getMonitorAccess, updatePassword, getStoreStatus } from "@/api";
 import { safeLogout } from "@/utils/logout";
 import { isRestricted } from "@/utils/session";
 import { siteConfig } from "@/config/site";
@@ -85,6 +85,15 @@ export default function AdminLayout({
   const { effectiveMode, setMode } = useThemeContext();
   const isMobile = useMobileBreakpoint();
   const restricted = isRestricted();
+  const [storeEnabled, setStoreEnabled] = useState(true);
+
+  useEffect(() => {
+    getStoreStatus().then((res) => {
+      if (res.code === 0 && res.data) {
+        setStoreEnabled(!!res.data.enabled);
+      }
+    });
+  }, []);
 
   // 免费版横幅关闭状态
   const [isBannerClosed, setIsBannerClosed] = useState(false);
@@ -474,6 +483,10 @@ export default function AdminLayout({
 
   // 菜单点击处理
   const handleMenuClick = (path: string) => {
+    if (!isAdmin && path === "/shop" && !storeEnabled) {
+      toast.error("商城已关闭，仅支持手动分配");
+      return;
+    }
     if (restricted) {
       const item = menuItems.find((m) => m.path === path);
       if (item && !item.restrictedAccessible) {
@@ -650,30 +663,34 @@ export default function AdminLayout({
               const isMonitor = item.path === "/monitor";
               const isMonitorBlocked = isMonitor && monitorAllowed !== true;
               const isRestrictedBlocked = restricted && !item.restrictedAccessible;
+              const isStoreBlocked = !isAdmin && item.path === "/shop" && !storeEnabled;
+              const isBlocked = isMonitorBlocked || isRestrictedBlocked || isStoreBlocked;
 
               return (
                 <li key={item.path}>
                   <motion.button
-                    aria-disabled={isMonitorBlocked || isRestrictedBlocked}
+                    aria-disabled={isBlocked}
                     className={`
                        w-full flex items-center p-1 rounded-lg text-left
                        relative min-h-[20px] overflow-hidden transition-colors
-                       ${isMonitorBlocked || isRestrictedBlocked ? "opacity-40 cursor-not-allowed" : ""}
+                       ${isBlocked ? "opacity-40 cursor-not-allowed" : ""}
                        ${
                          isActive
                            ? "text-primary-600 dark:text-primary-300"
-                           : isMonitorBlocked || isRestrictedBlocked
-                             ? "text-gray-400 dark:text-gray-500"
-                             : "text-gray-700 dark:text-gray-200"
-                       }
-                     `}
+                            : isBlocked
+                              ? "text-gray-400 dark:text-gray-500"
+                              : "text-gray-700 dark:text-gray-200"
+                        }
+                      `}
                     title={
                       isCollapsed
                         ? isMonitorBlocked
                           ? `${item.label} (无权限)`
                           : isRestrictedBlocked
                             ? `${item.label} (请先购买套餐)`
-                            : item.label
+                            : isStoreBlocked
+                              ? `${item.label} (商城已关闭)`
+                              : item.label
                         : undefined
                     }
                     transition={{ duration: 0.15 }}

@@ -337,7 +337,7 @@ func (h *Handler) assignPackageToUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getStoreStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))
 		return
 	}

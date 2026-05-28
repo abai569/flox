@@ -251,17 +251,21 @@ export default function AdminPlansPage() {
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <p className={`text-xl font-bold ${storeEnabled ? "text-green-600" : "text-gray-400"}`}>{storeEnabled ? "已开启" : "已关闭"}</p>
+              <p className={`text-xl font-bold ${storeEnabled ? "text-green-600" : "text-gray-400"}`}>{storeEnabled ? "已开启" : "只能手动分配"}</p>
               <Switch
                 isSelected={storeEnabled}
-                onValueChange={async (enabled: boolean) => {
-                  try {
-                    const res = await setStoreStatus({ enabled });
-                    if (res.code === 0) {
-                      setStoreEnabled(enabled);
-                      toast.success(enabled ? "商城已开启" : "商城已关闭");
-                    } else { toast.error(res.msg || "操作失败"); }
-                  } catch { toast.error("网络错误"); }
+                  onValueChange={async (enabled: boolean) => {
+                    try {
+                      const res = await setStoreStatus({ enabled });
+                      if (res.code === 0) {
+                        setStoreEnabled(enabled);
+                        toast.success(enabled ? "已开启" : "只能手动分配");
+                      } else {
+                        toast.error(res.msg || "操作失败");
+                      }
+                  } catch (e: any) {
+                    toast.error(e?.message || "网络错误");
+                  }
                 }}
                 size="sm"
               />
