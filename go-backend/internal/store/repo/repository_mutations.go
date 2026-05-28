@@ -1404,6 +1404,12 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 		return err
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 0. Create order inside transaction (prevents orphaned orders on failure)
+		order.CreatedAt = time.Now().Unix()
+		order.UpdatedAt = order.CreatedAt
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
 		// 1. Deduct balance atomically (same transaction as delivery)
 		result := tx.Model(&model.User{}).
 			Where("id = ? AND balance >= ?", userID, order.Amount).
@@ -1427,7 +1433,7 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 			BalanceAfter:  user.Balance,
 			Reason:        "余额购买套餐:" + pkg.Name,
 			CreatedTime:   now,
-			Signature:     "0",
+			Signature:     SignBalanceLog(userID, -order.Amount, user.Balance+order.Amount, user.Balance, now, "余额购买套餐:"+pkg.Name),
 		}
 		if err := tx.Create(log).Error; err != nil {
 			return err
@@ -1449,11 +1455,16 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 			return err
 		}
 		// 5. Create new subscription
-		expireAt := time.Now().Unix() + int64(pkg.ValidityDays)*86400
+		var expireAt int64
+		if pkg.ValidityDays == 0 {
+			expireAt = 2727251700000 // 永久：2056-08-28
+		} else {
+			expireAt = time.Now().UnixMilli() + int64(pkg.ValidityDays)*86400000
+		}
 		sub := &model.PackageSubscription{
 			UserID:    userID,
 			PackageID: pkg.ID,
-			StartAt:   time.Now().Unix(),
+			StartAt:   time.Now().UnixMilli(),
 			ExpireAt:  expireAt,
 			AutoRenew: pkg.AutoRenew,
 			Status:    1,
@@ -1558,7 +1569,12 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 			return err
 		}
 		// 2. Create new subscription
-		expireAt := time.Now().UnixMilli() + int64(pkg.ValidityDays)*86400000
+		var expireAt int64
+		if pkg.ValidityDays == 0 {
+			expireAt = 2727251700000 // 永久：2056-08-28
+		} else {
+			expireAt = time.Now().UnixMilli() + int64(pkg.ValidityDays)*86400000
+		}
 		sub := &model.PackageSubscription{
 			UserID:    userID,
 			PackageID: pkg.ID,

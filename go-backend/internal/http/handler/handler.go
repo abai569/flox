@@ -359,6 +359,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/order/admin/list", h.listAllOrders)
 	mux.HandleFunc("/api/v1/order/cancel", h.cancelOrder)
 	mux.HandleFunc("/api/v1/order/status", h.getOrderStatus)
+	mux.HandleFunc("/api/v1/order/admin/delete", h.adminDeleteOrder)
+	mux.HandleFunc("/api/v1/order/admin/update", h.adminUpdateOrder)
 
 	mux.HandleFunc("/api/v1/payment/pay", h.payOrder)
 	mux.HandleFunc("/api/v1/payment/callback/yipay", h.yipayCallback)
@@ -377,6 +379,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/billing/discount/list", h.listDiscountCodes)
 	mux.HandleFunc("/api/v1/billing/discount/delete", h.deleteDiscountCode)
 	mux.HandleFunc("/api/v1/billing/balance-log/list", h.listBalanceLogs)
+	mux.HandleFunc("/api/v1/billing/balance-log/delete", h.adminDeleteBalanceLog)
+	mux.HandleFunc("/api/v1/billing/balance-log/cleanup", h.adminCleanupBalanceLogs)
 	mux.HandleFunc("/api/v1/billing/feature-status", h.getBillingFeatureStatus)
 	mux.HandleFunc("/api/v1/billing/feature-status/save", h.setBillingFeatureStatus)
 

@@ -717,7 +717,9 @@ export const getMonitorNodesPublic = () =>
   Network.getPublic<MonitorNodeApiItem[]>("/monitor/public/nodes");
 
 export const getMonitorNodesPublicMetrics = () =>
-  Network.getPublic<MonitorNodeMetricsApiItem[]>("/monitor/public/nodes/metrics");
+  Network.getPublic<MonitorNodeMetricsApiItem[]>(
+    "/monitor/public/nodes/metrics",
+  );
 
 export const getMonitorAccess = () =>
   Network.get<MonitorAccessApiData>("/monitor/access");
@@ -915,6 +917,18 @@ export const cancelOrder = (id: number) =>
 export const getOrderStatus = (orderId: number) =>
   Network.post("/order/status", { order_id: orderId });
 
+export const deleteOrder = (id: number, force?: boolean) =>
+  Network.post("/order/admin/delete", { id, force });
+
+export const updateOrder = (data: {
+  id: number;
+  status?: number;
+  amount?: number;
+  payTime?: number;
+  payCurrency?: string;
+  productName?: string;
+}) => Network.post("/order/admin/update", data);
+
 export const getPaymentConfigs = () =>
   Network.post<PaymentChannelItem[]>("/payment/config");
 
@@ -975,6 +989,12 @@ export const getBalanceLogs = (data?: {
     size: number;
   }>("/billing/balance-log/list", data || {});
 
+export const deleteBalanceLog = (id: number) =>
+  Network.post("/billing/balance-log/delete", { id });
+
+export const cleanupBalanceLogs = () =>
+  Network.post<{ deleted: number }>("/billing/balance-log/cleanup");
+
 // ─── Subscription Packages ─────────────────────────────────────
 export const getPackageList = () =>
   Network.post<SubscriptionPackageApiItem[]>("/package/list");
@@ -994,8 +1014,10 @@ export const getPackageDetail = (id: number) =>
     tunnelGroupIds: number[];
   }>("/package/detail", { id });
 
-export const createPackageOrder = (data: { package_id: number; pay_currency: string }) =>
-  Network.post<{ orderId: number }>("/package/order/create", data);
+export const createPackageOrder = (data: {
+  package_id: number;
+  pay_currency: string;
+}) => Network.post<{ orderId: number }>("/package/order/create", data);
 
 export const getStoreStatus = () =>
   Network.post<{ enabled: boolean }>("/package/store-status");
@@ -1004,7 +1026,13 @@ export const setStoreStatus = (data: { enabled: boolean }) =>
   Network.post("/package/store-status/save", data);
 
 export const getPaymentStats = () =>
-  Network.post<{ paidAmount: number; paidOrders: number; pendingOrders: number }>("/payment/stats");
+  Network.post<{
+    paidAmount: number;
+    paidOrders: number;
+    pendingOrders: number;
+  }>("/payment/stats");
 
-export const assignPackageToUser = (data: { userId: number; packageId: number }) =>
-  Network.post("/package/assign", data);
+export const assignPackageToUser = (data: {
+  userId: number;
+  packageId: number;
+}) => Network.post("/package/assign", data);

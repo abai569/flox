@@ -256,11 +256,6 @@ func (h *Handler) createPackageOrder(w http.ResponseWriter, r *http.Request) {
 		order.Status = 1
 		order.PayTime = time.Now().Unix()
 
-		if err := h.repo.CreateOrder(order); err != nil {
-			response.WriteJSON(w, response.Err(-2, err.Error()))
-			return
-		}
-
 		if err := h.repo.CompletePackageOrder(userID, userName, order, pkg, tunnelGroupIDs); err != nil {
 			response.WriteJSON(w, response.Err(-2, "套餐交付失败: "+err.Error()))
 			return

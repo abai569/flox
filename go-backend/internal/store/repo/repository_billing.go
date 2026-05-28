@@ -151,6 +151,21 @@ func (r *Repository) ListAllBalanceLogs(userID int64, page, size int) ([]*model.
 	return list, total, nil
 }
 
+func (r *Repository) DeleteBalanceLog(id int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Delete(&model.BalanceLog{}, id).Error
+}
+
+func (r *Repository) CleanupInvalidBalanceLogs() (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, errors.New("repository not initialized")
+	}
+	result := r.db.Where("signature = ? OR signature = ''", "0").Delete(&model.BalanceLog{})
+	return result.RowsAffected, result.Error
+}
+
 // ─── System Setting ──────────────────────────────────────────────────
 
 func (r *Repository) GetSystemSetting(key string) (string, error) {

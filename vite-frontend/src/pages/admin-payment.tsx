@@ -34,6 +34,8 @@ import { PageLoadingState } from "@/components/page-state";
 import Network from "@/api/network";
 import {
   getBalanceLogs,
+  deleteBalanceLog,
+  cleanupBalanceLogs,
   getRedeemCodes,
   createRedeemCodes,
   deleteRedeemCode,
@@ -426,6 +428,30 @@ export default function AdminPaymentPage() {
     } catch {}
   }, []);
 
+  const handleDeleteLog = async (log: BalanceLogItem) => {
+    if (!confirm(`确定删除流水 #${log.id}？`)) return;
+    const res = await deleteBalanceLog(log.id);
+
+    if (res.code === 0) {
+      toast.success("删除成功");
+      loadBillingData();
+    } else {
+      toast.error(res.msg || "删除失败");
+    }
+  };
+
+  const handleCleanupLogs = async () => {
+    if (!confirm("确定清理所有签名无效（signature=0）的流水记录？")) return;
+    const res = await cleanupBalanceLogs();
+
+    if (res.code === 0) {
+      toast.success(`清理完成，删除 ${res.data?.deleted || 0} 条记录`);
+      loadBillingData();
+    } else {
+      toast.error(res.msg || "清理失败");
+    }
+  };
+
   const userOptions = useMemo(() => {
     const opts = users.map((u: UserApiItem) => ({
       id: u.id,
@@ -616,7 +642,7 @@ export default function AdminPaymentPage() {
           { key: "billing", label: "账单流水" },
           { key: "redeem", label: "兑换码" },
           { key: "discount", label: "折扣码" },
-          { key: "payment", label: "支付渠道" },         
+          { key: "payment", label: "支付渠道" },
         ].map((tab) => (
           <Button
             key={tab.key}
@@ -1256,6 +1282,14 @@ export default function AdminPaymentPage() {
                 />
               </svg>
               <h2 className="font-semibold text-foreground">余额流水</h2>
+              <Button
+                color="danger"
+                size="sm"
+                variant="flat"
+                onPress={handleCleanupLogs}
+              >
+                清理脏数据
+              </Button>
             </div>
             <div className="w-44 flex-shrink-0">
               <Select
@@ -1317,13 +1351,14 @@ export default function AdminPaymentPage() {
                 <TableColumn className="whitespace-nowrap">变动后</TableColumn>
                 <TableColumn className="whitespace-nowrap">原因</TableColumn>
                 <TableColumn className="whitespace-nowrap">时间</TableColumn>
+                <TableColumn className="whitespace-nowrap">操作</TableColumn>
               </TableHeader>
               <TableBody>
                 {logs.length === 0 ? (
                   <TableRow>
                     <TableCell
                       className="text-center text-default-400 py-8"
-                      colSpan={6}
+                      colSpan={7}
                     >
                       暂无记录
                     </TableCell>
@@ -1351,6 +1386,16 @@ export default function AdminPaymentPage() {
                       <TableCell>{log.reason}</TableCell>
                       <TableCell className="text-sm text-default-600">
                         {fmtTime(log.createdTime)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          color="danger"
+                          size="sm"
+                          variant="flat"
+                          onPress={() => handleDeleteLog(log)}
+                        >
+                          删除
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))

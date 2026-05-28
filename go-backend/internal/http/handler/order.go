@@ -206,6 +206,85 @@ func (h *Handler) getOrderStatus(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
+func (h *Handler) adminDeleteOrder(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		ID    int64 `json:"id"`
+		Force bool  `json:"force"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if req.ID <= 0 {
+		response.WriteJSON(w, response.ErrDefault("订单ID不能为空"))
+		return
+	}
+	order, err := h.repo.GetOrder(req.ID)
+	if err != nil {
+		response.WriteJSON(w, response.ErrDefault("订单不存在"))
+		return
+	}
+	if order.Status == 1 && !req.Force {
+		response.WriteJSON(w, response.ErrDefault("已完成订单需确认强制删除"))
+		return
+	}
+	if err := h.repo.DeleteOrder(req.ID); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) adminUpdateOrder(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		ID          int64  `json:"id"`
+		Status      *int   `json:"status"`
+		Amount      *int64 `json:"amount"`
+		PayTime     *int64 `json:"payTime"`
+		PayCurrency string `json:"payCurrency"`
+		ProductName string `json:"productName"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if req.ID <= 0 {
+		response.WriteJSON(w, response.ErrDefault("订单ID不能为空"))
+		return
+	}
+	updates := make(map[string]interface{})
+	if req.Status != nil {
+		updates["status"] = *req.Status
+	}
+	if req.Amount != nil {
+		updates["amount"] = *req.Amount
+	}
+	if req.PayTime != nil {
+		updates["pay_time"] = *req.PayTime
+	}
+	if req.PayCurrency != "" {
+		updates["pay_currency"] = req.PayCurrency
+	}
+	if req.ProductName != "" {
+		updates["product_name"] = req.ProductName
+	}
+	if len(updates) == 0 {
+		response.WriteJSON(w, response.ErrDefault("无更新字段"))
+		return
+	}
+	if err := h.repo.UpdateOrder(req.ID, updates); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OKEmpty())
+}
+
 func (h *Handler) userNameFromRequest(r *http.Request) (int64, string) {
 	uid, roleID, err := userRoleFromRequest(r)
 	if err != nil {

@@ -152,3 +152,18 @@ func (r *Repository) BatchCancelOrders(ids []int64) error {
 		Where("id IN ?", ids).
 		Updates(map[string]interface{}{"status": 2, "updated_at": now}).Error
 }
+
+func (r *Repository) DeleteOrder(id int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Delete(&model.Order{}, id).Error
+}
+
+func (r *Repository) UpdateOrder(id int64, updates map[string]interface{}) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	updates["updated_at"] = time.Now().Unix()
+	return r.db.Model(&model.Order{}).Where("id = ?", id).Updates(updates).Error
+}

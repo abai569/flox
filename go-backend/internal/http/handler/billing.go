@@ -188,7 +188,43 @@ func (h *Handler) listBalanceLogs(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
-// ─── Feature Status ──────────────────────────────────────────────────
+func (h *Handler) adminDeleteBalanceLog(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if req.ID <= 0 {
+		response.WriteJSON(w, response.ErrDefault("流水ID不能为空"))
+		return
+	}
+	if err := h.repo.DeleteBalanceLog(req.ID); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) adminCleanupBalanceLogs(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	count, err := h.repo.CleanupInvalidBalanceLogs()
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OK(map[string]interface{}{
+		"deleted": count,
+	}))
+}
+
+// ─── Feature Status ───────────────────────────────────────────────────
 
 func (h *Handler) getBillingFeatureStatus(w http.ResponseWriter, r *http.Request) {
 	redemptionEnabled := 1
