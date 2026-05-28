@@ -62,6 +62,19 @@ func (g *gmpayGateway) sign(params map[string]string, secretKey string) string {
 }
 
 func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error) {
+	if g.config.APIURL == "" {
+		return nil, fmt.Errorf("GMPay 服务器地址未配置，请在支付管理页面填写")
+	}
+	if g.config.PID == "" {
+		return nil, fmt.Errorf("GMPay 商户 PID 未配置，请在支付管理页面填写")
+	}
+	if g.config.SecretKey == "" {
+		return nil, fmt.Errorf("GMPay 密钥未配置，请在支付管理页面填写")
+	}
+	if g.config.NotifyURL == "" {
+		return nil, fmt.Errorf("GMPay 异步通知地址未配置，请在支付管理页面填写")
+	}
+
 	// Convert 分 to 元
 	amountCNY := float64(order.Amount) / 100.0
 	amountStr := fmt.Sprintf("%.2f", amountCNY)
