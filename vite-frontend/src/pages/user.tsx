@@ -1768,8 +1768,8 @@ export default function UserPage() {
                 <Switch
                   title="开启后允许用户自助注册账号"
                   className="data-[state=unchecked]:bg-default-300"
+                  isDisabled={regLoading}
                   isSelected={regOpen}
-                  isLoading={regLoading}
                   size="sm"
                   onValueChange={handleRegToggle}
                 >

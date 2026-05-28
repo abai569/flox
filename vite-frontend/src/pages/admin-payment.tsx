@@ -241,7 +241,7 @@ export default function AdminPaymentPage() {
     setTestLoading(true);
     try {
       const currency = testChannel === "BALANCE" ? "BALANCE" : (testChannel === "USDT" ? "USDT" : "YIPAY");
-      const createRes = await createPackageOrder({ package_id: Number(testPackageId), pay_currency: currency });
+      const createRes = await createPackageOrder({ packageId: Number(testPackageId), payCurrency: currency });
       if (createRes.code !== 0) {
         toast.error(createRes.msg || "创建订单失败");
         setTestLoading(false);

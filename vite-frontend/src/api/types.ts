@@ -788,7 +788,8 @@ export interface SubscriptionPackageApiItem {
   speedLimit: number;
   maxRules: number;
   maxConnections: number;
-  // maxIPAccess: number;
+  maxIPAccess: number;
+  tunnelGroupIds: number[];
   autoRenew: number;
   sortOrder: number;
   enabled: number;

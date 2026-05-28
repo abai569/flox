@@ -16,7 +16,7 @@ import {
   TableRow,
   TableCell,
 } from "@/shadcn-bridge/heroui/table";
-import { Chip } from "@/shadcn-bridge/heroui/chip";
+
 import { Card, CardBody } from "@/shadcn-bridge/heroui/card";
 import {
   Modal,
@@ -330,7 +330,7 @@ export default function AdminPlansPage() {
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {(item.tunnelGroupIds || []).length === 0 && <span className="text-xs text-gray-400">未关联</span>}
-                    {(item.tunnelGroupIds || []).map((gid) => {
+                    {(item.tunnelGroupIds || []).map((gid: number) => {
                       const tg = tunnelGroups.find((g) => g.id === gid);
                       return tg ? (
                         <span key={gid} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">{tg.name}</span>
