@@ -337,9 +337,29 @@ func (h *Handler) disableExpiredForwards(nowMs int64) {
 		// 暂停 Forward 规则
 		if pauseErr := h.pauseForward(forward.ID, "已到期"); pauseErr != nil {
 			log.Printf("ERROR: pauseForward %d failed: %v", forward.ID, pauseErr)
-		} else {
-			log.Printf("Forward %d paused: expired at %v", forward.ID, time.UnixMilli(forward.ExpiryTime.Int64))
+			continue
 		}
+		log.Printf("Forward %d paused: expired at %v", forward.ID, time.UnixMilli(forward.ExpiryTime.Int64))
+
+		// 归零流量 + 记录日志
+		inFlowBefore := forward.InFlow
+		outFlowBefore := forward.OutFlow
+		if resetErr := h.repo.ResetForwardTraffic(forward.ID); resetErr != nil {
+			log.Printf("ERROR: reset forward %d traffic failed: %v", forward.ID, resetErr)
+			continue
+		}
+		_ = h.repo.CreateForwardTrafficResetLog(&repo.ForwardTrafficResetLogCreateParams{
+			ForwardID:     forward.ID,
+			ForwardName:   forward.Name,
+			UserID:        forward.UserID,
+			UserName:      forward.UserName,
+			ResetTime:     nowMs,
+			InFlowBefore:  inFlowBefore,
+			OutFlowBefore: outFlowBefore,
+			OperatorID:    1,
+			OperatorName:  "system",
+			Reason:        "到期归零",
+		})
 	}
 }
 

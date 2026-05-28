@@ -79,6 +79,7 @@ func (h *Handler) forwardBatchResetTraffic(w http.ResponseWriter, r *http.Reques
 			OutFlowBefore: outFlowBefore,
 			OperatorID:    actorUserID,
 			OperatorName:  actorUserName,
+			Reason:        "手动归零",
 		}); err != nil {
 			result.Error = "归零成功但记录日志失败：" + err.Error()
 			results = append(results, result)

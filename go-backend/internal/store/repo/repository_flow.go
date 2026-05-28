@@ -322,6 +322,7 @@ type ForwardTrafficResetLogItem struct {
 	OutFlowBefore int64 `json:"outFlowBefore"`
 	OperatorID   int64  `json:"operatorId"`
 	OperatorName string `json:"operatorName"`
+	Reason       string `json:"reason"`
 	CreatedTime  int64  `json:"createdTime"`
 }
 
@@ -358,6 +359,7 @@ func (r *Repository) GetForwardTrafficResetLogs(forwardID int64, limit int) ([]F
 			OutFlowBefore: log.OutFlowBefore,
 			OperatorID:    log.OperatorID,
 			OperatorName:  log.OperatorName,
+			Reason:        log.Reason,
 			CreatedTime:   log.CreatedTime,
 		})
 	}

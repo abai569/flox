@@ -2859,6 +2859,7 @@ type ForwardTrafficResetLogCreateParams struct {
 	OutFlowBefore int64
 	OperatorID    int64
 	OperatorName  string
+	Reason        string
 }
 
 func (r *Repository) ResetForwardTraffic(id int64) error {
@@ -2892,6 +2893,7 @@ func (r *Repository) CreateForwardTrafficResetLog(params *ForwardTrafficResetLog
 		OutFlowBefore: params.OutFlowBefore,
 		OperatorID:    params.OperatorID,
 		OperatorName:  params.OperatorName,
+		Reason:        params.Reason,
 		CreatedTime:   time.Now().UnixMilli(),
 	}
 

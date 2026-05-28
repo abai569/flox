@@ -917,6 +917,7 @@ type ForwardTrafficResetLog struct {
 	OutFlowBefore int64  `gorm:"column:out_flow_before;not null;default:0"`
 	OperatorID    int64  `gorm:"column:operator_id;not null"`
 	OperatorName  string `gorm:"column:operator_name;type:varchar(100);not null"`
+	Reason        string `gorm:"column:reason;type:varchar(255)"`
 	CreatedTime   int64  `gorm:"column:created_time;not null"`
 }
 

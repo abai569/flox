@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go-backend/internal/store/model"
+	"go-backend/internal/store/repo"
 )
 
 const bytesPerGB int64 = 1024 * 1024 * 1024
@@ -651,6 +652,26 @@ func (h *Handler) enforceForwardTrafficLimit(forwardID int64, inFlow, outFlow in
 		} else {
 			log.Printf("Forward %d paused: traffic limit exceeded (%.2f GB / %.2f GB)",
 				forwardID, float64(totalFlow)/1e9, float64(limitBytes)/1e9)
+
+			// 归零流量 + 记录日志
+			inFlowBefore := forward.InFlow
+			outFlowBefore := forward.OutFlow
+			if resetErr := h.repo.ResetForwardTraffic(forwardID); resetErr != nil {
+				log.Printf("ERROR: reset forward %d traffic failed: %v", forwardID, resetErr)
+			} else {
+				_ = h.repo.CreateForwardTrafficResetLog(&repo.ForwardTrafficResetLogCreateParams{
+					ForwardID:     forwardID,
+					ForwardName:   forward.Name,
+					UserID:        forward.UserID,
+					UserName:      forward.UserName,
+					ResetTime:     time.Now().UnixMilli(),
+					InFlowBefore:  inFlowBefore,
+					OutFlowBefore: outFlowBefore,
+					OperatorID:    1,
+					OperatorName:  "system",
+					Reason:        "流量超限",
+				})
+			}
 		}
 	}
 }

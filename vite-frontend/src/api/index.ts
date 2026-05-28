@@ -399,6 +399,7 @@ export const getForwardTrafficResetLogs = (forwardId: number, limit?: number) =>
       outFlowBefore: number;
       operatorId: number;
       operatorName: string;
+      reason: string;
       createdTime: number;
     }[]
   >("/forward/traffic-reset-logs", { forwardId, limit });
