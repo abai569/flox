@@ -44,7 +44,6 @@ function fmtMoney(cents: number) {
 }
 
 export default function AdminOrdersPage() {
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const isFirstLoad = useRef(true);
   const [orders, setOrders] = useState<OrderApiItem[]>([]);
@@ -97,7 +96,6 @@ export default function AdminOrdersPage() {
     } catch {
       toast.error("获取订单列表失败");
     } finally {
-      setLoading(false);
       setRefreshing(false);
       isFirstLoad.current = false;
     }
@@ -320,15 +318,6 @@ export default function AdminOrdersPage() {
       </div>
 
       <div className="relative overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <svg className="animate-spin h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span className="ml-2 text-sm text-default-500">加载订单中...</span>
-          </div>
-        )}
         {refreshing && (
           <div className="absolute inset-0 bg-white/60 dark:bg-black/40 z-10 flex items-center justify-center">
             <svg className="animate-spin h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24">
@@ -337,7 +326,6 @@ export default function AdminOrdersPage() {
             </svg>
           </div>
         )}
-        {!loading && (
         <Table classNames={{ th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle", td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0", tr: "hover:bg-default-50/50 transition-colors" }}>
           <TableHeader>
             <TableColumn className="whitespace-nowrap">订单号</TableColumn>
@@ -379,7 +367,6 @@ export default function AdminOrdersPage() {
             })}
           </TableBody>
         </Table>
-        )}
       </div>
 
       {total > 10 && (

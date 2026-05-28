@@ -6,7 +6,7 @@ import type {
   UserApiItem,
 } from "@/api/types";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 
 import { AnimatedPage } from "@/components/animated-page";
@@ -156,7 +156,6 @@ const defaultUsdt: UsdtForm = {
 
 export default function AdminPaymentPage() {
   // ── Payment state ──
-  const [paymentLoading, setPaymentLoading] = useState(true);
   const [configs, setConfigs] = useState<PaymentConfig[]>([]);
   const [stats, setStats] = useState<PaymentStats>({
     paidAmount: 0,
@@ -177,10 +176,6 @@ export default function AdminPaymentPage() {
   const panelUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   // ── Billing state ──
-  const [billingLoading, setBillingLoading] = useState(true);
-  const [refreshingLogs, setRefreshingLogs] = useState(false);
-  const billingIsFirstLoad = useRef(true);
-
   const [redemptionEnabled, setRedemptionEnabled] = useState(true);
   const [discountEnabled, setDiscountEnabled] = useState(true);
 
@@ -227,7 +222,6 @@ export default function AdminPaymentPage() {
 
   // ── Payment data loading ──
   const loadPaymentData = useCallback(async () => {
-    setPaymentLoading(true);
     try {
       const [configRes, statsRes, pkgRes] = await Promise.all([
         Network.post<PaymentConfig[]>("/payment/config/admin/list"),
@@ -242,8 +236,6 @@ export default function AdminPaymentPage() {
         setPackages(Array.isArray(pkgRes.data) ? pkgRes.data : []);
     } catch {
       toast.error("加载数据失败");
-    } finally {
-      setPaymentLoading(false);
     }
   }, []);
 
@@ -369,7 +361,6 @@ export default function AdminPaymentPage() {
 
   // ── Billing data loading ──
   const loadBillingData = useCallback(async () => {
-    if (!billingIsFirstLoad.current) setRefreshingLogs(true);
     try {
       const [logRes, redeemRes, discountRes, featureRes, pkgRes] =
         await Promise.all([
@@ -402,20 +393,14 @@ export default function AdminPaymentPage() {
         setPackages(Array.isArray(pkgRes.data) ? pkgRes.data : []);
     } catch {
       toast.error("加载数据失败");
-    } finally {
-      setBillingLoading(false);
-      if (!billingIsFirstLoad.current) setRefreshingLogs(false);
-      billingIsFirstLoad.current = false;
     }
   }, [logPage]);
 
   useEffect(() => {
-    if (billingIsFirstLoad.current) {
-      billingIsFirstLoad.current = false;
+    loadBillingData();
+  }, [loadBillingData]);
 
-      return;
-    }
-    setRefreshingLogs(true);
+  useEffect(() => {
     (async () => {
       const res = await getBalanceLogs({
         page: logPage,
@@ -427,7 +412,6 @@ export default function AdminPaymentPage() {
         setLogs(res.data?.list || []);
         setLogTotal(res.data?.total || 0);
       }
-      setRefreshingLogs(false);
     })();
   }, [logUserId]);
 
@@ -777,16 +761,6 @@ export default function AdminPaymentPage() {
             </Card>
           </div>
 
-          {paymentLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <svg className="animate-spin h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span className="ml-2 text-sm text-default-500">加载支付配置...</span>
-            </div>
-          ) : (
-          <>
           {/* Sub tabs */}
           <div className="flex flex-wrap gap-2 mb-4">
             {[
@@ -1239,8 +1213,6 @@ export default function AdminPaymentPage() {
               </CardBody>
             </Card>
           )}
-          </>
-          )}
         </>
       )}
 
@@ -1364,16 +1336,6 @@ export default function AdminPaymentPage() {
             </div>
           </div>
           <div className="relative overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
-            {(billingLoading || refreshingLogs) && (
-              <div className="flex items-center justify-center py-12">
-                <svg className="animate-spin h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                <span className="ml-2 text-sm text-default-500">加载流水中...</span>
-              </div>
-            )}
-            {!billingLoading && !refreshingLogs && (
             <Table
                 classNames={{
                   th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
@@ -1443,7 +1405,6 @@ export default function AdminPaymentPage() {
                   )}
                 </TableBody>
               </Table>
-              )}
             {logTotal > 50 && (
               <div className="flex items-center justify-between p-4 border-t border-divider">
                 <span className="text-sm text-default-500">
