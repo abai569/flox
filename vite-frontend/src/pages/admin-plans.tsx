@@ -168,13 +168,11 @@ export default function AdminPlansPage() {
     if (!pkgForm.name.trim()) { toast.error("套餐名称不能为空"); return; }
     setPkgSubmitLoading(true);
     try {
-      const priceFen = Math.round(parseFloat(pkgForm.priceYuan || "0") * 100);
       const data = {
-        id: pkgForm.id, name: pkgForm.name, description: pkgForm.description, price: priceFen,
+        name: pkgForm.name, description: pkgForm.description, priceYuan: parseFloat(pkgForm.priceYuan || "0"),
         validityDays: pkgForm.validityDays, trafficLimit: pkgForm.trafficLimit,
-        /* portCount: pkgForm.portCount, */
         speedLimit: pkgForm.speedLimit, maxRules: pkgForm.maxRules, maxConnections: pkgForm.maxConnections,
-        /* maxIPAccess: pkgForm.maxIPAccess, */ autoRenew: pkgForm.autoRenew ? 1 : 0, enabled: pkgForm.enabled ? 1 : 0,
+        autoRenew: pkgForm.autoRenew ? 1 : 0, enabled: pkgForm.enabled ? 1 : 0,
         shopVisible: pkgForm.shopVisible ? 1 : 0, sortOrder: pkgForm.sortOrder, tunnelGroupIds: pkgForm.tunnelGroupIds,
       };
       const res = isPkgEdit ? await updatePackage(data) : await createPackage(data);
