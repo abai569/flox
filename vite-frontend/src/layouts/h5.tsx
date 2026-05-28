@@ -623,7 +623,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
 
       {/* 侧边滑动 Drawer */}
       <aside
-        className={`fixed ${!mobileMenuVisible ? "-translate-x-full" : "translate-x-0"} w-[36%] min-w-[140px] bg-white dark:bg-black shadow-2xl border-r border-gray-200 dark:border-gray-600 z-50 transition-transform duration-300 ease-in-out flex flex-col h-[100dvh] top-0 left-0`}
+        className={`fixed ${!mobileMenuVisible ? "-translate-x-full" : "translate-x-0"} w-[38%] min-w-[140px] bg-white dark:bg-black shadow-2xl border-r border-gray-200 dark:border-gray-600 z-50 transition-transform duration-300 ease-in-out flex flex-col h-[100dvh] top-0 left-0`}
       >
         <div className="px-5 h-14 flex items-center overflow-hidden whitespace-nowrap box-border border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
           {/* 注释掉侧边栏顶部 logo  */}
