@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"net/http"
 	"sort"
 	"strings"
@@ -81,7 +82,7 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 
 	// Convert 分 to 元
 	amountCNY := float64(order.Amount) / 100.0
-	amountStr := fmt.Sprintf("%.2f", amountCNY)
+	amountStr := strconv.FormatFloat(amountCNY, 'g', -1, 64)
 
 	currency := g.config.Currency
 	if currency == "" {
@@ -110,69 +111,61 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 		signParams["redirect_url"] = g.config.ReturnURL
 	}
 
-	retry := 0
-	for {
-		signature := g.sign(signParams, g.config.SecretKey)
+	signature := g.sign(signParams, g.config.SecretKey)
 
-		// Build JSON body with proper types (amount as number)
-		bodyParams := map[string]interface{}{
-			"pid":        g.config.PID,
-			"order_id":   order.OrderNo,
-			"currency":   currency,
-			"token":      token,
-			"network":    network,
-			"amount":     amountCNY,
-			"notify_url": g.config.NotifyURL,
-			"signature":  signature,
-		}
-		if g.config.ReturnURL != "" {
-			bodyParams["redirect_url"] = g.config.ReturnURL
-		}
-
-		body, _ := json.Marshal(bodyParams)
-		endpoint := strings.TrimRight(g.config.APIURL, "/") + "/payments/gmpay/v1/order/create-transaction"
-		req, err := http.NewRequest("POST", endpoint, bytes.NewReader(body))
-		if err != nil {
-			return nil, fmt.Errorf("create gmpay request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("gmpay request: %w", err)
-		}
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("gmpay error status=%d body=%s", resp.StatusCode, string(respBody))
-		}
-
-		var result struct {
-			Code int    `json:"code"`
-			Msg  string `json:"msg"`
-			Data struct {
-				PaymentURL string `json:"payment_url"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(respBody, &result); err != nil {
-			return nil, fmt.Errorf("parse gmpay response: %w, body=%s", err, string(respBody))
-		}
-		if result.Code != 0 {
-			return nil, fmt.Errorf("gmpay returned error: %s", result.Msg)
-		}
-		if result.Data.PaymentURL != "" {
-			return &PaymentResult{
-				PayURL: result.Data.PaymentURL,
-			}, nil
-		}
-
-		// If payment_url is empty but no error, retry once with slight delay
-		if retry >= 1 {
-			return nil, fmt.Errorf("gmpay response missing payment_url: %s", string(respBody))
-		}
-		retry++
+	bodyParams := map[string]interface{}{
+		"pid":        g.config.PID,
+		"order_id":   order.OrderNo,
+		"currency":   currency,
+		"token":      token,
+		"network":    network,
+		"amount":     amountCNY,
+		"notify_url": g.config.NotifyURL,
+		"signature":  signature,
 	}
+	if g.config.ReturnURL != "" {
+		bodyParams["redirect_url"] = g.config.ReturnURL
+	}
+
+	body, _ := json.Marshal(bodyParams)
+	endpoint := strings.TrimRight(g.config.APIURL, "/") + "/payments/gmpay/v1/order/create-transaction"
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create gmpay request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("gmpay request: %w", err)
+	}
+	respBody, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("gmpay error status=%d body=%s", resp.StatusCode, string(respBody))
+	}
+
+	var result struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			PaymentURL string `json:"payment_url"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("parse gmpay response: %w, body=%s", err, string(respBody))
+	}
+	if result.Code != 0 {
+		return nil, fmt.Errorf("gmpay returned error: %s", result.Msg)
+	}
+	if result.Data.PaymentURL == "" {
+		return nil, fmt.Errorf("gmpay response missing payment_url: %s", string(respBody))
+	}
+
+	return &PaymentResult{
+		PayURL: result.Data.PaymentURL,
+	}, nil
 }
 
 func (g *gmpayGateway) VerifyCallback(r *http.Request) (orderNo string, txHash string, err error) {
