@@ -263,6 +263,7 @@ export default function UserPage() {
     buyTrafficAmount: number;
     buyTrafficPrice: number;
     autoBuyTrafficPackageId: number;
+    autoBuyTrafficPackageType: "package" | "custom";
   }>({
     user: "",
     name: "",
@@ -282,6 +283,7 @@ export default function UserPage() {
     buyTrafficAmount: 0,
     buyTrafficPrice: 0,
     autoBuyTrafficPackageId: 0,
+    autoBuyTrafficPackageType: "custom",
   });
   const [userFormLoading, setUserFormLoading] = useState(false);
   const [autoBuyPackages, setAutoBuyPackages] = useState<{ id: number; name: string; trafficLimit: number; price: number; }[]>([]);
@@ -884,6 +886,7 @@ export default function UserPage() {
       buyTrafficAmount: 0,
       buyTrafficPrice: 0,
       autoBuyTrafficPackageId: 0,
+      autoBuyTrafficPackageType: "custom",
     });
     onUserModalOpen();
   };
@@ -998,6 +1001,7 @@ export default function UserPage() {
       buyTrafficAmount: user.buyTrafficAmount ?? 0,
       buyTrafficPrice: user.buyTrafficPrice ?? 0,
       autoBuyTrafficPackageId: user.autoBuyTrafficPackageId ?? 0,
+      autoBuyTrafficPackageType: user.autoBuyTrafficPackageId > 0 ? "package" : "custom",
     });
     onUserModalOpen();
   };
@@ -2765,20 +2769,20 @@ export default function UserPage() {
                   <RadioGroup
                     label="购买方式"
                     orientation="horizontal"
-                    value={userForm.autoBuyTrafficPackageId > 0 ? "package" : "custom"}
+                    value={userForm.autoBuyTrafficPackageType}
                     onValueChange={(value: string) => {
                       if (value === "package") {
                         loadAutoBuyPackages();
-                        setUserForm((prev) => ({ ...prev, autoBuyTrafficPackageId: 0 }));
+                        setUserForm((prev) => ({ ...prev, autoBuyTrafficPackageType: "package", autoBuyTrafficPackageId: 0 }));
                       } else {
-                        setUserForm((prev) => ({ ...prev, autoBuyTrafficPackageId: 0, buyTrafficAmount: 0, buyTrafficPrice: 0 }));
+                        setUserForm((prev) => ({ ...prev, autoBuyTrafficPackageType: "custom", autoBuyTrafficPackageId: 0, buyTrafficAmount: 0, buyTrafficPrice: 0 }));
                       }
                     }}
                   >
                     <Radio value="package">套餐选择</Radio>
                     <Radio value="custom">自定义</Radio>
                   </RadioGroup>
-                  {userForm.autoBuyTrafficPackageId > 0 ? (
+                  {userForm.autoBuyTrafficPackageType === "package" ? (
                     <Select
                       label="自动购流套餐"
                       variant="bordered"

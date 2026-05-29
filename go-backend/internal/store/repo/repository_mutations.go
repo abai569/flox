@@ -1338,6 +1338,7 @@ func (r *Repository) UpdatePackage(pkg *model.SubscriptionPackage, tunnelGroupID
 		"max_connections": pkg.MaxConnections, "max_ip_access": pkg.MaxIPAccess,
 		"auto_renew": pkg.AutoRenew, "sort_order": pkg.SortOrder,
 		"enabled": pkg.Enabled, "shop_visible": pkg.ShopVisible,
+		"auto_buy_traffic_enabled": pkg.AutoBuyTrafficEnabled,
 		"updated_at": pkg.UpdatedAt,
 	}).Error; err != nil {
 		return err
@@ -1503,27 +1504,47 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 				}).Error; err != nil {
 				return err
 			}
-			// 4b. Create new subscription
-			var expireAt int64
-			if pkg.ValidityDays == 0 {
-				expireAt = 2727251700000 // 永久：2056-08-28
-			} else {
-				expireAt = time.Now().UnixMilli() + int64(pkg.ValidityDays)*86400000
+		// 4b. Create new subscription
+		var expireAt int64
+		if pkg.ValidityDays == 0 {
+			expireAt = 2727251700000 // 永久：2056-08-28
+		} else {
+			// 按日历月计算，避免日期漂移（30 天≠1 个月）
+			months := 0
+			switch pkg.ValidityDays {
+			case 7:
+				expireAt = time.Now().AddDate(0, 0, 7).UnixMilli()
+			case 30:
+				months = 1
+			case 90:
+				months = 3
+			case 180:
+				months = 6
+			case 365:
+				months = 12
+			case 730:
+				months = 24
+			default:
+				expireAt = time.Now().AddDate(0, 0, pkg.ValidityDays).UnixMilli()
 			}
-			sub := &model.PackageSubscription{
-				UserID:    userID,
-				PackageID: pkg.ID,
-				StartAt:   time.Now().UnixMilli(),
-				ExpireAt:  expireAt,
-				AutoRenew: pkg.AutoRenew,
-				Status:    1,
-				OrderID:   order.ID,
-				CreatedAt: now,
-				UpdatedAt: now,
+			if months > 0 {
+				expireAt = time.Now().AddDate(0, months, 0).UnixMilli()
 			}
-			if err := tx.Create(sub).Error; err != nil {
-				return err
-			}
+		}
+		sub := &model.PackageSubscription{
+			UserID:    userID,
+			PackageID: pkg.ID,
+			StartAt:   time.Now().UnixMilli(),
+			ExpireAt:  expireAt,
+			AutoRenew: pkg.AutoRenew,
+			Status:    1,
+			OrderID:   order.ID,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if err := tx.Create(sub).Error; err != nil {
+			return err
+		}
 		// 4c. Update user quotas (flow = replace directly; other quotas keep larger values)
 		var existingUser model.User
 		if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
@@ -1548,7 +1569,7 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 			"flow":            newFlow,
 			"num":             newNum,
 			"exp_time":        newExpTime,
-			"flow_reset_time": time.Now().Day(),
+			"flow_reset_time": time.UnixMilli(expireAt).Day(),
 			"renewal_amount":  pkg.Price,
 			"speed_limit":     newSpeedLimit,
 			"max_connections": newMaxConns,
@@ -1611,7 +1632,27 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 		if pkg.ValidityDays == 0 {
 			expireAt = 2727251700000 // 永久：2056-08-28
 		} else {
-			expireAt = time.Now().UnixMilli() + int64(pkg.ValidityDays)*86400000
+			// 按日历月计算，避免日期漂移（30 天≠1 个月）
+			months := 0
+			switch pkg.ValidityDays {
+			case 7:
+				expireAt = time.Now().AddDate(0, 0, 7).UnixMilli()
+			case 30:
+				months = 1
+			case 90:
+				months = 3
+			case 180:
+				months = 6
+			case 365:
+				months = 12
+			case 730:
+				months = 24
+			default:
+				expireAt = time.Now().AddDate(0, 0, pkg.ValidityDays).UnixMilli()
+			}
+			if months > 0 {
+				expireAt = time.Now().AddDate(0, months, 0).UnixMilli()
+			}
 		}
 		sub := &model.PackageSubscription{
 			UserID:    userID,
@@ -1651,7 +1692,7 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 			"flow":            newFlow,
 			"num":             newNum,
 			"exp_time":        newExpTime,
-			"flow_reset_time": time.Now().Day(),
+			"flow_reset_time": time.UnixMilli(expireAt).Day(),
 			"renewal_amount":  pkg.Price,
 			"speed_limit":     newSpeedLimit,
 			"max_connections": newMaxConns,
