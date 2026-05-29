@@ -1496,9 +1496,6 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 		}
 		newFlow := int64(pkg.TrafficLimit)
 		newExpTime := expireAt
-		if existingUser.ExpTime > newExpTime {
-			newExpTime = existingUser.ExpTime
-		}
 		newNum := pkg.MaxRules
 		newSpeedLimit := pkg.SpeedLimit
 		if existingUser.SpeedLimit > newSpeedLimit {
@@ -1512,22 +1509,22 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 		if existingUser.MaxIPAccess > newMaxIP {
 			newMaxIP = existingUser.MaxIPAccess
 		}
-			updates := map[string]interface{}{
-				"flow":            newFlow,
-				"num":             newNum,
-				"exp_time":        newExpTime,
-				"flow_reset_time": expireAt,
-				"renewal_amount":  pkg.Price,
-				"speed_limit":     newSpeedLimit,
-				"max_connections": newMaxConns,
-				"max_ip_access":   newMaxIP,
-				"updated_time":    now,
-			}
-			if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
-				return err
-			}
-			// 4d. Grant tunnel permissions
-			for _, tunnelID := range tunnelIDs {
+		updates := map[string]interface{}{
+			"flow":            newFlow,
+			"num":             newNum,
+			"exp_time":        newExpTime,
+			"flow_reset_time": expireAt,
+			"renewal_amount":  pkg.Price,
+			"speed_limit":     newSpeedLimit,
+			"max_connections": newMaxConns,
+			"max_ip_access":   newMaxIP,
+			"updated_time":    now,
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+			return err
+		}
+		// 4d. Grant tunnel permissions
+		for _, tunnelID := range tunnelIDs {
 				var existing model.UserTunnel
 				err := tx.Select("id").Where("user_id = ? AND tunnel_id = ?", userID, tunnelID).First(&existing).Error
 				if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1595,16 +1592,13 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 		if err := tx.Create(sub).Error; err != nil {
 			return err
 		}
-		// 3. Update user quotas (flow = replace directly; other quotas keep larger values)
+		// 3. Update user quotas (num/expTime replace directly; other quotas keep larger values)
 		var existingUser model.User
 		if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
 			return err
 		}
 		newFlow := int64(pkg.TrafficLimit)
 		newExpTime := expireAt
-		if existingUser.ExpTime > newExpTime {
-			newExpTime = existingUser.ExpTime
-		}
 		newNum := pkg.MaxRules
 		newSpeedLimit := pkg.SpeedLimit
 		if existingUser.SpeedLimit > newSpeedLimit {
