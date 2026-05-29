@@ -378,7 +378,7 @@ export default function DashboardPage() {
 
     if (resetDay > currentDay) {
       daysUntilReset = resetDay - currentDay;
-    } else if (resetDay < currentDay) {
+    } else {
       const nextMonth = new Date(
         now.getFullYear(),
         now.getMonth() + 1,
@@ -387,8 +387,6 @@ export default function DashboardPage() {
       const diffTime = nextMonth.getTime() - now.getTime();
 
       daysUntilReset = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    } else {
-      daysUntilReset = 0;
     }
     if (daysUntilReset === 0) {
       return "今日归零";
