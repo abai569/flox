@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"time"
 
 	"go-backend/internal/http/response"
 	"go-backend/internal/payment"
@@ -72,7 +71,7 @@ func (h *Handler) yipayCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.completePayment(orderNo, txHash)
-	io.WriteString(w, "success")
+	io.WriteString(w, "ok")
 }
 
 func (h *Handler) usdtCallback(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +88,7 @@ func (h *Handler) usdtCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.completePayment(orderNo, txHash)
-	io.WriteString(w, "success")
+	io.WriteString(w, "ok")
 }
 
 func (h *Handler) completePayment(orderNo, txHash string) {
@@ -107,16 +106,6 @@ func (h *Handler) completePayment(orderNo, txHash string) {
 	_ = h.repo.UpdateOrderPaymentInfo(order.ID, "", txHash)
 
 	userID := order.UserID
-	userName := order.UserName
-
-	// Credit balance log for the payment deduction
-	user, _ := h.repo.GetUserByID(userID)
-	if user != nil {
-		reason := order.PayCurrency + "购买"
-		_ = h.repo.CreateBalanceLog(userID, userName, -order.Amount,
-			user.Balance+order.Amount, user.Balance,
-			time.Now().Unix(), reason)
-	}
 
 	// Deliver product
 	switch order.ProductType {
