@@ -456,7 +456,12 @@ export default function ConfigPage() {
     setHasChanges(false);
 
     try {
-      await updateConfigs(payload);
+      const res = await updateConfigs(payload);
+      if (res.code !== 0) {
+        toast.error(res.msg || "保存失败");
+        setConfigs(configs);
+        return;
+      }
       Object.entries(payload).forEach(([k, v]) => {
         configCache.set(k, v);
         localStorage.setItem("vite_config_" + k, v);
