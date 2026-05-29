@@ -930,6 +930,9 @@ export const updateOrder = (data: {
   productName?: string;
 }) => Network.post("/order/admin/update", data);
 
+export const refundOrder = (id: number) =>
+  Network.post("/order/admin/refund", { id });
+
 export const getPaymentConfigs = () =>
   Network.post<PaymentChannelItem[]>("/payment/config");
 
@@ -1037,3 +1040,6 @@ export const assignPackageToUser = (data: {
   userId: number;
   packageId: number;
 }) => Network.post("/package/assign", data);
+
+export const getMySubscription = () =>
+  Network.post<{ subscription: any; package: any }>("/user/my-subscription");

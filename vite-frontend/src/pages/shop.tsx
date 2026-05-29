@@ -12,7 +12,7 @@ import {
   ModalFooter,
 } from "@/shadcn-bridge/heroui/modal";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
-import { getPaymentConfigs, getPackageList, createPackageOrder, payOrder } from "@/api";
+import { getPaymentConfigs, getPackageList, createPackageOrder, payOrder, getMySubscription } from "@/api";
 import type { PaymentChannelItem, SubscriptionPackageApiItem } from "@/api/types";
 import { PageLoadingState } from "@/components/page-state";
 
@@ -24,19 +24,28 @@ export default function ShopPage() {
   const [selectedPackage, setSelectedPackage] = useState<SubscriptionPackageApiItem | null>(null);
   const [selectedCurrency, setSelectedCurrency] = useState("BALANCE");
   const [submitting, setSubmitting] = useState(false);
+  const [activeSub, setActiveSub] = useState<any>(null);
+  const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
+  const [pendingBuyPkg, setPendingBuyPkg] = useState<SubscriptionPackageApiItem | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [payRes, pkgRes] = await Promise.all([
+      const [payRes, pkgRes, subRes] = await Promise.all([
         getPaymentConfigs(),
         getPackageList(),
+        getMySubscription(),
       ]);
       if (payRes.code === 0) {
         setPayChannels(Array.isArray(payRes.data) ? payRes.data : []);
       }
       if (pkgRes.code === 0) {
         setPackages(Array.isArray(pkgRes.data) ? pkgRes.data.filter((p: SubscriptionPackageApiItem) => p.shopVisible === 1 && p.enabled === 1) : []);
+      }
+      if (subRes.code === 0 && subRes.data.subscription) {
+        setActiveSub(subRes.data.subscription);
+      } else {
+        setActiveSub(null);
       }
     } catch {
       toast.error("加载失败");
@@ -48,9 +57,24 @@ export default function ShopPage() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleBuyPackage = (pkg: SubscriptionPackageApiItem) => {
+    if (pkg.type === "subscription" && activeSub) {
+      setPendingBuyPkg(pkg);
+      setConfirmReplaceOpen(true);
+      return;
+    }
     setSelectedPackage(pkg);
     setSelectedCurrency("BALANCE");
     setBuyModalOpen(true);
+  };
+
+  const handleConfirmReplace = () => {
+    setConfirmReplaceOpen(false);
+    if (pendingBuyPkg) {
+      setSelectedPackage(pendingBuyPkg);
+      setSelectedCurrency("BALANCE");
+      setBuyModalOpen(true);
+      setPendingBuyPkg(null);
+    }
   };
 
   const networkLabelMap: Record<string, string> = {
@@ -60,23 +84,23 @@ export default function ShopPage() {
     polygon: "Polygon",
   };
 
-  const availableChannels = [
-    { channel: "BALANCE", label: "余额支付", desc: "使用账户余额" },
-    ...payChannels
-      .filter((c) => c.enabled)
-      .map((c) => {
-        let network = "TRC-20";
-        try {
-          const cfg = JSON.parse(c.config);
-          network = networkLabelMap[cfg.network] || "TRC-20";
-        } catch { /* ignore */ }
-        return {
-          channel: c.channel,
-          label: c.channel === "USDT" ? `USDT (${network})` : "易支付 (支付宝/微信)",
-          desc: c.channel === "USDT" ? "加密货币支付" : "扫码支付",
-        };
-      }),
-  ];
+  const availableChannels = (() => {
+    const isBalanceType = selectedPackage?.type === "balance";
+    const channels: { channel: string; label: string; desc: string }[] = [];
+    if (!isBalanceType) {
+      channels.push({ channel: "BALANCE", label: "余额支付", desc: "使用账户余额" });
+    }
+    payChannels.filter((c) => c.enabled).forEach((c) => {
+      let network = "TRC-20";
+      try { const cfg = JSON.parse(c.config); network = networkLabelMap[cfg.network] || "TRC-20"; } catch { /* ignore */ }
+      channels.push({
+        channel: c.channel,
+        label: c.channel === "USDT" ? `USDT (${network})` : "易支付 (支付宝/微信)",
+        desc: c.channel === "USDT" ? "加密货币支付" : "扫码支付",
+      });
+    });
+    return channels;
+  })();
 
   const handleConfirmBuy = async () => {
     if (!selectedPackage) return;
@@ -142,44 +166,87 @@ export default function ShopPage() {
           <p className="text-sm mt-1">请联系管理员</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {packages.map((pkg) => (
-            <Card key={pkg.id} className="border border-divider shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold">{pkg.name}</h3>
-                    {pkg.description && (
-                      <p className="text-xs text-gray-400 mt-1">{pkg.description}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <span className="text-2xl font-bold font-mono">&yen;{(pkg.price / 100).toFixed(2)}</span>
-                  <span className="text-sm text-gray-400 ml-1">/{pkg.validityDays}天</span>
-                </div>
-              </CardHeader>
-              <CardBody className="pt-0 space-y-2">
-                <div className="flex flex-wrap gap-1">
-                  <Chip size="sm" variant="flat">{formatTraffic(pkg.trafficLimit)}</Chip>
-                  {/* <Chip size="sm" variant="flat">{pkg.portCount > 0 ? `${pkg.portCount} 端口` : "不限端口"}</Chip> */}
-                  <Chip size="sm" variant="flat">{pkg.speedLimit > 0 ? `${pkg.speedLimit} Mbps` : "不限速"}</Chip>
-                </div>
-                <div className="text-xs text-gray-400 space-y-0.5">
-                  <div>规则 {pkg.maxRules || "不限"} &middot; 连接 {pkg.maxConnections || "不限"}{/* &middot; 单IP {pkg.maxIPAccess || "不限"} */}</div>
-                </div>
-                <Button
-                  color="primary"
-                  className="w-full mt-2"
-                  onPress={() => handleBuyPackage(pkg)}
-                >
-                  立即购买
-                </Button>
-              </CardBody>
-            </Card>
-          ))}
-        </div>
+        (() => {
+          const subPkgs = packages.filter(p => p.type === "subscription" || !p.type);
+          const trafficPkgs = packages.filter(p => p.type === "traffic");
+          const balancePkgs = packages.filter(p => p.type === "balance");
+          const sections: { title: string; items: SubscriptionPackageApiItem[] }[] = [];
+          if (subPkgs.length) sections.push({ title: "订阅套餐", items: subPkgs });
+          if (balancePkgs.length) sections.push({ title: "余额充值", items: balancePkgs });
+          if (trafficPkgs.length) sections.push({ title: "流量包", items: trafficPkgs });
+          return sections.map((section) => (
+            <div key={section.title} className="mb-8">
+              <h2 className="text-lg font-semibold mb-3">{section.title}</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {section.items.map((pkg) => (
+                  <Card key={pkg.id} className="border border-divider shadow-sm hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="text-lg font-semibold">{pkg.name}</h3>
+                          {pkg.description && (
+                            <p className="text-xs text-gray-400 mt-1">{pkg.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <span className="text-2xl font-bold font-mono">&yen;{(pkg.price / 100).toFixed(2)}</span>
+                        {pkg.type !== "balance" && <span className="text-sm text-gray-400 ml-1">/{pkg.validityDays}天</span>}
+                      </div>
+                    </CardHeader>
+                    <CardBody className="pt-0 space-y-2">
+                      {pkg.type !== "balance" ? (
+                        <>
+                          <div className="flex flex-wrap gap-1">
+                            <Chip size="sm" variant="flat">{formatTraffic(pkg.trafficLimit)}</Chip>
+                            <Chip size="sm" variant="flat">{pkg.speedLimit > 0 ? `${pkg.speedLimit} Mbps` : "不限速"}</Chip>
+                          </div>
+                          <div className="text-xs text-gray-400 space-y-0.5">
+                            <div>规则 {pkg.maxRules || "不限"} &middot; 连接 {pkg.maxConnections || "不限"}</div>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-400">充值到账户余额</p>
+                      )}
+                      {pkg.type === "subscription" && activeSub && (
+                        <p className="text-xs text-orange-500">已有订阅套餐时新购将替换现有套餐</p>
+                      )}
+                      <Button
+                        color="primary"
+                        className="w-full mt-2"
+                        onPress={() => handleBuyPackage(pkg)}
+                      >
+                        {pkg.type === "balance" ? "立即充值" : "立即购买"}
+                      </Button>
+                    </CardBody>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ));
+        })()
       )}
+
+      <Modal isOpen={confirmReplaceOpen} placement="center" size="sm"
+        onOpenChange={(open) => { if (!open) { setConfirmReplaceOpen(false); setPendingBuyPkg(null); } }}>
+        <ModalContent>
+          <ModalHeader className="text-warning flex items-center gap-1">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            确认购买
+          </ModalHeader>
+          <ModalBody>
+            <p className="text-sm text-default-600">
+              当前已有有效订阅套餐，新购后将替换现有套餐，剩余流量和有效期将作废。确定继续？
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => { setConfirmReplaceOpen(false); setPendingBuyPkg(null); }}>取消</Button>
+            <Button color="warning" onPress={handleConfirmReplace}>确定继续</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <Modal isOpen={buyModalOpen} placement="center"
         onOpenChange={(open) => { if (!open) { setBuyModalOpen(false); } }}>

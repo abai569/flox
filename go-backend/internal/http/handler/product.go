@@ -55,6 +55,7 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
+		Type           string  `json:"type"`
 		Name           string  `json:"name"`
 		Description    string  `json:"description"`
 		PriceYuan      float64 `json:"priceYuan"`
@@ -79,7 +80,11 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("套餐名称不能为空"))
 		return
 	}
+	if req.Type == "" {
+		req.Type = "subscription"
+	}
 	pkg := &model.SubscriptionPackage{
+		Type:           req.Type,
 		Name:           req.Name,
 		Description:    req.Description,
 		Price:          int64(req.PriceYuan * 100),
@@ -108,6 +113,7 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		ID             int64   `json:"id"`
+		Type           string  `json:"type"`
 		Name           string  `json:"name"`
 		Description    string  `json:"description"`
 		PriceYuan      float64 `json:"priceYuan"`
@@ -132,8 +138,12 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("参数错误"))
 		return
 	}
+	if req.Type == "" {
+		req.Type = "subscription"
+	}
 	pkg := &model.SubscriptionPackage{
 		ID:             req.ID,
+		Type:           req.Type,
 		Name:           req.Name,
 		Description:    req.Description,
 		Price:          int64(req.PriceYuan * 100),
@@ -233,6 +243,10 @@ func (h *Handler) createPackageOrder(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("套餐已停用"))
 		return
 	}
+	if pkg.Type == "balance" && currency == "BALANCE" {
+		response.WriteJSON(w, response.ErrDefault("余额类型套餐不能使用余额支付"))
+		return
+	}
 	meta, _ := json.Marshal(pkg)
 	tunnelGroupIDs, err := h.repo.GetPackageTunnelGroupIDs(packageID)
 	if err != nil {
@@ -308,9 +322,22 @@ func (h *Handler) assignPackageToUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		tunnelGroupIDs = nil
 	}
-	if err := h.repo.DeliverPackageToUser(req.UserID, pkg, 0, tunnelGroupIDs); err != nil {
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
+	switch pkg.Type {
+	case "balance":
+		if err := h.repo.DeliverBalancePackageToUser(req.UserID, pkg.Price, pkg.Name, 0); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
+	case "traffic":
+		if err := h.repo.DeliverTrafficPackageToUser(req.UserID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
+	default:
+		if err := h.repo.DeliverPackageToUser(req.UserID, pkg, 0, tunnelGroupIDs); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	response.WriteJSON(w, response.OKEmpty())
 }

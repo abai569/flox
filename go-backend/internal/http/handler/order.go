@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -282,6 +283,75 @@ func (h *Handler) adminUpdateOrder(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) adminRefundOrder(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if req.ID <= 0 {
+		response.WriteJSON(w, response.ErrDefault("订单ID不能为空"))
+		return
+	}
+
+	order, err := h.repo.GetOrder(req.ID)
+	if err != nil {
+		response.WriteJSON(w, response.ErrDefault("订单不存在"))
+		return
+	}
+	if order.Status != 1 {
+		response.WriteJSON(w, response.ErrDefault("只有已完成订单才能退款"))
+		return
+	}
+
+	now := time.Now().Unix()
+	user, err := h.repo.GetUserByID(order.UserID)
+	if err != nil {
+		response.WriteJSON(w, response.ErrDefault("用户不存在"))
+		return
+	}
+
+	if err := h.repo.IncreaseUserBalance(order.UserID, order.Amount); err != nil {
+		response.WriteJSON(w, response.Err(-2, "退款失败"))
+		return
+	}
+
+	_ = h.repo.CreateBalanceLog(order.UserID, order.UserName, order.Amount,
+		user.Balance, user.Balance+order.Amount,
+		now, "订单退款")
+
+	// Reverse delivery by package type
+	if order.ProductType == "package" {
+		var pkg model.SubscriptionPackage
+		if err := json.Unmarshal([]byte(order.ProductMeta), &pkg); err == nil {
+			switch pkg.Type {
+			case "traffic":
+				_ = h.repo.RefundTrafficPackage(order.UserID, pkg.TrafficLimit)
+			case "balance":
+				// already refunded to balance above
+			default: // subscription
+				sub, err := h.repo.GetPackageSubscriptionByOrderID(order.ID)
+				if err == nil && sub.Status == 1 {
+					_ = h.repo.ExpirePackageSubscription(sub.ID)
+					_ = h.repo.ResetUserPackageQuotas(order.UserID)
+				}
+			}
+		}
+	}
+
+	if err := h.repo.UpdateOrderStatus(req.ID, 3); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
 	response.WriteJSON(w, response.OKEmpty())
 }
 

@@ -3,6 +3,7 @@ package model
 // SubscriptionPackage 套餐订阅 — 定义资源配额和关联的隧道分组
 type SubscriptionPackage struct {
 	ID             int64  `gorm:"primaryKey;autoIncrement" json:"id"`
+	Type           string `gorm:"column:type;type:varchar(20);default:'subscription'" json:"type"` // subscription / traffic / balance
 	Name           string `gorm:"column:name;type:varchar(100);not null" json:"name"`
 	Description    string `gorm:"column:description;type:varchar(500);default:''" json:"description"`
 	Price          int64  `gorm:"column:price;not null;default:0" json:"price"`             // 分

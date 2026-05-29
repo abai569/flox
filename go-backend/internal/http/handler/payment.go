@@ -112,8 +112,15 @@ func (h *Handler) completePayment(orderNo, txHash string) {
 	case "package":
 		var pkg model.SubscriptionPackage
 		if err := json.Unmarshal([]byte(order.ProductMeta), &pkg); err == nil {
-			groupIDs, _ := h.repo.GetPackageTunnelGroupIDs(pkg.ID)
-			_ = h.repo.DeliverPackageToUser(userID, &pkg, order.ID, groupIDs)
+			switch pkg.Type {
+			case "balance":
+				_ = h.repo.DeliverBalancePackageToUser(userID, pkg.Price, pkg.Name, order.ID)
+			case "traffic":
+				_ = h.repo.DeliverTrafficPackageToUser(userID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit)
+			default:
+				groupIDs, _ := h.repo.GetPackageTunnelGroupIDs(pkg.ID)
+				_ = h.repo.DeliverPackageToUser(userID, &pkg, order.ID, groupIDs)
+			}
 		}
 	default:
 		log.Printf("completePayment: unknown product type %q for order %s, skipping delivery", order.ProductType, order.OrderNo)

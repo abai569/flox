@@ -781,6 +781,7 @@ export interface BalanceLogItem {
 
 export interface SubscriptionPackageApiItem {
   id: number;
+  type: string;
   name: string;
   description: string;
   price: number;

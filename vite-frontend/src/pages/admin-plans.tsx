@@ -44,8 +44,19 @@ import type {
 } from "@/api/types";
 import { PageLoadingState } from "@/components/page-state";
 
+const typeOptions = [
+  { value: "subscription", label: "订阅套餐" },
+  { value: "traffic", label: "流量包" },
+  { value: "balance", label: "余额充值" },
+];
+
+function typeLabel(t: string): string {
+  return typeOptions.find((o) => o.value === t)?.label || t;
+}
+
 interface PackageForm {
   id?: number;
+  type: string;
   name: string;
   description: string;
   priceYuan: string;
@@ -64,6 +75,7 @@ interface PackageForm {
 }
 
 const defaultPackageForm: PackageForm = {
+  type: "subscription",
   name: "",
   description: "",
   priceYuan: "0",
@@ -152,7 +164,7 @@ export default function AdminPlansPage() {
       if (res.code === 0) {
         const p = res.data.package;
         setPkgForm({
-          id: p.id, name: p.name, description: p.description || "",
+          id: p.id, type: p.type || "subscription", name: p.name, description: p.description || "",
           priceYuan: (p.price / 100).toFixed(2), validityDays: p.validityDays,
           trafficLimit: p.trafficLimit, /* portCount: p.portCount, */ speedLimit: p.speedLimit,
           maxRules: p.maxRules, maxConnections: p.maxConnections, /* maxIPAccess: p.maxIPAccess, */
@@ -169,7 +181,7 @@ export default function AdminPlansPage() {
     setPkgSubmitLoading(true);
     try {
       const data: Record<string, unknown> = {
-        name: pkgForm.name, description: pkgForm.description, priceYuan: parseFloat(pkgForm.priceYuan || "0"),
+        type: pkgForm.type, name: pkgForm.name, description: pkgForm.description, priceYuan: parseFloat(pkgForm.priceYuan || "0"),
         validityDays: pkgForm.validityDays, trafficLimit: pkgForm.trafficLimit,
         speedLimit: pkgForm.speedLimit, maxRules: pkgForm.maxRules, maxConnections: pkgForm.maxConnections,
         autoRenew: pkgForm.autoRenew ? 1 : 0, enabled: pkgForm.enabled ? 1 : 0,
@@ -311,6 +323,7 @@ export default function AdminPlansPage() {
         <Table classNames={{ th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-2 uppercase tracking-wider text-left align-middle", td: "py-2 border-b border-divider/50 group-data-[last=true]:border-b-0 text-sm", tr: "hover:bg-default-50/50 transition-colors" }} className="min-w-[640px]">
           <TableHeader>
             <TableColumn className="whitespace-nowrap min-w-[120px]">名称</TableColumn>
+            <TableColumn className="whitespace-nowrap min-w-[80px]">类型</TableColumn>
             <TableColumn className="whitespace-nowrap min-w-[140px]">价格</TableColumn>
             <TableColumn className="whitespace-nowrap min-w-[100px]">隧道组</TableColumn>
             <TableColumn className="whitespace-nowrap min-w-[200px]">限制</TableColumn>
@@ -325,7 +338,10 @@ export default function AdminPlansPage() {
                   {item.description && <div className="text-xs text-gray-400 truncate max-w-48">{item.description}</div>}
                 </TableCell>
                 <TableCell>
-                  <div className="text-sm whitespace-nowrap">¥{(item.price / 100).toFixed(2)} / {durationLabel(item.validityDays)}</div>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300">{typeLabel(item.type)}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm whitespace-nowrap">{item.type === "balance" ? `¥${(item.price / 100).toFixed(2)}` : `¥${(item.price / 100).toFixed(2)} / ${durationLabel(item.validityDays)}`}</div>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
@@ -362,7 +378,7 @@ export default function AdminPlansPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {pkgList.length === 0 && <TableRow><TableCell colSpan={6} className="py-10 text-center text-gray-400">还没有套餐</TableCell></TableRow>}
+            {pkgList.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-gray-400">还没有套餐</TableCell></TableRow>}
           </TableBody>
         </Table>
       </div>
@@ -372,51 +388,63 @@ export default function AdminPlansPage() {
           <ModalHeader>{isPkgEdit ? "编辑套餐" : "新增套餐"}</ModalHeader>
           {pkgModalLoading ? <ModalBody><PageLoadingState message="加载套餐详情..." /></ModalBody> : (
             <ModalBody className="space-y-4">
+              <Select label="类型" variant="bordered" selectedKeys={[pkgForm.type]} onSelectionChange={(keys) => { const val = Array.from(keys)[0] as string; if (val) setPkgForm((p) => ({ ...p, type: val })); }}>
+                {typeOptions.map((o) => <SelectItem key={o.value}>{o.label}</SelectItem>)}
+              </Select>
               <div className="grid grid-cols-2 gap-4">
-                <Input label="套餐名称" value={pkgForm.name} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, name: e.target.value }))} />
-                <Input label="价格 (元)" type="number" step="0.01" min="0" value={pkgForm.priceYuan} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, priceYuan: e.target.value }))} />
+                <Input label={pkgForm.type === "balance" ? "充值金额 (元)" : "套餐名称"} value={pkgForm.name} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, name: e.target.value }))} />
+                <Input label={pkgForm.type === "balance" ? "充值金额 (元)" : "价格 (元)"} type="number" step="0.01" min="0" value={pkgForm.priceYuan} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, priceYuan: e.target.value }))} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Select label="有效期" variant="bordered" selectedKeys={[String(pkgForm.validityDays)]} onSelectionChange={(keys) => { const val = Array.from(keys)[0] as string; if (val) setPkgForm((p) => ({ ...p, validityDays: parseInt(val) || 30 })); }}>
-                  {durationOptions.map((d) => <SelectItem key={String(d.value)}>{d.label}</SelectItem>)}
-                </Select>
-                <Input label="排序" type="number" min="0" value={String(pkgForm.sortOrder)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="总流量 (GB, 0=不限)" type="number" min="0" value={String(pkgForm.trafficLimit)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, trafficLimit: parseInt(e.target.value) || 0 }))} />
-                <Input label="最大规则数 (0=不限)" type="number" min="0" value={String(pkgForm.maxRules)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, maxRules: parseInt(e.target.value) || 0 }))} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input label="限速 (Mbps, 0=不限)" type="number" min="0" value={String(pkgForm.speedLimit)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, speedLimit: parseInt(e.target.value) || 0 }))} />
-                <Input label="最大连接数 (0=不限)" type="number" min="0" value={String(pkgForm.maxConnections)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, maxConnections: parseInt(e.target.value) || 0 }))} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                {/* <Input label="连续端口数 (0=不限)" type="number" min="0" value={String(pkgForm.portCount)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, portCount: parseInt(e.target.value) || 0 }))} /> */}
-                {/* <Input label="单 IP 接入限制 (0=不限)" type="number" min="0" value={String(pkgForm.maxIPAccess)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, maxIPAccess: parseInt(e.target.value) || 0 }))} /> */}
-              </div>
-              <div className="flex flex-wrap gap-6">
-                <div className="flex flex-col gap-1">
-                  <Switch isSelected={pkgForm.enabled} onValueChange={(v) => setPkgForm((p) => ({ ...p, enabled: v }))}>启用套餐</Switch>
-                  <span className="text-xs text-gray-400">启用套餐</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Switch isSelected={pkgForm.shopVisible} onValueChange={(v) => setPkgForm((p) => ({ ...p, shopVisible: v }))}>商店可见</Switch>
-                  <span className="text-xs text-gray-400">商店售卖</span>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Switch isSelected={pkgForm.autoRenew} onValueChange={(v) => setPkgForm((p) => ({ ...p, autoRenew: v }))}>自动续费</Switch>
-                  <span className="text-xs text-gray-400">自动续费</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm text-foreground">关联隧道分组</label>
-                <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto border border-divider rounded-lg p-3">
-                  {tunnelGroups.length === 0 && <span className="text-xs text-gray-400 col-span-full">暂无隧道分组</span>}
-                  {tunnelGroups.map((tg) => (
-                    <Checkbox key={tg.id} isSelected={pkgForm.tunnelGroupIds.includes(tg.id)} onValueChange={() => toggleTunnelGroup(tg.id)}>{tg.name}</Checkbox>
-                  ))}
-                </div>
-              </div>
+              {pkgForm.type !== "balance" && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Select label="有效期" variant="bordered" selectedKeys={[String(pkgForm.validityDays)]} onSelectionChange={(keys) => { const val = Array.from(keys)[0] as string; if (val) setPkgForm((p) => ({ ...p, validityDays: parseInt(val) || 30 })); }}>
+                      {durationOptions.map((d) => <SelectItem key={String(d.value)}>{d.label}</SelectItem>)}
+                    </Select>
+                    <Input label="排序" type="number" min="0" value={String(pkgForm.sortOrder)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))} />
+                  </div>
+                  {pkgForm.type === "traffic" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label="流量 (GB)" type="number" min="0" value={String(pkgForm.trafficLimit)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, trafficLimit: parseInt(e.target.value) || 0 }))} />
+                    </div>
+                  )}
+                  {pkgForm.type === "subscription" && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input label="总流量 (GB, 0=不限)" type="number" min="0" value={String(pkgForm.trafficLimit)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, trafficLimit: parseInt(e.target.value) || 0 }))} />
+                        <Input label="最大规则数 (0=不限)" type="number" min="0" value={String(pkgForm.maxRules)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, maxRules: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input label="限速 (Mbps, 0=不限)" type="number" min="0" value={String(pkgForm.speedLimit)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, speedLimit: parseInt(e.target.value) || 0 }))} />
+                        <Input label="最大连接数 (0=不限)" type="number" min="0" value={String(pkgForm.maxConnections)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, maxConnections: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                      <div className="flex flex-wrap gap-6">
+                        <div className="flex flex-col gap-1">
+                          <Switch isSelected={pkgForm.enabled} onValueChange={(v) => setPkgForm((p) => ({ ...p, enabled: v }))}>启用套餐</Switch>
+                          <span className="text-xs text-gray-400">启用套餐</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Switch isSelected={pkgForm.shopVisible} onValueChange={(v) => setPkgForm((p) => ({ ...p, shopVisible: v }))}>商店可见</Switch>
+                          <span className="text-xs text-gray-400">商店售卖</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <Switch isSelected={pkgForm.autoRenew} onValueChange={(v) => setPkgForm((p) => ({ ...p, autoRenew: v }))}>自动续费</Switch>
+                          <span className="text-xs text-gray-400">自动续费</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm text-foreground">关联隧道分组</label>
+                        <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto border border-divider rounded-lg p-3">
+                          {tunnelGroups.length === 0 && <span className="text-xs text-gray-400 col-span-full">暂无隧道分组</span>}
+                          {tunnelGroups.map((tg) => (
+                            <Checkbox key={tg.id} isSelected={pkgForm.tunnelGroupIds.includes(tg.id)} onValueChange={() => toggleTunnelGroup(tg.id)}>{tg.name}</Checkbox>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
               <div className="space-y-1">
                 <label className="text-sm text-foreground">说明</label>
                 <Textarea value={pkgForm.description} variant="bordered" className="w-full min-h-10" onChange={(e) => setPkgForm((p) => ({ ...p, description: e.target.value }))} />

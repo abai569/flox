@@ -23,7 +23,7 @@ import {
 } from "@/shadcn-bridge/heroui/modal";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
-import { getAdminOrderList, getAllUsers, getPaymentStats, deleteOrder, updateOrder } from "@/api";
+import { getAdminOrderList, getAllUsers, getPaymentStats, deleteOrder, updateOrder, refundOrder } from "@/api";
 import type { OrderApiItem, UserApiItem } from "@/api/types";
 
 const statusMap: Record<number, { label: string; color: "warning" | "success" | "default" | "danger" }> = {
@@ -65,6 +65,8 @@ export default function AdminOrdersPage() {
   const [editForm, setEditForm] = useState({ status: "", amount: "", productName: "", payCurrency: "" });
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<OrderApiItem | null>(null);
+  const [refundConfirmOpen, setRefundConfirmOpen] = useState(false);
+  const [refundTarget, setRefundTarget] = useState<OrderApiItem | null>(null);
   const [stats, setStats] = useState({ paidAmount: 0, paidOrders: 0, pendingOrders: 0 });
 
   const loadData = useCallback(async () => {
@@ -156,6 +158,25 @@ export default function AdminOrdersPage() {
   const handleDeleteOrder = (order: OrderApiItem) => {
     setDeleteTarget(order);
     setDeleteConfirmOpen(true);
+  };
+
+  const handleRefundOrder = (order: OrderApiItem) => {
+    setRefundTarget(order);
+    setRefundConfirmOpen(true);
+  };
+
+  const handleConfirmRefund = async () => {
+    if (!refundTarget) return;
+    const order = refundTarget;
+    setRefundConfirmOpen(false);
+    setRefundTarget(null);
+    const res = await refundOrder(order.id);
+    if (res.code === 0) {
+      toast.success("退款成功");
+      loadData();
+    } else {
+      toast.error(res.msg || "退款失败");
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -359,6 +380,9 @@ export default function AdminOrdersPage() {
                     <div className="flex gap-1">
                       <Button color="primary" size="sm" variant="flat" onPress={() => handleViewDetail(order)}>详情</Button>
                       <Button color="warning" size="sm" variant="flat" onPress={() => handleOpenEdit(order)}>编辑</Button>
+                      {order.status === 1 && (
+                        <Button color="secondary" size="sm" variant="flat" onPress={() => handleRefundOrder(order)}>退款</Button>
+                      )}
                       <Button color="danger" size="sm" variant="flat" onPress={() => handleDeleteOrder(order)}>删除</Button>
                     </div>
                   </TableCell>
@@ -448,6 +472,36 @@ export default function AdminOrdersPage() {
           <ModalFooter>
             <Button variant="flat" onPress={() => { setEditModalOpen(false); setEditOrder(null); }}>取消</Button>
             <Button color="primary" onPress={handleSaveEdit}>保存</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={refundConfirmOpen} placement="center" size="sm"
+        onOpenChange={(open) => { if (!open) { setRefundConfirmOpen(false); setRefundTarget(null); } }}>
+        <ModalContent>
+          <ModalHeader className="text-warning flex items-center gap-1">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            确认退款
+          </ModalHeader>
+          <ModalBody>
+            <div className="text-sm text-default-600 space-y-2">
+              <p>退款金额将退回到用户余额。</p>
+              {refundTarget && (
+                <p className="text-xs text-default-400">
+                  订单号: {refundTarget.orderNo} | 用户: {refundTarget.userName} | 金额: {(refundTarget.amount / 100).toFixed(2)} 元
+                </p>
+              )}
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => { setRefundConfirmOpen(false); setRefundTarget(null); }}>
+              取消
+            </Button>
+            <Button color="warning" onPress={handleConfirmRefund}>
+              确认退款
+            </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

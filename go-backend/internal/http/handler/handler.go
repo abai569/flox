@@ -361,6 +361,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/order/status", h.getOrderStatus)
 	mux.HandleFunc("/api/v1/order/admin/delete", h.adminDeleteOrder)
 	mux.HandleFunc("/api/v1/order/admin/update", h.adminUpdateOrder)
+	mux.HandleFunc("/api/v1/order/admin/refund", h.adminRefundOrder)
 
 	mux.HandleFunc("/api/v1/payment/pay", h.payOrder)
 	mux.HandleFunc("/api/v1/payment/callback/yipay", h.yipayCallback)

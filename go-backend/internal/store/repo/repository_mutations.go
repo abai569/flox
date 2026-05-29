@@ -1296,7 +1296,7 @@ func (r *Repository) UpdatePackage(pkg *model.SubscriptionPackage, tunnelGroupID
 	}
 	defer tx.Rollback()
 	if err := tx.Model(pkg).Updates(map[string]interface{}{
-		"name": pkg.Name, "description": pkg.Description,
+		"type": pkg.Type, "name": pkg.Name, "description": pkg.Description,
 		"price": pkg.Price, "validity_days": pkg.ValidityDays,
 		"traffic_limit": pkg.TrafficLimit, "port_count": pkg.PortCount,
 		"speed_limit": pkg.SpeedLimit, "max_rules": pkg.MaxRules,
@@ -1445,95 +1445,109 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 		}).Error; err != nil {
 			return err
 		}
-		// 4. Deactivate old active subscriptions
-		if err := tx.Model(&model.PackageSubscription{}).
-			Where("user_id = ? AND status = 1", userID).
-			Updates(map[string]interface{}{
-				"status":     0,
-				"updated_at": now,
-			}).Error; err != nil {
-			return err
-		}
-		// 5. Create new subscription
-		var expireAt int64
-		if pkg.ValidityDays == 0 {
-			expireAt = 2727251700000 // 永久：2056-08-28
-		} else {
-			expireAt = time.Now().UnixMilli() + int64(pkg.ValidityDays)*86400000
-		}
-		sub := &model.PackageSubscription{
-			UserID:    userID,
-			PackageID: pkg.ID,
-			StartAt:   time.Now().UnixMilli(),
-			ExpireAt:  expireAt,
-			AutoRenew: pkg.AutoRenew,
-			Status:    1,
-			OrderID:   order.ID,
-			CreatedAt: now,
-			UpdatedAt: now,
-		}
-		if err := tx.Create(sub).Error; err != nil {
-			return err
-		}
-		// 6. Update user quotas (merge with existing, keep larger values)
-		var existingUser model.User
-		if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
-			return err
-		}
-		newFlow := int64(pkg.TrafficLimit)
-		if existingUser.Flow > newFlow {
-			newFlow = existingUser.Flow
-		}
-		newExpTime := expireAt
-		if existingUser.ExpTime > newExpTime {
-			newExpTime = existingUser.ExpTime
-		}
-		newNum := pkg.MaxRules
-		if existingUser.Num > newNum {
-			newNum = existingUser.Num
-		}
-		newSpeedLimit := pkg.SpeedLimit
-		if existingUser.SpeedLimit > newSpeedLimit {
-			newSpeedLimit = existingUser.SpeedLimit
-		}
-		newMaxConns := pkg.MaxConnections
-		if existingUser.MaxConnections > newMaxConns {
-			newMaxConns = existingUser.MaxConnections
-		}
-		newMaxIP := pkg.MaxIPAccess
-		if existingUser.MaxIPAccess > newMaxIP {
-			newMaxIP = existingUser.MaxIPAccess
-		}
-		updates := map[string]interface{}{
-			"flow":            newFlow,
-			"num":             newNum,
-			"exp_time":        newExpTime,
-			"speed_limit":     newSpeedLimit,
-			"max_connections": newMaxConns,
-			"max_ip_access":   newMaxIP,
-			"updated_time":    now,
-		}
-		if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
-			return err
-		}
-		// 7. Grant tunnel permissions
-		for _, tunnelID := range tunnelIDs {
-			var existing model.UserTunnel
-			err := tx.Select("id").Where("user_id = ? AND tunnel_id = ?", userID, tunnelID).First(&existing).Error
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				ut := model.UserTunnel{
-					UserID:   userID,
-					TunnelID: tunnelID,
-					Num:      pkg.PortCount,
-					Flow:     int64(pkg.TrafficLimit),
-					ExpTime:  expireAt,
-					Status:   1,
-				}
-				if err := tx.Create(&ut).Error; err != nil {
+		// 4. Deliver product by type
+		switch pkg.Type {
+		case "traffic":
+			if err := tx.Model(&model.User{}).
+				Where("id = ?", userID).
+				Updates(map[string]interface{}{
+					"flow":              gorm.Expr("flow + ?", pkg.TrafficLimit),
+					"buy_traffic_price":  pkg.Price,
+					"buy_traffic_amount": pkg.TrafficLimit,
+					"updated_time":      now,
+				}).Error; err != nil {
+				return err
+			}
+		default: // subscription
+			// 4a. Deactivate old active subscriptions
+			if err := tx.Model(&model.PackageSubscription{}).
+				Where("user_id = ? AND status = 1", userID).
+				Updates(map[string]interface{}{
+					"status":     0,
+					"updated_at": now,
+				}).Error; err != nil {
+				return err
+			}
+			// 4b. Create new subscription
+			var expireAt int64
+			if pkg.ValidityDays == 0 {
+				expireAt = 2727251700000 // 永久：2056-08-28
+			} else {
+				expireAt = time.Now().UnixMilli() + int64(pkg.ValidityDays)*86400000
+			}
+			sub := &model.PackageSubscription{
+				UserID:    userID,
+				PackageID: pkg.ID,
+				StartAt:   time.Now().UnixMilli(),
+				ExpireAt:  expireAt,
+				AutoRenew: pkg.AutoRenew,
+				Status:    1,
+				OrderID:   order.ID,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if err := tx.Create(sub).Error; err != nil {
+				return err
+			}
+			// 4c. Update user quotas (flow = replace; other quotas keep larger values)
+			var existingUser model.User
+			if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
+				return err
+			}
+			newFlow := int64(pkg.TrafficLimit)
+			newExpTime := expireAt
+			if existingUser.ExpTime > newExpTime {
+				newExpTime = existingUser.ExpTime
+			}
+			newNum := pkg.MaxRules
+			if existingUser.Num > newNum {
+				newNum = existingUser.Num
+			}
+			newSpeedLimit := pkg.SpeedLimit
+			if existingUser.SpeedLimit > newSpeedLimit {
+				newSpeedLimit = existingUser.SpeedLimit
+			}
+			newMaxConns := pkg.MaxConnections
+			if existingUser.MaxConnections > newMaxConns {
+				newMaxConns = existingUser.MaxConnections
+			}
+			newMaxIP := pkg.MaxIPAccess
+			if existingUser.MaxIPAccess > newMaxIP {
+				newMaxIP = existingUser.MaxIPAccess
+			}
+			updates := map[string]interface{}{
+				"flow":            newFlow,
+				"num":             newNum,
+				"exp_time":        newExpTime,
+				"flow_reset_time": expireAt,
+				"renewal_amount":  pkg.Price,
+				"speed_limit":     newSpeedLimit,
+				"max_connections": newMaxConns,
+				"max_ip_access":   newMaxIP,
+				"updated_time":    now,
+			}
+			if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+				return err
+			}
+			// 4d. Grant tunnel permissions
+			for _, tunnelID := range tunnelIDs {
+				var existing model.UserTunnel
+				err := tx.Select("id").Where("user_id = ? AND tunnel_id = ?", userID, tunnelID).First(&existing).Error
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					ut := model.UserTunnel{
+						UserID:   userID,
+						TunnelID: tunnelID,
+						Num:      pkg.PortCount,
+						Flow:     int64(pkg.TrafficLimit),
+						ExpTime:  expireAt,
+						Status:   1,
+					}
+					if err := tx.Create(&ut).Error; err != nil {
+						return err
+					}
+				} else if err != nil {
 					return err
 				}
-			} else if err != nil {
-				return err
 			}
 		}
 		return nil
@@ -1584,15 +1598,12 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 		if err := tx.Create(sub).Error; err != nil {
 			return err
 		}
-		// 3. Update user quotas (merge with existing, keep larger values to prevent data loss)
+		// 3. Update user quotas (flow = replace; other quotas keep larger values)
 		var existingUser model.User
 		if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
 			return err
 		}
 		newFlow := int64(pkg.TrafficLimit)
-		if existingUser.Flow > newFlow {
-			newFlow = existingUser.Flow
-		}
 		newExpTime := expireAt
 		if existingUser.ExpTime > newExpTime {
 			newExpTime = existingUser.ExpTime
@@ -1617,6 +1628,8 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 			"flow":            newFlow,
 			"num":             newNum,
 			"exp_time":        newExpTime,
+			"flow_reset_time": expireAt,
+			"renewal_amount":  pkg.Price,
 			"speed_limit":     newSpeedLimit,
 			"max_connections": newMaxConns,
 			"max_ip_access":   newMaxIP,
@@ -1647,6 +1660,61 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 		}
 		return nil
 	})
+}
+
+// DeliverBalancePackageToUser applies a balance package: adds balance to user.
+func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64, pkgName string, orderID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	now := time.Now().UnixMilli()
+	user, err := r.GetUserByID(userID)
+	if err != nil {
+		return err
+	}
+	if err := r.IncreaseUserBalance(userID, amountCents); err != nil {
+		return err
+	}
+	return r.CreateBalanceLog(userID, user.User, amountCents,
+		user.Balance, user.Balance+amountCents,
+		now, "余额充值:"+pkgName)
+}
+
+// DeliverTrafficPackageToUser applies a traffic package: adds flow to user.
+func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, price int64, trafficLimit int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"flow":              gorm.Expr("flow + ?", trafficGB),
+			"buy_traffic_price":  price,
+			"buy_traffic_amount": trafficLimit,
+			"updated_time":      time.Now().UnixMilli(),
+		}).Error
+}
+
+// GetPackageSubscriptionByOrderID returns the PackageSubscription linked to an order.
+func (r *Repository) GetPackageSubscriptionByOrderID(orderID int64) (*model.PackageSubscription, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var sub model.PackageSubscription
+	if err := r.db.Where("order_id = ?", orderID).First(&sub).Error; err != nil {
+		return nil, err
+	}
+	return &sub, nil
+}
+
+// RefundTrafficPackage subtracts traffic from a user's flow (allows negative).
+func (r *Repository) RefundTrafficPackage(userID int64, trafficGB int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		Update("flow", gorm.Expr("flow - ?", trafficGB)).Error
 }
 
 // ListExpiredPackageSubscriptions returns active subscriptions that have expired.
