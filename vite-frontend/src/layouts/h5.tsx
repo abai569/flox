@@ -310,9 +310,15 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
 
     const handlePaymentChange = () => forceUpdate();
     const handleConfigUpdate = () => forceUpdate();
+    const handleStoreEnabledChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+
+      setStoreEnabled(!!detail.enabled);
+    };
 
     window.addEventListener("paymentEnabledChanged", handlePaymentChange);
     window.addEventListener("configUpdated", handleConfigUpdate);
+    window.addEventListener("storeEnabledChanged", handleStoreEnabledChanged);
 
     const adminFlag = getAdminFlag();
 
@@ -334,6 +340,10 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       clearInterval(licenseInterval);
       window.removeEventListener("paymentEnabledChanged", handlePaymentChange);
       window.removeEventListener("configUpdated", handleConfigUpdate);
+      window.removeEventListener(
+        "storeEnabledChanged",
+        handleStoreEnabledChanged,
+      );
     };
   }, []);
 
@@ -434,8 +444,10 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
   const isPaymentEnabled = (() => {
     try {
       const cached = localStorage.getItem("vite_config_payment_enabled");
+
       if (cached !== null) return cached !== "false";
     } catch {}
+
     return true;
   })();
 

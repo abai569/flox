@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, useReducer } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useReducer,
+} from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { AnimatePresence, motion } from "framer-motion";
@@ -101,13 +107,23 @@ export default function AdminLayout({
     });
     const handlePaymentChange = () => forceUpdate();
     const handleConfigUpdate = () => forceUpdate();
+    const handleStoreEnabledChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+
+      setStoreEnabled(!!detail.enabled);
+    };
 
     window.addEventListener("paymentEnabledChanged", handlePaymentChange);
     window.addEventListener("configUpdated", handleConfigUpdate);
+    window.addEventListener("storeEnabledChanged", handleStoreEnabledChanged);
 
     return () => {
       window.removeEventListener("paymentEnabledChanged", handlePaymentChange);
       window.removeEventListener("configUpdated", handleConfigUpdate);
+      window.removeEventListener(
+        "storeEnabledChanged",
+        handleStoreEnabledChanged,
+      );
     };
   }, []);
 
@@ -614,8 +630,10 @@ export default function AdminLayout({
   const isPaymentEnabled = (() => {
     try {
       const cached = localStorage.getItem("vite_config_payment_enabled");
+
       if (cached !== null) return cached !== "false";
     } catch {}
+
     return true;
   })();
 

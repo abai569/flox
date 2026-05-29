@@ -144,6 +144,19 @@ export default function DashboardPage() {
       if (res.code === 0 && Array.isArray(res.data))
         setAutoBuyPackages(res.data);
     });
+    const handleStoreEnabledChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+
+      setStoreEnabled(!!detail.enabled);
+    };
+
+    window.addEventListener("storeEnabledChanged", handleStoreEnabledChanged);
+
+    return () =>
+      window.removeEventListener(
+        "storeEnabledChanged",
+        handleStoreEnabledChanged,
+      );
   }, []);
 
   useEffect(() => {
