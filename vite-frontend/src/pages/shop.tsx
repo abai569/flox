@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 import { AnimatedPage } from "@/components/animated-page";
 import { Button } from "@/shadcn-bridge/heroui/button";
@@ -17,6 +18,7 @@ import type { PaymentChannelItem, SubscriptionPackageApiItem } from "@/api/types
 import { PageLoadingState } from "@/components/page-state";
 
 export default function ShopPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [packages, setPackages] = useState<SubscriptionPackageApiItem[]>([]);
   const [payChannels, setPayChannels] = useState<PaymentChannelItem[]>([]);
@@ -134,6 +136,7 @@ export default function ShopPage() {
         if (res.code === 0) {
           toast.success("购买成功");
           setBuyModalOpen(false);
+          navigate("/dashboard", { replace: true });
         } else {
           toast.error(res.msg || "购买失败");
         }

@@ -1489,32 +1489,29 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 			if err := tx.Create(sub).Error; err != nil {
 				return err
 			}
-			// 4c. Update user quotas (flow = replace; other quotas keep larger values)
-			var existingUser model.User
-			if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
-				return err
-			}
-			newFlow := int64(pkg.TrafficLimit)
-			newExpTime := expireAt
-			if existingUser.ExpTime > newExpTime {
-				newExpTime = existingUser.ExpTime
-			}
-			newNum := pkg.MaxRules
-			if existingUser.Num > newNum {
-				newNum = existingUser.Num
-			}
-			newSpeedLimit := pkg.SpeedLimit
-			if existingUser.SpeedLimit > newSpeedLimit {
-				newSpeedLimit = existingUser.SpeedLimit
-			}
-			newMaxConns := pkg.MaxConnections
-			if existingUser.MaxConnections > newMaxConns {
-				newMaxConns = existingUser.MaxConnections
-			}
-			newMaxIP := pkg.MaxIPAccess
-			if existingUser.MaxIPAccess > newMaxIP {
-				newMaxIP = existingUser.MaxIPAccess
-			}
+		// 4c. Update user quotas (flow = replace directly; other quotas keep larger values)
+		var existingUser model.User
+		if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
+			return err
+		}
+		newFlow := int64(pkg.TrafficLimit)
+		newExpTime := expireAt
+		if existingUser.ExpTime > newExpTime {
+			newExpTime = existingUser.ExpTime
+		}
+		newNum := pkg.MaxRules
+		newSpeedLimit := pkg.SpeedLimit
+		if existingUser.SpeedLimit > newSpeedLimit {
+			newSpeedLimit = existingUser.SpeedLimit
+		}
+		newMaxConns := pkg.MaxConnections
+		if existingUser.MaxConnections > newMaxConns {
+			newMaxConns = existingUser.MaxConnections
+		}
+		newMaxIP := pkg.MaxIPAccess
+		if existingUser.MaxIPAccess > newMaxIP {
+			newMaxIP = existingUser.MaxIPAccess
+		}
 			updates := map[string]interface{}{
 				"flow":            newFlow,
 				"num":             newNum,
@@ -1598,7 +1595,7 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 		if err := tx.Create(sub).Error; err != nil {
 			return err
 		}
-		// 3. Update user quotas (flow = replace; other quotas keep larger values)
+		// 3. Update user quotas (flow = replace directly; other quotas keep larger values)
 		var existingUser model.User
 		if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
 			return err
@@ -1609,9 +1606,6 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 			newExpTime = existingUser.ExpTime
 		}
 		newNum := pkg.MaxRules
-		if existingUser.Num > newNum {
-			newNum = existingUser.Num
-		}
 		newSpeedLimit := pkg.SpeedLimit
 		if existingUser.SpeedLimit > newSpeedLimit {
 			newSpeedLimit = existingUser.SpeedLimit
