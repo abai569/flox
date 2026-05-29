@@ -20,6 +20,7 @@ type AddNftablesRulesRequest struct {
 type NftablesRulePayload struct {
 	ForwardID   int64  `json:"forward_id"`
 	NodeID      int64  `json:"node_id"`
+	UserID      int64  `json:"user_id"`
 	Protocol    string `json:"protocol"`
 	Port        int    `json:"port"`
 	Target      string `json:"target"`
@@ -75,7 +76,7 @@ func (w *WebSocketReporter) handleAddNftablesRules(data json.RawMessage) error {
 		if rule.ChainType > 0 && rule.NextHopIP != "" {
 			target = net.JoinHostPort(rule.NextHopIP, strconv.Itoa(rule.NextHopPort))
 		}
-		if err := w.nftablesMgr.AddRule(rule.ForwardID, rule.NodeID, rule.Protocol, rule.Port, target, rule.SpeedLimit); err != nil {
+		if err := w.nftablesMgr.AddRule(rule.ForwardID, rule.NodeID, rule.UserID, rule.Protocol, rule.Port, target, rule.SpeedLimit); err != nil {
 			return fmt.Errorf("add rule for forward %d/%s (target=%q): %w", rule.ForwardID, rule.Protocol, target, err)
 		}
 	}

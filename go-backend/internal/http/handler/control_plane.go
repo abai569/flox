@@ -2019,6 +2019,7 @@ func (h *Handler) upsertLimiterOnNode(nodeID int64, limiterID int64, speed int) 
 type NftablesRulePayload struct {
 	ForwardID   int64  `json:"forward_id"`
 	NodeID      int64  `json:"node_id"`
+	UserID      int64  `json:"user_id"`
 	Protocol    string `json:"protocol"`
 	Port        int    `json:"port"`
 	Target      string `json:"target"`
@@ -2156,18 +2157,19 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 	for _, fp := range ports {
 		for _, protocol := range protocols {
 			for _, target := range targets {
-				if tunnel.Type == 1 {
-					rules = append(rules, NftablesRulePayload{
-						ForwardID:  forward.ID,
-						NodeID:     fp.NodeID,
-						Protocol:   protocol,
-						Port:       fp.Port,
-						Target:     target,
-						SpeedLimit: spdLimit,
-						ChainType:  1,
-					})
+			if tunnel.Type == 1 {
+				rules = append(rules, NftablesRulePayload{
+					ForwardID:  forward.ID,
+					NodeID:     fp.NodeID,
+					UserID:     forward.UserID,
+					Protocol:   protocol,
+					Port:       fp.Port,
+					Target:     target,
+					SpeedLimit: spdLimit,
+					ChainType:  1,
+				})
 				} else if tunnel.Type == 2 {
-					rules = append(rules, buildChainNftablesRule(forward.ID, chainNodes, fp, protocol, target, spdLimit))
+					rules = append(rules, buildChainNftablesRule(forward.ID, forward.UserID, chainNodes, fp, protocol, target, spdLimit))
 				}
 			}
 		}
@@ -2176,11 +2178,12 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 }
 
 // buildChainNftablesRule build nftables rule for chained tunnel
-func buildChainNftablesRule(forwardID int64, chainNodes []chainNodeRecord, fp forwardPortRecord, protocol string, target string, speedLimit int) NftablesRulePayload {
+func buildChainNftablesRule(forwardID, userID int64, chainNodes []chainNodeRecord, fp forwardPortRecord, protocol string, target string, speedLimit int) NftablesRulePayload {
 	nextHopIP, nextHopPort := resolveChainNextHop(chainNodes, fp.NodeID, target)
 	return NftablesRulePayload{
 		ForwardID:   forwardID,
 		NodeID:      fp.NodeID,
+		UserID:      userID,
 		Protocol:    protocol,
 		Port:        fp.Port,
 		Target:      net.JoinHostPort(nextHopIP, strconv.Itoa(nextHopPort)),

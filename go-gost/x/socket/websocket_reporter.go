@@ -969,6 +969,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 	// 收集按 forwardID 聚合的 delta（TCP+UDP 合并）
 	type deltaEntry struct {
 		forwardID int64
+		userID    int64
 		port      int
 		protocol  string
 		delta     uint64
@@ -983,6 +984,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 			delta := total - prev
 			deltas = append(deltas, deltaEntry{
 				forwardID: c.ForwardID,
+				userID:    c.UserID,
 				port:      c.Port,
 				protocol:  c.Protocol,
 				delta:     delta,
@@ -999,7 +1001,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		stats.AddForwardTraffic(d.forwardID, 0, 0, "", 0, d.port, false, d.delta/2)
 
 		// GlobalTrafficManager → HTTP batch /flow/upload → 更新 DB in_flow/out_flow
-		serviceName := fmt.Sprintf("%d_0_0_%s", d.forwardID, d.protocol)
+		serviceName := fmt.Sprintf("%d_%d_0_%s", d.forwardID, d.userID, d.protocol)
 		service.GetGlobalTrafficManager().AddTraffic(serviceName, int64(d.delta/2), int64(d.delta/2))
 	}
 }

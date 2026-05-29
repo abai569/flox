@@ -32,6 +32,7 @@ type Manager struct {
 type RuleState struct {
 	ForwardID   int64
 	NodeID      int64
+	UserID      int64
 	Protocol    string
 	Port        int
 	Target      string
@@ -43,6 +44,7 @@ type RuleState struct {
 
 type CounterResult struct {
 	ForwardID   int64  `json:"forward_id"`
+	UserID      int64  `json:"user_id"`
 	Protocol    string `json:"protocol"`
 	Port        int    `json:"port"`
 	Packets     uint64 `json:"packets"`
@@ -154,7 +156,7 @@ func (m *Manager) initChains() error {
 	return m.conn.Flush()
 }
 
-func (m *Manager) AddRule(forwardID, nodeID int64, protocol string, port int, target string, speedLimit int) error {
+func (m *Manager) AddRule(forwardID, nodeID, userID int64, protocol string, port int, target string, speedLimit int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -269,6 +271,7 @@ func (m *Manager) AddRule(forwardID, nodeID int64, protocol string, port int, ta
 	m.rules[key] = &RuleState{
 		ForwardID:   forwardID,
 		NodeID:      nodeID,
+		UserID:      userID,
 		Protocol:    protocol,
 		Port:        port,
 		Target:      target,
@@ -281,10 +284,17 @@ func (m *Manager) AddRule(forwardID, nodeID int64, protocol string, port int, ta
 }
 
 func (m *Manager) UpdateRule(forwardID int64, protocol string, port int, target string, speedLimit int) error {
+	m.mu.RLock()
+	var userID int64
+	if rs, exists := m.rules[ruleKey(forwardID, protocol)]; exists {
+		userID = rs.UserID
+	}
+	m.mu.RUnlock()
+
 	if err := m.DeleteRule(forwardID, protocol); err != nil {
 		return err
 	}
-	return m.AddRule(forwardID, 0, protocol, port, target, speedLimit)
+	return m.AddRule(forwardID, 0, userID, protocol, port, target, speedLimit)
 }
 
 func (m *Manager) DeleteRule(forwardID int64, protocol string) error {
@@ -678,6 +688,7 @@ func (m *Manager) RefreshCounters() []CounterResult {
 			}
 			results = append(results, CounterResult{
 				ForwardID: rs.ForwardID,
+				UserID:    rs.UserID,
 				Protocol:  ke.protocol,
 				Port:      ke.port,
 				Packets:   ke.packets,
@@ -690,6 +701,7 @@ func (m *Manager) RefreshCounters() []CounterResult {
 					if ctr, ok := e.(*expr.Counter); ok {
 						results = append(results, CounterResult{
 							ForwardID: rs.ForwardID,
+							UserID:    rs.UserID,
 							Protocol:  rs.Protocol,
 							Port:      rs.Port,
 							Packets:   ctr.Packets,
