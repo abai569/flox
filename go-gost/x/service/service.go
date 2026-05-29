@@ -516,19 +516,16 @@ func detectProtocol(data []byte, conn net.Conn) (blocked bool) {
 }
 
 func IsProtocolBlocked(data []byte) bool {
-	if isHttp == 1 && detectHTTP(data) {
-		return true
+	if detectHTTP(data) {
+		return isHttp == 1
 	}
-	if isTls == 1 && detectTLS(data) {
-		return true
+	if detectTLS(data) {
+		return isTls == 1
 	}
-	if isSocks == 1 && detectSOCKS(data) {
-		return true
+	if detectSOCKS(data) {
+		return isSocks == 1
 	}
-	if isBlockOther == 1 {
-		return true
-	}
-	return false
+	return isBlockOther == 1
 }
 
 func GetProtocolBlockFlags() (http, tls, socks, blockOther int) {
