@@ -797,6 +797,7 @@ export interface SubscriptionPackageApiItem {
   sortOrder: number;
   enabled: number;
   shopVisible: number;
+  autoBuyTrafficEnabled: number;   // 标记为自动购流来源 (0/1)
   createdAt: number;
   updatedAt: number;
 }

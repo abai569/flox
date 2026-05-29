@@ -353,6 +353,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/package/assign", h.assignPackageToUser)
 	mux.HandleFunc("/api/v1/package/store-status", h.getStoreStatus)
 	mux.HandleFunc("/api/v1/package/store-status/save", h.setStoreStatus)
+	mux.HandleFunc("/api/v1/package/toggle-auto-buy-traffic", h.togglePackageAutoBuyTraffic)
+	mux.HandleFunc("/api/v1/package/auto-buy-traffic/list", h.listAutoBuyTrafficPackages)
 
 	mux.HandleFunc("/api/v1/order/create", h.createOrder)
 	mux.HandleFunc("/api/v1/order/list", h.listOrders)
@@ -1246,6 +1248,7 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 			"autoBuyTraffic":   user.AutoBuyTraffic,
 			"buyTrafficAmount": user.BuyTrafficAmount,
 			"buyTrafficPrice":  user.BuyTrafficPrice,
+			"autoBuyTrafficPackageId": user.AutoBuyTrafficPackageID,
 			"baseFlow":         user.BaseFlow,
 		},
 		"tunnelPermissions": tunnelOut,

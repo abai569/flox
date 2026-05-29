@@ -31,6 +31,7 @@ type User struct {
 	AutoBuyTraffic  int           `gorm:"column:auto_buy_traffic;default:0"` // 自动购买流量开关 (0=禁用，1=启用)
 	BuyTrafficAmount int64        `gorm:"column:buy_traffic_amount;default:0"` // 每次购买流量量 (GB)
 	BuyTrafficPrice int64         `gorm:"column:buy_traffic_price;default:0"`  // 每次购买价格 (分)
+	AutoBuyTrafficPackageID int64 `gorm:"column:auto_buy_traffic_package_id;default:0"` // 关联的自动购流套餐ID (0=使用自定义配置)
 	BaseFlow        int64         `gorm:"column:base_flow;default:0"`          // 初始流量配额 (GB)
 	SpeedLimit      int           `gorm:"column:speed_limit;default:0"`        // 限速 MB/s (0=不限)
 	MaxRules        int           `gorm:"column:max_rules;default:0"`          // 最大规则数 (0=不限)

@@ -384,17 +384,33 @@ func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
 		if remainingBytes >= triggerBytes {
 			continue
 		}
-		if user.Balance < user.BuyTrafficPrice {
+
+		var price int64
+		var amount int64
+
+		if user.AutoBuyTrafficPackageID > 0 {
+			pkg, err := h.repo.GetPackageByID(user.AutoBuyTrafficPackageID)
+			if err != nil || pkg.Type != "traffic" || pkg.AutoBuyTrafficEnabled != 1 || pkg.Enabled != 1 {
+				continue
+			}
+			price = pkg.Price
+			amount = pkg.TrafficLimit
+		} else {
+			price = user.BuyTrafficPrice
+			amount = user.BuyTrafficAmount
+		}
+
+		if user.Balance < price {
 			log.Printf("用户 %d 自动购买流量余额不足：余额 %d 分，需要 %d 分",
-				user.ID, user.Balance, user.BuyTrafficPrice)
+				user.ID, user.Balance, price)
 			continue
 		}
 
-		if err := h.repo.BuyTrafficWithBalance(user.ID, user.BuyTrafficPrice, user.BuyTrafficAmount, user.Flow, nowMs); err != nil {
+		if err := h.repo.BuyTrafficWithBalance(user.ID, price, amount, user.Flow, nowMs); err != nil {
 			log.Printf("用户 %d 自动购买流量失败：%v", user.ID, err)
 		} else {
 			log.Printf("用户 %d 自动购买流量成功：扣款 %d 分，增加 %d GB",
-				user.ID, user.BuyTrafficPrice, user.BuyTrafficAmount)
+				user.ID, price, amount)
 		}
 	}
 }

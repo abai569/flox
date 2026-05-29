@@ -50,8 +50,18 @@ const typeOptions = [
   { value: "balance", label: "余额充值" },
 ];
 
-function typeLabel(t: string): string {
-  return typeOptions.find((o) => o.value === t)?.label || t;
+const TAB_KEY = "admin-plans-active-tab";
+
+type TabType = "subscription" | "traffic" | "balance";
+
+function getInitialTab(): TabType {
+  try {
+    const saved = localStorage.getItem(TAB_KEY);
+    if (saved && ["subscription", "traffic", "balance"].includes(saved)) {
+      return saved as TabType;
+    }
+  } catch { /* ignore */ }
+  return "subscription";
 }
 
 interface PackageForm {
@@ -70,6 +80,7 @@ interface PackageForm {
   autoRenew: boolean;
   enabled: boolean;
   shopVisible: boolean;
+  autoBuyTrafficEnabled: boolean;
   sortOrder: number;
   tunnelGroupIds: number[];
 }
@@ -89,6 +100,7 @@ const defaultPackageForm: PackageForm = {
   autoRenew: false,
   enabled: true,
   shopVisible: true,
+  autoBuyTrafficEnabled: false,
   sortOrder: 0,
   tunnelGroupIds: [],
 };
@@ -126,6 +138,10 @@ export default function AdminPlansPage() {
 
   const [storeEnabled, setStoreEnabled] = useState(true);
 
+  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
+
+  const filteredList = pkgList.filter((p) => p.type === activeTab);
+
   // ── Load data ──
   const loadPackages = useCallback(async () => {
     try {
@@ -150,7 +166,7 @@ export default function AdminPlansPage() {
 
   // ── Package CRUD handlers ──
   const handlePkgAdd = () => {
-    setPkgForm({ ...defaultPackageForm });
+    setPkgForm({ ...defaultPackageForm, type: activeTab });
     setIsPkgEdit(false);
     setPkgModalOpen(true);
   };
@@ -169,6 +185,7 @@ export default function AdminPlansPage() {
           trafficLimit: p.trafficLimit, /* portCount: p.portCount, */ speedLimit: p.speedLimit,
           maxRules: p.maxRules, maxConnections: p.maxConnections, /* maxIPAccess: p.maxIPAccess, */
           autoRenew: p.autoRenew === 1, enabled: p.enabled === 1, shopVisible: p.shopVisible === 1,
+          autoBuyTrafficEnabled: p.autoBuyTrafficEnabled === 1,
           sortOrder: p.sortOrder, tunnelGroupIds: res.data.tunnelGroupIds || [],
         });
       } else { toast.error(res.msg || "获取套餐详情失败"); setPkgModalOpen(false); }
@@ -185,7 +202,8 @@ export default function AdminPlansPage() {
         validityDays: pkgForm.validityDays, trafficLimit: pkgForm.trafficLimit,
         speedLimit: pkgForm.speedLimit, maxRules: pkgForm.maxRules, maxConnections: pkgForm.maxConnections,
         autoRenew: pkgForm.autoRenew ? 1 : 0, enabled: pkgForm.enabled ? 1 : 0,
-        shopVisible: pkgForm.shopVisible ? 1 : 0, sortOrder: pkgForm.sortOrder, tunnelGroupIds: pkgForm.tunnelGroupIds,
+        shopVisible: pkgForm.shopVisible ? 1 : 0, autoBuyTrafficEnabled: pkgForm.autoBuyTrafficEnabled ? 1 : 0,
+        sortOrder: pkgForm.sortOrder, tunnelGroupIds: pkgForm.tunnelGroupIds,
       };
       if (isPkgEdit && pkgForm.id) data.id = pkgForm.id;
       const res = isPkgEdit ? await updatePackage(data) : await createPackage(data);
@@ -319,71 +337,193 @@ export default function AdminPlansPage() {
         </Card>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
-        <Table classNames={{ th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-2 uppercase tracking-wider text-left align-middle", td: "py-2 border-b border-divider/50 group-data-[last=true]:border-b-0 text-sm", tr: "hover:bg-default-50/50 transition-colors" }} className="min-w-[640px]">
-          <TableHeader>
-            <TableColumn className="whitespace-nowrap min-w-[120px]">名称</TableColumn>
-            <TableColumn className="whitespace-nowrap min-w-[80px]">类型</TableColumn>
-            <TableColumn className="whitespace-nowrap min-w-[140px]">价格</TableColumn>
-            <TableColumn className="whitespace-nowrap min-w-[100px]">隧道组</TableColumn>
-            <TableColumn className="whitespace-nowrap min-w-[200px]">限制</TableColumn>
-            <TableColumn className="whitespace-nowrap min-w-[140px]">状态</TableColumn>
-            <TableColumn className="whitespace-nowrap min-w-[80px]">操作</TableColumn>
-          </TableHeader>
-          <TableBody>
-            {pkgList.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell>
-                  <div className="font-medium text-sm">{item.name}</div>
-                  {item.description && <div className="text-xs text-gray-400 truncate max-w-48">{item.description}</div>}
-                </TableCell>
-                <TableCell>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300">{typeLabel(item.type)}</span>
-                </TableCell>
-                <TableCell>
-                  <div className="text-sm whitespace-nowrap">{item.type === "balance" ? `¥${(item.price / 100).toFixed(2)}` : `¥${(item.price / 100).toFixed(2)} / ${durationLabel(item.validityDays)}`}</div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {(item.tunnelGroupIds || []).length === 0 && <span className="text-xs text-gray-400">未关联</span>}
-                    {(item.tunnelGroupIds || []).map((gid: number) => {
-                      const tg = tunnelGroups.find((g) => g.id === gid);
-                      return tg ? (
-                        <span key={gid} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">{tg.name}</span>
-                      ) : null;
-                    })}
-                  </div>
-                </TableCell>
-                <TableCell className="text-xs text-gray-500">
-                  <div className="space-y-0.5">
-                    <div>规则 {item.maxRules > 0 ? item.maxRules : "不限"} · 流量 {item.trafficLimit > 0 ? `${item.trafficLimit} GB` : "不限"}</div>
-                    <div>连接 {item.maxConnections > 0 ? item.maxConnections : "不限"} · 单 IP {item.maxIPAccess > 0 ? item.maxIPAccess : "不限"} · 限速 {item.speedLimit > 0 ? `${item.speedLimit} Mbps` : "不限"}</div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-row gap-1 shrink-0">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}>{item.enabled === 1 ? "启用" : "停用"}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}>{item.shopVisible === 1 ? "商店可见" : "后台分配"}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    <Button isIconOnly className="min-w-0 w-8 h-8" size="sm" variant="flat" onPress={() => handlePkgEdit(item)}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L18.732 3.732z" /></svg>
-                    </Button>
-                    <Button isIconOnly className="min-w-0 w-8 h-8" color="danger" size="sm" variant="flat" onPress={() => handlePkgDelete(item)}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-            {pkgList.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-gray-400">还没有套餐</TableCell></TableRow>}
-          </TableBody>
-        </Table>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {typeOptions.map((tab) => (
+          <Button
+            key={tab.value}
+            color={activeTab === tab.value ? "primary" : "default"}
+            size="sm"
+            variant={activeTab === tab.value ? "solid" : "flat"}
+            onPress={() => {
+              setActiveTab(tab.value as TabType);
+              try { localStorage.setItem(TAB_KEY, tab.value); } catch { /* ignore */ }
+            }}
+          >
+            {tab.label}
+          </Button>
+        ))}
       </div>
 
-      <Modal isOpen={pkgModalOpen} placement="center" size="xl" scrollBehavior="inside" onOpenChange={(open) => { if (!open) setPkgModalOpen(false); }}>
+      {/* ── 订阅套餐表格 ── */}
+      {activeTab === "subscription" && (
+        <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
+          <Table classNames={{ th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-2 uppercase tracking-wider text-left align-middle", td: "py-2 border-b border-divider/50 group-data-[last=true]:border-b-0 text-sm", tr: "hover:bg-default-50/50 transition-colors" }} className="min-w-[640px]">
+            <TableHeader>
+              <TableColumn className="whitespace-nowrap min-w-[120px]">名称</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[140px]">价格 / 有效期</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">隧道组</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[200px]">限制</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">状态</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">操作</TableColumn>
+            </TableHeader>
+            <TableBody>
+              {filteredList.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <div className="font-medium text-sm">{item.name}</div>
+                    {item.description && <div className="text-xs text-gray-400 truncate max-w-48">{item.description}</div>}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm whitespace-nowrap">¥{(item.price / 100).toFixed(2)} / {durationLabel(item.validityDays)}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {(item.tunnelGroupIds || []).length === 0 && <span className="text-xs text-gray-400">未关联</span>}
+                      {(item.tunnelGroupIds || []).map((gid: number) => {
+                        const tg = tunnelGroups.find((g) => g.id === gid);
+                        return tg ? (
+                          <span key={gid} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">{tg.name}</span>
+                        ) : null;
+                      })}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-gray-500">
+                    <div className="space-y-0.5">
+                      <div>规则 {item.maxRules > 0 ? item.maxRules : "不限"} · 流量 {item.trafficLimit > 0 ? `${item.trafficLimit} GB` : "不限"}</div>
+                      <div>连接 {item.maxConnections > 0 ? item.maxConnections : "不限"} · 限速 {item.speedLimit > 0 ? `${item.speedLimit} Mbps` : "不限"}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-row gap-1 shrink-0">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}>{item.enabled === 1 ? "启用" : "停用"}</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}>{item.shopVisible === 1 ? "商店可见" : "后台分配"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button isIconOnly className="min-w-0 w-8 h-8" size="sm" variant="flat" onPress={() => handlePkgEdit(item)}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L18.732 3.732z" /></svg>
+                      </Button>
+                      <Button isIconOnly className="min-w-0 w-8 h-8" color="danger" size="sm" variant="flat" onPress={() => handlePkgDelete(item)}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredList.length === 0 && <TableRow><TableCell colSpan={6} className="py-10 text-center text-gray-400">暂无订阅套餐</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* ── 流量包表格 ── */}
+      {activeTab === "traffic" && (
+        <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
+          <Table classNames={{ th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-2 uppercase tracking-wider text-left align-middle", td: "py-2 border-b border-divider/50 group-data-[last=true]:border-b-0 text-sm", tr: "hover:bg-default-50/50 transition-colors" }} className="min-w-[640px]">
+            <TableHeader>
+              <TableColumn className="whitespace-nowrap min-w-[120px]">名称</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[120px]">价格</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">流量</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">有效期</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">状态</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">自动购流来源</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">操作</TableColumn>
+            </TableHeader>
+            <TableBody>
+              {filteredList.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <div className="font-medium text-sm">{item.name}</div>
+                    {item.description && <div className="text-xs text-gray-400 truncate max-w-48">{item.description}</div>}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm whitespace-nowrap">¥{(item.price / 100).toFixed(2)}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">{item.trafficLimit > 0 ? `${item.trafficLimit} GB` : "不限"}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">{durationLabel(item.validityDays)}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-row gap-1 shrink-0">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}>{item.enabled === 1 ? "启用" : "停用"}</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}>{item.shopVisible === 1 ? "商店可见" : "后台分配"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-row gap-1 shrink-0">
+                      {item.autoBuyTrafficEnabled === 1 ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap bg-teal-500" title="用户可选择此套餐作为自动购流来源">可用</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap bg-gray-400">不使用</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button isIconOnly className="min-w-0 w-8 h-8" size="sm" variant="flat" onPress={() => handlePkgEdit(item)}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L18.732 3.732z" /></svg>
+                      </Button>
+                      <Button isIconOnly className="min-w-0 w-8 h-8" color="danger" size="sm" variant="flat" onPress={() => handlePkgDelete(item)}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredList.length === 0 && <TableRow><TableCell colSpan={7} className="py-10 text-center text-gray-400">暂无流量包</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* ── 余额充值表格 ── */}
+      {activeTab === "balance" && (
+        <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
+          <Table classNames={{ th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-2 uppercase tracking-wider text-left align-middle", td: "py-2 border-b border-divider/50 group-data-[last=true]:border-b-0 text-sm", tr: "hover:bg-default-50/50 transition-colors" }} className="min-w-[500px]">
+            <TableHeader>
+              <TableColumn className="whitespace-nowrap min-w-[120px]">名称</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[140px]">充值金额</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">状态</TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">操作</TableColumn>
+            </TableHeader>
+            <TableBody>
+              {filteredList.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <div className="font-medium text-sm">{item.name}</div>
+                    {item.description && <div className="text-xs text-gray-400 truncate max-w-48">{item.description}</div>}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm whitespace-nowrap">¥{(item.price / 100).toFixed(2)}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-row gap-1 shrink-0">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}>{item.enabled === 1 ? "启用" : "停用"}</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}>{item.shopVisible === 1 ? "商店可见" : "后台分配"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button isIconOnly className="min-w-0 w-8 h-8" size="sm" variant="flat" onPress={() => handlePkgEdit(item)}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L18.732 3.732z" /></svg>
+                      </Button>
+                      <Button isIconOnly className="min-w-0 w-8 h-8" color="danger" size="sm" variant="flat" onPress={() => handlePkgDelete(item)}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredList.length === 0 && <TableRow><TableCell colSpan={4} className="py-10 text-center text-gray-400">暂无余额充值套餐</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Modal isOpen={pkgModalOpen} placement="center" size="md" scrollBehavior="inside" onOpenChange={(open) => { if (!open) setPkgModalOpen(false); }}>
         <ModalContent>
           <ModalHeader>{isPkgEdit ? "编辑套餐" : "新增套餐"}</ModalHeader>
           {pkgModalLoading ? <ModalBody><PageLoadingState message="加载套餐详情..." /></ModalBody> : (
@@ -392,7 +532,7 @@ export default function AdminPlansPage() {
                 {typeOptions.map((o) => <SelectItem key={o.value}>{o.label}</SelectItem>)}
               </Select>
               <div className="grid grid-cols-2 gap-4">
-                <Input label={pkgForm.type === "balance" ? "充值金额 (元)" : "套餐名称"} value={pkgForm.name} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, name: e.target.value }))} />
+                <Input label={pkgForm.type === "balance" ? "套餐名称" : "套餐名称"} value={pkgForm.name} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, name: e.target.value }))} />
                 <Input label={pkgForm.type === "balance" ? "充值金额 (元)" : "价格 (元)"} type="number" step="0.01" min="0" value={pkgForm.priceYuan} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, priceYuan: e.target.value }))} />
               </div>
               {pkgForm.type !== "balance" && (
@@ -404,9 +544,15 @@ export default function AdminPlansPage() {
                     <Input label="排序" type="number" min="0" value={String(pkgForm.sortOrder)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, sortOrder: parseInt(e.target.value) || 0 }))} />
                   </div>
                   {pkgForm.type === "traffic" && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input label="流量 (GB)" type="number" min="0" value={String(pkgForm.trafficLimit)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, trafficLimit: parseInt(e.target.value) || 0 }))} />
-                    </div>
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input label="流量 (GB)" type="number" min="0" value={String(pkgForm.trafficLimit)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, trafficLimit: parseInt(e.target.value) || 0 }))} />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Switch isSelected={pkgForm.autoBuyTrafficEnabled} onValueChange={(v) => setPkgForm((p) => ({ ...p, autoBuyTrafficEnabled: v }))}>可用于自动购流</Switch>
+                        <span className="text-xs text-gray-400">用户可在设置中选此套餐作为自动购买流量来源</span>
+                      </div>
+                    </>
                   )}
                   {pkgForm.type === "subscription" && (
                     <>
@@ -418,19 +564,9 @@ export default function AdminPlansPage() {
                         <Input label="限速 (Mbps, 0=不限)" type="number" min="0" value={String(pkgForm.speedLimit)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, speedLimit: parseInt(e.target.value) || 0 }))} />
                         <Input label="最大连接数 (0=不限)" type="number" min="0" value={String(pkgForm.maxConnections)} variant="bordered" onChange={(e) => setPkgForm((p) => ({ ...p, maxConnections: parseInt(e.target.value) || 0 }))} />
                       </div>
-                      <div className="flex flex-wrap gap-6">
-                        <div className="flex flex-col gap-1">
-                          <Switch isSelected={pkgForm.enabled} onValueChange={(v) => setPkgForm((p) => ({ ...p, enabled: v }))}>启用套餐</Switch>
-                          <span className="text-xs text-gray-400">启用套餐</span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Switch isSelected={pkgForm.shopVisible} onValueChange={(v) => setPkgForm((p) => ({ ...p, shopVisible: v }))}>商店可见</Switch>
-                          <span className="text-xs text-gray-400">商店售卖</span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Switch isSelected={pkgForm.autoRenew} onValueChange={(v) => setPkgForm((p) => ({ ...p, autoRenew: v }))}>自动续费</Switch>
-                          <span className="text-xs text-gray-400">自动续费</span>
-                        </div>
+                      <div className="flex flex-col gap-1">
+                        <Switch isSelected={pkgForm.autoRenew} onValueChange={(v) => setPkgForm((p) => ({ ...p, autoRenew: v }))}>自动续费</Switch>
+                        <span className="text-xs text-gray-400">自动续费</span>
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm text-foreground">关联隧道分组</label>
@@ -445,6 +581,16 @@ export default function AdminPlansPage() {
                   )}
                 </>
               )}
+              <div className="flex flex-wrap gap-6">
+                <div className="flex flex-col gap-1">
+                  <Switch isSelected={pkgForm.enabled} onValueChange={(v) => setPkgForm((p) => ({ ...p, enabled: v }))}>启用套餐</Switch>
+                  <span className="text-xs text-gray-400">启用套餐</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Switch isSelected={pkgForm.shopVisible} onValueChange={(v) => setPkgForm((p) => ({ ...p, shopVisible: v }))}>商店可见</Switch>
+                  <span className="text-xs text-gray-400">商店售卖</span>
+                </div>
+              </div>
               <div className="space-y-1">
                 <label className="text-sm text-foreground">说明</label>
                 <Textarea value={pkgForm.description} variant="bordered" className="w-full min-h-10" onChange={(e) => setPkgForm((p) => ({ ...p, description: e.target.value }))} />
@@ -478,7 +624,7 @@ export default function AdminPlansPage() {
               {users.map((u) => <SelectItem key={String(u.id)}>{u.name}</SelectItem>)}
             </Select>
             <Select label="选择套餐" variant="bordered" selectedKeys={assignPkgId ? [assignPkgId] : []} onSelectionChange={(keys) => { const val = Array.from(keys)[0] as string; if (val) setAssignPkgId(val); }}>
-              {pkgList.map((p) => <SelectItem key={String(p.id)}>{p.name}</SelectItem>)}
+              {filteredList.map((p) => <SelectItem key={String(p.id)}>{p.name}</SelectItem>)}
             </Select>
           </ModalBody>
           <ModalFooter>

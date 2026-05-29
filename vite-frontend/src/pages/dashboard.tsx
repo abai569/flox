@@ -698,11 +698,7 @@ export default function DashboardPage() {
                     />
                   </div>
                 }
-                value={
-                  (autoRenewOverride ?? userInfo.autoRenew) === 1
-                    ? `${((userInfo.renewalAmount ?? 0) / 100).toFixed(2)}元/月`
-                    : "禁用"
-                }
+                value={`${((userInfo.renewalAmount ?? 0) / 100).toFixed(2)}元/月`}
               />
             </div>
             {/* 8. 自动购买流量 */}
@@ -739,7 +735,9 @@ export default function DashboardPage() {
                 title="自动购流"
                 value={
                   userInfo.autoBuyTraffic === 1
-                    ? `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`
+                    ? (userInfo.autoBuyTrafficPackageId && userInfo.autoBuyTrafficPackageId > 0
+                        ? "套餐自动购买"
+                        : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`)
                     : "禁用"
                 }
               />

@@ -86,6 +86,7 @@ import {
   getSpeedLimitList,
   resetUserFlow,
   getUserGroupList,
+  listAutoBuyTrafficPackages,
   getMonitorPermissionList,
   assignMonitorPermission,
   removeMonitorPermission,
@@ -186,6 +187,7 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
     autoBuyTraffic: Number(item.autoBuyTraffic ?? 0),
     buyTrafficAmount: Number(item.buyTrafficAmount ?? 0),
     buyTrafficPrice: Number(item.buyTrafficPrice ?? 0),
+    autoBuyTrafficPackageId: Number(item.autoBuyTrafficPackageId ?? 0),
     baseFlow: Number(item.baseFlow ?? 0),
     quotaHistory: [],
     showHistory: false,
@@ -260,6 +262,7 @@ export default function UserPage() {
     autoBuyTraffic: number;
     buyTrafficAmount: number;
     buyTrafficPrice: number;
+    autoBuyTrafficPackageId: number;
   }>({
     user: "",
     name: "",
@@ -278,8 +281,18 @@ export default function UserPage() {
     autoBuyTraffic: 0,
     buyTrafficAmount: 0,
     buyTrafficPrice: 0,
+    autoBuyTrafficPackageId: 0,
   });
   const [userFormLoading, setUserFormLoading] = useState(false);
+  const [autoBuyPackages, setAutoBuyPackages] = useState<{ id: number; name: string; trafficLimit: number; price: number; }[]>([]);
+  const loadAutoBuyPackages = useCallback(async () => {
+    try {
+      const res = await listAutoBuyTrafficPackages();
+      if (res.code === 0 && Array.isArray(res.data)) {
+        setAutoBuyPackages(res.data.map((p: any) => ({ id: p.id, name: p.name, trafficLimit: p.trafficLimit, price: p.price })));
+      }
+    } catch { /* ignore */ }
+  }, []);
   const editingUser = useMemo(
     () =>
       userForm.id
@@ -870,6 +883,7 @@ export default function UserPage() {
       autoBuyTraffic: 0,
       buyTrafficAmount: 0,
       buyTrafficPrice: 0,
+      autoBuyTrafficPackageId: 0,
     });
     onUserModalOpen();
   };
@@ -983,6 +997,7 @@ export default function UserPage() {
       autoBuyTraffic: user.autoBuyTraffic ?? 0,
       buyTrafficAmount: user.buyTrafficAmount ?? 0,
       buyTrafficPrice: user.buyTrafficPrice ?? 0,
+      autoBuyTrafficPackageId: user.autoBuyTrafficPackageId ?? 0,
     });
     onUserModalOpen();
   };
@@ -2745,50 +2760,70 @@ export default function UserPage() {
                   }}
                 />
               </div>
-              <div className="pt-3 mt-3">
-                <div className="grid grid-cols-2 gap-4 mb-3">
-                  <Input
-                    label="每次购买量 (GB)"
-                    min="0"
-                    placeholder="选填"
-                    step="1"
-                    type="number"
-                    value={
-                      userForm.buyTrafficAmount > 0
-                        ? userForm.buyTrafficAmount.toString()
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-
-                      setUserForm((prev) => ({
-                        ...prev,
-                        buyTrafficAmount: Math.round(value),
-                      }));
+              {userForm.autoBuyTraffic === 1 && (
+                <div className="pt-3 mt-3 space-y-3">
+                  <RadioGroup
+                    label="购买方式"
+                    orientation="horizontal"
+                    value={userForm.autoBuyTrafficPackageId > 0 ? "package" : "custom"}
+                    onValueChange={(value: string) => {
+                      if (value === "package") {
+                        loadAutoBuyPackages();
+                        setUserForm((prev) => ({ ...prev, autoBuyTrafficPackageId: 0 }));
+                      } else {
+                        setUserForm((prev) => ({ ...prev, autoBuyTrafficPackageId: 0, buyTrafficAmount: 0, buyTrafficPrice: 0 }));
+                      }
                     }}
-                  />
-                  <Input
-                    label="每次购买价格 (元)"
-                    min="0"
-                    placeholder="选填"
-                    step="1"
-                    type="number"
-                    value={
-                      userForm.buyTrafficPrice > 0
-                        ? userForm.buyTrafficPrice.toString()
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-
-                      setUserForm((prev) => ({
-                        ...prev,
-                        buyTrafficPrice: Math.round(value),
-                      }));
-                    }}
-                  />
+                  >
+                    <Radio value="package">套餐选择</Radio>
+                    <Radio value="custom">自定义</Radio>
+                  </RadioGroup>
+                  {userForm.autoBuyTrafficPackageId > 0 ? (
+                    <Select
+                      label="自动购流套餐"
+                      variant="bordered"
+                      selectedKeys={[String(userForm.autoBuyTrafficPackageId)]}
+                      onSelectionChange={(keys) => {
+                        const val = Array.from(keys)[0] as string;
+                        if (val) {
+                          setUserForm((prev) => ({ ...prev, autoBuyTrafficPackageId: Number(val) }));
+                        }
+                      }}
+                    >
+                      {autoBuyPackages.map((p) => (
+                        <SelectItem key={String(p.id)}>{p.name} ({p.trafficLimit}GB / ¥{(p.price / 100).toFixed(2)})</SelectItem>
+                      ))}
+                    </Select>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        label="每次购买量 (GB)"
+                        min="0"
+                        placeholder="选填"
+                        step="1"
+                        type="number"
+                        value={userForm.buyTrafficAmount > 0 ? userForm.buyTrafficAmount.toString() : ""}
+                        onChange={(e) => {
+                          const value = Number(e.target.value);
+                          setUserForm((prev) => ({ ...prev, buyTrafficAmount: Math.round(value) }));
+                        }}
+                      />
+                      <Input
+                        label="每次购买价格 (元)"
+                        min="0"
+                        placeholder="选填"
+                        step="1"
+                        type="number"
+                        value={userForm.buyTrafficPrice > 0 ? userForm.buyTrafficPrice.toString() : ""}
+                        onChange={(e) => {
+                          const value = Number(e.target.value);
+                          setUserForm((prev) => ({ ...prev, buyTrafficPrice: Math.round(value) }));
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
               <div className="grid grid-cols-3 gap-4 pt-3 mt-3 border-t border-divider">
                 <div>
                   <RadioGroup

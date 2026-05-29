@@ -55,22 +55,23 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Type           string  `json:"type"`
-		Name           string  `json:"name"`
-		Description    string  `json:"description"`
-		PriceYuan      float64 `json:"priceYuan"`
-		ValidityDays   int     `json:"validityDays"`
-		TrafficLimit   int64   `json:"trafficLimit"`
-		PortCount      int     `json:"portCount"`
-		SpeedLimit     int     `json:"speedLimit"`
-		MaxRules       int     `json:"maxRules"`
-		MaxConnections int     `json:"maxConnections"`
-		MaxIPAccess    int     `json:"maxIPAccess"`
-		AutoRenew      int     `json:"autoRenew"`
-		SortOrder      int     `json:"sortOrder"`
-		Enabled        int     `json:"enabled"`
-		ShopVisible    int     `json:"shopVisible"`
-		TunnelGroupIDs []int64 `json:"tunnelGroupIds"`
+		Type                  string  `json:"type"`
+		Name                  string  `json:"name"`
+		Description           string  `json:"description"`
+		PriceYuan             float64 `json:"priceYuan"`
+		ValidityDays          int     `json:"validityDays"`
+		TrafficLimit          int64   `json:"trafficLimit"`
+		PortCount             int     `json:"portCount"`
+		SpeedLimit            int     `json:"speedLimit"`
+		MaxRules              int     `json:"maxRules"`
+		MaxConnections        int     `json:"maxConnections"`
+		MaxIPAccess           int     `json:"maxIPAccess"`
+		AutoRenew             int     `json:"autoRenew"`
+		SortOrder             int     `json:"sortOrder"`
+		Enabled               int     `json:"enabled"`
+		ShopVisible           int     `json:"shopVisible"`
+		AutoBuyTrafficEnabled int     `json:"autoBuyTrafficEnabled"`
+		TunnelGroupIDs        []int64 `json:"tunnelGroupIds"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -84,21 +85,22 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		req.Type = "subscription"
 	}
 	pkg := &model.SubscriptionPackage{
-		Type:           req.Type,
-		Name:           req.Name,
-		Description:    req.Description,
-		Price:          int64(req.PriceYuan * 100),
-		ValidityDays:   req.ValidityDays,
-		TrafficLimit:   req.TrafficLimit,
-		PortCount:      req.PortCount,
-		SpeedLimit:     req.SpeedLimit,
-		MaxRules:       req.MaxRules,
-		MaxConnections: req.MaxConnections,
-		MaxIPAccess:    req.MaxIPAccess,
-		AutoRenew:      req.AutoRenew,
-		SortOrder:      req.SortOrder,
-		Enabled:        req.Enabled,
-		ShopVisible:    req.ShopVisible,
+		Type:                  req.Type,
+		Name:                  req.Name,
+		Description:           req.Description,
+		Price:                 int64(req.PriceYuan * 100),
+		ValidityDays:          req.ValidityDays,
+		TrafficLimit:          req.TrafficLimit,
+		PortCount:             req.PortCount,
+		SpeedLimit:            req.SpeedLimit,
+		MaxRules:              req.MaxRules,
+		MaxConnections:        req.MaxConnections,
+		MaxIPAccess:           req.MaxIPAccess,
+		AutoRenew:             req.AutoRenew,
+		SortOrder:             req.SortOrder,
+		Enabled:               req.Enabled,
+		ShopVisible:           req.ShopVisible,
+		AutoBuyTrafficEnabled: req.AutoBuyTrafficEnabled,
 	}
 	if err := h.repo.CreatePackage(pkg, req.TunnelGroupIDs); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -112,23 +114,24 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ID             int64   `json:"id"`
-		Type           string  `json:"type"`
-		Name           string  `json:"name"`
-		Description    string  `json:"description"`
-		PriceYuan      float64 `json:"priceYuan"`
-		ValidityDays   int     `json:"validityDays"`
-		TrafficLimit   int64   `json:"trafficLimit"`
-		PortCount      int     `json:"portCount"`
-		SpeedLimit     int     `json:"speedLimit"`
-		MaxRules       int     `json:"maxRules"`
-		MaxConnections int     `json:"maxConnections"`
-		MaxIPAccess    int     `json:"maxIPAccess"`
-		AutoRenew      int     `json:"autoRenew"`
-		SortOrder      int     `json:"sortOrder"`
-		Enabled        int     `json:"enabled"`
-		ShopVisible    int     `json:"shopVisible"`
-		TunnelGroupIDs []int64 `json:"tunnelGroupIds"`
+		ID                    int64   `json:"id"`
+		Type                  string  `json:"type"`
+		Name                  string  `json:"name"`
+		Description           string  `json:"description"`
+		PriceYuan             float64 `json:"priceYuan"`
+		ValidityDays          int     `json:"validityDays"`
+		TrafficLimit          int64   `json:"trafficLimit"`
+		PortCount             int     `json:"portCount"`
+		SpeedLimit            int     `json:"speedLimit"`
+		MaxRules              int     `json:"maxRules"`
+		MaxConnections        int     `json:"maxConnections"`
+		MaxIPAccess           int     `json:"maxIPAccess"`
+		AutoRenew             int     `json:"autoRenew"`
+		SortOrder             int     `json:"sortOrder"`
+		Enabled               int     `json:"enabled"`
+		ShopVisible           int     `json:"shopVisible"`
+		AutoBuyTrafficEnabled int     `json:"autoBuyTrafficEnabled"`
+		TunnelGroupIDs        []int64 `json:"tunnelGroupIds"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -142,22 +145,23 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		req.Type = "subscription"
 	}
 	pkg := &model.SubscriptionPackage{
-		ID:             req.ID,
-		Type:           req.Type,
-		Name:           req.Name,
-		Description:    req.Description,
-		Price:          int64(req.PriceYuan * 100),
-		ValidityDays:   req.ValidityDays,
-		TrafficLimit:   req.TrafficLimit,
-		PortCount:      req.PortCount,
-		SpeedLimit:     req.SpeedLimit,
-		MaxRules:       req.MaxRules,
-		MaxConnections: req.MaxConnections,
-		MaxIPAccess:    req.MaxIPAccess,
-		AutoRenew:      req.AutoRenew,
-		SortOrder:      req.SortOrder,
-		Enabled:        req.Enabled,
-		ShopVisible:    req.ShopVisible,
+		ID:                    req.ID,
+		Type:                  req.Type,
+		Name:                  req.Name,
+		Description:           req.Description,
+		Price:                 int64(req.PriceYuan * 100),
+		ValidityDays:          req.ValidityDays,
+		TrafficLimit:          req.TrafficLimit,
+		PortCount:             req.PortCount,
+		SpeedLimit:            req.SpeedLimit,
+		MaxRules:              req.MaxRules,
+		MaxConnections:        req.MaxConnections,
+		MaxIPAccess:           req.MaxIPAccess,
+		AutoRenew:             req.AutoRenew,
+		SortOrder:             req.SortOrder,
+		Enabled:               req.Enabled,
+		ShopVisible:           req.ShopVisible,
+		AutoBuyTrafficEnabled: req.AutoBuyTrafficEnabled,
 	}
 	if err := h.repo.UpdatePackage(pkg, req.TunnelGroupIDs); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -178,7 +182,51 @@ func (h *Handler) deletePackage(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	_ = h.repo.UpdatePackageAutoBuyTrafficEnabled(id, 0)
 	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) togglePackageAutoBuyTraffic(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		ID      int64 `json:"id"`
+		Enabled int   `json:"enabled"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if req.ID <= 0 {
+		response.WriteJSON(w, response.ErrDefault("套餐ID不能为空"))
+		return
+	}
+	if req.Enabled != 0 && req.Enabled != 1 {
+		response.WriteJSON(w, response.ErrDefault("invalid enabled value"))
+		return
+	}
+	if err := h.repo.UpdatePackageAutoBuyTrafficEnabled(req.ID, req.Enabled); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) listAutoBuyTrafficPackages(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+	pkgs, err := h.repo.ListAutoBuyTrafficPackages()
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if pkgs == nil {
+		pkgs = []*model.SubscriptionPackage{}
+	}
+	response.WriteJSON(w, response.OK(pkgs))
 }
 
 func (h *Handler) getPackageDetail(w http.ResponseWriter, r *http.Request) {

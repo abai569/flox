@@ -1041,5 +1041,11 @@ export const assignPackageToUser = (data: {
   packageId: number;
 }) => Network.post("/package/assign", data);
 
+export const togglePackageAutoBuyTraffic = (data: { id: number; enabled: number }) =>
+  Network.post("/package/toggle-auto-buy-traffic", data);
+
+export const listAutoBuyTrafficPackages = () =>
+  Network.post<SubscriptionPackageApiItem[]>("/package/auto-buy-traffic/list");
+
 export const getMySubscription = () =>
   Network.post<{ subscription: any; package: any }>("/user/my-subscription");

@@ -33,6 +33,7 @@ export interface DashboardUserInfo {
   autoBuyTraffic?: number;
   buyTrafficAmount?: number;
   buyTrafficPrice?: number;
+  autoBuyTrafficPackageId?: number;
 }
 
 export interface DashboardUserTunnel {

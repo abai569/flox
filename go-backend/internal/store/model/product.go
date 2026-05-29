@@ -17,8 +17,9 @@ type SubscriptionPackage struct {
 	AutoRenew      int    `gorm:"column:auto_renew;default:0" json:"autoRenew"`             // 套餐级自动续费开关
 	SortOrder      int    `gorm:"column:sort_order;default:0" json:"sortOrder"`
 	Enabled        int    `gorm:"column:enabled;default:1" json:"enabled"`                  // 启用
-	ShopVisible    int    `gorm:"column:shop_visible;default:1" json:"shopVisible"`         // 商店可见
-	CreatedAt      int64  `gorm:"column:created_at;not null" json:"createdAt"`
+	ShopVisible            int    `gorm:"column:shop_visible;default:1" json:"shopVisible"`                       // 商店可见
+	AutoBuyTrafficEnabled  int    `gorm:"column:auto_buy_traffic_enabled;default:0" json:"autoBuyTrafficEnabled"` // 标记为自动购流来源 (0=否，1=是)
+	CreatedAt              int64  `gorm:"column:created_at;not null" json:"createdAt"`
 	UpdatedAt      int64  `gorm:"column:updated_at;not null" json:"updatedAt"`
 }
 

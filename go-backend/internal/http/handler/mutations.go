@@ -128,7 +128,8 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 		autoBuyTraffic := asInt(req["autoBuyTraffic"], 0)
 		buyTrafficAmount := asInt64(req["buyTrafficAmount"], 0)
 		buyTrafficPrice := asInt64(req["buyTrafficPrice"], 0)
-		_ = h.repo.UpdateUserBuyTrafficConfig(userID, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice)
+		autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
+		_ = h.repo.UpdateUserBuyTrafficConfig(userID, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID)
 	}
 
 	if balance > 0 {
@@ -270,7 +271,8 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		autoBuyTraffic := asInt(req["autoBuyTraffic"], 0)
 		buyTrafficAmount := asInt64(req["buyTrafficAmount"], 0)
 		buyTrafficPrice := asInt64(req["buyTrafficPrice"], 0)
-		_ = h.repo.UpdateUserBuyTrafficConfig(id, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice)
+		autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
+		_ = h.repo.UpdateUserBuyTrafficConfig(id, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID)
 	}
 
 	if oldUser != nil && oldUser.Balance != balance {

@@ -30,6 +30,7 @@ export interface User {
   autoBuyTraffic?: number; // 自动购买流量开关 (0/1)
   buyTrafficAmount?: number; // 每次购买流量量 (GB)
   buyTrafficPrice?: number; // 每次购买价格 (分)
+  autoBuyTrafficPackageId?: number; // 关联的自动购流套餐ID (0=使用自定义配置)
   baseFlow?: number; // 初始流量配额 (GB)
 }
 
