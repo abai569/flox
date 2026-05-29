@@ -63,10 +63,10 @@ func (h *Handler) payOrder(w http.ResponseWriter, r *http.Request) {
 	_ = h.repo.UpdateOrderPaymentInfo(order.ID, result.PayURL, result.PayAddress)
 
 	response.WriteJSON(w, response.OK(map[string]interface{}{
-		"pay_url":     result.PayURL,
-		"pay_address": result.PayAddress,
-		"pay_amount":  result.PayAmount,
-		"order_no":    order.OrderNo,
+		"payUrl":      result.PayURL,
+		"payAddress":  result.PayAddress,
+		"payAmount":   result.PayAmount,
+		"orderNo":     order.OrderNo,
 	}))
 }
 
