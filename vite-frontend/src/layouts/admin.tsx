@@ -27,6 +27,7 @@ import {
   getMonitorAccess,
   updatePassword,
   getStoreStatus,
+  getConfigByName,
 } from "@/api";
 import { safeLogout } from "@/utils/logout";
 import { isRestricted } from "@/utils/session";
@@ -91,6 +92,7 @@ export default function AdminLayout({
   const isMobile = useMobileBreakpoint();
   const restricted = isRestricted();
   const [storeEnabled, setStoreEnabled] = useState(true);
+  const [paymentEnabled, setPaymentEnabled] = useState(true);
 
   useEffect(() => {
     getStoreStatus().then((res) => {
@@ -98,6 +100,21 @@ export default function AdminLayout({
         setStoreEnabled(!!res.data.enabled);
       }
     });
+    getConfigByName("payment_enabled").then((res) => {
+      if (res.code === 0 && res.data) {
+        setPaymentEnabled(res.data.value !== "false");
+      }
+    });
+    const handlePaymentChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+
+      setPaymentEnabled(!!detail.enabled);
+    };
+
+    window.addEventListener("paymentEnabledChanged", handlePaymentChange);
+
+    return () =>
+      window.removeEventListener("paymentEnabledChanged", handlePaymentChange);
   }, []);
 
   // 免费版横幅关闭状态
@@ -605,7 +622,17 @@ export default function AdminLayout({
       !(item.adminOnly && !isAdmin) &&
       !(item.userOnly && isAdmin) &&
       !(item.path === "/monitor" && monitorAllowed !== true) &&
-      !(item.path === "/shop" && !isAdmin && !storeEnabled),
+      !(item.path === "/shop" && !isAdmin && !storeEnabled) &&
+      !(
+        !paymentEnabled &&
+        [
+          "/shop",
+          "/admin/plans",
+          "/admin/orders",
+          "/admin/payment",
+          "/myhome",
+        ].includes(item.path)
+      ),
   );
 
   return (

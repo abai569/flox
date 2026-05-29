@@ -26,7 +26,7 @@ import {
   type DashboardNodeExpiryItem,
   type DashboardUserTunnel as UserTunnel,
 } from "@/pages/dashboard/use-dashboard-data";
-import { toggleUserAutoRenew } from "@/api";
+import { toggleUserAutoRenew, getConfigByName } from "@/api";
 
 export default function DashboardPage() {
   const [quotaHistoryModalOpen, setQuotaHistoryModalOpen] = useState(false);
@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [autoRenewOverride, setAutoRenewOverride] = useState<number | null>(
     null,
   );
+  const [paymentEnabled, setPaymentEnabled] = useState(true);
 
   const handleToggleAutoRenew = async (enabled: boolean) => {
     if (!userInfo.id || autoRenewSwitchLoading) return;
@@ -73,6 +74,23 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchQuotaHistory();
   }, [fetchQuotaHistory]);
+
+  useEffect(() => {
+    getConfigByName("payment_enabled").then((res) => {
+      if (res.code === 0 && res.data) {
+        setPaymentEnabled(res.data.value !== "false");
+      }
+    });
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+
+      setPaymentEnabled(!!d.enabled);
+    };
+
+    window.addEventListener("paymentEnabledChanged", handler);
+
+    return () => window.removeEventListener("paymentEnabledChanged", handler);
+  }, []);
   const handleDeleteHistory = async () => {
     if (historyToDelete) {
       await deleteQuotaHistory(historyToDelete);
@@ -562,13 +580,17 @@ export default function DashboardPage() {
             <div className="order-5 flex flex-col [&>*]:flex-1">
               <MetricCard
                 bottomContent={
-                  <div className="mt-1 flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                    <span className="text-xs text-primary cursor-pointer hover:underline"
-                      onClick={() => window.location.href = "/shop"}>
-                      去充值
-                    </span>
-                  </div>
+                  paymentEnabled ? (
+                    <div className="mt-1 flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                      <span
+                        className="text-xs text-primary cursor-pointer hover:underline"
+                        onClick={() => (window.location.href = "/shop")}
+                      >
+                        去充值
+                      </span>
+                    </div>
+                  ) : null
                 }
                 icon={
                   <svg
@@ -735,9 +757,10 @@ export default function DashboardPage() {
                 title="自动购流"
                 value={
                   userInfo.autoBuyTraffic === 1
-                    ? (userInfo.autoBuyTrafficPackageId && userInfo.autoBuyTrafficPackageId > 0
-                        ? "套餐自动购买"
-                        : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`)
+                    ? userInfo.autoBuyTrafficPackageId &&
+                      userInfo.autoBuyTrafficPackageId > 0
+                      ? "套餐自动购买"
+                      : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`
                     : "禁用"
                 }
               />

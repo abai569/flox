@@ -20,7 +20,6 @@ import MyHomePage from "@/pages/myhome";
 import AdminPlansPage from "@/pages/admin-plans";
 import AdminOrdersPage from "@/pages/admin-orders";
 import AdminPaymentPage from "@/pages/admin-payment";
-import { SettingsPage } from "@/pages/settings";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
 import { isLoggedIn } from "@/utils/auth";
@@ -259,7 +258,6 @@ function App() {
         }
         path="/admin/payment"
       />
-      <Route element={<SettingsPage />} path="/settings" />
     </Routes>
   );
 }

@@ -122,9 +122,21 @@ const CONFIG_ITEMS: ConfigItem[] = [
     type: "switch",
   },
   {
+    key: "payment_enabled",
+    label: "关闭商城系统",
+    description: "打开后，将隐藏所有支付、套餐、订单、商城相关菜单项和页面，同时关闭用户注册",
+    type: "switch",
+  },
+  {
+    key: "registration_enabled",
+    label: "开放注册",
+    description: "开启后允许用户自助注册账号",
+    type: "switch",
+  },
+  {
     key: "login_monitor_link",
-    label: "登录页监控入口",
-    description: "开启后，登录页右上角显示监控入口按钮，点击可查看节点实时状态",
+    label: "登录页探针入口",
+    description: "开启后，登录页右上角显示探针入口按钮，点击可查看节点实时状态",
     type: "switch",
   },
   {
@@ -152,6 +164,8 @@ const getInitialConfigs = (): Record<string, string> => {
   const configKeys = [
     "app_name",
     "captcha_enabled",
+    "registration_enabled",
+    "payment_enabled",
     "cloudflare_site_key",
     "cloudflare_secret_key",
     "forward_compact_mode",
@@ -445,6 +459,11 @@ export default function ConfigPage() {
       changedKeys.forEach((key) => {
         changedPayload[key] = configs[key] || "";
       });
+      // 商城关闭时联动关闭注册
+      if (changedKeys.includes("payment_enabled") && configs.payment_enabled === "false") {
+        changedPayload.registration_enabled = "0";
+        configs.registration_enabled = "0";
+      }
       const response = await updateConfigs(changedPayload);
 
       if (response.code === 0) {
@@ -472,6 +491,13 @@ export default function ConfigPage() {
             detail: { changedKeys },
           }),
         );
+        if (changedKeys.includes("payment_enabled")) {
+          window.dispatchEvent(
+            new CustomEvent("paymentEnabledChanged", {
+              detail: { enabled: configs.payment_enabled !== "false" },
+            }),
+          );
+        }
       } else {
         toast.error("保存配置失败: " + response.msg);
       }
@@ -731,6 +757,25 @@ export default function ConfigPage() {
           />
         );
       case "switch":
+        if (item.key === "payment_enabled") {
+          return (
+            <Switch
+              classNames={{
+                wrapper: isChanged ? "border-warning-300" : "",
+              }}
+              color="primary"
+              isSelected={configs[item.key] === "false"}
+              size="md"
+              onValueChange={(checked) =>
+                handleConfigChange(item.key, !checked ? "true" : "false")
+              }
+            >
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {configs[item.key] === "false" ? "已关闭" : "已开启"}
+              </span>
+            </Switch>
+          );
+        }
         return (
           <Switch
             classNames={{

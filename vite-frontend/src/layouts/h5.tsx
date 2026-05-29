@@ -26,6 +26,7 @@ import {
   getMonitorAccess,
   updatePassword,
   getStoreStatus,
+  getConfigByName,
 } from "@/api";
 import { safeLogout } from "@/utils/logout";
 import { isRestricted } from "@/utils/session";
@@ -60,6 +61,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [username, setUsername] = useState("");
   const [storeEnabled, setStoreEnabled] = useState(true);
+  const [paymentEnabled, setPaymentEnabled] = useState(true);
   const [monitorAllowed, setMonitorAllowed] = useState<boolean | null>(null);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const restricted = isRestricted();
@@ -307,6 +309,19 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       }
     });
 
+    getConfigByName("payment_enabled").then((res) => {
+      if (res.code === 0 && res.data) {
+        setPaymentEnabled(res.data.value !== "false");
+      }
+    });
+    const handlePaymentChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+
+      setPaymentEnabled(!!detail.enabled);
+    };
+
+    window.addEventListener("paymentEnabledChanged", handlePaymentChange);
+
     const adminFlag = getAdminFlag();
 
     if (adminFlag) {
@@ -325,6 +340,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
 
     return () => {
       clearInterval(licenseInterval);
+      window.removeEventListener("paymentEnabledChanged", handlePaymentChange);
     };
   }, []);
 
@@ -426,7 +442,17 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       (!item.adminOnly || isAdmin) &&
       (!item.userOnly || !isAdmin) &&
       !(item.path === "/monitor" && monitorAllowed !== true) &&
-      !(item.path === "/shop" && !isAdmin && !storeEnabled),
+      !(item.path === "/shop" && !isAdmin && !storeEnabled) &&
+      !(
+        !paymentEnabled &&
+        [
+          "/shop",
+          "/admin/plans",
+          "/admin/orders",
+          "/admin/payment",
+          "/myhome",
+        ].includes(item.path)
+      ),
   );
 
   return (
@@ -686,7 +712,8 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
             {filteredMenuItems.map((item) => {
               const isActive = location.pathname === item.path;
               const isStoreBlocked = item.path === "/shop" && !storeEnabled;
-              const isRestrictedBlocked = restricted && !item.restrictedAccessible;
+              const isRestrictedBlocked =
+                restricted && !item.restrictedAccessible;
               const isBlocked = isStoreBlocked || isRestrictedBlocked;
 
               return (
