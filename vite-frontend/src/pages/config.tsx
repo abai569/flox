@@ -457,24 +457,13 @@ export default function ConfigPage() {
 
     try {
       await updateConfigs(payload);
-      // 更新本地缓存
       Object.entries(payload).forEach(([k, v]) => {
         configCache.set(k, v);
         localStorage.setItem("vite_config_" + k, v);
       });
       updateSiteConfig(payload);
-      // 触发事件通知其他组件
-      window.dispatchEvent(
-        new CustomEvent("configUpdated", { detail: { changedKeys: Object.keys(payload) } }),
-      );
-      if (key === "payment_enabled") {
-        window.dispatchEvent(
-          new CustomEvent("paymentEnabledChanged", {
-            detail: { enabled: newValue !== "false" },
-          }),
-        );
-      }
-      toast.success("设置已更新");
+      toast.success("设置已更新，即将刷新页面");
+      setTimeout(() => window.location.reload(), 800);
     } catch {
       toast.error("保存失败");
       // 回滚
