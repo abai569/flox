@@ -477,6 +477,9 @@ export default function ConfigPage() {
           }),
         );
         if (changedKeys.includes("payment_enabled")) {
+          try {
+            localStorage.setItem("vite_config_payment_enabled", configs.payment_enabled || "");
+          } catch {}
           window.dispatchEvent(
             new CustomEvent("paymentEnabledChanged", {
               detail: { enabled: configs.payment_enabled !== "false" },

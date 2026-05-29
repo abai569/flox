@@ -76,6 +76,10 @@ export default function DashboardPage() {
   }, [fetchQuotaHistory]);
 
   useEffect(() => {
+    const cached = localStorage.getItem("vite_config_payment_enabled");
+    if (cached !== null) {
+      setPaymentEnabled(cached !== "false");
+    }
     getConfigByName("payment_enabled").then((res) => {
       if (res.code === 0 && res.data) {
         setPaymentEnabled(res.data.value !== "false");
@@ -83,12 +87,9 @@ export default function DashboardPage() {
     });
     const handler = (e: Event) => {
       const d = (e as CustomEvent).detail;
-
       setPaymentEnabled(!!d.enabled);
     };
-
     window.addEventListener("paymentEnabledChanged", handler);
-
     return () => window.removeEventListener("paymentEnabledChanged", handler);
   }, []);
   const handleDeleteHistory = async () => {
