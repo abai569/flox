@@ -963,8 +963,9 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 			"autoRenew":        u.AutoRenew,
 			"autoBuyTraffic":   u.AutoBuyTraffic,
 			"buyTrafficAmount": u.BuyTrafficAmount,
-			"buyTrafficPrice":  u.BuyTrafficPrice,
-			"baseFlow":         u.BaseFlow,
+			"buyTrafficPrice":          u.BuyTrafficPrice,
+			"autoBuyTrafficPackageId": u.AutoBuyTrafficPackageID,
+			"baseFlow":                u.BaseFlow,
 		}
 		if quota := quotaMap[u.ID]; quota != nil {
 			item["dailyQuotaGB"] = quota.DailyLimitGB
@@ -3126,12 +3127,16 @@ func (r *Repository) ResetUserMonthlyFlow(day int, lastDay int) ([]model.UserFlo
 		return nil, errors.New("repository not initialized")
 	}
 
+	todayStart := time.Now().Truncate(24 * time.Hour).UnixMilli()
+
 	var snapshots []model.UserFlowSnapshot
-	query := r.db.Model(&model.User{}).Select("id, in_flow, out_flow")
+	query := r.db.Model(&model.User{}).Select("id, in_flow, out_flow").
+		Where("flow_reset_time != 0").
+		Where("updated_time IS NULL OR updated_time < ?", todayStart)
 	if day == lastDay {
-		query = query.Where("flow_reset_time != 0 AND (flow_reset_time = ? OR flow_reset_time > ?)", day, lastDay)
+		query = query.Where("flow_reset_time = ? OR flow_reset_time > ?", day, lastDay)
 	} else {
-		query = query.Where("flow_reset_time != 0 AND flow_reset_time = ?", day)
+		query = query.Where("flow_reset_time = ?", day)
 	}
 	if err := query.Find(&snapshots).Error; err != nil {
 		return nil, err
@@ -3140,12 +3145,16 @@ func (r *Repository) ResetUserMonthlyFlow(day int, lastDay int) ([]model.UserFlo
 	updates := map[string]interface{}{"in_flow": 0, "out_flow": 0}
 	if day == lastDay {
 		err := r.db.Model(&model.User{}).
-			Where("flow_reset_time != 0 AND (flow_reset_time = ? OR flow_reset_time > ?)", day, lastDay).
+			Where("flow_reset_time != 0").
+			Where("updated_time IS NULL OR updated_time < ?", todayStart).
+			Where("(flow_reset_time = ? OR flow_reset_time > ?)", day, lastDay).
 			Updates(updates).Error
 		return snapshots, err
 	}
 	return snapshots, r.db.Model(&model.User{}).
-		Where("flow_reset_time != 0 AND flow_reset_time = ?", day).
+		Where("flow_reset_time != 0").
+		Where("updated_time IS NULL OR updated_time < ?", todayStart).
+		Where("flow_reset_time = ?", day).
 		Updates(updates).Error
 }
 
