@@ -838,11 +838,16 @@ export default function UserPage() {
     void loadUsers();
   }, [loadUsers]);
   useEffect(() => {
-    getConfigByName("registration_enabled").then((res) => {
-      if (res.code === 0 && res.data) {
-        setRegOpen(res.data.value !== "0");
-      }
-    }).catch(() => {});
+    const loadReg = () => {
+      getConfigByName("registration_enabled").then((res) => {
+        if (res.code === 0 && res.data) {
+          setRegOpen(res.data.value !== "0");
+        }
+      }).catch(() => {});
+    };
+    loadReg();
+    window.addEventListener("configUpdated", loadReg);
+    return () => window.removeEventListener("configUpdated", loadReg);
   }, []);
   usePullToRefresh(loadUsers);
   useEffect(() => {

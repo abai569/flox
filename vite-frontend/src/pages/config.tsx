@@ -467,8 +467,17 @@ export default function ConfigPage() {
         localStorage.setItem("vite_config_" + k, v);
       });
       updateSiteConfig(payload);
-      toast.success("设置已更新，即将刷新页面");
-      setTimeout(() => window.location.reload(), 800);
+      window.dispatchEvent(
+        new CustomEvent("configUpdated", { detail: { changedKeys: Object.keys(payload) } }),
+      );
+      if (key === "payment_enabled") {
+        window.dispatchEvent(
+          new CustomEvent("paymentEnabledChanged", {
+            detail: { enabled: newValue !== "false" },
+          }),
+        );
+      }
+      toast.success("设置已更新");
     } catch {
       toast.error("保存失败");
       // 回滚

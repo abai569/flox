@@ -102,8 +102,8 @@ export const updateUser = (data: UserMutationPayload) =>
 export const deleteUser = (id: number) => Network.post("/user/delete", { id });
 export const toggleUserAutoRenew = (id: number, autoRenew: number) =>
   Network.post("/user/toggle-auto-renew", { id, autoRenew });
-export const toggleUserAutoBuyTraffic = (id: number, autoBuyTraffic: number) =>
-  Network.post("/user/toggle-auto-buy-traffic", { id, autoBuyTraffic });
+export const toggleUserAutoBuyTraffic = (id: number, autoBuyTraffic: number, autoBuyTrafficPackageId?: number) =>
+  Network.post("/user/toggle-auto-buy-traffic", { id, autoBuyTraffic, ...(autoBuyTrafficPackageId !== undefined ? { autoBuyTrafficPackageId } : {}) });
 export const getUserPackageInfo = () =>
   Network.post<UserPackageInfoApiData>("/user/package");
 

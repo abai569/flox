@@ -348,9 +348,22 @@ func (h *Handler) userToggleAutoBuyTraffic(w http.ResponseWriter, r *http.Reques
 		response.WriteJSON(w, response.ErrDefault("自动购买流量参数错误"))
 		return
 	}
-	if err := h.repo.UpdateUserAutoBuyTraffic(id, autoBuyTraffic); err != nil {
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
+	autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
+	if autoBuyTraffic == 0 {
+		if err := h.repo.UpdateUserBuyTrafficConfig(id, 0, 0, 0, 0); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
+	} else if autoBuyTrafficPackageID == 0 {
+		if err := h.repo.UpdateUserAutoBuyTraffic(id, 1); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
+	} else {
+		if err := h.repo.UpdateUserBuyTrafficConfig(id, 1, 0, 0, autoBuyTrafficPackageID); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	response.WriteJSON(w, response.OKEmpty())
 }

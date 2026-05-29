@@ -26,7 +26,9 @@ import {
   type DashboardNodeExpiryItem,
   type DashboardUserTunnel as UserTunnel,
 } from "@/pages/dashboard/use-dashboard-data";
-import { toggleUserAutoRenew } from "@/api";
+import { toggleUserAutoRenew, toggleUserAutoBuyTraffic, getStoreStatus, listAutoBuyTrafficPackages } from "@/api";
+import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
+import type { SubscriptionPackageApiItem } from "@/api/types";
 
 export default function DashboardPage() {
   const [quotaHistoryModalOpen, setQuotaHistoryModalOpen] = useState(false);
@@ -49,6 +51,10 @@ export default function DashboardPage() {
   const [autoRenewOverride, setAutoRenewOverride] = useState<number | null>(
     null,
   );
+  const [autoBuySwitchLoading, setAutoBuySwitchLoading] = useState(false);
+  const [autoBuyOverride, setAutoBuyOverride] = useState<number | null>(null);
+  const [storeEnabled, setStoreEnabled] = useState(false);
+  const [autoBuyPackages, setAutoBuyPackages] = useState<SubscriptionPackageApiItem[]>([]);
   const isPaymentEnabled = (() => {
     try {
       const cached = localStorage.getItem("vite_config_payment_enabled");
@@ -76,6 +82,51 @@ export default function DashboardPage() {
       setAutoRenewSwitchLoading(false);
     }
   };
+
+  const handleToggleAutoBuyTraffic = async (enabled: boolean) => {
+    if (!userInfo.id || autoBuySwitchLoading) return;
+    setAutoBuySwitchLoading(true);
+    try {
+      const newValue = enabled ? 1 : 0;
+      const res = await toggleUserAutoBuyTraffic(userInfo.id, newValue);
+      if (res.code === 0) {
+        toast.success(enabled ? "自动购流已启用" : "自动购流已禁用");
+        setAutoBuyOverride(newValue);
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("操作失败");
+    } finally {
+      setAutoBuySwitchLoading(false);
+    }
+  };
+
+  const handleAutoBuyPackageChange = async (packageId: number) => {
+    if (!userInfo.id || autoBuySwitchLoading) return;
+    setAutoBuySwitchLoading(true);
+    try {
+      const res = await toggleUserAutoBuyTraffic(userInfo.id, 1, packageId);
+      if (res.code === 0) {
+        toast.success("自动购流套餐已切换");
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("操作失败");
+    } finally {
+      setAutoBuySwitchLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getStoreStatus().then((res) => {
+      if (res.code === 0) setStoreEnabled(res.data?.enabled ?? false);
+    });
+    listAutoBuyTrafficPackages().then((res) => {
+      if (res.code === 0 && Array.isArray(res.data)) setAutoBuyPackages(res.data);
+    });
+  }, []);
 
   useEffect(() => {
     fetchQuotaHistory();
@@ -716,20 +767,47 @@ export default function DashboardPage() {
             <div className="order-9 flex flex-col [&>*]:flex-1">
               <MetricCard
                 bottomContent={
-                  userInfo.autoBuyTraffic === 1 ? (
-                    <div className="mt-1 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                      <span className="text-xs text-success">
-                        自动购买流量运行中
-                      </span>
-                    </div>
+                  storeEnabled ? (
+                    (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1 ? (
+                      <div className="mt-2 space-y-2">
+                        <Select
+                          size="sm"
+                          placeholder="选择流量套餐"
+                          selectedKeys={new Set([String(userInfo.autoBuyTrafficPackageId ?? 0)])}
+                          onSelectionChange={(keys) => {
+                            const key = Array.from(keys)[0];
+                            if (key && Number(key) > 0) handleAutoBuyPackageChange(Number(key));
+                          }}
+                        >
+                          {autoBuyPackages.map((pkg) => (
+                            <SelectItem key={String(pkg.id)} textValue={pkg.name}>
+                              {pkg.name}
+                            </SelectItem>
+                          ))}
+                        </Select>
+                        <div className="flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                          <span className="text-xs text-success">自动购买流量运行中</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-1 flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
+                        <span className="text-xs text-default-500">用完流量后将停用</span>
+                      </div>
+                    )
                   ) : (
-                    <div className="mt-1 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
-                      <span className="text-xs text-default-500">
-                        用完流量后将停用
-                      </span>
-                    </div>
+                    userInfo.autoBuyTraffic === 1 ? (
+                      <div className="mt-1 flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                        <span className="text-xs text-success">自动购买流量运行中</span>
+                      </div>
+                    ) : (
+                      <div className="mt-1 flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
+                        <span className="text-xs text-default-500">用完流量后将停用</span>
+                      </div>
+                    )
                   )
                 }
                 icon={
@@ -743,14 +821,31 @@ export default function DashboardPage() {
                   </svg>
                 }
                 iconClassName="bg-teal-100 dark:bg-teal-500/20"
-                title="自动购流"
+                title={
+                  storeEnabled ? (
+                    <div className="flex items-center gap-2">
+                      <span>自动购流</span>
+                      <Switch
+                        isDisabled={autoBuySwitchLoading}
+                        isSelected={(autoBuyOverride ?? userInfo.autoBuyTraffic) === 1}
+                        size="sm"
+                        onValueChange={handleToggleAutoBuyTraffic}
+                      />
+                    </div>
+                  ) : "自动购流"
+                }
                 value={
-                  userInfo.autoBuyTraffic === 1
-                    ? userInfo.autoBuyTrafficPackageId &&
-                      userInfo.autoBuyTrafficPackageId > 0
-                      ? "套餐自动购买"
-                      : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`
-                    : "禁用"
+                  storeEnabled
+                    ? (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1
+                      ? userInfo.autoBuyTrafficPackageId && userInfo.autoBuyTrafficPackageId > 0
+                        ? (autoBuyPackages.find((p) => p.id === userInfo.autoBuyTrafficPackageId)?.name ?? "套餐自动购买")
+                        : "请选择套餐"
+                      : "禁用"
+                    : userInfo.autoBuyTraffic === 1
+                      ? userInfo.autoBuyTrafficPackageId && userInfo.autoBuyTrafficPackageId > 0
+                        ? "套餐自动购买"
+                        : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`
+                      : "禁用"
                 }
               />
             </div>
