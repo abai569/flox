@@ -208,7 +208,7 @@ export default function ShopPage() {
                       ) : (
                         <p className="text-sm text-gray-400">充值到账户余额</p>
                       )}
-                      {pkg.type === "subscription" && activeSub && (
+                      {pkg.type === "subscription" && (
                         <p className="text-xs text-orange-500">已有订阅套餐时新购将替换现有套餐</p>
                       )}
                       <Button
