@@ -44,6 +44,10 @@ export default function ShopPage() {
     useState<SubscriptionPackageApiItem | null>(null);
   const [pkgQuantity, setPkgQuantity] = useState(1);
 
+  const [selectedTab, setSelectedTab] = useState(
+    localStorage.getItem("shop-active-tab") || "subscription"
+  );
+
   const subPkgs = packages.filter((p) => p.type === "subscription" || !p.type);
   const trafficPkgs = packages.filter((p) => p.type === "traffic");
   const balancePkgs = packages.filter((p) => p.type === "balance");
@@ -256,7 +260,7 @@ export default function ShopPage() {
           <p className="text-sm mt-1">请联系管理员</p>
         </div>
       ) : (
-        <Tabs>
+        <Tabs selectedKey={selectedTab} onSelectionChange={(key) => { setSelectedTab(String(key)); localStorage.setItem("shop-active-tab", String(key)); }}>
           {typeSections.map((s) => (
             <Tab
               key={s.type}
@@ -276,8 +280,7 @@ export default function ShopPage() {
                     key={pkg.id}
                     className="border border-divider shadow-sm hover:shadow-md transition-shadow relative overflow-visible"
                   >
-                    {s.type === "subscription" &&
-                      pkg.recommended === 1 && (
+                    {pkg.recommended === 1 && (
                         <div className="absolute -top-2 -right-2 z-10">
                           <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
                             推荐
@@ -296,7 +299,7 @@ export default function ShopPage() {
                         </div>
                         <div className="flex-shrink-0 ml-2">
                           {pkg.stock === -1 ? (
-                            <span className="text-xs text-gray-400">不限</span>
+                            <span className="text-xs text-green-500 text-foreground">不限</span>
                           ) : pkg.stock === 0 ? (
                             <span className="text-xs text-red-500 font-medium">已售罄</span>
                           ) : (
