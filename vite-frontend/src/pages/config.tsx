@@ -456,7 +456,7 @@ export default function ConfigPage() {
 
     // 关闭商城系统时联动关闭注册
     if (key === "payment_enabled" && newValue === "false") {
-      payload.registration_enabled = "0";
+      payload.registration_enabled = "false";
     }
 
     // 立即更新本地状态
@@ -535,8 +535,8 @@ export default function ConfigPage() {
         changedKeys.includes("payment_enabled") &&
         configs.payment_enabled === "false"
       ) {
-        changedPayload.registration_enabled = "0";
-        configs.registration_enabled = "0";
+        changedPayload.registration_enabled = "false";
+        configs.registration_enabled = "false";
       }
       const response = await updateConfigs(changedPayload);
 

@@ -590,7 +590,7 @@ export default function UserPage() {
     try {
       const res = await updateConfig(
         "registration_enabled",
-        enabled ? "1" : "0",
+        enabled ? "true" : "false",
       );
 
       if (res.code === 0) {
@@ -598,7 +598,7 @@ export default function UserPage() {
         try {
           localStorage.setItem(
             "vite_config_registration_enabled",
-            enabled ? "1" : "0",
+            enabled ? "true" : "false",
           );
         } catch {}
         window.dispatchEvent(new CustomEvent("configUpdated"));
@@ -865,7 +865,8 @@ export default function UserPage() {
       getConfigByName("registration_enabled")
         .then((res) => {
           if (res.code === 0 && res.data) {
-            setRegOpen(res.data.value !== "0");
+            const v = res.data.value;
+            setRegOpen(v === "1" || v === "true");
           }
         })
         .catch(() => {});

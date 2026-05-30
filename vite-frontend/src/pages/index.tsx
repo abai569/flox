@@ -61,7 +61,8 @@ export default function IndexPage() {
     getConfigByName("registration_enabled")
       .then((res) => {
         if (res.code === 0 && res.data) {
-          setRegEnabled(res.data.value !== "0");
+          const v = res.data.value;
+          setRegEnabled(v === "1" || v === "true");
         }
       })
       .catch(() => {});
