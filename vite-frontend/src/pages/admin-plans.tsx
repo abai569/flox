@@ -1316,6 +1316,8 @@ export default function AdminPlansPage() {
                   <span className="text-xs text-gray-400">商店售卖</span>
                 </div>
               </div>
+              {/* 隐藏套餐说明 */}
+              {/* 
               <div className="space-y-1">
                 <label className="text-sm text-foreground">说明</label>
                 <Textarea
@@ -1326,7 +1328,8 @@ export default function AdminPlansPage() {
                     setPkgForm((p) => ({ ...p, description: e.target.value }))
                   }
                 />
-              </div>
+              </div> 
+              */}
             </ModalBody>
           )}
           <ModalFooter>
