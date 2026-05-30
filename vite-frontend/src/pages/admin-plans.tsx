@@ -37,8 +37,6 @@ import {
   deletePackage,
   getPackageDetail,
   getTunnelGroupList,
-  getStoreStatus,
-  setStoreStatus,
   assignPackageToUser,
   getAllUsers,
 } from "@/api";
@@ -143,8 +141,6 @@ export default function AdminPlansPage() {
   const [assignPkgId, setAssignPkgId] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
 
-  const [storeEnabled, setStoreEnabled] = useState(true);
-
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
 
   const filteredList = pkgList.filter((p) => p.type === activeTab);
@@ -152,10 +148,9 @@ export default function AdminPlansPage() {
   // ── Load data ──
   const loadPackages = useCallback(async () => {
     try {
-      const [pkgRes, tgRes, storeRes] = await Promise.all([
+      const [pkgRes, tgRes] = await Promise.all([
         getPackageList(),
         getTunnelGroupList(),
-        getStoreStatus(),
       ]);
 
       if (pkgRes.code === 0) {
@@ -163,9 +158,6 @@ export default function AdminPlansPage() {
       }
       if (tgRes.code === 0) {
         setTunnelGroups(Array.isArray(tgRes.data) ? tgRes.data : []);
-      }
-      if (storeRes.code === 0) {
-        setStoreEnabled(!!storeRes.data.enabled);
       }
     } catch {
       toast.error("加载失败");
@@ -352,7 +344,9 @@ export default function AdminPlansPage() {
     }
   };
 
-  const activeCount = pkgList.filter((p) => p.enabled === 1).length;
+  const subscriptionCount = pkgList.filter((p) => p.type === "subscription").length;
+  const trafficCount = pkgList.filter((p) => p.type === "traffic").length;
+  const balanceCount = pkgList.filter((p) => p.type === "balance").length;
 
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">
@@ -372,88 +366,7 @@ export default function AdminPlansPage() {
         <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
           <CardBody className="p-3 lg:p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-default-500">商城状态</span>
-              <div
-                className={`p-1.5 rounded-lg ${storeEnabled ? "bg-green-100 dark:bg-green-500/20" : "bg-gray-100 dark:bg-gray-500/20"}`}
-              >
-                {storeEnabled ? (
-                  <svg
-                    className="w-4 h-4 text-green-600"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      clipRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                      fillRule="evenodd"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-4 h-4 text-gray-400"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      clipRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      fillRule="evenodd"
-                    />
-                  </svg>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <p
-                className={`text-xl font-bold ${storeEnabled ? "text-green-600" : "text-gray-400"}`}
-              >
-                {storeEnabled ? "已开启" : "只能手动分配"}
-              </p>
-              <Switch
-                isSelected={storeEnabled}
-                size="sm"
-                onValueChange={async (enabled: boolean) => {
-                  try {
-                    const res = await setStoreStatus({ enabled });
-
-                    if (res.code === 0) {
-                      setStoreEnabled(enabled);
-                      toast.success(enabled ? "已开启" : "只能手动分配");
-                      // 同步更新 payment_enabled 及相关状态
-                      const localStorageKey = "vite_config_payment_enabled";
-                      const localStorageValue = enabled ? "true" : "false";
-
-                      try {
-                        localStorage.setItem(
-                          localStorageKey,
-                          localStorageValue,
-                        );
-                      } catch { }
-                      window.dispatchEvent(
-                        new CustomEvent("paymentEnabledChanged", {
-                          detail: { enabled },
-                        }),
-                      );
-                      window.dispatchEvent(
-                        new CustomEvent("storeEnabledChanged", {
-                          detail: { enabled },
-                        }),
-                      );
-                    } else {
-                      toast.error(res.msg || "操作失败");
-                    }
-                  } catch (e: any) {
-                    toast.error(e?.message || "网络错误");
-                  }
-                }}
-              />
-            </div>
-          </CardBody>
-        </Card>
-        <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
-          <CardBody className="p-3 lg:p-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-default-500">套餐总数</span>
+              <span className="text-xs text-default-500">所有套餐</span>
               <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-500/20">
                 <svg
                   className="w-4 h-4 text-blue-600"
@@ -464,7 +377,7 @@ export default function AdminPlansPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-xl font-bold text-foreground">
+            <p className="text-xl font-bold text-blue-600">
               {pkgList.length}
             </p>
           </CardBody>
@@ -472,40 +385,58 @@ export default function AdminPlansPage() {
         <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
           <CardBody className="p-3 lg:p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-default-500">启用</span>
+              <span className="text-xs text-default-500">订阅套餐</span>
               <div className="p-1.5 rounded-lg bg-green-100 dark:bg-green-500/20">
                 <svg
                   className="w-4 h-4 text-green-600"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >
-                  <path
-                    clipRule="evenodd"
-                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                    fillRule="evenodd"
-                  />
+                  <path d="M4 4a2 2 0 012-2h8a2 2 0 012 2v1H4V4zm0 2h12v8a2 2 0 01-2 2H6a2 2 0 01-2-2V6z" />
                 </svg>
               </div>
             </div>
-            <p className="text-xl font-bold text-green-600">{activeCount}</p>
+            <p className="text-xl font-bold text-green-600">
+              {subscriptionCount}
+            </p>
           </CardBody>
         </Card>
         <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
           <CardBody className="p-3 lg:p-4">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-default-500">隧道分组</span>
+              <span className="text-xs text-default-500">流量快餐</span>
+              <div className="p-1.5 rounded-lg bg-orange-100 dark:bg-orange-500/20">
+                <svg
+                  className="w-4 h-4 text-orange-600"
+                  fill="currentColor"
+                  viewBox="0 0 20 20"
+                >
+                  <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-xl font-bold text-orange-600">
+              {trafficCount}
+            </p>
+          </CardBody>
+        </Card>
+        <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
+          <CardBody className="p-3 lg:p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-default-500">余额充值</span>
               <div className="p-1.5 rounded-lg bg-purple-100 dark:bg-purple-500/20">
                 <svg
                   className="w-4 h-4 text-purple-600"
                   fill="currentColor"
                   viewBox="0 0 20 20"
                 >
-                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                  <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
+                  <path clipRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" fillRule="evenodd" />
                 </svg>
               </div>
             </div>
-            <p className="text-xl font-bold text-foreground">
-              {tunnelGroups.length}
+            <p className="text-xl font-bold text-purple-600">
+              {balanceCount}
             </p>
           </CardBody>
         </Card>

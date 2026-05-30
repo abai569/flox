@@ -113,9 +113,19 @@ export default function AdminLayout({
       setStoreEnabled(!!detail.enabled);
     };
 
+    // 监听 storage 事件（其他标签页修改 localStorage 时触发）
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "vite_config_payment_enabled") {
+        const enabled = e.newValue !== "false";
+
+        setStoreEnabled(enabled);
+      }
+    };
+
     window.addEventListener("paymentEnabledChanged", handlePaymentChange);
     window.addEventListener("configUpdated", handleConfigUpdate);
     window.addEventListener("storeEnabledChanged", handleStoreEnabledChanged);
+    window.addEventListener("storage", handleStorageChange);
 
     return () => {
       window.removeEventListener("paymentEnabledChanged", handlePaymentChange);
@@ -124,6 +134,7 @@ export default function AdminLayout({
         "storeEnabledChanged",
         handleStoreEnabledChanged,
       );
+      window.removeEventListener("storage", handleStorageChange);
     };
   }, []);
 

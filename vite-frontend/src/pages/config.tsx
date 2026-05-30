@@ -131,9 +131,9 @@ const CONFIG_ITEMS: ConfigItem[] = [
   },
   {
     key: "payment_enabled",
-    label: "关闭商城系统",
+    label: "商城系统",
     description:
-      "打开后，将隐藏所有支付、套餐、订单、商城相关菜单项和页面，同时关闭用户注册",
+      "关闭后，将隐藏所有支付、套餐、订单、商城相关菜单项和页面，同时关闭用户注册",
     type: "switch",
   },
   {
@@ -144,7 +144,7 @@ const CONFIG_ITEMS: ConfigItem[] = [
   },
   {
     key: "login_monitor_link",
-    label: "登录页探针入口",
+    label: "探针入口",
     description: "开启后，登录页右上角显示探针入口按钮，点击可查看节点实时状态",
     type: "switch",
   },
@@ -194,6 +194,9 @@ const getInitialConfigs = (): Record<string, string> => {
 
       if (cachedValue) {
         initialConfigs[key] = cachedValue;
+      } else if (key === "payment_enabled") {
+        // 默认开启商城
+        initialConfigs[key] = "true";
       }
     });
   } catch {}
@@ -443,14 +446,7 @@ export default function ConfigPage() {
   };
   // 快捷开关直接生效（不经过保存按钮）
   const handleDirectSwitchChange = async (key: string, checked: boolean) => {
-    const newValue =
-      key === "payment_enabled"
-        ? !checked
-          ? "true"
-          : "false"
-        : checked
-          ? "true"
-          : "false";
+    const newValue = checked ? "true" : "false";
 
     const payload: Record<string, string> = { [key]: newValue };
 
@@ -491,7 +487,11 @@ export default function ConfigPage() {
             detail: { enabled: newValue !== "false" },
           }),
         );
-        // 同步后端 store_enabled
+        window.dispatchEvent(
+          new CustomEvent("storeEnabledChanged", {
+            detail: { enabled: newValue !== "false" },
+          }),
+        );
         setStoreStatus({ enabled: newValue !== "false" }).catch(() => {});
       }
       toast.success("设置已更新");
@@ -852,14 +852,14 @@ export default function ConfigPage() {
                 wrapper: isChanged ? "border-warning-300" : "",
               }}
               color="primary"
-              isSelected={configs[item.key] === "false"}
+              isSelected={configs[item.key] === "true"}
               size="md"
               onValueChange={(checked) =>
-                handleConfigChange(item.key, !checked ? "true" : "false")
+                handleConfigChange(item.key, checked ? "true" : "false")
               }
             >
               <span className="text-sm text-gray-700 dark:text-gray-300">
-                {configs[item.key] === "false" ? "已关闭" : "已开启"}
+                {configs[item.key] === "true" ? "已开启" : "已关闭"}
               </span>
             </Switch>
           );
@@ -1127,11 +1127,7 @@ export default function ConfigPage() {
                   <div className="flex-shrink-0">
                     <Switch
                       color="primary"
-                      isSelected={
-                        item.key === "payment_enabled"
-                          ? configs[item.key] === "false"
-                          : configs[item.key] === "true"
-                      }
+                      isSelected={configs[item.key] === "true"}
                       size="sm"
                       onValueChange={(checked) =>
                         handleDirectSwitchChange(item.key, checked)

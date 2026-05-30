@@ -66,15 +66,6 @@ export default function DashboardPage() {
   const [autoBuyPackages, setAutoBuyPackages] = useState<
     SubscriptionPackageApiItem[]
   >([]);
-  const isPaymentEnabled = (() => {
-    try {
-      const cached = localStorage.getItem("vite_config_payment_enabled");
-
-      if (cached !== null) return cached !== "false";
-    } catch {}
-
-    return true; // 默认开启
-  })();
 
   const handleToggleAutoRenew = async (enabled: boolean) => {
     if (!userInfo.id || autoRenewSwitchLoading) return;
@@ -150,13 +141,22 @@ export default function DashboardPage() {
       setStoreEnabled(!!detail.enabled);
     };
 
-    window.addEventListener("storeEnabledChanged", handleStoreEnabledChanged);
+    // 监听 storage 事件（其他标签页修改 localStorage 时触发）
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "vite_config_payment_enabled") {
+        const enabled = e.newValue !== "false";
 
-    return () =>
-      window.removeEventListener(
-        "storeEnabledChanged",
-        handleStoreEnabledChanged,
-      );
+        setStoreEnabled(enabled);
+      }
+    };
+
+    window.addEventListener("storeEnabledChanged", handleStoreEnabledChanged);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storeEnabledChanged", handleStoreEnabledChanged);
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -650,7 +650,7 @@ export default function DashboardPage() {
             <div className="order-5 flex flex-col [&>*]:flex-1">
               <MetricCard
                 bottomContent={
-                  isPaymentEnabled ? (
+                  storeEnabled ? (
                     <div className="mt-1 flex items-center gap-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-success" />
                       <span
@@ -840,11 +840,21 @@ export default function DashboardPage() {
                       </div>
                     )
                   ) : userInfo.autoBuyTraffic === 1 ? (
-                    <div className="mt-1 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                      <span className="text-xs text-success">
-                        自动购买流量运行中
-                      </span>
+                    <div className="mt-2 space-y-2">
+                      {userInfo.autoBuyTrafficPackageId &&
+                      userInfo.autoBuyTrafficPackageId > 0 ? (
+                        <div className="flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                          <span className="text-xs text-success">
+                            自动购买流量运行中
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-default-500">
+                          {userInfo.buyTrafficAmount || 0}GB /{" "}
+                          {userInfo.buyTrafficPrice || 0}元
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="mt-1 flex items-center gap-1">
