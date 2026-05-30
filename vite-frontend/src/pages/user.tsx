@@ -96,6 +96,7 @@ import {
   updateUserOrder,
   getUserQuotaHistory,
   deleteUserQuotaHistory,
+  deleteUserRenewalLog,
   batchUpdateUserTunnelStatus,
   getConfigByName,
   updateConfig,
@@ -322,6 +323,7 @@ export default function UserPage() {
     useState<User | null>(null);
   const [renewalLogs, setRenewalLogs] = useState<UserRenewalLog[]>([]);
   const [renewalLogLoading, setRenewalLogLoading] = useState(false);
+  const [renewalLogToDelete, setRenewalLogToDelete] = useState<number | null>(null);
   const [regOpen, setRegOpen] = useState(true);
   const [regLoading, setRegLoading] = useState(false);
   // --- 监控权限相关状态 (来自 user 新) ---
@@ -1172,6 +1174,39 @@ export default function UserPage() {
       setRenewalLogLoading(false);
     }
   };
+
+  const handleDeleteRenewalLog = async (id: number) => {
+    try {
+      const res = await deleteUserRenewalLog(id);
+      if (res.code === 0) {
+        toast.success("删除成功");
+        if (selectedRenewalLogUser) {
+          try {
+            const refreshRes = await fetch("/api/v1/user/renewal-logs", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: localStorage.token,
+              },
+              body: JSON.stringify({
+                userId: selectedRenewalLogUser.id,
+                limit: 50,
+              }),
+            });
+            const refreshData = await refreshRes.json();
+            if (refreshData.code === 0) {
+              setRenewalLogs(refreshData.data || []);
+            }
+          } catch {}
+        }
+      } else {
+        toast.error(res.msg || "删除失败");
+      }
+    } catch {
+      toast.error("删除失败");
+    }
+  };
+
   const handleBatchAssignTunnel = async () => {
     if (batchTunnelSelections.size === 0 || !currentUser) {
       toast.error("请选择至少一个隧道");
@@ -2927,74 +2962,115 @@ export default function UserPage() {
                 暂无续费记录
               </div>
             ) : (
-              <Table
-                aria-label="续费记录"
-                classNames={{
-                  th: "bg-default-100/50 text-default-600 font-semibold text-xs uppercase",
-                  td: "py-2 text-sm",
-                }}
-              >
-                <TableHeader>
-                  <TableColumn>续费时间</TableColumn>
-                  <TableColumn>扣款金额</TableColumn>
-                  <TableColumn>续费前余额</TableColumn>
-                  <TableColumn>续费后余额</TableColumn>
-                  <TableColumn>续费前到期</TableColumn>
-                  <TableColumn>续费后到期</TableColumn>
-                  <TableColumn>原因</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {renewalLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell>
-                        {new Date(log.renewalTime)
-                          .toLocaleString("zh-CN", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                          .replace(/\//g, "-")}
-                      </TableCell>
-                        <TableCell className="text-success font-medium">
-                        {(log.renewalAmount / 100).toFixed(2)}
-                      </TableCell>
-                      <TableCell>{(log.balanceBefore / 100).toFixed(2)}</TableCell>
-                      <TableCell>{(log.balanceAfter / 100).toFixed(2)}</TableCell>
-                      <TableCell>
-                        {new Date(log.expTimeBefore)
-                          .toLocaleDateString("zh-CN", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                          })
-                          .replace(/\//g, "-")}
-                      </TableCell>
-                      <TableCell className="text-primary font-medium">
-                        {new Date(log.expTimeAfter)
-                          .toLocaleDateString("zh-CN", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                          })
-                          .replace(/\//g, "-")}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded ${
-                            log.reason === "自动续费"
-                              ? "bg-success-500/10 text-success-600"
-                              : "bg-default-500/10 text-default-600"
-                          }`}
-                        >
-                          {log.reason}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="w-full overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
+                <Table
+                  aria-label="续费记录"
+                  classNames={{
+                    th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
+                    td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
+                    tr: "hover:bg-default-50/50 transition-colors",
+                  }}
+                >
+                  <TableHeader>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
+                      续费时间
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      扣款金额
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      续费前余额
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      续费后余额
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                      续费前到期
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                      续费后到期
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      原因
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
+                      操作
+                    </TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {renewalLogs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="whitespace-nowrap">
+                          {log.renewalTime
+                            ? new Date(log.renewalTime)
+                                .toLocaleString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                                .replace(/\//g, "-")
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-success font-medium whitespace-nowrap">
+                          {(log.renewalAmount / 100).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {(log.balanceBefore / 100).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {(log.balanceAfter / 100).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {log.expTimeBefore
+                            ? new Date(log.expTimeBefore)
+                                .toLocaleDateString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                })
+                                .replace(/\//g, "-")
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-primary font-medium whitespace-nowrap">
+                          {log.expTimeAfter
+                            ? new Date(log.expTimeAfter)
+                                .toLocaleDateString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                })
+                                .replace(/\//g, "-")
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded ${
+                              log.reason === "自动续费"
+                                ? "bg-success-500/10 text-success-600"
+                                : "bg-default-500/10 text-default-600"
+                            }`}
+                          >
+                            {log.reason}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <Button
+                            isIconOnly
+                            className="bg-danger-50 text-danger-600 hover:bg-danger-100 min-w-7 w-7 h-7"
+                            size="sm"
+                            variant="flat"
+                            onPress={() => setRenewalLogToDelete(log.id)}
+                          >
+                            <DeleteIcon className="w-3.5 h-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </ModalBody>
           <ModalFooter>
@@ -3004,6 +3080,55 @@ export default function UserPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+
+      {/* 续费记录删除确认弹窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl",
+        }}
+        isOpen={!!renewalLogToDelete}
+        placement="center"
+        scrollBehavior="outside"
+        size="md"
+        onClose={() => setRenewalLogToDelete(null)}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            确认删除续费记录
+          </ModalHeader>
+          <ModalBody>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center">
+                <DeleteIcon className="w-6 h-6 text-danger" />
+              </div>
+              <div className="flex-1">
+                <p className="text-foreground">确定要删除这条续费记录吗？</p>
+                <p className="text-small text-default-500 mt-1">
+                  此操作不可撤销。
+                </p>
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setRenewalLogToDelete(null)}>
+              取消
+            </Button>
+            <Button
+              color="danger"
+              onPress={() => {
+                if (renewalLogToDelete) {
+                  handleDeleteRenewalLog(renewalLogToDelete);
+                  setRenewalLogToDelete(null);
+                }
+              }}
+            >
+              确认
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       {/* 隧道权限管理弹窗 */}
       <Modal
         backdrop="blur"

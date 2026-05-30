@@ -314,6 +314,9 @@ export const getUserQuotaHistory = (userId: number, limit: number = 50) =>
 export const deleteUserQuotaHistory = (id: number) =>
   Network.post("/user/quota/history/delete", { id });
 
+export const deleteUserRenewalLog = (id: number) =>
+  Network.post("/user/renewal-log/delete", { id });
+
 export const getTrafficHistoryList = (userId?: number, limit: number = 50) =>
   Network.post<TrafficHistoryItem[]>("/traffic-history/list", {
     userId,

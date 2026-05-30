@@ -1959,17 +1959,24 @@ func (r *Repository) RenewUserWithBalance(userID, renewalAmount, newExpTime, now
 }
 
 type UserRenewalLogItem struct {
-	ID            int64
-	UserID        int64
-	UserName      string
-	RenewalAmount int64
-	BalanceBefore int64
-	BalanceAfter  int64
-	ExpTimeBefore int64
-	ExpTimeAfter  int64
-	RenewalTime   int64
-	OperatorName  string
-	Reason        string
+	ID            int64  `json:"id"`
+	UserID        int64  `json:"userId"`
+	UserName      string `json:"userName"`
+	RenewalAmount int64  `json:"renewalAmount"`
+	BalanceBefore int64  `json:"balanceBefore"`
+	BalanceAfter  int64  `json:"balanceAfter"`
+	ExpTimeBefore int64  `json:"expTimeBefore"`
+	ExpTimeAfter  int64  `json:"expTimeAfter"`
+	RenewalTime   int64  `json:"renewalTime"`
+	OperatorName  string `json:"operatorName"`
+	Reason        string `json:"reason"`
+}
+
+func (r *Repository) DeleteUserRenewalLog(id int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Delete(&model.UserRenewalLog{}, id).Error
 }
 
 func (r *Repository) GetUserRenewalLogs(userID int64, limit int) ([]UserRenewalLogItem, error) {
