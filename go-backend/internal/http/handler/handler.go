@@ -1251,6 +1251,7 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 			"buyTrafficPrice":  user.BuyTrafficPrice,
 			"autoBuyTrafficPackageId": user.AutoBuyTrafficPackageID,
 			"baseFlow":         user.BaseFlow,
+			"trafficFlow":      user.TrafficFlow,
 		},
 		"tunnelPermissions": tunnelOut,
 		"forwards":          forwardOut,
