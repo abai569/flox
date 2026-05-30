@@ -6124,8 +6124,9 @@ func (h *Handler) userRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		User     string `json:"user"`
-		Password string `json:"password"`
+		User      string `json:"user"`
+		Password  string `json:"password"`
+		CaptchaID string `json:"captchaId"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -6140,6 +6141,25 @@ func (h *Handler) userRegister(w http.ResponseWriter, r *http.Request) {
 	if regCfg != nil && regCfg.Value == "0" {
 		response.WriteJSON(w, response.ErrDefault("注册已关闭"))
 		return
+	}
+
+	// Verify registration captcha if enabled
+	regCaptchaCfg, _ := h.repo.GetConfigByName("register_captcha_enabled")
+	if regCaptchaCfg != nil && regCaptchaCfg.Value == "1" {
+		secretKey, _ := h.repo.GetConfigByName("cloudflare_secret_key")
+		if secretKey == nil || strings.TrimSpace(secretKey.Value) == "" {
+			response.WriteJSON(w, response.Err(401, "验证码服务未配置，请联系管理员"))
+			return
+		}
+		if req.CaptchaID == "" {
+			response.WriteJSON(w, response.Err(-3, "需要验证码"))
+			return
+		}
+		if !h.consumeCaptchaToken(req.CaptchaID) && !h.verifyCloudflareTurnstile(req.CaptchaID, secretKey.Value) {
+			response.WriteJSON(w, response.Err(403, "验证码验证失败"))
+			return
+		}
+		h.markCaptchaToken(req.CaptchaID)
 	}
 
 	exists, err := h.repo.UserExists(req.User)

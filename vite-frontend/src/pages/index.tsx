@@ -44,6 +44,7 @@ export default function IndexPage() {
   const [showCaptcha, setShowCaptcha] = useState(false);
   const isWebView = useWebViewMode();
   const [siteKey, setSiteKey] = useState("");
+  const [regSiteKey, setRegSiteKey] = useState("");
 
   const [registerOpen, setRegisterOpen] = useState(false);
   const [registerForm, setRegisterForm] = useState({ user: "", password: "", confirm: "" });
@@ -51,10 +52,19 @@ export default function IndexPage() {
   const [registerLoading, setRegisterLoading] = useState(false);
   const [regEnabled, setRegEnabled] = useState(true);
 
+  const [regCaptchaEnabled, setRegCaptchaEnabled] = useState(false);
+  const [regCaptchaId, setRegCaptchaId] = useState("");
+  const [regCaptchaLoading, setRegCaptchaLoading] = useState(false);
+
   useEffect(() => {
     getConfigByName("registration_enabled").then((res) => {
       if (res.code === 0 && res.data) {
         setRegEnabled(res.data.value !== "0");
+      }
+    }).catch(() => {});
+    getConfigByName("register_captcha_enabled").then((res) => {
+      if (res.code === 0 && res.data) {
+        setRegCaptchaEnabled(res.data.value === "1");
       }
     }).catch(() => {});
   }, []);
@@ -176,6 +186,27 @@ export default function IndexPage() {
     }
   };
 
+  const performRegister = async (captchaToken?: string) => {
+    setRegisterLoading(true);
+    try {
+      const finalCaptchaId = typeof captchaToken === "string" && captchaToken.trim() ? captchaToken : regCaptchaId;
+      const res = await register({ user: registerForm.user.trim(), password: registerForm.password, captchaId: finalCaptchaId });
+      if (res.code === 0) {
+        writeLoginSession(res.data);
+        toast.success("注册成功");
+        setRegisterOpen(false);
+        setRegCaptchaId("");
+        window.location.href = "/dashboard";
+      } else {
+        toast.error(res.msg || "注册失败");
+      }
+    } catch {
+      toast.error("网络错误");
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
   const handleRegister = async () => {
     const errs: Partial<typeof registerForm> = {};
     if (!registerForm.user.trim()) errs.user = "请输入用户名";
@@ -185,21 +216,22 @@ export default function IndexPage() {
     setRegisterErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    setRegisterLoading(true);
-    try {
-      const res = await register({ user: registerForm.user.trim(), password: registerForm.password });
-      if (res.code === 0) {
-        writeLoginSession(res.data);
-        toast.success("注册成功");
-        setRegisterOpen(false);
-        window.location.href = "/dashboard";
-      } else {
-        toast.error(res.msg || "注册失败");
+    if (!regCaptchaEnabled) {
+      await performRegister();
+    } else {
+      setRegCaptchaLoading(true);
+      try {
+        const configResp = await getConfigByName("cloudflare_site_key");
+        if (configResp.code === 0 && configResp.data && configResp.data.value) {
+          setRegSiteKey(configResp.data.value);
+        } else {
+          toast.error("未配置Cloudflare Site Key，请联系管理员");
+          setRegCaptchaLoading(false);
+        }
+      } catch {
+        toast.error("网络错误");
+        setRegCaptchaLoading(false);
       }
-    } catch {
-      toast.error("网络错误");
-    } finally {
-      setRegisterLoading(false);
     }
   };
 
@@ -312,7 +344,7 @@ export default function IndexPage() {
         )}
 
         <Modal isOpen={registerOpen} placement="center"
-          onOpenChange={(open) => { if (!open) { setRegisterOpen(false); setRegisterForm({ user: "", password: "", confirm: "" }); setRegisterErrors({}); } }}>
+          onOpenChange={(open) => { if (!open) { setRegisterOpen(false); setRegisterForm({ user: "", password: "", confirm: "" }); setRegisterErrors({}); setRegCaptchaId(""); setRegSiteKey(""); } }}>
           <ModalContent>
             <ModalHeader>注册账号</ModalHeader>
             <ModalBody>
@@ -326,15 +358,38 @@ export default function IndexPage() {
                 <Input label="确认密码" placeholder="再次输入密码" type="password" variant="bordered" value={registerForm.confirm}
                   isInvalid={!!registerErrors.confirm} errorMessage={registerErrors.confirm}
                   onChange={(e) => setRegisterForm((p) => ({ ...p, confirm: e.target.value }))} />
+                {regCaptchaEnabled && regSiteKey && (
+                  <div className="flex justify-center py-2">
+                    <Turnstile
+                      options={{ theme: ((document.documentElement.classList.contains("dark") || document.documentElement.getAttribute("data-theme") === "dark" || window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light") as "light" | "dark" | "auto" }}
+                      siteKey={regSiteKey}
+                      onError={() => { toast.error("验证失败，请刷新重试"); setRegCaptchaId(""); }}
+                      onExpire={() => { setRegCaptchaId(""); }}
+                      onSuccess={(token) => { setRegCaptchaId(token); void performRegister(token); }}
+                    />
+                  </div>
+                )}
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button variant="flat" onPress={() => { setRegisterOpen(false); setRegisterForm({ user: "", password: "", confirm: "" }); setRegisterErrors({}); }}>
+              <Button variant="flat" onPress={() => { setRegisterOpen(false); setRegisterForm({ user: "", password: "", confirm: "" }); setRegisterErrors({}); setRegCaptchaId(""); setRegSiteKey(""); }}>
                 取消
               </Button>
-              <Button color="primary" isLoading={registerLoading} onPress={handleRegister}>
-                注册
-              </Button>
+              {!regCaptchaEnabled && (
+                <Button color="primary" isLoading={registerLoading} onPress={handleRegister}>
+                  注册
+                </Button>
+              )}
+              {regCaptchaEnabled && !regCaptchaId && (
+                <Button color="primary" isLoading={regCaptchaLoading} onPress={handleRegister}>
+                  请先验证
+                </Button>
+              )}
+              {regCaptchaEnabled && regCaptchaId && (
+                <Button color="primary" isLoading={registerLoading} onPress={() => void performRegister()} isDisabled>
+                  验证通过，正在注册
+                </Button>
+              )}
             </ModalFooter>
           </ModalContent>
         </Modal>

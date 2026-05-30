@@ -330,11 +330,18 @@ func (h *Handler) adminRefundOrder(w http.ResponseWriter, r *http.Request) {
 
 	// Reverse delivery by package type
 	if order.ProductType == "package" {
-		var pkg model.SubscriptionPackage
-		if err := json.Unmarshal([]byte(order.ProductMeta), &pkg); err == nil {
+		var metaObj map[string]interface{}
+		if err := json.Unmarshal([]byte(order.ProductMeta), &metaObj); err == nil {
+			var pkg model.SubscriptionPackage
+			pkgData, _ := json.Marshal(metaObj["pkg"])
+			_ = json.Unmarshal(pkgData, &pkg)
+			qty := int64(1)
+			if q, ok := metaObj["quantity"].(float64); ok && q > 0 {
+				qty = int64(q)
+			}
 			switch pkg.Type {
 			case "traffic":
-				_ = h.repo.RefundTrafficPackage(order.UserID, pkg.TrafficLimit)
+				_ = h.repo.RefundTrafficPackage(order.UserID, pkg.TrafficLimit*qty)
 			case "balance":
 				// already refunded to balance above
 			default: // subscription
@@ -344,6 +351,8 @@ func (h *Handler) adminRefundOrder(w http.ResponseWriter, r *http.Request) {
 					_ = h.repo.ResetUserPackageQuotas(order.UserID)
 				}
 			}
+			// Restore stock
+			_ = h.repo.RestorePackageStock(pkg.ID, qty)
 		}
 	}
 

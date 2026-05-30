@@ -86,6 +86,7 @@ interface PackageForm {
   shopVisible: boolean;
   autoBuyTrafficEnabled: boolean;
   sortOrder: number;
+  stock: number;
   tunnelGroupIds: number[];
 }
 
@@ -106,6 +107,7 @@ const defaultPackageForm: PackageForm = {
   shopVisible: true,
   autoBuyTrafficEnabled: false,
   sortOrder: 0,
+  stock: -1,
   tunnelGroupIds: [],
 };
 
@@ -209,6 +211,7 @@ export default function AdminPlansPage() {
           shopVisible: p.shopVisible === 1,
           autoBuyTrafficEnabled: p.autoBuyTrafficEnabled === 1,
           sortOrder: p.sortOrder,
+          stock: p.stock ?? -1,
           tunnelGroupIds: res.data.tunnelGroupIds || [],
         });
       } else {
@@ -246,6 +249,7 @@ export default function AdminPlansPage() {
         shopVisible: pkgForm.shopVisible ? 1 : 0,
         autoBuyTrafficEnabled: pkgForm.autoBuyTrafficEnabled ? 1 : 0,
         sortOrder: pkgForm.sortOrder,
+        stock: pkgForm.stock,
         tunnelGroupIds: pkgForm.tunnelGroupIds,
       };
 
@@ -556,6 +560,9 @@ export default function AdminPlansPage() {
                 状态
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[80px]">
+                库存
+              </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">
                 操作
               </TableColumn>
             </TableHeader>
@@ -628,6 +635,17 @@ export default function AdminPlansPage() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    <div className="text-sm">
+                      {item.stock === -1 ? (
+                        <span className="text-default-400">不限</span>
+                      ) : item.stock === 0 ? (
+                        <span className="text-red-500 font-medium">已售罄</span>
+                      ) : (
+                        <span>{item.stock}</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
                     <div className="flex gap-1">
                       <Button
                         isIconOnly
@@ -680,7 +698,7 @@ export default function AdminPlansPage() {
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-gray-400"
-                    colSpan={6}
+                    colSpan={7}
                   >
                     暂无订阅套餐
                   </TableCell>
@@ -714,6 +732,9 @@ export default function AdminPlansPage() {
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[100px]">
                 状态
+              </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">
+                库存
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[100px]">
                 自动购流来源
@@ -757,6 +778,17 @@ export default function AdminPlansPage() {
                       >
                         {item.shopVisible === 1 ? "商店可见" : "后台分配"}
                       </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      {item.stock === -1 ? (
+                        <span className="text-default-400">不限</span>
+                      ) : item.stock === 0 ? (
+                        <span className="text-red-500 font-medium">已售罄</span>
+                      ) : (
+                        <span>{item.stock}</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -824,16 +856,16 @@ export default function AdminPlansPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredList.length === 0 && (
+               {filteredList.length === 0 && (
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-gray-400"
-                    colSpan={6}
+                    colSpan={7}
                   >
                     暂无流量包
                   </TableCell>
                 </TableRow>
-              )}
+               )}
             </TableBody>
           </Table>
         </div>
@@ -859,6 +891,9 @@ export default function AdminPlansPage() {
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[100px]">
                 状态
+              </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">
+                库存
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[80px]">
                 操作
@@ -892,6 +927,17 @@ export default function AdminPlansPage() {
                       >
                         {item.shopVisible === 1 ? "商店可见" : "后台分配"}
                       </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      {item.stock === -1 ? (
+                        <span className="text-default-400">不限</span>
+                      ) : item.stock === 0 ? (
+                        <span className="text-red-500 font-medium">已售罄</span>
+                      ) : (
+                        <span>{item.stock}</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -1009,6 +1055,29 @@ export default function AdminPlansPage() {
                   variant="bordered"
                   onChange={(e) =>
                     setPkgForm((p) => ({ ...p, priceYuan: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="库存 (-1=不限, 0=售罄, >0=剩余)"
+                  min="-1"
+                  type="number"
+                  value={String(pkgForm.stock)}
+                  variant="bordered"
+                  onChange={(e) =>
+                    setPkgForm((p) => ({
+                      ...p,
+                      stock: parseInt(e.target.value) ?? -1,
+                    }))
+                  }
+                />
+                <Input
+                  label="描述"
+                  value={pkgForm.description}
+                  variant="bordered"
+                  onChange={(e) =>
+                    setPkgForm((p) => ({ ...p, description: e.target.value }))
                   }
                 />
               </div>

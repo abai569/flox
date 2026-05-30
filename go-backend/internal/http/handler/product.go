@@ -71,6 +71,7 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		Enabled               int     `json:"enabled"`
 		ShopVisible           int     `json:"shopVisible"`
 		AutoBuyTrafficEnabled int     `json:"autoBuyTrafficEnabled"`
+		Stock                 int64   `json:"stock"`
 		TunnelGroupIDs        []int64 `json:"tunnelGroupIds"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
@@ -101,6 +102,7 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		Enabled:               req.Enabled,
 		ShopVisible:           req.ShopVisible,
 		AutoBuyTrafficEnabled: req.AutoBuyTrafficEnabled,
+		Stock:                 req.Stock,
 	}
 	if err := h.repo.CreatePackage(pkg, req.TunnelGroupIDs); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -131,6 +133,7 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		Enabled               int     `json:"enabled"`
 		ShopVisible           int     `json:"shopVisible"`
 		AutoBuyTrafficEnabled int     `json:"autoBuyTrafficEnabled"`
+		Stock                 int64   `json:"stock"`
 		TunnelGroupIDs        []int64 `json:"tunnelGroupIds"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
@@ -162,6 +165,7 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		Enabled:               req.Enabled,
 		ShopVisible:           req.ShopVisible,
 		AutoBuyTrafficEnabled: req.AutoBuyTrafficEnabled,
+		Stock:                 req.Stock,
 	}
 	if err := h.repo.UpdatePackage(pkg, req.TunnelGroupIDs); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -274,6 +278,10 @@ func (h *Handler) createPackageOrder(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("套餐ID不能为空"))
 		return
 	}
+	quantity := asInt64(req["quantity"], 1)
+	if quantity < 1 {
+		quantity = 1
+	}
 	currency := strings.ToUpper(asString(req["pay_currency"]))
 	if currency == "" {
 		currency = "BALANCE"
@@ -295,7 +303,42 @@ func (h *Handler) createPackageOrder(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("余额类型套餐不能使用余额支付"))
 		return
 	}
-	meta, _ := json.Marshal(pkg)
+	if pkg.Type != "balance" && quantity != 1 {
+		response.WriteJSON(w, response.ErrDefault("非余额套餐不支持多份购买"))
+		return
+	}
+
+	// Check stock: -1=unlimited, 0=sold out, >0=remaining
+	if pkg.Stock != -1 {
+		if pkg.Stock <= 0 {
+			response.WriteJSON(w, response.ErrDefault("该套餐已售罄"))
+			return
+		}
+		if pkg.Stock < quantity {
+			response.WriteJSON(w, response.ErrDefault("库存不足"))
+			return
+		}
+	}
+
+	// Decrement stock atomically
+	if err := h.repo.CheckAndDecrementStock(packageID, quantity); err != nil {
+		response.WriteJSON(w, response.Err(-2, "库存扣减失败: "+err.Error()))
+		return
+	}
+
+	var totalAmount int64
+	if pkg.Type == "balance" {
+		totalAmount = pkg.Price * quantity
+	} else {
+		totalAmount = pkg.Price
+	}
+
+	// Store pkg + quantity in ProductMeta
+	metaObj := map[string]interface{}{
+		"pkg":      pkg,
+		"quantity": quantity,
+	}
+	meta, _ := json.Marshal(metaObj)
 	tunnelGroupIDs, err := h.repo.GetPackageTunnelGroupIDs(packageID)
 	if err != nil {
 		tunnelGroupIDs = nil
@@ -309,7 +352,7 @@ func (h *Handler) createPackageOrder(w http.ResponseWriter, r *http.Request) {
 		ProductName: pkg.Name,
 		ProductType: "package",
 		ProductMeta: string(meta),
-		Amount:      pkg.Price,
+		Amount:      totalAmount,
 		PayCurrency: currency,
 		Status:      0,
 	}
@@ -318,7 +361,7 @@ func (h *Handler) createPackageOrder(w http.ResponseWriter, r *http.Request) {
 		order.Status = 1
 		order.PayTime = time.Now().Unix()
 
-		if err := h.repo.CompletePackageOrder(userID, userName, order, pkg, tunnelGroupIDs); err != nil {
+		if err := h.repo.CompletePackageOrder(userID, userName, order, pkg, tunnelGroupIDs, quantity); err != nil {
 			response.WriteJSON(w, response.Err(-2, "套餐交付失败: "+err.Error()))
 			return
 		}
@@ -372,12 +415,12 @@ func (h *Handler) assignPackageToUser(w http.ResponseWriter, r *http.Request) {
 	}
 	switch pkg.Type {
 	case "balance":
-		if err := h.repo.DeliverBalancePackageToUser(req.UserID, pkg.Price, pkg.Name, 0); err != nil {
+		if err := h.repo.DeliverBalancePackageToUser(req.UserID, pkg.Price, pkg.Name, 0, 1); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
 	case "traffic":
-		if err := h.repo.DeliverTrafficPackageToUser(req.UserID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit); err != nil {
+		if err := h.repo.DeliverTrafficPackageToUser(req.UserID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit, 1); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}

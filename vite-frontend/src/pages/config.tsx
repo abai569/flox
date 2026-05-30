@@ -124,6 +124,12 @@ const CONFIG_ITEMS: ConfigItem[] = [
     type: "switch",
   },
   {
+    key: "register_captcha_enabled",
+    label: "注册验证码",
+    description: "开启后，用户注册时需要完成验证码验证",
+    type: "switch",
+  },
+  {
     key: "payment_enabled",
     label: "关闭商城系统",
     description:
@@ -167,6 +173,7 @@ const getInitialConfigs = (): Record<string, string> => {
   const configKeys = [
     "app_name",
     "captcha_enabled",
+    "register_captcha_enabled",
     "registration_enabled",
     "payment_enabled",
     "cloudflare_site_key",

@@ -110,13 +110,20 @@ func (h *Handler) completePayment(orderNo, txHash string) {
 	// Deliver product
 	switch order.ProductType {
 	case "package":
-		var pkg model.SubscriptionPackage
-		if err := json.Unmarshal([]byte(order.ProductMeta), &pkg); err == nil {
+		var metaObj map[string]interface{}
+		if err := json.Unmarshal([]byte(order.ProductMeta), &metaObj); err == nil {
+			var pkg model.SubscriptionPackage
+			pkgData, _ := json.Marshal(metaObj["pkg"])
+			_ = json.Unmarshal(pkgData, &pkg)
+			qty := int64(1)
+			if q, ok := metaObj["quantity"].(float64); ok && q > 0 {
+				qty = int64(q)
+			}
 			switch pkg.Type {
 			case "balance":
-				_ = h.repo.DeliverBalancePackageToUser(userID, pkg.Price, pkg.Name, order.ID)
+				_ = h.repo.DeliverBalancePackageToUser(userID, pkg.Price, pkg.Name, order.ID, qty)
 			case "traffic":
-				_ = h.repo.DeliverTrafficPackageToUser(userID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit)
+				_ = h.repo.DeliverTrafficPackageToUser(userID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit, qty)
 			default:
 				groupIDs, _ := h.repo.GetPackageTunnelGroupIDs(pkg.ID)
 				_ = h.repo.DeliverPackageToUser(userID, &pkg, order.ID, groupIDs)

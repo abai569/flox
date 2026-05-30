@@ -89,7 +89,7 @@ export interface LoginResponse {
 export const login = (data: LoginData) =>
   Network.post<LoginResponse>("/user/login", data);
 
-export const register = (data: { user: string; password: string }) =>
+export const register = (data: { user: string; password: string; captchaId?: string }) =>
   Network.post<LoginResponse>("/user/register", data);
 
 // 用户CRUD操作 - 全部使用POST请求
@@ -1021,6 +1021,7 @@ export const getPackageDetail = (id: number) =>
 export const createPackageOrder = (data: {
   package_id: number;
   pay_currency: string;
+  quantity?: number;
 }) => Network.post<{ orderId: number }>("/package/order/create", data);
 
 export const getStoreStatus = () =>

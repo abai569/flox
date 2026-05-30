@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 
 import { AnimatedPage } from "@/components/animated-page";
 import { Button } from "@/shadcn-bridge/heroui/button";
+import { Input } from "@/shadcn-bridge/heroui/input";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import {
   Modal,
@@ -42,6 +43,7 @@ export default function ShopPage() {
   const [pendingBuyPkg, setPendingBuyPkg] =
     useState<SubscriptionPackageApiItem | null>(null);
   const [expandedType, setExpandedType] = useState<string | null>(null);
+  const [pkgQuantity, setPkgQuantity] = useState(1);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -82,6 +84,7 @@ export default function ShopPage() {
   }, [loadData]);
 
   const handleBuyPackage = (pkg: SubscriptionPackageApiItem) => {
+    if (pkg.stock === 0) return;
     if (pkg.type === "subscription" && activeSub) {
       setPendingBuyPkg(pkg);
       setConfirmReplaceOpen(true);
@@ -89,6 +92,7 @@ export default function ShopPage() {
       return;
     }
     setSelectedPackage(pkg);
+    setPkgQuantity(pkg.type === "balance" ? 1 : 1);
     setSelectedCurrency("BALANCE");
     setBuyModalOpen(true);
   };
@@ -152,6 +156,7 @@ export default function ShopPage() {
         const createRes = await createPackageOrder({
           package_id: selectedPackage.id,
           pay_currency: selectedCurrency,
+          quantity: 1,
         });
 
         if (createRes.code !== 0) {
@@ -182,6 +187,7 @@ export default function ShopPage() {
         const res = await createPackageOrder({
           package_id: selectedPackage.id,
           pay_currency: "BALANCE",
+          quantity: pkgQuantity,
         });
 
         if (res.code === 0) {
@@ -384,13 +390,112 @@ export default function ShopPage() {
                                 重复购买将替换现有套餐
                               </p>
                             )}
-                            <Button
-                              className="w-full mt-2"
-                              color="primary"
-                              onPress={() => handleBuyPackage(pkg)}
-                            >
-                              {pkg.type === "balance" ? "立即充值" : "立即购买"}
-                            </Button>
+                            {pkg.type === "balance" && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Button
+                                  isIconOnly
+                                  size="sm"
+                                  variant="flat"
+                                  isDisabled={pkgQuantity <= 1}
+                                  onPress={() =>
+                                    setPkgQuantity((q) => Math.max(1, q - 1))
+                                  }
+                                >
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M20 12H4"
+                                    />
+                                  </svg>
+                                </Button>
+                                <Input
+                                  className="w-16 text-center"
+                                  min="1"
+                                  type="number"
+                                  value={String(pkgQuantity)}
+                                  variant="bordered"
+                                  onChange={(e) => {
+                                    const v = parseInt(e.target.value);
+                                    if (v >= 1) setPkgQuantity(v);
+                                  }}
+                                />
+                                <Button
+                                  isIconOnly
+                                  size="sm"
+                                  variant="flat"
+                                  onPress={() =>
+                                    setPkgQuantity((q) =>
+                                      Math.min(
+                                        pkg.stock > 0 ? pkg.stock : 100,
+                                        q + 1,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M12 4v16m8-8H4"
+                                    />
+                                  </svg>
+                                </Button>
+                                <span className="text-xs text-default-400 ml-1">
+                                  ¥{(pkg.price / 100 * pkgQuantity).toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+                            <div className="mt-2">
+                              {pkg.stock === 0 ? (
+                                <Button
+                                  className="w-full"
+                                  color="default"
+                                  isDisabled
+                                >
+                                  已售罄
+                                </Button>
+                              ) : pkg.stock > 0 && pkg.stock <= 10 ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1">
+                                    <Button
+                                      className="w-full"
+                                      color="primary"
+                                      onPress={() => handleBuyPackage(pkg)}
+                                    >
+                                      {pkg.type === "balance"
+                                        ? "立即充值"
+                                        : "立即购买"}
+                                    </Button>
+                                  </div>
+                                  <span className="text-xs text-red-500 whitespace-nowrap">
+                                    仅剩 {pkg.stock} 份
+                                  </span>
+                                </div>
+                              ) : (
+                                <Button
+                                  className="w-full"
+                                  color="primary"
+                                  onPress={() => handleBuyPackage(pkg)}
+                                >
+                                  {pkg.type === "balance"
+                                    ? "立即充值"
+                                    : "立即购买"}
+                                </Button>
+                              )}
+                            </div>
                           </CardBody>
                         </Card>
                       ))}

@@ -798,6 +798,7 @@ export interface SubscriptionPackageApiItem {
   enabled: number;
   shopVisible: number;
   autoBuyTrafficEnabled: number;   // 标记为自动购流来源 (0/1)
+  stock: number;                   // -1=不限，0=售罄，>0=剩余
   createdAt: number;
   updatedAt: number;
 }

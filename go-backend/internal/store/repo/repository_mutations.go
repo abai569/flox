@@ -1297,6 +1297,36 @@ func (r *Repository) ReplaceForwardPorts(forwardID int64, entries []struct {
 	})
 }
 
+func (r *Repository) CheckAndDecrementStock(packageID int64, quantity int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var current model.SubscriptionPackage
+		if err := tx.Where("id = ?", packageID).First(&current).Error; err != nil {
+			return errors.New("套餐不存在")
+		}
+		if current.Stock == -1 {
+			return nil
+		}
+		if current.Stock < quantity {
+			return errors.New("库存不足")
+		}
+		return tx.Model(&model.SubscriptionPackage{}).
+			Where("id = ?", packageID).
+			Update("stock", gorm.Expr("stock - ?", quantity)).Error
+	})
+}
+
+func (r *Repository) RestorePackageStock(packageID int64, quantity int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.SubscriptionPackage{}).
+		Where("id = ?", packageID).
+		Update("stock", gorm.Expr("stock + ?", quantity)).Error
+}
+
 func (r *Repository) CreatePackage(pkg *model.SubscriptionPackage, tunnelGroupIDs []int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
@@ -1429,7 +1459,7 @@ func (r *Repository) GetTunnelsInGroups(groupIDs []int64) ([]int64, error) {
 
 // DeliverPackageToUser applies a subscription package to a user: deactivates old subscriptions,
 // creates a new PackageSubscription, updates user quotas, and grants tunnel permissions.
-func (r *Repository) CompletePackageOrder(userID int64, userName string, order *model.Order, pkg *model.SubscriptionPackage, tunnelGroupIDs []int64) error {
+func (r *Repository) CompletePackageOrder(userID int64, userName string, order *model.Order, pkg *model.SubscriptionPackage, tunnelGroupIDs []int64, quantity int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -1484,12 +1514,13 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 		// 4. Deliver product by type
 		switch pkg.Type {
 		case "traffic":
+			trafficGB := pkg.TrafficLimit * quantity
 			if err := tx.Model(&model.User{}).
 				Where("id = ?", userID).
 				Updates(map[string]interface{}{
-					"flow":              gorm.Expr("flow + ?", pkg.TrafficLimit),
+					"flow":              gorm.Expr("flow + ?", trafficGB),
 					"buy_traffic_price":  pkg.Price,
-					"buy_traffic_amount": pkg.TrafficLimit,
+					"buy_traffic_amount": trafficGB,
 					"updated_time":      now,
 				}).Error; err != nil {
 				return err
@@ -1727,34 +1758,36 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 }
 
 // DeliverBalancePackageToUser applies a balance package: adds balance to user.
-func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64, pkgName string, orderID int64) error {
+func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64, pkgName string, orderID int64, quantity int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 	now := time.Now().UnixMilli()
+	totalAmount := amountCents * quantity
 	user, err := r.GetUserByID(userID)
 	if err != nil {
 		return err
 	}
-	if err := r.IncreaseUserBalance(userID, amountCents); err != nil {
+	if err := r.IncreaseUserBalance(userID, totalAmount); err != nil {
 		return err
 	}
-	return r.CreateBalanceLog(userID, user.User, amountCents,
-		user.Balance, user.Balance+amountCents,
+	return r.CreateBalanceLog(userID, user.User, totalAmount,
+		user.Balance, user.Balance+totalAmount,
 		now, "余额充值:"+pkgName)
 }
 
 // DeliverTrafficPackageToUser applies a traffic package: adds flow to user.
-func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, price int64, trafficLimit int64) error {
+func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, price int64, trafficLimit int64, quantity int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
+	totalGB := trafficGB * quantity
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{
-			"flow":              gorm.Expr("flow + ?", trafficGB),
+			"flow":              gorm.Expr("flow + ?", totalGB),
 			"buy_traffic_price":  price,
-			"buy_traffic_amount": trafficLimit,
+			"buy_traffic_amount": totalGB,
 			"updated_time":      time.Now().UnixMilli(),
 		}).Error
 }
