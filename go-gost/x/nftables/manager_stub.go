@@ -9,12 +9,13 @@ type Manager struct{}
 type RuleState struct{}
 
 type CounterResult struct {
-	ForwardID int64  `json:"forward_id"`
-	UserID    int64  `json:"user_id"`
-	Protocol  string `json:"protocol"`
-	Port      int    `json:"port"`
-	Packets   uint64 `json:"packets"`
-	Bytes     uint64 `json:"bytes"`
+	ForwardID    int64  `json:"forward_id"`
+	UserID       int64  `json:"user_id"`
+	UserTunnelID int64  `json:"user_tunnel_id"`
+	Protocol     string `json:"protocol"`
+	Port         int    `json:"port"`
+	Packets      uint64 `json:"packets"`
+	Bytes        uint64 `json:"bytes"`
 }
 
 func NewManager() (*Manager, error) {
@@ -29,7 +30,7 @@ func (m *Manager) initChains() error {
 	return errors.New("nftables not supported on this platform")
 }
 
-func (m *Manager) AddRule(forwardID, nodeID, userID int64, protocol string, port int, target string, speedLimit int) error {
+func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protocol string, port int, target string, speedLimit int) error {
 	return errors.New("nftables not supported on this platform")
 }
 

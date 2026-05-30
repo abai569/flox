@@ -968,11 +968,12 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 
 	// 收集按 forwardID 聚合的 delta（TCP+UDP 合并）
 	type deltaEntry struct {
-		forwardID int64
-		userID    int64
-		port      int
-		protocol  string
-		delta     uint64
+		forwardID    int64
+		userID       int64
+		userTunnelID int64
+		port         int
+		protocol     string
+		delta        uint64
 	}
 	var deltas []deltaEntry
 
@@ -980,15 +981,24 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		key := fmt.Sprintf("%d_%s", c.ForwardID, c.Protocol)
 		total := c.Bytes
 		prev, exists := w.nftablesPrevCounters[key]
-		if exists && total > prev {
-			delta := total - prev
-			deltas = append(deltas, deltaEntry{
-				forwardID: c.ForwardID,
-				userID:    c.UserID,
-				port:      c.Port,
-				protocol:  c.Protocol,
-				delta:     delta,
-			})
+		if exists {
+			var delta uint64
+			if total > prev {
+				delta = total - prev
+			} else if total < prev {
+				// 计数器被重置或回绕 — 用当前值作为首次 delta，尽量少计
+				delta = total
+			}
+			if delta > 0 {
+				deltas = append(deltas, deltaEntry{
+					forwardID:    c.ForwardID,
+					userID:       c.UserID,
+					userTunnelID: c.UserTunnelID,
+					port:         c.Port,
+					protocol:     c.Protocol,
+					delta:        delta,
+				})
+			}
 		}
 		w.nftablesPrevCounters[key] = total
 	}
@@ -996,13 +1006,17 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 	// 注入流量统计
 	for _, d := range deltas {
 		// ForwardStatsManager → BandwidthCalculator 计算实时 InSpeed/OutSpeed
-		// 50/50 拆分使面板上下行都有显示（实际方向不可知）
-		stats.AddForwardTraffic(d.forwardID, 0, 0, "", 0, d.port, true, d.delta/2)
-		stats.AddForwardTraffic(d.forwardID, 0, 0, "", 0, d.port, false, d.delta/2)
+		// nftables 内核计数器无法区分入站/出站方向，50/50 拆分让上下行都有显示。
+		// 总和（in+out）精确等于实际流量，但上下行各自数值仅供参考。
+		inHalf := d.delta / 2
+		outHalf := d.delta - inHalf // 确保奇数字节不丢失
+		stats.AddForwardTraffic(d.forwardID, d.userID, 0, "", 0, d.port, true, inHalf)
+		stats.AddForwardTraffic(d.forwardID, d.userID, 0, "", 0, d.port, false, outHalf)
 
 		// GlobalTrafficManager → HTTP batch /flow/upload → 更新 DB in_flow/out_flow
-		serviceName := fmt.Sprintf("%d_%d_0_%s", d.forwardID, d.userID, d.protocol)
-		service.GetGlobalTrafficManager().AddTraffic(serviceName, int64(d.delta/2), int64(d.delta/2))
+		// 使用真实的 userTunnelID（而非 0），确保隧道级流量统计和策略拦截正常
+		serviceName := fmt.Sprintf("%d_%d_%d_%s", d.forwardID, d.userID, d.userTunnelID, d.protocol)
+		service.GetGlobalTrafficManager().AddTraffic(serviceName, int64(inHalf), int64(outHalf))
 	}
 }
 

@@ -12,15 +12,17 @@ type AddNftablesRulesRequest struct {
 }
 
 type NftablesRulePayload struct {
-	ForwardID   int64  `json:"forward_id"`
-	NodeID      int64  `json:"node_id"`
-	Protocol    string `json:"protocol"`
-	Port        int    `json:"port"`
-	Target      string `json:"target"`
-	SpeedLimit  int    `json:"speed_limit"`
-	ChainType   int    `json:"chain_type"`
-	NextHopIP   string `json:"next_hop_ip"`
-	NextHopPort int    `json:"next_hop_port"`
+	ForwardID    int64  `json:"forward_id"`
+	NodeID       int64  `json:"node_id"`
+	UserID       int64  `json:"user_id"`
+	UserTunnelID int64  `json:"user_tunnel_id"`
+	Protocol     string `json:"protocol"`
+	Port         int    `json:"port"`
+	Target       string `json:"target"`
+	SpeedLimit   int    `json:"speed_limit"`
+	ChainType    int    `json:"chain_type"`
+	NextHopIP    string `json:"next_hop_ip"`
+	NextHopPort  int    `json:"next_hop_port"`
 }
 
 type UpdateNftablesRulesRequest struct {

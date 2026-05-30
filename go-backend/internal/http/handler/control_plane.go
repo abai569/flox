@@ -2017,16 +2017,17 @@ func (h *Handler) upsertLimiterOnNode(nodeID int64, limiterID int64, speed int) 
 
 // NftablesRulePayload nftables rule payload (matches agent side)
 type NftablesRulePayload struct {
-	ForwardID   int64  `json:"forward_id"`
-	NodeID      int64  `json:"node_id"`
-	UserID      int64  `json:"user_id"`
-	Protocol    string `json:"protocol"`
-	Port        int    `json:"port"`
-	Target      string `json:"target"`
-	SpeedLimit  int    `json:"speed_limit"`
-	ChainType   int    `json:"chain_type"`
-	NextHopIP   string `json:"next_hop_ip"`
-	NextHopPort int    `json:"next_hop_port"`
+	ForwardID    int64  `json:"forward_id"`
+	NodeID       int64  `json:"node_id"`
+	UserID       int64  `json:"user_id"`
+	UserTunnelID int64  `json:"user_tunnel_id"`
+	Protocol     string `json:"protocol"`
+	Port         int    `json:"port"`
+	Target       string `json:"target"`
+	SpeedLimit   int    `json:"speed_limit"`
+	ChainType    int    `json:"chain_type"`
+	NextHopIP    string `json:"next_hop_ip"`
+	NextHopPort  int    `json:"next_hop_port"`
 }
 
 // AddNftablesRulesRequest nftables rules create request
@@ -2062,7 +2063,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 	}
 
 	chainNodes, _ := h.listChainNodesForTunnel(forward.TunnelID)
-	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, speedLimit)
+	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, userTunnelID, speedLimit)
 	fmt.Printf("[nft.debug] built %d rule payloads for forwardID=%d\n", len(rules), forward.ID)
 
 	// Group ports by node for batch operations
@@ -2139,7 +2140,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 }
 
 // buildNftablesRulePayloads build nftables rule payloads
-func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, chainNodes []chainNodeRecord, speedLimit *int) []NftablesRulePayload {
+func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, chainNodes []chainNodeRecord, userTunnelID int64, speedLimit *int) []NftablesRulePayload {
 	var rules []NftablesRulePayload
 	protocols := []string{"tcp", "udp"}
 	targets := splitRemoteTargets(forward.RemoteAddr)
@@ -2159,17 +2160,18 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 			for _, target := range targets {
 			if tunnel.Type == 1 {
 				rules = append(rules, NftablesRulePayload{
-					ForwardID:  forward.ID,
-					NodeID:     fp.NodeID,
-					UserID:     forward.UserID,
-					Protocol:   protocol,
-					Port:       fp.Port,
-					Target:     target,
-					SpeedLimit: spdLimit,
-					ChainType:  1,
+					ForwardID:    forward.ID,
+					NodeID:       fp.NodeID,
+					UserID:       forward.UserID,
+					UserTunnelID: userTunnelID,
+					Protocol:     protocol,
+					Port:         fp.Port,
+					Target:       target,
+					SpeedLimit:   spdLimit,
+					ChainType:    1,
 				})
 				} else if tunnel.Type == 2 {
-					rules = append(rules, buildChainNftablesRule(forward.ID, forward.UserID, chainNodes, fp, protocol, target, spdLimit))
+					rules = append(rules, buildChainNftablesRule(forward.ID, forward.UserID, userTunnelID, chainNodes, fp, protocol, target, spdLimit))
 				}
 			}
 		}
@@ -2178,19 +2180,20 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 }
 
 // buildChainNftablesRule build nftables rule for chained tunnel
-func buildChainNftablesRule(forwardID, userID int64, chainNodes []chainNodeRecord, fp forwardPortRecord, protocol string, target string, speedLimit int) NftablesRulePayload {
+func buildChainNftablesRule(forwardID, userID, userTunnelID int64, chainNodes []chainNodeRecord, fp forwardPortRecord, protocol string, target string, speedLimit int) NftablesRulePayload {
 	nextHopIP, nextHopPort := resolveChainNextHop(chainNodes, fp.NodeID, target)
 	return NftablesRulePayload{
-		ForwardID:   forwardID,
-		NodeID:      fp.NodeID,
-		UserID:      userID,
-		Protocol:    protocol,
-		Port:        fp.Port,
-		Target:      net.JoinHostPort(nextHopIP, strconv.Itoa(nextHopPort)),
-		SpeedLimit:  speedLimit,
-		ChainType:   2,
-		NextHopIP:   nextHopIP,
-		NextHopPort: nextHopPort,
+		ForwardID:    forwardID,
+		NodeID:       fp.NodeID,
+		UserID:       userID,
+		UserTunnelID: userTunnelID,
+		Protocol:     protocol,
+		Port:         fp.Port,
+		Target:       net.JoinHostPort(nextHopIP, strconv.Itoa(nextHopPort)),
+		SpeedLimit:   speedLimit,
+		ChainType:    2,
+		NextHopIP:    nextHopIP,
+		NextHopPort:  nextHopPort,
 	}
 }
 

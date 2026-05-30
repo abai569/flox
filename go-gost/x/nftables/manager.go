@@ -30,25 +30,27 @@ type Manager struct {
 }
 
 type RuleState struct {
-	ForwardID   int64
-	NodeID      int64
-	UserID      int64
-	Protocol    string
-	Port        int
-	Target      string
-	SpeedLimit  int
-	Chain       *nftables.Chain
-	Rule        *nftables.Rule
-	CounterName string
+	ForwardID    int64
+	NodeID       int64
+	UserID       int64
+	UserTunnelID int64
+	Protocol     string
+	Port         int
+	Target       string
+	SpeedLimit   int
+	Chain        *nftables.Chain
+	Rule         *nftables.Rule
+	CounterName  string
 }
 
 type CounterResult struct {
-	ForwardID   int64  `json:"forward_id"`
-	UserID      int64  `json:"user_id"`
-	Protocol    string `json:"protocol"`
-	Port        int    `json:"port"`
-	Packets     uint64 `json:"packets"`
-	Bytes       uint64 `json:"bytes"`
+	ForwardID    int64  `json:"forward_id"`
+	UserID       int64  `json:"user_id"`
+	UserTunnelID int64  `json:"user_tunnel_id"`
+	Protocol     string `json:"protocol"`
+	Port         int    `json:"port"`
+	Packets      uint64 `json:"packets"`
+	Bytes        uint64 `json:"bytes"`
 }
 
 func NewManager() (*Manager, error) {
@@ -156,7 +158,7 @@ func (m *Manager) initChains() error {
 	return m.conn.Flush()
 }
 
-func (m *Manager) AddRule(forwardID, nodeID, userID int64, protocol string, port int, target string, speedLimit int) error {
+func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protocol string, port int, target string, speedLimit int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -269,32 +271,34 @@ func (m *Manager) AddRule(forwardID, nodeID, userID int64, protocol string, port
 	}
 
 	m.rules[key] = &RuleState{
-		ForwardID:   forwardID,
-		NodeID:      nodeID,
-		UserID:      userID,
-		Protocol:    protocol,
-		Port:        port,
-		Target:      target,
-		SpeedLimit:  speedLimit,
-		Chain:       preroutingChain,
-		Rule:        rule,
-		CounterName: counterName,
+		ForwardID:    forwardID,
+		NodeID:       nodeID,
+		UserID:       userID,
+		UserTunnelID: userTunnelID,
+		Protocol:     protocol,
+		Port:         port,
+		Target:       target,
+		SpeedLimit:   speedLimit,
+		Chain:        preroutingChain,
+		Rule:         rule,
+		CounterName:  counterName,
 	}
 	return nil
 }
 
 func (m *Manager) UpdateRule(forwardID int64, protocol string, port int, target string, speedLimit int) error {
 	m.mu.RLock()
-	var userID int64
+	var userID, userTunnelID int64
 	if rs, exists := m.rules[ruleKey(forwardID, protocol)]; exists {
 		userID = rs.UserID
+		userTunnelID = rs.UserTunnelID
 	}
 	m.mu.RUnlock()
 
 	if err := m.DeleteRule(forwardID, protocol); err != nil {
 		return err
 	}
-	return m.AddRule(forwardID, 0, userID, protocol, port, target, speedLimit)
+	return m.AddRule(forwardID, 0, userID, userTunnelID, protocol, port, target, speedLimit)
 }
 
 func (m *Manager) DeleteRule(forwardID int64, protocol string) error {
@@ -589,11 +593,13 @@ func (m *Manager) GetCounters() []CounterResult {
 			for _, e := range rs.Rule.Exprs {
 				if ctr, ok := e.(*expr.Counter); ok {
 					results = append(results, CounterResult{
-						ForwardID: rs.ForwardID,
-						Protocol:  rs.Protocol,
-						Port:      rs.Port,
-						Packets:   ctr.Packets,
-						Bytes:     ctr.Bytes,
+						ForwardID:    rs.ForwardID,
+						UserID:       rs.UserID,
+						UserTunnelID: rs.UserTunnelID,
+						Protocol:     rs.Protocol,
+						Port:         rs.Port,
+						Packets:      ctr.Packets,
+						Bytes:        ctr.Bytes,
 					})
 				}
 			}
@@ -687,12 +693,13 @@ func (m *Manager) RefreshCounters() []CounterResult {
 				}
 			}
 			results = append(results, CounterResult{
-				ForwardID: rs.ForwardID,
-				UserID:    rs.UserID,
-				Protocol:  ke.protocol,
-				Port:      ke.port,
-				Packets:   ke.packets,
-				Bytes:     ke.bytes,
+				ForwardID:    rs.ForwardID,
+				UserID:       rs.UserID,
+				UserTunnelID: rs.UserTunnelID,
+				Protocol:     ke.protocol,
+				Port:         ke.port,
+				Packets:      ke.packets,
+				Bytes:        ke.bytes,
 			})
 		} else {
 			// Fallback to in-memory counter
@@ -700,12 +707,13 @@ func (m *Manager) RefreshCounters() []CounterResult {
 				for _, e := range rs.Rule.Exprs {
 					if ctr, ok := e.(*expr.Counter); ok {
 						results = append(results, CounterResult{
-							ForwardID: rs.ForwardID,
-							UserID:    rs.UserID,
-							Protocol:  rs.Protocol,
-							Port:      rs.Port,
-							Packets:   ctr.Packets,
-							Bytes:     ctr.Bytes,
+							ForwardID:    rs.ForwardID,
+							UserID:       rs.UserID,
+							UserTunnelID: rs.UserTunnelID,
+							Protocol:     rs.Protocol,
+							Port:         rs.Port,
+							Packets:      ctr.Packets,
+							Bytes:        ctr.Bytes,
 						})
 						break
 					}
