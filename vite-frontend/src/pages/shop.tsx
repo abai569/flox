@@ -277,7 +277,7 @@ export default function ShopPage() {
                     className="border border-divider shadow-sm hover:shadow-md transition-shadow relative overflow-visible"
                   >
                     {s.type === "subscription" &&
-                      s.items.indexOf(pkg) === 0 && (
+                      pkg.recommended === 1 && (
                         <div className="absolute -top-2 -right-2 z-10">
                           <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
                             推荐

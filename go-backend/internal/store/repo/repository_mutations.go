@@ -1371,6 +1371,7 @@ func (r *Repository) UpdatePackage(pkg *model.SubscriptionPackage, tunnelGroupID
 		"enabled": pkg.Enabled, "shop_visible": pkg.ShopVisible,
 		"auto_buy_traffic_enabled": pkg.AutoBuyTrafficEnabled,
 		"stock": pkg.Stock,
+		"recommended": pkg.Recommended,
 		"updated_at": pkg.UpdatedAt,
 	}).Error; err != nil {
 		return err

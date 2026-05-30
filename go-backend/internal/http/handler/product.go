@@ -72,6 +72,7 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		ShopVisible           int     `json:"shopVisible"`
 		AutoBuyTrafficEnabled int     `json:"autoBuyTrafficEnabled"`
 		Stock                 int64   `json:"stock"`
+		Recommended           int     `json:"recommended"`
 		TunnelGroupIDs        []int64 `json:"tunnelGroupIds"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
@@ -103,6 +104,7 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		ShopVisible:           req.ShopVisible,
 		AutoBuyTrafficEnabled: req.AutoBuyTrafficEnabled,
 		Stock:                 req.Stock,
+		Recommended:           req.Recommended,
 	}
 	if err := h.repo.CreatePackage(pkg, req.TunnelGroupIDs); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -134,14 +136,15 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		ShopVisible           int     `json:"shopVisible"`
 		AutoBuyTrafficEnabled int     `json:"autoBuyTrafficEnabled"`
 		Stock                 int64   `json:"stock"`
+		Recommended           int     `json:"recommended"`
 		TunnelGroupIDs        []int64 `json:"tunnelGroupIds"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
 		return
 	}
-	if req.ID <= 0 || req.Name == "" {
-		response.WriteJSON(w, response.ErrDefault("参数错误"))
+	if req.Name == "" {
+		response.WriteJSON(w, response.ErrDefault("套餐名称不能为空"))
 		return
 	}
 	if req.Type == "" {
@@ -166,6 +169,7 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		ShopVisible:           req.ShopVisible,
 		AutoBuyTrafficEnabled: req.AutoBuyTrafficEnabled,
 		Stock:                 req.Stock,
+		Recommended:           req.Recommended,
 	}
 	if err := h.repo.UpdatePackage(pkg, req.TunnelGroupIDs); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))

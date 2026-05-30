@@ -87,6 +87,7 @@ interface PackageForm {
   autoBuyTrafficEnabled: boolean;
   sortOrder: number;
   stock: number;
+  recommended: boolean;
   tunnelGroupIds: number[];
 }
 
@@ -108,6 +109,7 @@ const defaultPackageForm: PackageForm = {
   autoBuyTrafficEnabled: false,
   sortOrder: 0,
   stock: -1,
+  recommended: false,
   tunnelGroupIds: [],
 };
 
@@ -119,10 +121,6 @@ const durationOptions = [
   { value: 365, label: "一年" },
   { value: 730, label: "两年" },
 ];
-
-function durationLabel(days: number): string {
-  return durationOptions.find((d) => d.value === days)?.label || `${days} 天`;
-}
 
 export default function AdminPlansPage() {
   const [pkgList, setPkgList] = useState<SubscriptionPackageApiItem[]>([]);
@@ -212,6 +210,7 @@ export default function AdminPlansPage() {
           autoBuyTrafficEnabled: p.autoBuyTrafficEnabled === 1,
           sortOrder: p.sortOrder,
           stock: p.stock ?? -1,
+          recommended: p.recommended === 1,
           tunnelGroupIds: res.data.tunnelGroupIds || [],
         });
       } else {
@@ -250,6 +249,7 @@ export default function AdminPlansPage() {
         autoBuyTrafficEnabled: pkgForm.autoBuyTrafficEnabled ? 1 : 0,
         sortOrder: pkgForm.sortOrder,
         stock: pkgForm.stock,
+        recommended: pkgForm.recommended ? 1 : 0,
         tunnelGroupIds: pkgForm.tunnelGroupIds,
       };
 
@@ -565,113 +565,125 @@ export default function AdminPlansPage() {
               <TableColumn className="whitespace-nowrap min-w-[90px]">
                 商店可见
               </TableColumn>
-              <TableColumn className="whitespace-nowrap min-w-[80px]">
+              <TableColumn className="whitespace-nowrap min-w-[100px]">
                 自动续费
               </TableColumn>
-              <TableColumn className="whitespace-nowrap min-w-[80px]">
-                库存
-              </TableColumn>
-              <TableColumn className="whitespace-nowrap min-w-[80px]">
-                操作
-              </TableColumn>
-            </TableHeader>
-            <TableBody>
-              {filteredList.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <div className="font-medium text-sm">{item.name}</div>
-                    {item.description && (
-                      <div className="text-xs text-gray-400 truncate max-w-48">
-                        {item.description}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm whitespace-nowrap">
-                      ¥{(item.price / 100).toFixed(2)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm whitespace-nowrap">
-                      {" "}
-                      {durationLabel(item.validityDays)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {(item.tunnelGroupIds || []).length === 0 && (
-                        <span className="text-xs text-gray-400">未关联</span>
-                      )}
-                      {(item.tunnelGroupIds || []).map((gid: number) => {
-                        const tg = tunnelGroups.find((g) => g.id === gid);
-
-                        return tg ? (
-                          <span
-                            key={gid}
-                            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
-                          >
-                            {tg.name}
-                          </span>
-                        ) : null;
-                      })}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-gray-500">
-                    <div className="space-y-0.5">
-                      <div>
-                        规则 {item.maxRules > 0 ? item.maxRules : "不限"} · 流量{" "}
-                        {item.trafficLimit > 0
-                          ? `${item.trafficLimit} GB`
-                          : "不限"}
-                      </div>
-                      <div>
-                        连接{" "}
-                        {item.maxConnections > 0 ? item.maxConnections : "不限"}{" "}
-                        · 限速{" "}
-                        {item.speedLimit > 0
-                          ? `${item.speedLimit} Mbps`
-                          : "不限"}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-row gap-1 shrink-0">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}
-                      >
-                        {item.enabled === 1 ? "启用" : "停用"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-row gap-1 shrink-0">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}
-                      >
-                        {item.shopVisible === 1 ? "商店可见" : "后台分配"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-row gap-1 shrink-0">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.autoRenew === 1 ? "bg-purple-500" : "bg-gray-400"}`}
-                      >
-                        {item.autoRenew === 1 ? "自动续费" : "不续费"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {item.stock === -1 ? (
-                        <span className="text-default-400">不限</span>
-                      ) : item.stock === 0 ? (
-                        <span className="text-red-500 font-medium">已售罄</span>
-                      ) : (
-                        <span>{item.stock}</span>
-                      )}
-                    </div>
-                  </TableCell>
+               <TableColumn className="whitespace-nowrap min-w-[80px]">
+                 库存
+               </TableColumn>
+               <TableColumn className="whitespace-nowrap min-w-[60px]">
+                 商店推荐
+               </TableColumn>
+               <TableColumn className="whitespace-nowrap min-w-[80px]">
+                 操作
+               </TableColumn>
+             </TableHeader>
+             <TableBody>
+               {filteredList.map((item) => (
+                 <TableRow key={item.id}>
+                   <TableCell>
+                     <div className="font-medium text-sm">{item.name}</div>
+                     {item.description && (
+                       <div className="text-xs text-gray-400 truncate max-w-48">
+                         {item.description}
+                       </div>
+                     )}
+                   </TableCell>
+                   <TableCell>
+                     <div className="text-sm whitespace-nowrap">
+                       ¥{(item.price / 100).toFixed(2)}
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="text-sm">
+                       {item.type === "traffic"
+                         ? `${item.trafficLimit} GB`
+                         : `${item.validityDays}天`}
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex flex-wrap gap-1">
+                       {(item.tunnelGroupIds || []).length === 0 && (
+                         <span className="text-xs text-gray-400">未关联</span>
+                       )}
+                       {(item.tunnelGroupIds || []).map((gid: number) => {
+                         const tg = tunnelGroups.find((g) => g.id === gid);
+                         return tg ? (
+                           <span
+                             key={gid}
+                             className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
+                           >
+                             {tg.name}
+                           </span>
+                         ) : null;
+                       })}
+                     </div>
+                   </TableCell>
+                   <TableCell className="text-xs text-gray-500">
+                     <div className="space-y-0.5">
+                       <div>
+                         规则 {item.maxRules > 0 ? item.maxRules : "不限"} · 流量{" "}
+                         {item.trafficLimit > 0
+                           ? `${item.trafficLimit} GB`
+                           : "不限"}
+                       </div>
+                       <div>
+                         连接{" "}
+                         {item.maxConnections > 0 ? item.maxConnections : "不限"}{" "}
+                         · 限速{" "}
+                         {item.speedLimit > 0
+                           ? `${item.speedLimit} Mbps`
+                           : "不限"}
+                       </div>
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex flex-row gap-1 shrink-0">
+                       <span
+                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}
+                       >
+                         {item.enabled === 1 ? "启用" : "停用"}
+                       </span>
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex flex-row gap-1 shrink-0">
+                       <span
+                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}
+                       >
+                         {item.shopVisible === 1 ? "商店可见" : "后台分配"}
+                       </span>
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex flex-row gap-1 shrink-0">
+                       <span
+                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.autoRenew === 1 ? "bg-purple-500" : "bg-gray-400"}`}
+                       >
+                         {item.autoRenew === 1 ? "自动续费" : "不续费"}
+                       </span>
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="text-sm">
+                       {item.stock === -1 ? (
+                         <span className="text-default-400">不限</span>
+                       ) : item.stock === 0 ? (
+                         <span className="text-red-500 font-medium">已售罄</span>
+                       ) : (
+                         <span>{item.stock}</span>
+                       )}
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex flex-row gap-1 shrink-0">
+                       <span
+                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.recommended === 1 ? "bg-amber-500" : "bg-gray-400"}`}
+                       >
+                         {item.recommended === 1 ? "推荐" : "不推荐"}
+                       </span>
+                     </div>
+                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button
@@ -929,58 +941,70 @@ export default function AdminPlansPage() {
               <TableColumn className="whitespace-nowrap min-w-[90px]">
                 商店可见
               </TableColumn>
-              <TableColumn className="whitespace-nowrap min-w-[80px]">
-                库存
-              </TableColumn>
-              <TableColumn className="whitespace-nowrap min-w-[80px]">
-                操作
-              </TableColumn>
-            </TableHeader>
-            <TableBody>
-              {filteredList.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>
-                    <div className="font-medium text-sm">{item.name}</div>
-                    {item.description && (
-                      <div className="text-xs text-gray-400 truncate max-w-48">
-                        {item.description}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm whitespace-nowrap">
-                      ¥{(item.price / 100).toFixed(2)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-row gap-1 shrink-0">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}
-                      >
-                        {item.enabled === 1 ? "启用" : "停用"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-row gap-1 shrink-0">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}
-                      >
-                        {item.shopVisible === 1 ? "商店可见" : "后台分配"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm">
-                      {item.stock === -1 ? (
-                        <span className="text-default-400">不限</span>
-                      ) : item.stock === 0 ? (
-                        <span className="text-red-500 font-medium">已售罄</span>
-                      ) : (
-                        <span>{item.stock}</span>
-                      )}
-                    </div>
-                  </TableCell>
+               <TableColumn className="whitespace-nowrap min-w-[80px]">
+                 库存
+               </TableColumn>
+               <TableColumn className="whitespace-nowrap min-w-[60px]">
+                 推荐
+               </TableColumn>
+               <TableColumn className="whitespace-nowrap min-w-[80px]">
+                 操作
+               </TableColumn>
+             </TableHeader>
+             <TableBody>
+               {filteredList.map((item) => (
+                 <TableRow key={item.id}>
+                   <TableCell>
+                     <div className="font-medium text-sm">{item.name}</div>
+                     {item.description && (
+                       <div className="text-xs text-gray-400 truncate max-w-48">
+                         {item.description}
+                       </div>
+                     )}
+                   </TableCell>
+                   <TableCell>
+                     <div className="text-sm whitespace-nowrap">
+                       ¥{(item.price / 100).toFixed(2)}
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex flex-row gap-1 shrink-0">
+                       <span
+                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.enabled === 1 ? "bg-green-500" : "bg-gray-400"}`}
+                       >
+                         {item.enabled === 1 ? "启用" : "停用"}
+                       </span>
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex flex-row gap-1 shrink-0">
+                       <span
+                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.shopVisible === 1 ? "bg-blue-500" : "bg-gray-400"}`}
+                       >
+                         {item.shopVisible === 1 ? "商店可见" : "后台分配"}
+                       </span>
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="text-sm">
+                       {item.stock === -1 ? (
+                         <span className="text-default-400">不限</span>
+                       ) : item.stock === 0 ? (
+                         <span className="text-red-500 font-medium">已售罄</span>
+                       ) : (
+                         <span>{item.stock}</span>
+                       )}
+                     </div>
+                   </TableCell>
+                   <TableCell>
+                     <div className="flex flex-row gap-1 shrink-0">
+                       <span
+                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.recommended === 1 ? "bg-amber-500" : "bg-gray-400"}`}
+                       >
+                         {item.recommended === 1 ? "推荐" : "不推荐"}
+                       </span>
+                     </div>
+                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
                       <Button
@@ -1314,6 +1338,17 @@ export default function AdminPlansPage() {
                     商店可见
                   </Switch>
                   <span className="text-xs text-gray-400">商店售卖</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Switch
+                    isSelected={pkgForm.recommended}
+                    onValueChange={(v) =>
+                      setPkgForm((p) => ({ ...p, recommended: v }))
+                    }
+                  >
+                    商店推荐
+                  </Switch>
+                  <span className="text-xs text-gray-400">商店推荐</span>
                 </div>
               </div>
               {/* 隐藏套餐说明 */}

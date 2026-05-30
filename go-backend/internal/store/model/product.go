@@ -20,6 +20,7 @@ type SubscriptionPackage struct {
 	ShopVisible            int    `gorm:"column:shop_visible;default:1" json:"shopVisible"`                       // 商店可见
 	AutoBuyTrafficEnabled  int    `gorm:"column:auto_buy_traffic_enabled;default:0" json:"autoBuyTrafficEnabled"` // 标记为自动购流来源 (0=否，1=是)
 	Stock                  int64  `gorm:"column:stock;default:-1" json:"stock"`                                  // -1=不限，0=售罄，>0=剩余库存
+	Recommended            int    `gorm:"column:recommended;default:0" json:"recommended"`                        // 0=否，1=推荐
 	CreatedAt              int64  `gorm:"column:created_at;not null" json:"createdAt"`
 	UpdatedAt      int64  `gorm:"column:updated_at;not null" json:"updatedAt"`
 }
