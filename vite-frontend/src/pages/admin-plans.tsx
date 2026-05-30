@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 import { AnimatedPage } from "@/components/animated-page";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input } from "@/shadcn-bridge/heroui/input";
-import { Textarea } from "@/shadcn-bridge/heroui/input";
+//import { Textarea } from "@/shadcn-bridge/heroui/input";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
 import { Switch } from "@/shadcn-bridge/heroui/switch";
