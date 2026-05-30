@@ -55,11 +55,12 @@ export default function IndexPage() {
   const [regEnabled, setRegEnabled] = useState(true);
 
   const [captchaEnabled, setCaptchaEnabled] = useState(false);
+  const [showLoginCaptcha, setShowLoginCaptcha] = useState(false);
   const [loginCaptchaToken, setLoginCaptchaToken] = useState("");
 
   const [regCaptchaEnabled, setRegCaptchaEnabled] = useState(false);
+  const [showRegCaptcha, setShowRegCaptcha] = useState(false);
   const [regCaptchaId, setRegCaptchaId] = useState("");
-  const [regCaptchaLoading, setRegCaptchaLoading] = useState(false);
 
   useEffect(() => {
     getConfigByName("registration_enabled")
@@ -150,13 +151,13 @@ export default function IndexPage() {
 
   const handleLogin = async () => {
     if (!validateForm()) return;
-    setLoading(true);
 
     if (captchaEnabled && siteKey && !loginCaptchaToken) {
-      setLoading(false);
+      setShowLoginCaptcha(true);
       return;
     }
 
+    setLoading(true);
     await performLogin();
   };
 
@@ -203,6 +204,7 @@ export default function IndexPage() {
     if (Object.keys(errs).length > 0) return;
 
     if (regCaptchaEnabled && regSiteKey && !regCaptchaId) {
+      setShowRegCaptcha(true);
       return;
     }
 
@@ -260,7 +262,17 @@ export default function IndexPage() {
                   onChange={(e) => handleInputChange("password", e.target.value)}
                   onKeyDown={handleKeyPress}
                 />
-                {captchaEnabled && siteKey && (
+                <Button
+                  className="mt-2"
+                  color="primary"
+                  disabled={loading}
+                  isLoading={loading}
+                  size="lg"
+                  onPress={handleLogin}
+                >
+                  {loading ? "登录中..." : "登录"}
+                </Button>
+                {captchaEnabled && siteKey && showLoginCaptcha && (
                   <div className="flex justify-center py-2">
                     <Turnstile
                       options={{ theme: getTurnstileTheme() }}
@@ -270,24 +282,14 @@ export default function IndexPage() {
                         setLoginCaptchaToken("");
                       }}
                       onExpire={() => setLoginCaptchaToken("")}
-                      onSuccess={(token) => setLoginCaptchaToken(token)}
+                      onSuccess={(token) => {
+                        setLoginCaptchaToken(token);
+                        setLoading(true);
+                        void performLogin(token);
+                      }}
                     />
                   </div>
                 )}
-                <Button
-                  className="mt-2"
-                  color="primary"
-                  disabled={loading || (captchaEnabled && siteKey && !loginCaptchaToken)}
-                  isLoading={loading}
-                  size="lg"
-                  onPress={handleLogin}
-                >
-                  {loading
-                    ? "登录中..."
-                    : captchaEnabled && siteKey && !loginCaptchaToken
-                      ? "请先验证"
-                      : "登录"}
-                </Button>
                 {regEnabled && (
                   <div className="text-center mt-2">
                     <button
@@ -365,7 +367,7 @@ export default function IndexPage() {
                     setRegisterForm((p) => ({ ...p, confirm: e.target.value }))
                   }
                 />
-                {regCaptchaEnabled && regSiteKey && (
+                {regCaptchaEnabled && regSiteKey && showRegCaptcha && (
                   <div className="flex justify-center py-2">
                     <Turnstile
                       options={{ theme: getTurnstileTheme() }}
@@ -375,7 +377,11 @@ export default function IndexPage() {
                         setRegCaptchaId("");
                       }}
                       onExpire={() => setRegCaptchaId("")}
-                      onSuccess={(token) => setRegCaptchaId(token)}
+                      onSuccess={(token) => {
+                        setRegCaptchaId(token);
+                        setRegisterLoading(true);
+                        void performRegister(token);
+                      }}
                     />
                   </div>
                 )}
@@ -396,13 +402,10 @@ export default function IndexPage() {
               </Button>
               <Button
                 color="primary"
-                disabled={regCaptchaEnabled && regSiteKey && !regCaptchaId}
                 isLoading={registerLoading}
                 onPress={handleRegister}
               >
-                {regCaptchaEnabled && regSiteKey && !regCaptchaId
-                  ? "请先验证"
-                  : "注册"}
+                注册
               </Button>
             </ModalFooter>
           </ModalContent>
