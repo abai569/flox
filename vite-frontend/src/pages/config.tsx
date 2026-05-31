@@ -1329,6 +1329,16 @@ export default function ConfigPage() {
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   输入域名和授权码激活授权服务，授权码留空自动生成7天体验授权
                 </p>
+                <p className="text-sm mt-1">
+                  <a
+                    className="text-primary hover:underline"
+                    href="https://sq.abai.eu.org/renew"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    授权码续费
+                  </a>
+                </p>
               </div>
             </div>
           </CardHeader>
