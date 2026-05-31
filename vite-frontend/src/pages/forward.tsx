@@ -810,7 +810,7 @@ const SortableTableRow = ({
       )}
       <TableCell className={`whitespace-nowrap text-foreground ${rowBg}`}>
         <span
-          className="cursor-pointer hover:text-primary transition-colors text-foreground"
+          className="cursor-pointer hover:text-primary transition-colors text-foreground text-sm"
           onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
           {forward.name}
@@ -1119,7 +1119,7 @@ const SortableCompactTableRow = ({
       )}
       <TableCell className={`whitespace-nowrap text-foreground ${rowBg}`}>
         <span
-          className="cursor-pointer hover:text-primary transition-colors text-foreground"
+          className="cursor-pointer hover:text-primary transition-colors text-foreground text-sm"
           onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
           {forward.name}
@@ -4275,7 +4275,7 @@ export default function ForwardPage() {
             <div className="flex items-center justify-between gap-2 mb-1">
               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                 <h3
-                  className="font-bold text-foreground truncate text-sm cursor-pointer hover:text-primary transition-colors"
+                  className="text-foreground truncate text-sm cursor-pointer hover:text-primary transition-colors"
                   onClick={() => copyToClipboard(forward.name, "规则名称")}
                 >
                   {forward.name}
@@ -4293,11 +4293,11 @@ export default function ForwardPage() {
           </div>
           <div className="flex-1 min-w-0 w-full pl-0.5">
             <div className="flex items-center justify-between gap-2 mt-0.5">
-              <span className="text-xs text-foreground font-bold truncate flex items-center">
+              <span className="text-xs text-foreground truncate flex items-center">
                 <span className="truncate">
                   {normalizeForwardTunnelName(forward.tunnelName)}
                 </span>
-                <span className="text-primary-600 font-bold text-[10px] ml-1">
+                <span className="text-primary-600 text-[10px] ml-1">
                   ^{formatTunnelTrafficRatio(forward.tunnelTrafficRatio)}
                 </span>
               </span>
@@ -4315,7 +4315,7 @@ export default function ForwardPage() {
           <div className="space-y-3 flex-1 py-1">
             {/* 入口信息区 */}
             <div className="space-y-1">
-              <div className="flex gap-1 px-1 text-[11px] font-bold text-foreground uppercase tracking-wider">
+              <div className="flex gap-1 px-1 text-[11px] text-foreground uppercase tracking-wider">
                 <span className="flex-1 text-left">入口地址</span>
                 <span className="w-16 text-center">端口</span>
               </div>
@@ -4366,7 +4366,7 @@ export default function ForwardPage() {
             </div>
             {/* 落地信息区 */}
             <div className="space-y-1">
-              <div className="flex gap-1 px-1 text-[11px] font-bold text-foreground uppercase tracking-wider">
+              <div className="flex gap-1 px-1 text-[11px] text-foreground uppercase tracking-wider">
                 <span className="flex-1 text-left">落地地址</span>
                 <span className="w-16 text-center">端口</span>
               </div>

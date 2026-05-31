@@ -301,7 +301,7 @@ export default function ShopPage() {
                         <div>
                           <h3 className="text-lg font-semibold">{pkg.name}</h3>
                           {pkg.description && (
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-red-400 text-foreground mt-1">
                               {pkg.description}
                             </p>
                           )}

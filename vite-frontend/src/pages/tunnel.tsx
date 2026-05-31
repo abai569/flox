@@ -2191,13 +2191,13 @@ export default function TunnelPage() {
                       <th className="py-3 px-4 w-[56px] text-center align-middle">
                         排序
                       </th>
-                      <th className="py-3 px-4 w-[200px] align-middle">
-                        隧道名称
-                        <span className="text-xs text-primary-500 font-normal">
-                          ^{sortedTunnels.length}个
-                        </span>
-                      </th>
-                      {/* <th className="py-3 px-4 w-[120px] align-middle">分组名</th> */}
+                        <th className="py-3 px-4 w-[200px] align-middle">
+                          隧道名称
+                          <span className="text-xs text-primary-500 font-normal">
+                            ^{sortedTunnels.length}个
+                          </span>
+                        </th>
+                        {/* <th className="py-3 px-4 w-[120px] align-middle">分组名</th> */}
                       <th className="py-3 px-4 w-[140px] align-middle">
                         <Select
                           aria-label="按分组筛选"
@@ -2368,16 +2368,25 @@ export default function TunnelPage() {
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 align-middle">
-                                  <span
-                                    className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
-                                    title={tunnel.name}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      copyToClipboard(tunnel.name, "隧道名称");
-                                    }}
-                                  >
-                                    {tunnel.name}
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                        tunnel.status === 1
+                                      ? "bg-success"
+                                        : "bg-danger"
+                                      }`}
+                                    />
+                                    <span
+                                      className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                      title={tunnel.name}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        copyToClipboard(tunnel.name, "隧道名称");
+                                      }}
+                                    >
+                                      {tunnel.name}
+                                    </span>
+                                  </div>
                                 </td>
                                 <td className="py-3 px-4 align-middle">
                                   {tunnel.tunnelGroupId &&
@@ -2584,19 +2593,28 @@ export default function TunnelPage() {
                                   </div>
                                   {/* 隧道名称和类型 */}
                                   <div className="flex-1 min-w-0">
-                                    <h3
-                                      className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
-                                      title={tunnel.name}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        copyToClipboard(
-                                          tunnel.name,
-                                          "隧道名称",
-                                        );
-                                      }}
-                                    >
-                                      {tunnel.name}
-                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                      <span
+                                        className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                          tunnel.status === 1
+                                            ? "bg-success"
+                                            : "bg-default-300"
+                                        }`}
+                                      />
+                                      <h3
+                                        className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                        title={tunnel.name}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          copyToClipboard(
+                                            tunnel.name,
+                                            "隧道名称",
+                                          );
+                                        }}
+                                      >
+                                        {tunnel.name}
+                                      </h3>
+                                    </div>
                                     <div className="flex items-center gap-1.5 mt-1">
                                       <div className={tunnelTypeChipClassName}>
                                         {typeDisplay.text}
