@@ -1040,7 +1040,7 @@ export default function GroupPage() {
             <Select
               className="min-w-0"
               classNames={{ trigger: "max-w-full" }}
-              items={tunnels}
+              items={tunnels.filter((t: any) => t.status === 1)}
               label="选择隧道"
               selectedKeys={selectedTunnelKeys}
               selectionMode="multiple"

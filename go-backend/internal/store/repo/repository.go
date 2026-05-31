@@ -693,7 +693,7 @@ func (r *Repository) GetUserPackageTunnels(userID int64) ([]model.UserTunnelDeta
 		Select("user_tunnel.id, user_tunnel.user_id, user_tunnel.tunnel_id, tunnel.name AS tunnel_name, tunnel.traffic_ratio AS tunnel_traffic_ratio, user_tunnel.status, tunnel.flow AS tunnel_flow, user_tunnel.flow, user_tunnel.in_flow, user_tunnel.out_flow, user_tunnel.num, user_tunnel.flow_reset_time, user_tunnel.exp_time, user_tunnel.speed_id, speed_limit.name AS speed_limit, speed_limit.speed").
 		Joins("LEFT JOIN tunnel ON tunnel.id = user_tunnel.tunnel_id").
 		Joins("LEFT JOIN speed_limit ON speed_limit.id = user_tunnel.speed_id").
-		Where("user_tunnel.user_id = ?", userID).
+		Where("user_tunnel.user_id = ? AND tunnel.status = 1", userID).
 		Order("user_tunnel.id ASC").
 		Find(&items).Error
 	if err != nil {
@@ -3241,6 +3241,21 @@ func (r *Repository) ListExpiredActiveUserTunnels(nowMs int64) ([]model.ExpiredU
 	var uts []model.UserTunnel
 	err := r.db.Where("status = 1 AND exp_time > 0 AND exp_time < ?", nowMs).Find(&uts).Error
 	if err != nil {
+		return nil, err
+	}
+	out := make([]model.ExpiredUserTunnel, len(uts))
+	for i, ut := range uts {
+		out[i] = model.ExpiredUserTunnel{ID: ut.ID, UserID: ut.UserID, TunnelID: ut.TunnelID}
+	}
+	return out, nil
+}
+
+func (r *Repository) ListActiveUserTunnelsByTunnel(tunnelID int64) ([]model.ExpiredUserTunnel, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var uts []model.UserTunnel
+	if err := r.db.Where("tunnel_id = ? AND status = 1", tunnelID).Find(&uts).Error; err != nil {
 		return nil, err
 	}
 	out := make([]model.ExpiredUserTunnel, len(uts))

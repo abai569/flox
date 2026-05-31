@@ -924,6 +924,15 @@ func (r *Repository) UpdateTunnelTx(tx *gorm.DB, tunnelID int64, name string, ty
 		Updates(updates).Error
 }
 
+func (r *Repository) UpdateTunnelStatus(tunnelID int64, status int) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Tunnel{}).
+		Where("id = ?", tunnelID).
+		Update("status", status).Error
+}
+
 func (r *Repository) DeleteChainTunnelsByTunnelTx(tx *gorm.DB, tunnelID int64) error {
 	if tx == nil {
 		return errors.New("database unavailable")

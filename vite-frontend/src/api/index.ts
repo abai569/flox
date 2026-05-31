@@ -247,8 +247,10 @@ export const diagnoseTunnel = (tunnelId: number) =>
     { timeout: 120 * 1000 },
   );
 export const updateTunnelOrder = (data: {
-  tunnels: Array<{ id: number; inx: number }>;
+  tunnels: { id: number; inx: number }[];
 }) => Network.post("/tunnel/update-order", data);
+export const toggleTunnelStatus = (data: { id: number; status: number }) =>
+  Network.post("/tunnel/toggle-status", data);
 
 // 用户隧道权限管理操作 - 全部使用POST请求
 export const assignUserTunnel = (data: UserTunnelAssignPayload) =>

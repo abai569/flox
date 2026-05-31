@@ -212,6 +212,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/tunnel/delete-with-forwards", h.tunnelDeleteWithForwards)
 	mux.HandleFunc("/api/v1/tunnel/batch-delete-preview", h.tunnelBatchDeletePreview)
 	mux.HandleFunc("/api/v1/tunnel/batch-delete-with-forwards", h.tunnelBatchDeleteWithForwards)
+	mux.HandleFunc("/api/v1/tunnel/toggle-status", h.tunnelToggleStatus)
 	mux.HandleFunc("/api/v1/tunnel/diagnose", h.tunnelDiagnose)
 	mux.HandleFunc("/api/v1/tunnel/diagnose/stream", h.tunnelDiagnoseStream)
 	mux.HandleFunc("/api/v1/tunnel/update-order", h.tunnelUpdateOrder)

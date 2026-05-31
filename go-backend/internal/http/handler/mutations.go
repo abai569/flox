@@ -1527,6 +1527,67 @@ func (h *Handler) tunnelGet(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.ErrDefault("隧道不存在"))
 }
 
+func (h *Handler) tunnelToggleStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+	var req map[string]interface{}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+
+	id := asInt64(req["id"], 0)
+	if id <= 0 {
+		response.WriteJSON(w, response.ErrDefault("隧道ID不能为空"))
+		return
+	}
+	newStatus := asInt(req["status"], -1)
+	if newStatus != 0 && newStatus != 1 {
+		response.WriteJSON(w, response.ErrDefault("状态值无效"))
+		return
+	}
+
+	// 检查隧道是否存在
+	items, err := h.repo.ListTunnels()
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	var exists bool
+	for _, it := range items {
+		if asInt64(it["id"], 0) == id {
+			exists = true
+			break
+		}
+	}
+	if !exists {
+		response.WriteJSON(w, response.ErrDefault("隧道不存在"))
+		return
+	}
+
+	// 更新状态
+	if err := h.repo.UpdateTunnelStatus(id, newStatus); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	// 禁用时级联禁用 UserTunnel + 暂停关联的转发
+	if newStatus == 0 {
+		nowMs := time.Now().UnixMilli()
+		userTunnels, _ := h.repo.ListActiveUserTunnelsByTunnel(id)
+		for _, ut := range userTunnels {
+			if forwards, err := h.listActiveForwardsByUserTunnel(ut.UserID, ut.TunnelID); err == nil {
+				h.pauseForwardRecords(forwards, nowMs)
+			}
+			_ = h.repo.DisableUserTunnel(ut.ID)
+		}
+	}
+
+	response.WriteJSON(w, response.OK("ok"))
+}
+
 func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))
@@ -1720,6 +1781,18 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 					log.Printf("SetProtocol failed for node %d: %v", nodeID, err)
 				}
 			}
+		}
+	}
+
+	// 禁用隧道时级联禁用 UserTunnel + 暂停关联的转发
+	if asInt(req["status"], 1) == 0 {
+		nowMs := time.Now().UnixMilli()
+		userTunnels, _ := h.repo.ListActiveUserTunnelsByTunnel(id)
+		for _, ut := range userTunnels {
+			if forwards, err := h.listActiveForwardsByUserTunnel(ut.UserID, ut.TunnelID); err == nil {
+				h.pauseForwardRecords(forwards, nowMs)
+			}
+			_ = h.repo.DisableUserTunnel(ut.ID)
 		}
 	}
 

@@ -63,6 +63,7 @@ import {
   batchRedeployTunnels,
   previewBatchTunnelDelete,
   previewTunnelDelete,
+  toggleTunnelStatus,
 } from "@/api";
 import { PageLoadingState } from "@/components/page-state";
 import {
@@ -362,6 +363,9 @@ export default function TunnelPage() {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   // 弹窗状态
   const [modalOpen, setModalOpen] = useState(false);
+  const [toggleModalOpen, setToggleModalOpen] = useState(false);
+  const [toggleLoading, setToggleLoading] = useState(false);
+  const [tunnelToToggle, setTunnelToToggle] = useState<Tunnel | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [diagnosisModalOpen, setDiagnosisModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
@@ -708,6 +712,51 @@ export default function TunnelPage() {
     setModalOpen(true);
   };
   // 删除隧道
+  const handleToggleStatus = (tunnel: Tunnel) => {
+    const newStatus = tunnel.status === 1 ? 0 : 1;
+
+    if (newStatus === 0) {
+      setTunnelToToggle(tunnel);
+      setToggleModalOpen(true);
+    } else {
+      setToggleLoading(true);
+      toggleTunnelStatus({ id: tunnel.id, status: 1 })
+        .then((res: any) => {
+          if (res.code === 0) {
+            toast.success(`已启用隧道 "${tunnel.name}"`);
+            refreshTunnelList(false);
+          } else {
+            toast.error(res.msg || "启用失败");
+          }
+        })
+        .catch(() => {
+          toast.error("启用失败");
+        })
+        .finally(() => setToggleLoading(false));
+    }
+  };
+  const confirmToggleDisable = async () => {
+    if (!tunnelToToggle) return;
+
+    setToggleLoading(true);
+    try {
+      const res = await toggleTunnelStatus({ id: tunnelToToggle.id, status: 0 });
+
+      if (res.code === 0) {
+        toast.success(`已禁用隧道 "${tunnelToToggle.name}"`);
+        setToggleModalOpen(false);
+        setTunnelToToggle(null);
+        refreshTunnelList(false);
+      } else {
+        toast.error(res.msg || "禁用失败");
+      }
+    } catch {
+      toast.error("禁用失败");
+    } finally {
+      setToggleLoading(false);
+    }
+  };
+
   const handleDelete = async (tunnel: Tunnel) => {
     setTunnelToDelete(tunnel);
     setDeleteModalOpen(true);
@@ -2444,6 +2493,15 @@ export default function TunnelPage() {
                                     </Button>
                                     <Button
                                       className="min-h-7 px-2"
+                                      color={tunnel.status === 1 ? "warning" : "success"}
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleToggleStatus(tunnel)}
+                                    >
+                                      {tunnel.status === 1 ? "禁用" : "启用"}
+                                    </Button>
+                                    <Button
+                                      className="min-h-7 px-2"
                                       color="danger"
                                       size="sm"
                                       variant="flat"
@@ -2722,6 +2780,15 @@ export default function TunnelPage() {
                                       onPress={() => handleDiagnose(tunnel)}
                                     >
                                       诊断
+                                    </Button>
+                                    <Button
+                                      className="flex-1 min-h-8"
+                                      color={tunnel.status === 1 ? "warning" : "success"}
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleToggleStatus(tunnel)}
+                                    >
+                                      {tunnel.status === 1 ? "禁用" : "启用"}
                                     </Button>
                                     <Button
                                       className="flex-1 min-h-8"
@@ -4746,6 +4813,50 @@ export default function TunnelPage() {
                     重新诊断
                   </Button>
                 )}
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+      {/* 禁用隧道确认弹窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
+        }}
+        isOpen={toggleModalOpen}
+        placement="center"
+        size="sm"
+        onOpenChange={(open) => {
+          setToggleModalOpen(open);
+          if (!open) setTunnelToToggle(null);
+        }}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <h2 className="text-lg font-bold">禁用隧道</h2>
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-sm text-default-600">
+                  确定禁用隧道 "{tunnelToToggle?.name}"？
+                </p>
+                <p className="text-xs text-default-500">
+                  禁用后将暂停所有关联的转发规则，且不会在用户页面、仪表盘和转发选择中显示。
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="flat" onPress={onClose}>
+                  取消
+                </Button>
+                <Button
+                  color="danger"
+                  isLoading={toggleLoading}
+                  onPress={confirmToggleDisable}
+                >
+                  确认
+                </Button>
               </ModalFooter>
             </>
           )}
