@@ -905,7 +905,34 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 	}
 
 	items := make([]map[string]interface{}, 0, len(nodes))
+
+	// 查询所有节点最新的 node_metric（用于离线节点显示周期流量）
+	var latestMetrics []model.NodeMetric
+	r.db.Raw(`
+		SELECT nm.* FROM node_metric nm
+		INNER JOIN (
+			SELECT node_id, MAX(timestamp) as max_ts
+			FROM node_metric GROUP BY node_id
+		) latest ON nm.node_id = latest.node_id AND nm.timestamp = latest.max_ts
+	`).Scan(&latestMetrics)
+
+	metricMap := make(map[int64]model.NodeMetric, len(latestMetrics))
+	for _, m := range latestMetrics {
+		metricMap[m.NodeID] = m
+	}
+
 	for _, n := range nodes {
+		pt := func() interface{} {
+			if m, ok := metricMap[n.ID]; ok {
+				return map[string]interface{}{
+					"rx":    m.PeriodRx,
+					"tx":    m.PeriodTx,
+					"since": m.Timestamp,
+				}
+			}
+			return nil
+		}()
+
 		items = append(items, map[string]interface{}{
 			"id": n.ID, "inx": n.Inx, "name": n.Name,
 			"remark":       nullableString(n.Remark),
@@ -928,6 +955,7 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"remoteConfig":            nullableString(n.RemoteConfig),
 			"expiryReminderDismissed": n.ExpiryReminderDismissed,
 			"groupId":                 nullableInt64(n.GroupID),
+			"periodTraffic":           pt,
 		})
 	}
 	return items, nil

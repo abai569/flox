@@ -591,6 +591,26 @@ export default function NodePage() {
           copyLoading: false,
         }));
 
+        // 用 REST API 返回的 periodTraffic 初始化离线节点的流量数据
+        setRealtimeNodeMetrics((prev) => {
+          const next = { ...prev };
+          let changed = false;
+
+          for (const node of nodesData) {
+            if (node.periodTraffic && !next[node.id]) {
+              next[node.id] = {
+                ...next[node.id],
+                uploadTraffic: node.periodTraffic.tx ?? 0,
+                downloadTraffic: node.periodTraffic.rx ?? 0,
+                periodTraffic: node.periodTraffic,
+              };
+              changed = true;
+            }
+          }
+
+          return changed ? next : prev;
+        });
+
         setNodeList((prev) => {
           const previousById = new Map(prev.map((node) => [node.id, node]));
 
@@ -2181,8 +2201,7 @@ export default function NodePage() {
             <div className="flex justify-between text-sm">
               <span className="text-default-600">周期流量</span>
               <span className="font-medium text-sm text-danger-600 dark:text-danger-400">
-                {node.connectionStatus === "online" &&
-                realtimeNodeMetrics[node.id]
+                {realtimeNodeMetrics[node.id]
                   ? formatTraffic(
                       (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
                         (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
@@ -2190,8 +2209,7 @@ export default function NodePage() {
                   : "-"}
               </span>
             </div>
-            {node.connectionStatus === "online" &&
-              realtimeNodeMetrics[node.id]?.periodTraffic && (
+            {realtimeNodeMetrics[node.id]?.periodTraffic && (
                 <div className="text-xs text-default-500 space-y-0.5 mt-1">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
