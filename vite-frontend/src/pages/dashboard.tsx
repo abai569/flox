@@ -153,7 +153,7 @@ export default function DashboardPage() {
         setAutoBuyPackageIdOverride(draftPackageId);
         setAutoBuyThresholdOverride(draftThreshold);
         setAutoBuySettingsModalOpen(false);
-        window.dispatchEvent(new CustomEvent("userAutoBuyConfigUpdated"));
+        localStorage.setItem("autoBuyConfigUpdated", Date.now().toString());
       } else {
         toast.error(res.msg || "操作失败");
       }

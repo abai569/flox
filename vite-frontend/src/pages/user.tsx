@@ -868,12 +868,20 @@ export default function UserPage() {
     void loadUsers();
   }, [loadUsers]);
   useEffect(() => {
-    const handler = () => void loadUsers();
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "autoBuyConfigUpdated") void loadUsers();
+    };
+    const handleVisible = () => {
+      if (document.visibilityState === "visible") void loadUsers();
+    };
 
-    window.addEventListener("userAutoBuyConfigUpdated", handler);
+    window.addEventListener("storage", handleStorage);
+    document.addEventListener("visibilitychange", handleVisible);
 
-    return () =>
-      window.removeEventListener("userAutoBuyConfigUpdated", handler);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      document.removeEventListener("visibilitychange", handleVisible);
+    };
   }, [loadUsers]);
   useEffect(() => {
     const loadReg = () => {
@@ -1067,6 +1075,9 @@ export default function UserPage() {
       autoBuyTrafficPackageType:
         ((user as any).autoBuyTrafficPackageId ?? 0) > 0 ? "package" : "custom",
     });
+    if (((user as any).autoBuyTrafficPackageId ?? 0) > 0) {
+      loadAutoBuyPackages();
+    }
     onUserModalOpen();
   };
   const handleDelete = (user: User) => {
