@@ -46,7 +46,7 @@ export default function ShopPage() {
   const [pkgQuantity, setPkgQuantity] = useState(1);
 
   const [selectedTab, setSelectedTab] = useState(
-    localStorage.getItem("shop-active-tab") || "subscription"
+    localStorage.getItem("shop-active-tab") || "subscription",
   );
 
   const subPkgs = packages.filter((p) => p.type === "subscription" || !p.type);
@@ -263,7 +263,13 @@ export default function ShopPage() {
           <p className="text-sm mt-1">请联系管理员</p>
         </div>
       ) : (
-        <Tabs selectedKey={selectedTab} onSelectionChange={(key) => { setSelectedTab(String(key)); localStorage.setItem("shop-active-tab", String(key)); }}>
+        <Tabs
+          selectedKey={selectedTab}
+          onSelectionChange={(key) => {
+            setSelectedTab(String(key));
+            localStorage.setItem("shop-active-tab", String(key));
+          }}
+        >
           {typeSections.map((s) => (
             <Tab
               key={s.type}
@@ -284,12 +290,12 @@ export default function ShopPage() {
                     className="border border-divider shadow-sm hover:shadow-md transition-shadow relative overflow-visible"
                   >
                     {pkg.recommended === 1 && (
-                        <div className="absolute -top-2 -right-2 z-10">
-                          <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
-                            推荐
-                          </span>
-                        </div>
-                      )}
+                      <div className="absolute -top-2 -right-2 z-10">
+                        <span className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                          推荐
+                        </span>
+                      </div>
+                    )}
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between w-full">
                         <div>
@@ -302,11 +308,17 @@ export default function ShopPage() {
                         </div>
                         <div className="flex-shrink-0 ml-2">
                           {pkg.stock === -1 ? (
-                            <span className="text-xs text-green-500 text-foreground">不限</span>
+                            <span className="text-xs text-green-500 text-foreground">
+                              不限
+                            </span>
                           ) : pkg.stock === 0 ? (
-                            <span className="text-xs text-red-500 font-medium">已售罄</span>
+                            <span className="text-xs text-red-500 font-medium">
+                              已售罄
+                            </span>
                           ) : (
-                            <span className="text-xs text-blue-500 font-medium">库存: {pkg.stock}</span>
+                            <span className="text-xs text-blue-500 font-medium">
+                              库存: {pkg.stock}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -324,42 +336,42 @@ export default function ShopPage() {
                     <CardBody className="pt-0 space-y-2">
                       {pkg.type === "traffic" ? (
                         <>
-                           <div className="flex flex-wrap gap-1">
-                             <Chip
-                               className="rounded-none"
-                               color="primary"
-                               size="sm"
-                               variant="solid"
-                             >
-                               {formatTraffic(pkg.trafficLimit)}
-                             </Chip>
-                           </div>
+                          <div className="flex flex-wrap gap-1">
+                            <Chip
+                              className="rounded-none"
+                              color="primary"
+                              size="sm"
+                              variant="solid"
+                            >
+                              {formatTraffic(pkg.trafficLimit)}
+                            </Chip>
+                          </div>
                           <p className="text-xs text-orange-500">
                             有效期跟随账户到期时间
                           </p>
                         </>
                       ) : pkg.type !== "balance" ? (
                         <>
-                      <div className="flex flex-wrap gap-1 rounded-sm">
-                        <Chip
-                          className="rounded-xs"
-                          color="primary"
-                          size="sm"
-                          variant="solid"
-                        >
-                          {formatTraffic(pkg.trafficLimit)}
-                        </Chip>
-                        <Chip
-                          className="rounded-xs"
-                          color="success"
-                          size="sm"
-                          variant="solid"
-                        >
-                          {pkg.speedLimit > 0
-                            ? `${pkg.speedLimit} Mbps`
-                            : "不限速"}
-                        </Chip>
-                      </div>
+                          <div className="flex flex-wrap gap-1 rounded-sm">
+                            <Chip
+                              className="rounded-xs"
+                              color="primary"
+                              size="sm"
+                              variant="solid"
+                            >
+                              {formatTraffic(pkg.trafficLimit)}
+                            </Chip>
+                            <Chip
+                              className="rounded-xs"
+                              color="success"
+                              size="sm"
+                              variant="solid"
+                            >
+                              {pkg.speedLimit > 0
+                                ? `${pkg.speedLimit} Mbps`
+                                : "不限速"}
+                            </Chip>
+                          </div>
                           <div className="text-xs text-gray-400 space-y-0.5">
                             <div>
                               规则 {pkg.maxRules || "不限"} &middot; 连接{" "}

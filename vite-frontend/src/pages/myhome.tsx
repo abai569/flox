@@ -130,10 +130,12 @@ export default function MyHomePage() {
       }
       if (pkgInfoRes.code === 0) {
         const info = (pkgInfoRes.data as UserPackageInfoApiData)?.userInfo;
+
         setUserInfo({
           balance: typeof info?.balance === "number" ? info?.balance : 0,
           flow: typeof info?.flow === "number" ? info?.flow : 0,
-          trafficFlow: typeof info?.trafficFlow === "number" ? info?.trafficFlow : 0,
+          trafficFlow:
+            typeof info?.trafficFlow === "number" ? info?.trafficFlow : 0,
         });
       }
     } catch {
@@ -283,22 +285,23 @@ export default function MyHomePage() {
           <CardBody className="pt-2">
             {subData?.subscription ? (
               <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-lg">                 
+                <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-lg">
                   <span className="text-sm font-semibold text-foreground">
                     价格
                   </span>
                   <p className="font-bold text-green-500 mt-1 text-lg">
                     {(subData.package!.price / 100).toFixed(2)} 元
                   </p>
-                </div>                
-                <div className="p-3 bg-warning-50 dark:bg-warning-900/10 rounded-lg">                 
+                </div>
+                <div className="p-3 bg-warning-50 dark:bg-warning-900/10 rounded-lg">
                   <span className="text-sm font-semibold text-foreground">
                     规则
                   </span>
                   <p className="font-bold text-warning-500 mt-1 text-lg">
                     {subData.package!.maxRules > 0
                       ? subData.package!.maxRules
-                      : ""} 个
+                      : ""}{" "}
+                    个
                   </p>
                 </div>
                 <div className="p-3 bg-primary-50 dark:bg-primary-900/10 rounded-lg">
@@ -328,12 +331,12 @@ export default function MyHomePage() {
                   <p className="font-bold text-yellow-500 mt-1 text-lg">
                     {subData.subscription.expireAt > 0
                       ? Math.max(
-                        0,
-                        Math.ceil(
-                          (subData.subscription.expireAt - Date.now()) /
-                          86400000,
-                        ),
-                      )
+                          0,
+                          Math.ceil(
+                            (subData.subscription.expireAt - Date.now()) /
+                              86400000,
+                          ),
+                        )
                       : "-"}
                     天
                   </p>
@@ -345,8 +348,8 @@ export default function MyHomePage() {
                   <p className="font-bold text-rose-500 mt-1 text-lg">
                     {subData.subscription.expireAt > 0
                       ? new Date(
-                        subData.subscription.expireAt,
-                      ).toLocaleDateString()
+                          subData.subscription.expireAt,
+                        ).toLocaleDateString()
                       : "-"}
                   </p>
                 </div>

@@ -62,6 +62,7 @@ export default function IndexPage() {
       .then((res) => {
         if (res.code === 0 && res.data) {
           const v = res.data.value;
+
           setRegEnabled(v === "1" || v === "true");
         }
       })

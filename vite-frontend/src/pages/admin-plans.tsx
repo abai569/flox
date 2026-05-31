@@ -347,7 +347,9 @@ export default function AdminPlansPage() {
     }
   };
 
-  const subscriptionCount = pkgList.filter((p) => p.type === "subscription").length;
+  const subscriptionCount = pkgList.filter(
+    (p) => p.type === "subscription",
+  ).length;
   const trafficCount = pkgList.filter((p) => p.type === "traffic").length;
   const balanceCount = pkgList.filter((p) => p.type === "balance").length;
 
@@ -380,9 +382,7 @@ export default function AdminPlansPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-xl font-bold text-blue-600">
-              {pkgList.length}
-            </p>
+            <p className="text-xl font-bold text-blue-600">{pkgList.length}</p>
           </CardBody>
         </Card>
         <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
@@ -418,9 +418,7 @@ export default function AdminPlansPage() {
                 </svg>
               </div>
             </div>
-            <p className="text-xl font-bold text-orange-600">
-              {trafficCount}
-            </p>
+            <p className="text-xl font-bold text-orange-600">{trafficCount}</p>
           </CardBody>
         </Card>
         <Card className="border border-gray-200 dark:border-default-200 shadow-md hover:shadow-lg transition-shadow">
@@ -434,13 +432,15 @@ export default function AdminPlansPage() {
                   viewBox="0 0 20 20"
                 >
                   <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
-                  <path clipRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" fillRule="evenodd" />
+                  <path
+                    clipRule="evenodd"
+                    d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z"
+                    fillRule="evenodd"
+                  />
                 </svg>
               </div>
             </div>
-            <p className="text-xl font-bold text-purple-600">
-              {balanceCount}
-            </p>
+            <p className="text-xl font-bold text-purple-600">{balanceCount}</p>
           </CardBody>
         </Card>
       </div>
@@ -542,6 +542,7 @@ export default function AdminPlansPage() {
                       )}
                       {(item.tunnelGroupIds || []).map((gid: number) => {
                         const tg = tunnelGroups.find((g) => g.id === gid);
+
                         return tg ? (
                           <span
                             key={gid}
