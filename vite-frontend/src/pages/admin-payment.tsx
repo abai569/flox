@@ -152,7 +152,7 @@ const defaultUsdt: UsdtForm = {
   return_url: "",
   currency: "cny",
   token: "usdt",
-  network: "tron",
+  network: "polygon",
 };
 
 export default function AdminPaymentPage() {
@@ -286,7 +286,7 @@ export default function AdminPaymentPage() {
           return_url: parsed.return_url || "",
           currency: parsed.currency || "cny",
           token: parsed.token || "usdt",
-          network: parsed.network || "tron",
+          network: parsed.network || "polygon",
         });
       } catch {
         setUsdt({
@@ -1041,7 +1041,7 @@ export default function AdminPaymentPage() {
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">
                       U 支付异步通知地址
@@ -1068,34 +1068,6 @@ export default function AdminPaymentPage() {
                       }
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-sm text-gray-400 text-foreground mb-1 block">
-                      U 支付法币
-                    </label>
-                    <Input
-                      placeholder="cny"
-                      value={usdt.currency}
-                      variant="bordered"
-                      onChange={(e) =>
-                        setUsdt((p) => ({ ...p, currency: e.target.value }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-400 text-foreground mb-1 block">
-                      U 支付币种
-                    </label>
-                    <Input
-                      placeholder="usdt"
-                      value={usdt.token}
-                      variant="bordered"
-                      onChange={(e) =>
-                        setUsdt((p) => ({ ...p, token: e.target.value }))
-                      }
-                    />
-                  </div>
                   <div>
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">
                       U 支付网络
@@ -1110,8 +1082,6 @@ export default function AdminPaymentPage() {
                       }}
                     >
                       <SelectItem key="tron">TRC-20</SelectItem>
-                      <SelectItem key="bsc">BEP-20</SelectItem>
-                      <SelectItem key="ethereum">ERC-20</SelectItem>
                       <SelectItem key="polygon">Polygon</SelectItem>
                     </Select>
                   </div>
