@@ -965,6 +965,7 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 			"buyTrafficAmount": u.BuyTrafficAmount,
 			"buyTrafficPrice":          u.BuyTrafficPrice,
 			"autoBuyTrafficPackageId": u.AutoBuyTrafficPackageID,
+			"autoBuyTrafficThreshold": u.AutoBuyTrafficThreshold,
 			"baseFlow":                u.BaseFlow,
 		}
 		if quota := quotaMap[u.ID]; quota != nil {

@@ -1250,6 +1250,7 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 			"buyTrafficAmount": user.BuyTrafficAmount,
 			"buyTrafficPrice":  user.BuyTrafficPrice,
 			"autoBuyTrafficPackageId": user.AutoBuyTrafficPackageID,
+			"autoBuyTrafficThreshold": user.AutoBuyTrafficThreshold,
 			"baseFlow":         user.BaseFlow,
 			"trafficFlow":      user.TrafficFlow,
 		},
