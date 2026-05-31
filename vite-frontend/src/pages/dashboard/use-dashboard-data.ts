@@ -116,6 +116,7 @@ interface DashboardDataState {
   quotaHistory: UserQuotaHistoryItem[];
   fetchQuotaHistory: () => Promise<void>;
   deleteQuotaHistory: (id: number) => Promise<void>;
+  refresh: () => void;
 }
 
 const checkExpirationNotifications = (
@@ -495,5 +496,6 @@ export const useDashboardData = (): DashboardDataState => {
     quotaHistory,
     fetchQuotaHistory,
     deleteQuotaHistory,
+    refresh,
   };
 };

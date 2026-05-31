@@ -51,6 +51,7 @@ export default function DashboardPage() {
     quotaHistory,
     fetchQuotaHistory,
     deleteQuotaHistory,
+    refresh,
   } = useDashboardData();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [historyToDelete, setHistoryToDelete] = useState<number | null>(null);
@@ -150,10 +151,12 @@ export default function DashboardPage() {
 
       if (res.code === 0) {
         toast.success("自动购流设置已保存");
-        setAutoBuyPackageIdOverride(draftPackageId);
-        setAutoBuyThresholdOverride(draftThreshold);
+        setAutoBuyPackageIdOverride(null);
+        setAutoBuyThresholdOverride(null);
+        setAutoBuyOverride(null);
         setAutoBuySettingsModalOpen(false);
         localStorage.setItem("autoBuyConfigUpdated", Date.now().toString());
+        void refresh();
       } else {
         toast.error(res.msg || "操作失败");
       }

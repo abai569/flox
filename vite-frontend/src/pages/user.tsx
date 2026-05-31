@@ -866,8 +866,7 @@ export default function UserPage() {
   }, [loadSpeedLimits, loadTunnels, loadUserGroups]);
   useEffect(() => {
     void loadUsers();
-  }, [loadUsers]);
-  useEffect(() => {
+
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "autoBuyConfigUpdated") void loadUsers();
     };
@@ -878,9 +877,14 @@ export default function UserPage() {
     window.addEventListener("storage", handleStorage);
     document.addEventListener("visibilitychange", handleVisible);
 
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadUsers(undefined, false);
+    }, 10000);
+
     return () => {
       window.removeEventListener("storage", handleStorage);
       document.removeEventListener("visibilitychange", handleVisible);
+      window.clearInterval(interval);
     };
   }, [loadUsers]);
   useEffect(() => {
