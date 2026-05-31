@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { Button } from "@/shadcn-bridge/heroui/button";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Input } from "@/shadcn-bridge/heroui/input";
 import { Textarea } from "@/shadcn-bridge/heroui/input";
@@ -292,6 +293,12 @@ export default function ConfigPage() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  usePullToRefresh(() => {
+    loadConfigs();
+    loadAnnouncement();
+    loadLicenseInfo();
+  });
   const loadLicenseInfo = async () => {
     try {
       const res = await getLicenseInfo();

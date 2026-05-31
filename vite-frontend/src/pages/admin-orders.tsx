@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { SearchBar } from "@/components/search-bar";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody } from "@/shadcn-bridge/heroui/card";
@@ -127,6 +128,8 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  usePullToRefresh(loadData);
 
   useEffect(() => {
     getAllUsers({ size: 1000 }).then((res) => {

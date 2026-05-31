@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import {
@@ -110,6 +111,8 @@ export default function ShopPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  usePullToRefresh(loadData);
 
   const handleBuyPackage = (pkg: SubscriptionPackageApiItem) => {
     if (pkg.stock === 0) return;

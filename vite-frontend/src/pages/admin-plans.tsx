@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input } from "@/shadcn-bridge/heroui/input";
 //import { Textarea } from "@/shadcn-bridge/heroui/input";
@@ -167,6 +168,8 @@ export default function AdminPlansPage() {
   useEffect(() => {
     loadPackages();
   }, [loadPackages]);
+
+  usePullToRefresh(loadPackages);
 
   // ── Package CRUD handlers ──
   const handlePkgAdd = () => {

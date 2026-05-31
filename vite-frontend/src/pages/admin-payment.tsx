@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input } from "@/shadcn-bridge/heroui/input";
 import {
@@ -243,6 +244,11 @@ export default function AdminPaymentPage() {
   useEffect(() => {
     loadPaymentData();
   }, [loadPaymentData]);
+
+  usePullToRefresh(() => {
+    loadPaymentData();
+    loadBillingData();
+  });
 
   const yipayConfig = useMemo(
     () => configs.find((c) => c.channel === "YIPAY"),
