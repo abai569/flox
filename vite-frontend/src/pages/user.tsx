@@ -189,10 +189,11 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
     buyTrafficAmount: Number(item.buyTrafficAmount ?? 0),
     buyTrafficPrice: Number(item.buyTrafficPrice ?? 0),
     autoBuyTrafficPackageId: Number(item.autoBuyTrafficPackageId ?? 0),
+    autoBuyTrafficThreshold: Number((item as any).autoBuyTrafficThreshold ?? 10),
     baseFlow: Number(item.baseFlow ?? 0),
     quotaHistory: [],
     showHistory: false,
-  };
+  } as UserWithHistory;
 };
 const normalizeUserTunnelItem = (item: Partial<UserTunnel>): UserTunnel => {
   return {
@@ -264,6 +265,7 @@ export default function UserPage() {
     buyTrafficAmount: number;
     buyTrafficPrice: number;
     autoBuyTrafficPackageId: number;
+    autoBuyTrafficThreshold: number;
     autoBuyTrafficPackageType: "package" | "custom";
   }>({
     user: "",
@@ -284,6 +286,7 @@ export default function UserPage() {
     buyTrafficAmount: 0,
     buyTrafficPrice: 0,
     autoBuyTrafficPackageId: 0,
+    autoBuyTrafficThreshold: 10,
     autoBuyTrafficPackageType: "custom",
   });
   const [userFormLoading, setUserFormLoading] = useState(false);
@@ -923,6 +926,7 @@ export default function UserPage() {
       buyTrafficAmount: 0,
       buyTrafficPrice: 0,
       autoBuyTrafficPackageId: 0,
+      autoBuyTrafficThreshold: 10,
       autoBuyTrafficPackageType: "custom",
     });
     onUserModalOpen();
@@ -1035,11 +1039,12 @@ export default function UserPage() {
       balance: user.balance ?? 0,
       autoRenew: user.autoRenew ?? 0,
       autoBuyTraffic: user.autoBuyTraffic ?? 0,
-      buyTrafficAmount: user.buyTrafficAmount ?? 0,
-      buyTrafficPrice: user.buyTrafficPrice ?? 0,
-      autoBuyTrafficPackageId: user.autoBuyTrafficPackageId ?? 0,
+      buyTrafficAmount: Number((user as any).buyTrafficAmount ?? 0),
+      buyTrafficPrice: Number((user as any).buyTrafficPrice ?? 0),
+      autoBuyTrafficPackageId: Number((user as any).autoBuyTrafficPackageId ?? 0),
+      autoBuyTrafficThreshold: Number((user as any).autoBuyTrafficThreshold ?? 10),
       autoBuyTrafficPackageType:
-        (user.autoBuyTrafficPackageId ?? 0) > 0 ? "package" : "custom",
+        ((user as any).autoBuyTrafficPackageId ?? 0) > 0 ? "package" : "custom",
     });
     onUserModalOpen();
   };
@@ -2982,6 +2987,25 @@ export default function UserPage() {
                       />
                     </div>
                   )}
+                  <Input
+                    label="触发阈值 (GB)"
+                    placeholder="剩余流量低于此值时触发"
+                    min="1"
+                    step="1"
+                    type="number"
+                    value={
+                      userForm.autoBuyTrafficThreshold > 0
+                        ? userForm.autoBuyTrafficThreshold.toString()
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      setUserForm((prev) => ({
+                        ...prev,
+                        autoBuyTrafficThreshold: Math.max(0, value),
+                      }));
+                    }}
+                  />
                 </div>
               )}
             </div>

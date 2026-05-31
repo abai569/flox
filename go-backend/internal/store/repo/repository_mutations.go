@@ -669,19 +669,18 @@ func (r *Repository) VerifyAllBalances() ([]interface{}, error) {
 	return mismatches, nil
 }
 
-func (r *Repository) UpdateUserBuyTrafficConfig(userID int64, autoBuyTraffic int, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID int64) error {
+func (r *Repository) UpdateUserBuyTrafficConfig(userID int64, autoBuyTraffic int, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	updates := map[string]interface{}{
-		"auto_buy_traffic":   autoBuyTraffic,
-		"buy_traffic_amount": buyTrafficAmount,
-		"buy_traffic_price":  buyTrafficPrice,
-		"auto_buy_traffic_package_id": autoBuyTrafficPackageID,
-	}
-	return r.db.Model(&model.User{}).
-		Where("id = ?", userID).
-		Updates(updates).Error
+	return r.db.Model(&model.User{}).Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"auto_buy_traffic":             autoBuyTraffic,
+			"buy_traffic_amount":           buyTrafficAmount,
+			"buy_traffic_price":            buyTrafficPrice,
+			"auto_buy_traffic_package_id":  autoBuyTrafficPackageID,
+			"auto_buy_traffic_threshold":   autoBuyTrafficThreshold,
+		}).Error
 }
 
 func (r *Repository) ResetUserFlowToBase(userID, baseFlow, now int64) error {
@@ -721,6 +720,15 @@ func (r *Repository) UpdatePackageAutoBuyTrafficEnabled(packageID int64, enabled
 			Update("auto_buy_traffic_package_id", 0).Error
 	}
 	return nil
+}
+
+func (r *Repository) DisableUsersForZeroStockPackage(packageID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.User{}).
+		Where("auto_buy_traffic_package_id = ?", packageID).
+		Update("auto_buy_traffic", 0).Error
 }
 
 func (r *Repository) UpdateUserAutoBuyTrafficPackage(userID int64, packageID int64) error {

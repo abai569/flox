@@ -35,6 +35,7 @@ export interface DashboardUserInfo {
   buyTrafficAmount?: number;
   buyTrafficPrice?: number;
   autoBuyTrafficPackageId?: number;
+  autoBuyTrafficThreshold?: number; // GB，默认10
 }
 
 export interface DashboardUserTunnel {

@@ -129,7 +129,8 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 		buyTrafficAmount := asInt64(req["buyTrafficAmount"], 0)
 		buyTrafficPrice := asInt64(req["buyTrafficPrice"], 0)
 		autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
-		_ = h.repo.UpdateUserBuyTrafficConfig(userID, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID)
+		autoBuyTrafficThreshold := asInt64(req["autoBuyTrafficThreshold"], 0)
+		_ = h.repo.UpdateUserBuyTrafficConfig(userID, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold)
 	}
 
 	if balance > 0 {
@@ -272,7 +273,8 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		buyTrafficAmount := asInt64(req["buyTrafficAmount"], 0)
 		buyTrafficPrice := asInt64(req["buyTrafficPrice"], 0)
 		autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
-		_ = h.repo.UpdateUserBuyTrafficConfig(id, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID)
+		autoBuyTrafficThreshold := asInt64(req["autoBuyTrafficThreshold"], 0)
+		_ = h.repo.UpdateUserBuyTrafficConfig(id, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold)
 	}
 
 	if oldUser != nil && oldUser.Balance != balance {
@@ -349,18 +351,22 @@ func (h *Handler) userToggleAutoBuyTraffic(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
+	autoBuyTrafficThreshold := asInt64(req["autoBuyTrafficThreshold"], 0)
+	if autoBuyTrafficThreshold < 0 {
+		autoBuyTrafficThreshold = 0
+	}
 	if autoBuyTraffic == 0 {
-		if err := h.repo.UpdateUserBuyTrafficConfig(id, 0, 0, 0, 0); err != nil {
+		if err := h.repo.UpdateUserBuyTrafficConfig(id, 0, 0, 0, 0, autoBuyTrafficThreshold); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
 	} else if autoBuyTrafficPackageID == 0 {
-		if err := h.repo.UpdateUserAutoBuyTraffic(id, 1); err != nil {
+		if err := h.repo.UpdateUserBuyTrafficConfig(id, 1, 0, 0, 0, autoBuyTrafficThreshold); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
 	} else {
-		if err := h.repo.UpdateUserBuyTrafficConfig(id, 1, 0, 0, autoBuyTrafficPackageID); err != nil {
+		if err := h.repo.UpdateUserBuyTrafficConfig(id, 1, 0, 0, autoBuyTrafficPackageID, autoBuyTrafficThreshold); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}

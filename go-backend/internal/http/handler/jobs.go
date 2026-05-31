@@ -22,11 +22,12 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(9)
+	h.jobsWG.Add(10)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
 	go h.runDailyMaintenanceLoop(ctx)
+	go h.runAutoBuyTrafficLoop(ctx)
 	go h.runNodeRenewalCycleLoop(ctx)
 	go h.runMetricsIngestion(ctx)
 	go h.runHealthChecks(ctx)
@@ -169,7 +170,6 @@ func (h *Handler) runResetAndExpiryJob(now time.Time) {
 	h.resetMonthlyFlow(now)
 	h.resetUserQuotaWindows(now)
 	h.disableExpiredUsers(now.UnixMilli())
-	h.handleAutoBuyTraffic(now.UnixMilli())
 	h.disableExpiredUserTunnels(now.UnixMilli())
 	h.disableExpiredForwards(now.UnixMilli())
 	h.resetNodeMonthlyTraffic(now)
@@ -373,24 +373,39 @@ func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
 		return
 	}
 
-	const triggerRemainingGB int64 = 10
-	triggerBytes := triggerRemainingGB * 1024 * 1024 * 1024
-
 	for _, user := range users {
 		usedBytes := user.InFlow + user.OutFlow
 		totalBytes := user.Flow * 1024 * 1024 * 1024
+		// C2: C1: C2: C2: C3: Use user-specific threshold, default 10 GB
+		threshold := user.AutoBuyTrafficThreshold
+		if threshold <= 0 {
+			threshold = 10
+		}
 		remainingBytes := totalBytes - usedBytes
-
-		if remainingBytes >= triggerBytes {
+		if remainingBytes >= threshold*1024*1024*1024 {
 			continue
 		}
 
 		var price int64
 		var amount int64
-
 		if user.AutoBuyTrafficPackageID > 0 {
 			pkg, err := h.repo.GetPackageByID(user.AutoBuyTrafficPackageID)
 			if err != nil || pkg.Type != "traffic" || pkg.AutoBuyTrafficEnabled != 1 || pkg.Enabled != 1 {
+				continue
+			}
+		// A1: Check and decrement stock
+			if err := h.repo.CheckAndDecrementStock(pkg.ID, 1); err != nil {
+				log.Printf("用户 %d 自动购流：套餐 %d %s", user.ID, pkg.ID, err.Error())
+				// A2: Disable user auto-buy on stock error
+				_ = h.repo.UpdateUserAutoBuyTraffic(user.ID, 0)
+				// A3: If package stock is now 0, disable all associated users
+				if err.Error() == "库存不足" {
+					pkgNow, _ := h.repo.GetPackageByID(pkg.ID)
+					if pkgNow != nil && pkgNow.Stock == 0 {
+						log.Printf("套餐 %d 已售罄，批量停用关联用户自动购流", pkg.ID)
+						_ = h.repo.DisableUsersForZeroStockPackage(pkg.ID)
+					}
+				}
 				continue
 			}
 			price = pkg.Price
@@ -401,16 +416,43 @@ func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
 		}
 
 		if user.Balance < price {
-			log.Printf("用户 %d 自动购买流量余额不足：余额 %d 分，需要 %d 分",
+			log.Printf("用户 %d 自动购流余额不足：余额 %d 分，需要 %d 分",
 				user.ID, user.Balance, price)
 			continue
 		}
 
-		if err := h.repo.BuyTrafficWithBalance(user.ID, price, amount, user.Flow, nowMs); err != nil {
-			log.Printf("用户 %d 自动购买流量失败：%v", user.ID, err)
-		} else {
-			log.Printf("用户 %d 自动购买流量成功：扣款 %d 分，增加 %d GB",
-				user.ID, price, amount)
+		const maxRetries = 3
+		purchased := false
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			if err := h.repo.BuyTrafficWithBalance(user.ID, price, amount, user.Flow, nowMs); err != nil {
+				log.Printf("用户 %d 自动购流失败（第%d/%d次）：%v", user.ID, attempt, maxRetries, err)
+				if attempt < maxRetries {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+			} else {
+				log.Printf("用户 %d 自动购流成功（第%d次尝试）：扣款 %d 分，增加 %d GB",
+					user.ID, attempt, price, amount)
+				purchased = true
+				break
+			}
+		}
+		if !purchased {
+			log.Printf("用户 %d 自动购流最终失败（已重试 %d 次）", user.ID, maxRetries)
+		}
+	}
+}
+
+func (h *Handler) runAutoBuyTrafficLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.handleAutoBuyTraffic(time.Now().UnixMilli())
 		}
 	}
 }

@@ -109,12 +109,16 @@ export const toggleUserAutoBuyTraffic = (
   id: number,
   autoBuyTraffic: number,
   autoBuyTrafficPackageId?: number,
+  autoBuyTrafficThreshold?: number,
 ) =>
   Network.post("/user/toggle-auto-buy-traffic", {
     id,
     autoBuyTraffic,
     ...(autoBuyTrafficPackageId !== undefined
       ? { autoBuyTrafficPackageId }
+      : {}),
+    ...(autoBuyTrafficThreshold !== undefined
+      ? { autoBuyTrafficThreshold }
       : {}),
   });
 export const getUserPackageInfo = () =>
