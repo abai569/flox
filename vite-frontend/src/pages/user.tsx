@@ -272,11 +272,11 @@ export default function UserPage() {
     name: "",
     pwd: "",
     status: 1,
-    flow: 1000,
+    flow: 0,
     dailyQuotaGB: 0,
     monthlyQuotaGB: 0,
-    num: 10,
-    expTime: null,
+    num: 0,
+    expTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
     flowResetTime: 0,
     groupIds: [],
     renewalAmount: 0,
@@ -289,6 +289,8 @@ export default function UserPage() {
     autoBuyTrafficThreshold: 10,
     autoBuyTrafficPackageType: "custom",
   });
+  const [flowInput, setFlowInput] = useState("");
+  const [numInput, setNumInput] = useState("");
   const [userFormLoading, setUserFormLoading] = useState(false);
   const [autoBuyPackages, setAutoBuyPackages] = useState<
     { id: number; name: string; trafficLimit: number; price: number }[]
@@ -603,7 +605,7 @@ export default function UserPage() {
             "vite_config_registration_enabled",
             enabled ? "true" : "false",
           );
-        } catch {}
+        } catch { }
         window.dispatchEvent(new CustomEvent("configUpdated"));
         toast.success(enabled ? "注册已开启" : "注册已关闭");
       } else {
@@ -804,7 +806,7 @@ export default function UserPage() {
       if (response.code === 0) {
         setTunnels(Array.isArray(response.data) ? response.data : []);
       }
-    } catch {}
+    } catch { }
   }, []);
   const loadSpeedLimits = useCallback(async () => {
     try {
@@ -813,15 +815,15 @@ export default function UserPage() {
       if (response.code === 0) {
         const speedLimitList = Array.isArray(response.data)
           ? response.data.map((item) => ({
-              ...item,
-              uploadSpeed: item.uploadSpeed ?? item.speed ?? 0,
-              downloadSpeed: item.downloadSpeed ?? item.speed ?? 0,
-            }))
+            ...item,
+            uploadSpeed: item.uploadSpeed ?? item.speed ?? 0,
+            downloadSpeed: item.downloadSpeed ?? item.speed ?? 0,
+          }))
           : [];
 
         setSpeedLimits(speedLimitList);
       }
-    } catch {}
+    } catch { }
   }, []);
   const loadUserGroups = useCallback(async () => {
     try {
@@ -830,7 +832,7 @@ export default function UserPage() {
       if (response.code === 0) {
         setUserGroups(Array.isArray(response.data) ? response.data : []);
       }
-    } catch {}
+    } catch { }
   }, []);
   const loadUserTunnels = useCallback(async (userId: number) => {
     setTunnelListLoading(true);
@@ -872,7 +874,7 @@ export default function UserPage() {
             setRegOpen(v === "1" || v === "true");
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     loadReg();
@@ -907,16 +909,18 @@ export default function UserPage() {
   // 用户管理操作
   const handleAdd = () => {
     setIsEdit(false);
+    setFlowInput("");
+    setNumInput("");
     setUserForm({
       name: "",
       user: "",
       pwd: "",
       status: 1,
-      flow: 1000,
+      flow: 0,
       dailyQuotaGB: 0,
       monthlyQuotaGB: 0,
-      num: 10,
-      expTime: null,
+      num: 0,
+      expTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
       flowResetTime: 0,
       groupIds: [],
       renewalAmount: 0,
@@ -1021,7 +1025,9 @@ export default function UserPage() {
       if (groupRes.code === 0) {
         currentGroupIds = groupRes.data || [];
       }
-    } catch {}
+    } catch { }
+    setFlowInput(String(user.flow));
+    setNumInput(String(user.num));
     setUserForm({
       id: user.id,
       name: user.name || "",
@@ -1231,7 +1237,7 @@ export default function UserPage() {
             if (refreshData.code === 0) {
               setRenewalLogs(refreshData.data || []);
             }
-          } catch {}
+          } catch { }
         }
       } else {
         toast.error(res.msg || "删除失败");
@@ -1328,10 +1334,10 @@ export default function UserPage() {
             speedLimitName:
               normalizeSpeedId(editTunnelForm.speedId) !== null
                 ? speedLimits.find(
-                    (speedLimit) =>
-                      speedLimit.id ===
-                      normalizeSpeedId(editTunnelForm.speedId),
-                  )?.name
+                  (speedLimit) =>
+                    speedLimit.id ===
+                    normalizeSpeedId(editTunnelForm.speedId),
+                )?.name
                 : undefined,
           });
 
@@ -1510,7 +1516,7 @@ export default function UserPage() {
               });
             }
           }
-        } catch {}
+        } catch { }
 
         setUserToReset(null);
       } else {
@@ -1593,7 +1599,7 @@ export default function UserPage() {
               });
             }
           }
-        } catch {}
+        } catch { }
 
         setTunnelToReset(null);
       } else {
@@ -1727,13 +1733,12 @@ export default function UserPage() {
     return (
       <TableRow
         ref={setNodeRef}
-        className={`cursor-default transition-colors ${
-          selectedUserIds.has(user.id)
+        className={`cursor-default transition-colors ${selectedUserIds.has(user.id)
+          ? "bg-primary-50 dark:bg-primary-900/30"
+          : selectedUserId === user.id
             ? "bg-primary-50 dark:bg-primary-900/30"
-            : selectedUserId === user.id
-              ? "bg-primary-50 dark:bg-primary-900/30"
-              : "hover:bg-default-50/50"
-        }`}
+            : "hover:bg-default-50/50"
+          }`}
         style={style}
         onClick={() => {
           if (!batchMode) {
@@ -2078,14 +2083,14 @@ export default function UserPage() {
                               className="w-24 mt-1"
                               color={
                                 usedFlow / (user.flow * 1024 * 1024 * 1024) >
-                                0.8
+                                  0.8
                                   ? "danger"
                                   : "primary"
                               }
                               size="sm"
                               value={Math.min(
                                 (usedFlow / (user.flow * 1024 * 1024 * 1024)) *
-                                  100,
+                                100,
                                 100,
                               )}
                             />
@@ -2140,16 +2145,15 @@ export default function UserPage() {
                                 </span>
                               ) : (
                                 <div
-                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                                    ((expStatus?.color as string) || "") ===
+                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "") ===
                                     "success"
-                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                      : expStatus?.color === "warning"
-                                        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-                                        : expStatus?.color === "danger"
-                                          ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                          : "bg-default-500/10 text-default-500"
-                                  }`}
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : expStatus?.color === "warning"
+                                      ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                                      : expStatus?.color === "danger"
+                                        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                        : "bg-default-500/10 text-default-500"
+                                    }`}
                                 >
                                   {expStatus?.text || "未知"}
                                 </div>
@@ -2170,11 +2174,10 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span
-                            className={`text-sm font-medium ${
-                              user.balance && user.balance > 0
-                                ? "text-success"
-                                : "text-default-400"
-                            }`}
+                            className={`text-sm font-medium ${user.balance && user.balance > 0
+                              ? "text-success"
+                              : "text-default-400"
+                              }`}
                           >
                             {user.balance != null ? `${user.balance}元` : "-"}
                           </span>
@@ -2188,35 +2191,32 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                              user.autoRenew === 1
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                            }`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
+                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                              }`}
                           >
                             {user.autoRenew === 1 ? "启用" : "禁用"}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                              user.autoBuyTraffic === 1
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                            }`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
+                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                              }`}
                           >
                             {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              monitorPermissionLevelMap.get(user.id) === 1
-                                ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                                : monitorPermissionLevelMap.has(user.id)
-                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                            }`}
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionLevelMap.get(user.id) === 1
+                              ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                              : monitorPermissionLevelMap.has(user.id)
+                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                              }`}
                           >
                             {monitorPermissionLevelMap.has(user.id) ? (
                               <>
@@ -2316,11 +2316,10 @@ export default function UserPage() {
                 return (
                   <StaggerItem key={user.id}>
                     <div
-                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${
-                        selectedUserIds.has(user.id)
-                          ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
-                          : ""
-                      }`}
+                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${selectedUserIds.has(user.id)
+                        ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
+                        : ""
+                        }`}
                     >
                       <Card className="shadow-none border-0">
                         <CardHeader className="pb-2 md:pb-2">
@@ -2411,7 +2410,7 @@ export default function UserPage() {
                                 {user.expTime && user.expTime > 0 ? (
                                   <>
                                     {expStatus &&
-                                    expStatus.color === "success" ? (
+                                      expStatus.color === "success" ? (
                                       <span className="text-xs">
                                         {new Date(user.expTime)
                                           .toLocaleDateString("zh-CN", {
@@ -2496,11 +2495,10 @@ export default function UserPage() {
                                 可用余额
                               </span>
                               <span
-                                className={`text-xs font-medium ${
-                                  user.balance && user.balance > 0
-                                    ? "text-success"
-                                    : "text-default-400"
-                                }`}
+                                className={`text-xs font-medium ${user.balance && user.balance > 0
+                                  ? "text-success"
+                                  : "text-default-400"
+                                  }`}
                               >
                                 {user.balance != null
                                   ? `${user.balance}元`
@@ -2512,11 +2510,10 @@ export default function UserPage() {
                                 自动续费
                               </span>
                               <div
-                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                  user.autoRenew === 1
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                }`}
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                  }`}
                               >
                                 {user.autoRenew === 1 ? "启用" : "禁用"}
                               </div>
@@ -2526,11 +2523,10 @@ export default function UserPage() {
                                 自动购流
                               </span>
                               <div
-                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                  user.autoBuyTraffic === 1
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                }`}
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                  }`}
                               >
                                 {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
                               </div>
@@ -2540,19 +2536,18 @@ export default function UserPage() {
                                 监控权限
                               </span>
                               <div
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  monitorPermissionLevelMap.get(user.id) === 1
-                                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                    : monitorPermissionLevelMap.has(user.id)
-                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                }`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionLevelMap.get(user.id) === 1
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                  : monitorPermissionLevelMap.has(user.id)
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                  }`}
                               >
                                 {monitorPermissionLevelMap.has(user.id) ? (
                                   <>
                                     <EyeIcon className="w-3 h-3" />
                                     {monitorPermissionLevelMap.get(user.id) ===
-                                    1
+                                      1
                                       ? "全开"
                                       : "同步"}
                                   </>
@@ -2676,6 +2671,68 @@ export default function UserPage() {
                 }
               />
               {/* 👇 用户分组现在移到了这里，位于 grid 容器内 */}
+              <Input
+                label="备注"
+                placeholder="选填"
+                description=" 例如：张三、朋友A"
+                value={userForm.name || ""}
+                onChange={(e) =>
+                  setUserForm((prev) => ({ ...prev, name: e.target.value }))
+                }
+              />
+              <DatePicker
+                showMonthAndYearPickers
+                description="新户默认3天有效期"
+                label="到期时间"
+                value={timestampToCalendarDate(
+                  userForm.expTime?.getTime() || null,
+                )}
+                onChange={(date) => {
+                  const jsDate = calendarDateToTimestamp(date) || null;
+
+                  setUserForm((prev) => ({
+                    ...prev,
+                    expTime: jsDate ? new Date(jsDate) : null,
+                  }));
+                }}
+              >
+                <DatePresets
+                  onChange={(timestamp) => {
+                    setUserForm((prev) => ({
+                      ...prev,
+                      expTime: timestamp ? new Date(timestamp) : null,
+                    }));
+                  }}
+                />
+              </DatePicker>             
+              <Input
+                label="流量限制(GB)"
+                max="99999"
+                min="0"
+                placeholder="选填"
+                type="number"
+                value={flowInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setFlowInput(raw);
+                  const num = raw === "" ? 0 : Math.min(Math.max(Number(raw) || 0, 0), 99999);
+                  setUserForm((prev) => ({ ...prev, flow: num }));
+                }}
+              />
+              <Input
+                label="规则数量"
+                max="99999"
+                min="0"
+                placeholder="选填"
+                type="number"
+                value={numInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setNumInput(raw);
+                  const num = raw === "" ? 0 : Math.min(Math.max(Number(raw) || 0, 0), 99999);
+                  setUserForm((prev) => ({ ...prev, num: num }));
+                }}
+              />
               {userGroups.length > 0 && (
                 <Select
                   label="用户组"
@@ -2697,47 +2754,6 @@ export default function UserPage() {
                   ))}
                 </Select>
               )}
-              <Input
-                label="备注"
-                placeholder="选填 (例如：张三、朋友A)"
-                value={userForm.name || ""}
-                onChange={(e) =>
-                  setUserForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-              />
-              <Input
-                isRequired
-                description="填 99999 表示不限制流量"
-                label="流量限制(GB)"
-                max="99999"
-                min="1"
-                type="number"
-                value={userForm.flow.toString()}
-                onChange={(e) => {
-                  const value = Math.min(
-                    Math.max(Number(e.target.value) || 0, 1),
-                    99999,
-                  );
-
-                  setUserForm((prev) => ({ ...prev, flow: value }));
-                }}
-              />
-              <Input
-                isRequired
-                label="规则数量"
-                max="99999"
-                min="1"
-                type="number"
-                value={userForm.num.toString()}
-                onChange={(e) => {
-                  const value = Math.min(
-                    Math.max(Number(e.target.value) || 0, 1),
-                    99999,
-                  );
-
-                  setUserForm((prev) => ({ ...prev, num: value }));
-                }}
-              />
               <Select
                 label="归零日期"
                 selectedKeys={[userForm.flowResetTime.toString()]}
@@ -2764,32 +2780,6 @@ export default function UserPage() {
                   ))}
                 </>
               </Select>
-              <DatePicker
-                // 删除必填项 isRequired
-                showMonthAndYearPickers
-                description="留空表示永不过期"
-                label="到期时间"
-                value={timestampToCalendarDate(
-                  userForm.expTime?.getTime() || null,
-                )}
-                onChange={(date) => {
-                  const jsDate = calendarDateToTimestamp(date) || null;
-
-                  setUserForm((prev) => ({
-                    ...prev,
-                    expTime: jsDate ? new Date(jsDate) : null,
-                  }));
-                }}
-              >
-                <DatePresets
-                  onChange={(timestamp) => {
-                    setUserForm((prev) => ({
-                      ...prev,
-                      expTime: timestamp ? new Date(timestamp) : null,
-                    }));
-                  }}
-                />
-              </DatePicker>
             </div>
             {/* 配额状态保持原样 */}
             {isEdit &&
@@ -3089,14 +3079,14 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           {log.renewalTime
                             ? new Date(log.renewalTime)
-                                .toLocaleString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                              .toLocaleString("zh-CN", {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                              .replace(/\//g, "-")
                             : "-"}
                         </TableCell>
                         <TableCell className="text-success font-medium whitespace-nowrap">
@@ -3111,32 +3101,31 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           {log.expTimeBefore
                             ? new Date(log.expTimeBefore)
-                                .toLocaleDateString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                              .toLocaleDateString("zh-CN", {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                              })
+                              .replace(/\//g, "-")
                             : "-"}
                         </TableCell>
                         <TableCell className="text-primary font-medium whitespace-nowrap">
                           {log.expTimeAfter
                             ? new Date(log.expTimeAfter)
-                                .toLocaleDateString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                              .toLocaleDateString("zh-CN", {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                              })
+                              .replace(/\//g, "-")
                             : "-"}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span
-                            className={`text-xs px-2 py-0.5 rounded ${
-                              log.reason === "自动续费"
-                                ? "bg-success-500/10 text-success-600"
-                                : "bg-default-500/10 text-default-600"
-                            }`}
+                            className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动续费"
+                              ? "bg-success-500/10 text-success-600"
+                              : "bg-default-500/10 text-default-600"
+                              }`}
                           >
                             {log.reason}
                           </span>
@@ -3240,11 +3229,10 @@ export default function UserPage() {
                   {/* 👇 核心修复 2：分配按钮必须和选择框放在同一行！用 flex-1 min-w-0 压制选择框宽度 */}
                   <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
                     <div
-                      className={`group flex items-center px-3 sm:px-4 h-10 rounded-xl border-2 transition-all cursor-pointer shadow-sm overflow-hidden flex-1 min-w-0 ${
-                        isTunnelListExpanded
-                          ? "border-primary bg-primary-50/20 ring-4 ring-primary/10"
-                          : "border-default-200 bg-default-50 hover:border-primary-300"
-                      }`}
+                      className={`group flex items-center px-3 sm:px-4 h-10 rounded-xl border-2 transition-all cursor-pointer shadow-sm overflow-hidden flex-1 min-w-0 ${isTunnelListExpanded
+                        ? "border-primary bg-primary-50/20 ring-4 ring-primary/10"
+                        : "border-default-200 bg-default-50 hover:border-primary-300"
+                        }`}
                       onClick={() =>
                         setIsTunnelListExpanded(!isTunnelListExpanded)
                       }
@@ -3254,12 +3242,12 @@ export default function UserPage() {
                       >
                         {batchTunnelSelections.size > 0
                           ? `已选 ${batchTunnelSelections.size} 项：` +
-                            Array.from(batchTunnelSelections.keys())
-                              .map(
-                                (id) => tunnels.find((t) => t.id === id)?.name,
-                              )
-                              .filter(Boolean)
-                              .join("、")
+                          Array.from(batchTunnelSelections.keys())
+                            .map(
+                              (id) => tunnels.find((t) => t.id === id)?.name,
+                            )
+                            .filter(Boolean)
+                            .join("、")
                           : "请选择隧道（勾选后配置）"}
                       </span>
                       <svg
@@ -3298,9 +3286,9 @@ export default function UserPage() {
                                   tunnels.filter((t) => !isTunnelAssigned(t.id))
                                     .length > 0 &&
                                   batchTunnelSelections.size ===
-                                    tunnels.filter(
-                                      (t) => !isTunnelAssigned(t.id),
-                                    ).length
+                                  tunnels.filter(
+                                    (t) => !isTunnelAssigned(t.id),
+                                  ).length
                                 }
                                 size="sm"
                                 onValueChange={(isSelected) => {
@@ -3561,9 +3549,9 @@ export default function UserPage() {
                               <span className="text-xs sm:text-sm text-default-600 bg-default-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
                                 {userTunnel.speedLimitName
                                   ? userTunnel.speedLimitName.replace(
-                                      /^限速\s*/,
-                                      "",
-                                    )
+                                    /^限速\s*/,
+                                    "",
+                                  )
                                   : "不限速"}
                               </span>
                             </TableCell>
@@ -3763,9 +3751,9 @@ export default function UserPage() {
                     setEditTunnelForm((prev) =>
                       prev
                         ? {
-                            ...prev,
-                            speedId: selectedKey ? Number(selectedKey) : null,
-                          }
+                          ...prev,
+                          speedId: selectedKey ? Number(selectedKey) : null,
+                        }
                         : null,
                     );
                   }}
@@ -4154,11 +4142,10 @@ export default function UserPage() {
                     </span>
                   </div>
                   <div
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                      user.status === 1
-                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                    }`}
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 1
+                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                      }`}
                   >
                     {user.status === 1 ? "启用" : "禁用"}
                   </div>
@@ -4222,11 +4209,10 @@ export default function UserPage() {
                     </span>
                   </div>
                   <div
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                      user.status === 1
-                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                    }`}
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 1
+                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                      }`}
                   >
                     {user.status === 1 ? "启用" : "禁用"}
                   </div>
@@ -4295,8 +4281,8 @@ export default function UserPage() {
           </ModalHeader>
           <ModalBody className="py-6">
             {historyModalUser &&
-            historyModalUser.quotaHistory &&
-            historyModalUser.quotaHistory.length > 0 ? (
+              historyModalUser.quotaHistory &&
+              historyModalUser.quotaHistory.length > 0 ? (
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {historyModalUser.quotaHistory.map((item) => (
                   <div

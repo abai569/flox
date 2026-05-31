@@ -7,6 +7,7 @@ import { AnimatedPage } from "@/components/animated-page";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Switch } from "@/shadcn-bridge/heroui/switch";
+import { Input } from "@/shadcn-bridge/heroui/input";
 import {
   Modal,
   ModalContent,
@@ -62,6 +63,10 @@ export default function DashboardPage() {
   const [autoBuyPackageIdOverride, setAutoBuyPackageIdOverride] = useState<
     number | null
   >(null);
+  const [autoBuyThresholdOverride, setAutoBuyThresholdOverride] = useState<
+    number | null
+  >(null);
+  const [autoBuyAdvancedOpen, setAutoBuyAdvancedOpen] = useState(false);
   const [storeEnabled, setStoreEnabled] = useState(false);
   const [autoBuyPackages, setAutoBuyPackages] = useState<
     SubscriptionPackageApiItem[]
@@ -93,11 +98,15 @@ export default function DashboardPage() {
     try {
       const newValue = enabled ? 1 : 0;
       const res = await toggleUserAutoBuyTraffic(userInfo.id, newValue);
-
       if (res.code === 0) {
         toast.success(enabled ? "自动购流已启用" : "自动购流已禁用");
         setAutoBuyOverride(newValue);
-        if (!enabled) setAutoBuyPackageIdOverride(null);
+        if (enabled) {
+          setAutoBuyAdvancedOpen(true);
+        } else {
+          setAutoBuyPackageIdOverride(null);
+          setAutoBuyAdvancedOpen(false);
+        }
       } else {
         toast.error(res.msg || "操作失败");
       }
@@ -113,10 +122,37 @@ export default function DashboardPage() {
     setAutoBuySwitchLoading(true);
     try {
       const res = await toggleUserAutoBuyTraffic(userInfo.id, 1, packageId);
-
       if (res.code === 0) {
         toast.success("自动购流套餐已切换");
         setAutoBuyPackageIdOverride(packageId);
+        setAutoBuyAdvancedOpen(false);
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("操作失败");
+    } finally {
+      setAutoBuySwitchLoading(false);
+    }
+  };
+
+  const handleAutoBuyThresholdChange = async (threshold: number) => {
+    if (!userInfo.id || autoBuySwitchLoading) return;
+    const currentEnabled =
+      (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1;
+    if (!currentEnabled) return;
+    setAutoBuySwitchLoading(true);
+    try {
+      const res = await toggleUserAutoBuyTraffic(
+        userInfo.id,
+        1,
+        autoBuyPackageIdOverride ?? userInfo.autoBuyTrafficPackageId ?? 0,
+        threshold,
+      );
+      if (res.code === 0) {
+        toast.success("触发阈值已更新");
+        setAutoBuyThresholdOverride(threshold);
+        setAutoBuyAdvancedOpen(false);
       } else {
         toast.error(res.msg || "操作失败");
       }
@@ -793,78 +829,155 @@ export default function DashboardPage() {
                 value={`${((userInfo.renewalAmount ?? 0) / 100).toFixed(2)}元/月`}
               />
             </div>
-            {/* 8. 自动购买流量 */}
-            <div className="order-9 flex flex-col [&>*]:flex-1">
-              <MetricCard
-                bottomContent={
-                  storeEnabled ? (
-                    (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1 ? (
-                      <div className="mt-2 space-y-2">
-                        <Select
-                          label="自动购流套餐"
-                          selectedKeys={[
-                            String(
-                              autoBuyPackageIdOverride ??
-                                userInfo.autoBuyTrafficPackageId ??
-                                0,
-                            ),
-                          ]}
-                          variant="bordered"
-                          onSelectionChange={(keys) => {
-                            const key = Array.from(keys)[0] as string;
-
-                            if (key && Number(key) > 0)
-                              handleAutoBuyPackageChange(Number(key));
-                          }}
-                        >
-                          {autoBuyPackages.map((pkg) => (
-                            <SelectItem key={String(pkg.id)}>
-                              {pkg.name} ({pkg.trafficLimit}GB / ¥
-                              {(pkg.price / 100).toFixed(2)})
-                            </SelectItem>
-                          ))}
-                        </Select>
-                        <div className="flex items-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                          <span className="text-xs text-success">
-                            自动购买流量运行中
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-1 flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
-                        <span className="text-xs text-default-500">
-                          用完流量后将停用
-                        </span>
-                      </div>
-                    )
-                  ) : userInfo.autoBuyTraffic === 1 ? (
-                    <div className="mt-2 space-y-2">
-                      {userInfo.autoBuyTrafficPackageId &&
-                      userInfo.autoBuyTrafficPackageId > 0 ? (
-                        <div className="flex items-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                          <span className="text-xs text-success">
-                            自动购买流量运行中
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-default-500">
-                          {userInfo.buyTrafficAmount || 0}GB /{" "}
-                          {userInfo.buyTrafficPrice || 0}元
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="mt-1 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
-                      <span className="text-xs text-default-500">
-                        用完流量后将停用
-                      </span>
-                    </div>
-                  )
-                }
+             {/* 8. 自动购买流量 */}
+              <div className="order-9 flex flex-col [&>*]:flex-1">
+                <MetricCard
+                  value={
+                    storeEnabled
+                      ? (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1
+                        ? (autoBuyPackageIdOverride ??
+                              userInfo.autoBuyTrafficPackageId ??
+                              0) > 0
+                          ? (autoBuyPackages.find(
+                              (p) =>
+                                p.id ===
+                                (autoBuyPackageIdOverride ??
+                                  userInfo.autoBuyTrafficPackageId),
+                            )?.name ?? "套餐自动购买")
+                          : "打开开关配置相关内容"
+                        : "禁用"
+                      : userInfo.autoBuyTraffic === 1
+                        ? (userInfo.autoBuyTrafficPackageId ?? 0) > 0
+                          ? "套餐自动购买"
+                          : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`
+                        : "禁用"
+                  }
+                  bottomContent={
+                    storeEnabled
+                      ? (autoBuyOverride ?? userInfo.autoBuyTraffic) === 0
+                        ? <div className="mt-1 flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
+                            <span className="text-xs text-default-500">
+                              用完流量后将停用
+                            </span>
+                          </div>
+                        : <div className="mt-2 space-y-2">
+                            {(autoBuyPackageIdOverride ??
+                              userInfo.autoBuyTrafficPackageId ??
+                              0) > 0 && !autoBuyAdvancedOpen ? (
+                              /* 已配置 + 折叠状态 — 显示一行摘要 */
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                                  <span className="text-success">
+                                    {autoBuyPackages.find(
+                                      (p) =>
+                                        p.id ===
+                                        (autoBuyPackageIdOverride ??
+                                          userInfo.autoBuyTrafficPackageId),
+                                    )?.name ?? "套餐自动购买"}{" "}
+                                    ·{(autoBuyThresholdOverride ??
+                                      userInfo.autoBuyTrafficThreshold ??
+                                      10)}
+                                    GB 触发
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="light"
+                                  size="sm"
+                                  onPress={() => setAutoBuyAdvancedOpen(true)}
+                                >
+                                  高级设置
+                                </Button>
+                              </div>
+                            ) : (
+                              /* 未配置 或 展开状态 — 显示表单 */
+                              <>
+                                {!autoBuyAdvancedOpen && (
+                                  <div className="text-xs text-default-500">
+                                    打开开关后配置相关内容
+                                  </div>
+                                )}
+                                                                <Input
+                                  type="number"
+                                  label="触发阈值 (GB)"
+                                  defaultValue={String(
+                                    autoBuyThresholdOverride ??
+                                      userInfo.autoBuyTrafficThreshold ??
+                                      10,
+                                  )}
+                                  variant="bordered"
+                                  size="sm"
+                                  min={1}
+                                  onBlur={(e) => {
+                                    const v = parseInt(e.target.value);
+                                    if (
+                                      v > 0 &&
+                                      v !==
+                                        (autoBuyThresholdOverride ??
+                                          userInfo.autoBuyTrafficThreshold ??
+                                          10)
+                                    ) {
+                                      handleAutoBuyThresholdChange(v);
+                                    }
+                                  }}
+                                />
+                                <Select
+                                  label="自动购流套餐"
+                                  selectedKeys={[
+                                    String(
+                                      autoBuyPackageIdOverride ??
+                                        userInfo.autoBuyTrafficPackageId ??
+                                        0,
+                                    ),
+                                  ]}
+                                  variant="bordered"
+                                  onSelectionChange={(keys) => {
+                                    const key = Array.from(keys)[0] as string;
+                                    if (key && Number(key) > 0)
+                                      handleAutoBuyPackageChange(Number(key));
+                                  }}
+                                >
+                                  {autoBuyPackages.map((pkg) => (
+                                    <SelectItem key={String(pkg.id)}>
+                                      {pkg.name} ({pkg.trafficLimit}GB / ¥
+                                      {(pkg.price / 100).toFixed(2)})
+                                    </SelectItem>
+                                  ))}
+                                </Select>
+                                {autoBuyAdvancedOpen && (
+                                  <Button
+                                    variant="light"
+                                    size="sm"
+                                    onPress={() => setAutoBuyAdvancedOpen(false)}
+                                  >
+                                    收起
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                      : userInfo.autoBuyTraffic === 1
+                        ? <div className="mt-2 space-y-2">
+                            {(userInfo.autoBuyTrafficPackageId ?? 0) > 0
+                              ? <div className="flex items-center gap-1">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                                  <span className="text-xs text-success">
+                                    自动购买流运行中
+                                  </span>
+                                </div>
+                              : <div className="text-xs text-default-500">
+                                  {(userInfo.buyTrafficAmount || 0)}GB /{" "}
+                                  {(userInfo.buyTrafficPrice || 0)}元
+                                </div>}
+                          </div>
+                        : <div className="mt-1 flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
+                            <span className="text-xs text-default-500">
+                              用完流量后将停用
+                            </span>
+                          </div>
+                  }
                 icon={
                   <svg
                     aria-hidden="true"
@@ -892,23 +1005,6 @@ export default function DashboardPage() {
                   ) : (
                     "自动购流"
                   )
-                }
-                value={
-                  storeEnabled
-                    ? (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1
-                      ? userInfo.autoBuyTrafficPackageId &&
-                        userInfo.autoBuyTrafficPackageId > 0
-                        ? (autoBuyPackages.find(
-                            (p) => p.id === userInfo.autoBuyTrafficPackageId,
-                          )?.name ?? "套餐自动购买")
-                        : "请选择套餐"
-                      : "禁用"
-                    : userInfo.autoBuyTraffic === 1
-                      ? userInfo.autoBuyTrafficPackageId &&
-                        userInfo.autoBuyTrafficPackageId > 0
-                        ? "套餐自动购买"
-                        : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`
-                      : "禁用"
                 }
               />
             </div>
