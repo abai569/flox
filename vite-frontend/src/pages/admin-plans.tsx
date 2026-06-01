@@ -481,7 +481,7 @@ export default function AdminPlansPage() {
             variant="flat"
             onPress={() => setGroupManagerOpen(true)}
           >
-            管理分组
+            分组管理
           </Button>
           <Button size="sm" color="secondary" variant="flat" onPress={openAssign}>
             手动分配
@@ -704,23 +704,29 @@ export default function AdminPlansPage() {
                         );
                         return group ? (
                           <button
-                            className="inline-flex items-center gap-1 cursor-pointer hover:underline"
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80"
+                            style={{
+                              backgroundColor: `${group.color}1A`,
+                              color: group.color,
+                            }}
                             onClick={() => setFilterGroupId(Number(item.groupId))}
                           >
                             <div
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              className="w-2 h-2 rounded-full flex-shrink-0"
                               style={{ backgroundColor: group.color }}
                             />
-                            <span className="text-xs font-medium" style={{ color: group.color }}>
-                              {group.name}
-                            </span>
+                            {group.name}
                           </button>
                         ) : (
-                          <span className="text-xs text-default-400">未分组</span>
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                            未分组
+                          </span>
                         );
                       })()
                       : (
-                        <span className="text-xs text-default-400">未分组</span>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                          未分组
+                        </span>
                       )}
                   </TableCell>
                   <TableCell>
@@ -952,23 +958,29 @@ export default function AdminPlansPage() {
                         );
                         return group ? (
                           <button
-                            className="inline-flex items-center gap-1 cursor-pointer hover:underline"
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80"
+                            style={{
+                              backgroundColor: `${group.color}1A`,
+                              color: group.color,
+                            }}
                             onClick={() => setFilterGroupId(Number(item.groupId))}
                           >
                             <div
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              className="w-2 h-2 rounded-full flex-shrink-0"
                               style={{ backgroundColor: group.color }}
                             />
-                            <span className="text-xs font-medium" style={{ color: group.color }}>
-                              {group.name}
-                            </span>
+                            {group.name}
                           </button>
                         ) : (
-                          <span className="text-xs text-default-400">未分组</span>
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                            未分组
+                          </span>
                         );
                       })()
                       : (
-                        <span className="text-xs text-default-400">未分组</span>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                          未分组
+                        </span>
                       )}
                   </TableCell>
                   <TableCell>
@@ -1164,23 +1176,29 @@ export default function AdminPlansPage() {
                         );
                         return group ? (
                           <button
-                            className="inline-flex items-center gap-1 cursor-pointer hover:underline"
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80"
+                            style={{
+                              backgroundColor: `${group.color}1A`,
+                              color: group.color,
+                            }}
                             onClick={() => setFilterGroupId(Number(item.groupId))}
                           >
                             <div
-                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              className="w-2 h-2 rounded-full flex-shrink-0"
                               style={{ backgroundColor: group.color }}
                             />
-                            <span className="text-xs font-medium" style={{ color: group.color }}>
-                              {group.name}
-                            </span>
+                            {group.name}
                           </button>
                         ) : (
-                          <span className="text-xs text-default-400">未分组</span>
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                            未分组
+                          </span>
                         );
                       })()
                       : (
-                        <span className="text-xs text-default-400">未分组</span>
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                          未分组
+                        </span>
                       )}
                   </TableCell>
                   <TableCell>
@@ -1399,17 +1417,23 @@ export default function AdminPlansPage() {
                   selectedKeys={
                     pkgForm.groupId && pkgForm.groupId > 0
                       ? [String(pkgForm.groupId)]
-                      : []
+                      : ["0"]
                   }
                   variant="bordered"
                   onSelectionChange={(keys) => {
                     const val = Array.from(keys)[0] as string | undefined;
                     setPkgForm((p) => ({
                       ...p,
-                      groupId: val ? parseInt(val) : null,
+                      groupId: val && val !== "0" ? parseInt(val) : null,
                     }));
                   }}
                 >
+                  <SelectItem key="0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-gray-400" />
+                      未分组
+                    </div>
+                  </SelectItem>
                   {packageGroups.map((g) => (
                     <SelectItem key={String(g.id)}>
                       <div className="flex items-center gap-2">
