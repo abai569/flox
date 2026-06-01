@@ -473,7 +473,7 @@ export default function AdminPlansPage() {
               }
             }}
           >
-            {viewMode === "grouped" ? "列表" : "分组"}
+            {viewMode === "grouped" ? "分组" : "列表"}
           </Button>
           <Button
             className="bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/45"
@@ -596,7 +596,7 @@ export default function AdminPlansPage() {
         {/* 右侧：筛选框 */}
         <div className="flex items-center gap-3">
           <Select
-            className="w-30"
+            className="w-24"
             //label="分组筛选"
             placeholder="全部分组"
             selectedKeys={
@@ -625,7 +625,7 @@ export default function AdminPlansPage() {
               </SelectItem>
             ))}
           </Select>
-          {filterGroupId !== null && (
+          {/* {filterGroupId !== null && (
             <Button
               color="warning"
               size="sm"
@@ -634,7 +634,7 @@ export default function AdminPlansPage() {
             >
               重置
             </Button>
-          )}
+          )} */}
         </div>
       </div>
 
