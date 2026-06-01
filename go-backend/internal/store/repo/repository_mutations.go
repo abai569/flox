@@ -1373,6 +1373,10 @@ func (r *Repository) UpdatePackage(pkg *model.SubscriptionPackage, tunnelGroupID
 		return errors.New("repository not initialized")
 	}
 	pkg.UpdatedAt = time.Now().UnixMilli()
+	var groupIDVal interface{} = nil
+	if pkg.GroupID.Valid {
+		groupIDVal = pkg.GroupID.Int64
+	}
 	tx := r.db.Begin()
 	if tx.Error != nil {
 		return tx.Error
@@ -1389,7 +1393,7 @@ func (r *Repository) UpdatePackage(pkg *model.SubscriptionPackage, tunnelGroupID
 		"auto_buy_traffic_enabled": pkg.AutoBuyTrafficEnabled,
 		"stock": pkg.Stock,
 		"recommended": pkg.Recommended,
-		"group_id":    pkg.GroupID,
+		"group_id":    groupIDVal,
 		"updated_at":  pkg.UpdatedAt,
 	}).Error; err != nil {
 		return err

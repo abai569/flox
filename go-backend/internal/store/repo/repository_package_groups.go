@@ -94,14 +94,13 @@ func (r *Repository) AssignPackageToGroup(packageID, groupID *int64) error {
 		return errors.New("repository not initialized")
 	}
 
-	updates := map[string]interface{}{
-		"group_id": groupID,
-	}
-	if groupID == nil {
-		updates["group_id"] = gorm.Expr("NULL")
+	var groupIDVal interface{} = nil
+	if groupID != nil {
+		groupIDVal = *groupID
 	}
 
-	return r.db.Model(&model.SubscriptionPackage{}).Where("id = ?", packageID).Updates(updates).Error
+	return r.db.Model(&model.SubscriptionPackage{}).Where("id = ?", packageID).
+		Update("group_id", groupIDVal).Error
 }
 
 func (r *Repository) GetPackagesByGroupID(groupID int64) ([]model.SubscriptionPackage, error) {
