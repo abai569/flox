@@ -425,13 +425,19 @@ export default function AdminLayout({
       const redBannerClosed = localStorage.getItem(
         "flvx_license_banner_closed_at",
       );
+      const redBannerClosedReason = localStorage.getItem(
+        "flvx_license_banner_closed_reason",
+      );
 
       if (redBannerClosed) {
         try {
           const ts = parseInt(redBannerClosed, 10);
 
           if (!isNaN(ts) && (ts === -1 || ts > Date.now())) {
-            setIsRedBannerClosed(true);
+            // 只有试用已过期关闭过才恢复关闭状态；其他原因不恢复
+            if (redBannerClosedReason === "试用已过期") {
+              setIsRedBannerClosed(true);
+            }
           }
         } catch {}
       }
@@ -452,7 +458,19 @@ export default function AdminLayout({
             setIsBannerClosed(false);
           }
         }
-        setIsRedBannerClosed(false);
+        // 试用已过期关闭过就不再重置，其他原因继续弹
+        const closedReason = localStorage.getItem(
+          "flvx_license_banner_closed_reason",
+        );
+
+        if (
+          licenseInfo.reason === "试用已过期" &&
+          closedReason === "试用已过期"
+        ) {
+          // 保持关闭
+        } else {
+          setIsRedBannerClosed(false);
+        }
       } catch {}
     }
   }, [licenseInfo?.tier]);
@@ -497,8 +515,12 @@ export default function AdminLayout({
   // 关闭红色授权横幅
   const handleRedBannerClose = useCallback(() => {
     localStorage.setItem("flvx_license_banner_closed_at", "-1");
+    localStorage.setItem(
+      "flvx_license_banner_closed_reason",
+      licenseInfo?.reason || "",
+    );
     setIsRedBannerClosed(true);
-  }, []);
+  }, [licenseInfo?.reason]);
 
   useEffect(() => {
     if (!isMobile) {

@@ -704,27 +704,23 @@ export default function AdminPlansPage() {
                         );
                         return group ? (
                           <button
-                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80"
+                            className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium cursor-pointer hover:opacity-80"
                             style={{
                               backgroundColor: `${group.color}1A`,
                               color: group.color,
                             }}
                             onClick={() => setFilterGroupId(Number(item.groupId))}
                           >
-                            <div
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: group.color }}
-                            />
                             {group.name}
                           </button>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                          <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-default-500/10 text-default-500">
                             未分组
                           </span>
                         );
                       })()
                       : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                        <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-default-500/10 text-default-500">
                           未分组
                         </span>
                       )}
@@ -958,27 +954,23 @@ export default function AdminPlansPage() {
                         );
                         return group ? (
                           <button
-                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80"
+                            className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium cursor-pointer hover:opacity-80"
                             style={{
                               backgroundColor: `${group.color}1A`,
                               color: group.color,
                             }}
                             onClick={() => setFilterGroupId(Number(item.groupId))}
                           >
-                            <div
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: group.color }}
-                            />
                             {group.name}
                           </button>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                          <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-default-500/10 text-default-500">
                             未分组
                           </span>
                         );
                       })()
                       : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                        <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-default-500/10 text-default-500">
                           未分组
                         </span>
                       )}
@@ -1176,27 +1168,23 @@ export default function AdminPlansPage() {
                         );
                         return group ? (
                           <button
-                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:opacity-80"
+                            className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium cursor-pointer hover:opacity-80"
                             style={{
                               backgroundColor: `${group.color}1A`,
                               color: group.color,
                             }}
                             onClick={() => setFilterGroupId(Number(item.groupId))}
                           >
-                            <div
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: group.color }}
-                            />
                             {group.name}
                           </button>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                          <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-default-500/10 text-default-500">
                             未分组
                           </span>
                         );
                       })()
                       : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs text-gray-500 bg-gray-100">
+                        <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-default-500/10 text-default-500">
                           未分组
                         </span>
                       )}
