@@ -41,7 +41,7 @@
 - [x] **G8**: 新增 `viewMode` 状态 + `filterGroupId` 筛选
 - [x] **G9**: 分组视图 `PackageGroupedView` — 折叠卡片 + 套餐列表 + 快速分配 Select
 - [x] **G10**: 空行 colSpan 已更新
-- [ ] **H1**: 商店页可选按分组筛选展示（暂未实施，后续需求）
+- [x] **H1**: 商店页按分组展示（保留类型 Tab，Tab 内按 groupId 分块渲染 + 色标 + 可折叠 + 未分组）
 
 ### Verify
 - [x] `go build` 编译通过
