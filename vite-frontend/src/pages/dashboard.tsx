@@ -882,8 +882,8 @@ export default function DashboardPage() {
                     )
                   ) : userInfo.autoBuyTraffic === 1 ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-warning" />
-                      <span className="text-xs text-warning">
+                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                      <span className="text-xs text-success">
                         管理员手动开启 自动购流运行中
                       </span>
                     </div>
