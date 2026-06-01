@@ -595,7 +595,7 @@ export default function AdminPlansPage() {
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white whitespace-nowrap ${item.autoRenew === 1 ? "bg-purple-500" : "bg-gray-400"}`}
                       >
-                        {item.autoRenew === 1 ? "自动续费" : "不续费"}
+                        {item.autoRenew === 1 ? "自动续费" : "手动续费"}
                       </span>
                     </div>
                   </TableCell>
