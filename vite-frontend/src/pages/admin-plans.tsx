@@ -2,6 +2,7 @@ import type { UserApiItem } from "@/api/types";
 import type {
   SubscriptionPackageApiItem,
   TunnelGroupApiItem,
+  PackageGroupApiItem,
 } from "@/api/types";
 
 import { useState, useEffect, useCallback } from "react";
@@ -40,8 +41,11 @@ import {
   getTunnelGroupList,
   assignPackageToUser,
   getAllUsers,
+  getPackageGroupList,
 } from "@/api";
 import { PageLoadingState } from "@/components/page-state";
+import { PackageGroupManager } from "@/pages/admin-plans/package-group-manager";
+import { PackageGroupedView } from "@/pages/admin-plans/package-grouped-view";
 
 const typeOptions = [
   { value: "subscription", label: "订阅套餐" },
@@ -50,6 +54,7 @@ const typeOptions = [
 ];
 
 const TAB_KEY = "admin-plans-active-tab";
+const VIEW_MODE_KEY = "admin-plans-view-mode";
 
 type TabType = "subscription" | "traffic" | "balance";
 
@@ -65,6 +70,16 @@ function getInitialTab(): TabType {
   }
 
   return "subscription";
+}
+
+function getInitialViewMode(): "list" | "grouped" {
+  try {
+    const saved = localStorage.getItem(VIEW_MODE_KEY);
+    if (saved === "list" || saved === "grouped") return saved;
+  } catch {
+    /* ignore */
+  }
+  return "list";
 }
 
 interface PackageForm {
@@ -88,6 +103,7 @@ interface PackageForm {
   stock: number;
   recommended: boolean;
   tunnelGroupIds: number[];
+  groupId: number | null;
 }
 
 const defaultPackageForm: PackageForm = {
@@ -110,6 +126,7 @@ const defaultPackageForm: PackageForm = {
   stock: -1,
   recommended: false,
   tunnelGroupIds: [],
+  groupId: null,
 };
 
 const durationOptions = [
@@ -148,11 +165,33 @@ export default function AdminPlansPage() {
   const [descText, setDescText] = useState("");
   const [descSaving, setDescSaving] = useState(false);
 
+  const [packageGroups, setPackageGroups] = useState<PackageGroupApiItem[]>([]);
+  const [groupManagerOpen, setGroupManagerOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "grouped">(getInitialViewMode);
+  const [filterGroupId, setFilterGroupId] = useState<number | null>(null);
+
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
 
-  const filteredList = pkgList.filter((p) => p.type === activeTab);
+  const filteredList = pkgList.filter((p) => {
+    if (p.type !== activeTab) return false;
+    if (filterGroupId === -1) return !p.groupId || p.groupId === 0;
+    if (filterGroupId !== null && filterGroupId > 0)
+      return p.groupId === filterGroupId;
+    return true;
+  });
 
   // ── Load data ──
+  const loadPackageGroups = useCallback(async () => {
+    try {
+      const res = await getPackageGroupList();
+      if (res.code === 0) {
+        setPackageGroups(Array.isArray(res.data) ? res.data : []);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const loadPackages = useCallback(async () => {
     try {
       const [pkgRes, tgRes] = await Promise.all([
@@ -173,7 +212,8 @@ export default function AdminPlansPage() {
 
   useEffect(() => {
     loadPackages();
-  }, [loadPackages]);
+    loadPackageGroups();
+  }, [loadPackages, loadPackageGroups]);
 
   usePullToRefresh(loadPackages);
 
@@ -199,7 +239,7 @@ export default function AdminPlansPage() {
           type: p.type || "subscription",
           name: p.name,
           description: p.description || "",
-        priceYuan: (p.price / 100).toFixed(2),
+          priceYuan: (p.price / 100).toFixed(2),
           validityDays: p.validityDays,
           trafficLimit: p.trafficLimit,
           /* portCount: p.portCount, */ speedLimit: p.speedLimit,
@@ -213,6 +253,7 @@ export default function AdminPlansPage() {
           stock: p.stock ?? -1,
           recommended: p.recommended === 1,
           tunnelGroupIds: res.data.tunnelGroupIds || [],
+          groupId: p.groupId || null,
         });
       } else {
         toast.error(res.msg || "获取套餐详情失败");
@@ -252,6 +293,7 @@ export default function AdminPlansPage() {
         stock: pkgForm.stock,
         recommended: pkgForm.recommended ? 1 : 0,
         tunnelGroupIds: pkgForm.tunnelGroupIds,
+        groupId: pkgForm.groupId,
       };
 
       if (isPkgEdit && pkgForm.id) data.id = pkgForm.id;
@@ -332,6 +374,7 @@ export default function AdminPlansPage() {
         stock: p.stock,
         recommended: p.recommended,
         tunnelGroupIds: detailRes.data.tunnelGroupIds || [],
+        groupId: p.groupId,
       };
       const saveRes = await updatePackage(data);
       if (saveRes.code === 0) {
@@ -416,10 +459,34 @@ export default function AdminPlansPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-2xl font-bold">套餐管理</h1>
         <div className="flex flex-wrap gap-2">
-          <Button color="secondary" variant="flat" onPress={openAssign}>
+          <Button
+            color={viewMode === "grouped" ? "secondary" : "warning"}
+            size="sm"
+            variant="flat"
+            onPress={() => {
+              const next = viewMode === "grouped" ? "list" : "grouped";
+              setViewMode(next);
+              try {
+                localStorage.setItem(VIEW_MODE_KEY, next);
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            {viewMode === "grouped" ? "列表" : "分组"}
+          </Button>
+          <Button
+            className="bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:hover:bg-purple-900/45"
+            size="sm"
+            variant="flat"
+            onPress={() => setGroupManagerOpen(true)}
+          >
+            管理分组
+          </Button>
+          <Button size="sm" color="secondary" variant="flat" onPress={openAssign}>
             手动分配
           </Button>
-          <Button color="primary" variant="flat" onPress={handlePkgAdd}>
+          <Button size="sm" color="primary" variant="flat" onPress={handlePkgAdd}>
             新增套餐
           </Button>
         </div>
@@ -503,29 +570,76 @@ export default function AdminPlansPage() {
         </Card>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {typeOptions.map((tab) => (
-          <Button
-            key={tab.value}
-            color={activeTab === tab.value ? "primary" : "default"}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        {/* 左侧：标签按钮组 */}
+        <div className="flex flex-wrap gap-2">
+          {typeOptions.map((tab) => (
+            <Button
+              key={tab.value}
+              color={activeTab === tab.value ? "primary" : "default"}
+              size="sm"
+              variant={activeTab === tab.value ? "solid" : "flat"}
+              onPress={() => {
+                setActiveTab(tab.value as TabType);
+                try {
+                  localStorage.setItem(TAB_KEY, tab.value);
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* 右侧：筛选框 */}
+        <div className="flex items-center gap-3">
+          <Select
+            className="w-30"
+            //label="分组筛选"
+            placeholder="全部分组"
+            selectedKeys={
+              filterGroupId !== null ? [String(filterGroupId)] : []
+            }
             size="sm"
-            variant={activeTab === tab.value ? "solid" : "flat"}
-            onPress={() => {
-              setActiveTab(tab.value as TabType);
-              try {
-                localStorage.setItem(TAB_KEY, tab.value);
-              } catch {
-                /* ignore */
-              }
+            variant="bordered"
+            onSelectionChange={(keys) => {
+              const val = Array.from(keys)[0] as string | undefined;
+              setFilterGroupId(val ? Number(val) : null);
             }}
           >
-            {tab.label}
-          </Button>
-        ))}
+            {filterGroupId !== null && (
+              <SelectItem key="">全部分组</SelectItem>
+            )}
+            <SelectItem key="-1">未分组</SelectItem>
+            {packageGroups.map((g) => (
+              <SelectItem key={String(g.id)}>
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: g.color }}
+                  />
+                  {g.name} ({g.packageCount})
+                </div>
+              </SelectItem>
+            ))}
+          </Select>
+          {filterGroupId !== null && (
+            <Button
+              color="warning"
+              size="sm"
+              variant="flat"
+              onPress={() => setFilterGroupId(null)}
+            >
+              重置
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* ── 订阅套餐表格 ── */}
-      {activeTab === "subscription" && (
+      {viewMode === "list" && activeTab === "subscription" && (
         <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
           <Table
             className="min-w-[640px]"
@@ -538,6 +652,9 @@ export default function AdminPlansPage() {
             <TableHeader>
               <TableColumn className="whitespace-nowrap min-w-[120px]">
                 名称
+              </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">
+                分组
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[80px]">
                 描述
@@ -578,6 +695,33 @@ export default function AdminPlansPage() {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="font-medium text-sm">{item.name}</div>
+                  </TableCell>
+                  <TableCell>
+                    {item.groupId && item.groupId > 0
+                      ? (() => {
+                        const group = packageGroups.find(
+                          (g) => Number(g.id) === Number(item.groupId),
+                        );
+                        return group ? (
+                          <button
+                            className="inline-flex items-center gap-1 cursor-pointer hover:underline"
+                            onClick={() => setFilterGroupId(Number(item.groupId))}
+                          >
+                            <div
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: group.color }}
+                            />
+                            <span className="text-xs font-medium" style={{ color: group.color }}>
+                              {group.name}
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-default-400">未分组</span>
+                        );
+                      })()
+                      : (
+                        <span className="text-xs text-default-400">未分组</span>
+                      )}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -737,7 +881,7 @@ export default function AdminPlansPage() {
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-gray-400"
-                    colSpan={10}
+                    colSpan={11}
                   >
                     暂无订阅套餐
                   </TableCell>
@@ -749,7 +893,7 @@ export default function AdminPlansPage() {
       )}
 
       {/* ── 流量快餐表格 ── */}
-      {activeTab === "traffic" && (
+      {viewMode === "list" && activeTab === "traffic" && (
         <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
           <Table
             className="min-w-[640px]"
@@ -762,6 +906,9 @@ export default function AdminPlansPage() {
             <TableHeader>
               <TableColumn className="whitespace-nowrap min-w-[120px]">
                 名称
+              </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">
+                分组
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[80px]">
                 描述
@@ -796,6 +943,33 @@ export default function AdminPlansPage() {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="font-medium text-sm">{item.name}</div>
+                  </TableCell>
+                  <TableCell>
+                    {item.groupId && item.groupId > 0
+                      ? (() => {
+                        const group = packageGroups.find(
+                          (g) => Number(g.id) === Number(item.groupId),
+                        );
+                        return group ? (
+                          <button
+                            className="inline-flex items-center gap-1 cursor-pointer hover:underline"
+                            onClick={() => setFilterGroupId(Number(item.groupId))}
+                          >
+                            <div
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: group.color }}
+                            />
+                            <span className="text-xs font-medium" style={{ color: group.color }}>
+                              {group.name}
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-default-400">未分组</span>
+                        );
+                      })()
+                      : (
+                        <span className="text-xs text-default-400">未分组</span>
+                      )}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -925,7 +1099,7 @@ export default function AdminPlansPage() {
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-gray-400"
-                    colSpan={9}
+                    colSpan={10}
                   >
                     暂无流量快餐
                   </TableCell>
@@ -937,7 +1111,7 @@ export default function AdminPlansPage() {
       )}
 
       {/* ── 余额充值表格 ── */}
-      {activeTab === "balance" && (
+      {viewMode === "list" && activeTab === "balance" && (
         <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
           <Table
             className="min-w-[500px]"
@@ -950,6 +1124,9 @@ export default function AdminPlansPage() {
             <TableHeader>
               <TableColumn className="whitespace-nowrap min-w-[120px]">
                 名称
+              </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[100px]">
+                分组
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[80px]">
                 描述
@@ -978,6 +1155,33 @@ export default function AdminPlansPage() {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="font-medium text-sm">{item.name}</div>
+                  </TableCell>
+                  <TableCell>
+                    {item.groupId && item.groupId > 0
+                      ? (() => {
+                        const group = packageGroups.find(
+                          (g) => Number(g.id) === Number(item.groupId),
+                        );
+                        return group ? (
+                          <button
+                            className="inline-flex items-center gap-1 cursor-pointer hover:underline"
+                            onClick={() => setFilterGroupId(Number(item.groupId))}
+                          >
+                            <div
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: group.color }}
+                            />
+                            <span className="text-xs font-medium" style={{ color: group.color }}>
+                              {group.name}
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="text-xs text-default-400">未分组</span>
+                        );
+                      })()
+                      : (
+                        <span className="text-xs text-default-400">未分组</span>
+                      )}
                   </TableCell>
                   <TableCell>
                     <Button
@@ -1084,7 +1288,7 @@ export default function AdminPlansPage() {
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-gray-400"
-                    colSpan={7}
+                    colSpan={9}
                   >
                     暂无余额充值套餐
                   </TableCell>
@@ -1094,6 +1298,30 @@ export default function AdminPlansPage() {
           </Table>
         </div>
       )}
+
+      {/* ── 分组视图 ── */}
+      {viewMode === "grouped" && (
+        <PackageGroupedView
+          activeTab={activeTab}
+          filteredList={filteredList}
+          onDelete={handlePkgDelete}
+          onDescEdit={handleOpenDescEdit}
+          onEdit={handlePkgEdit}
+          onGroupFilter={(id) => setFilterGroupId(id)}
+          packageGroups={packageGroups}
+          tunnelGroups={tunnelGroups}
+        />
+      )}
+
+      {/* ── 分组管理弹窗 ── */}
+      <PackageGroupManager
+        isOpen={groupManagerOpen}
+        onGroupChange={() => {
+          loadPackages();
+          loadPackageGroups();
+        }}
+        onOpenChange={setGroupManagerOpen}
+      />
 
       {/* ── 描述编辑弹窗 ── */}
       <Modal
@@ -1150,29 +1378,60 @@ export default function AdminPlansPage() {
             </ModalBody>
           ) : (
             <ModalBody className="space-y-4">
-              <Select
-                label="类型"
-                selectedKeys={[pkgForm.type]}
-                variant="bordered"
-                onSelectionChange={(keys) => {
-                  const val = Array.from(keys)[0] as string;
-
-                  if (val) setPkgForm((p) => ({ ...p, type: val }));
-                }}
-              >
-                {typeOptions.map((o) => (
-                  <SelectItem key={o.value}>{o.label}</SelectItem>
-                ))}
-              </Select>
               <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label={pkgForm.type === "balance" ? "套餐名称" : "套餐名称"}
-                  value={pkgForm.name}
+                <Select
+                  label="类型"
+                  selectedKeys={[pkgForm.type]}
                   variant="bordered"
-                  onChange={(e) =>
-                    setPkgForm((p) => ({ ...p, name: e.target.value }))
+                  onSelectionChange={(keys) => {
+                    const val = Array.from(keys)[0] as string;
+
+                    if (val) setPkgForm((p) => ({ ...p, type: val }));
+                  }}
+                >
+                  {typeOptions.map((o) => (
+                    <SelectItem key={o.value}>{o.label}</SelectItem>
+                  ))}
+                </Select>
+                <Select
+                  label="分组"
+                  placeholder="选择分组"
+                  selectedKeys={
+                    pkgForm.groupId && pkgForm.groupId > 0
+                      ? [String(pkgForm.groupId)]
+                      : []
                   }
-                />
+                  variant="bordered"
+                  onSelectionChange={(keys) => {
+                    const val = Array.from(keys)[0] as string | undefined;
+                    setPkgForm((p) => ({
+                      ...p,
+                      groupId: val ? parseInt(val) : null,
+                    }));
+                  }}
+                >
+                  {packageGroups.map((g) => (
+                    <SelectItem key={String(g.id)}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: g.color }}
+                        />
+                        {g.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </Select>
+              </div>
+              <Input
+                label={pkgForm.type === "balance" ? "套餐名称" : "套餐名称"}
+                value={pkgForm.name}
+                variant="bordered"
+                onChange={(e) =>
+                  setPkgForm((p) => ({ ...p, name: e.target.value }))
+                }
+              />
+              <div className="grid grid-cols-2 gap-4">
                 <Input
                   label={
                     pkgForm.type === "balance" ? "充值金额 (元)" : "价格 (元)"
@@ -1186,8 +1445,6 @@ export default function AdminPlansPage() {
                     setPkgForm((p) => ({ ...p, priceYuan: e.target.value }))
                   }
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="库存 (-1不限，0售罄)"
                   min="-1"
@@ -1199,14 +1456,6 @@ export default function AdminPlansPage() {
                       ...p,
                       stock: parseInt(e.target.value) ?? -1,
                     }))
-                  }
-                />
-                <Input
-                  label="描述"
-                  value={pkgForm.description}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setPkgForm((p) => ({ ...p, description: e.target.value }))
                   }
                 />
               </div>
@@ -1250,7 +1499,7 @@ export default function AdminPlansPage() {
                       可用于自动购流
                     </Switch>
                     <span className="text-xs text-gray-400">
-                      用户可在设置中选此套餐作为自动购买流量来源
+                      用户可在主页中选此套餐作为自动购买流量套餐
                     </span>
                   </div>
                 </>

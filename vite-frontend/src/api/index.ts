@@ -842,6 +842,29 @@ export const deleteNodeGroup = (id: number) =>
 export const assignNodeToGroup = (nodeId: number, groupId: number | null) =>
   Network.post("/node-group/assign", { nodeId, groupId });
 
+// ─── Package Group Management ─────────────────────────────────────
+
+export const getPackageGroupList = () =>
+  Network.post<import("@/api/types").PackageGroupApiItem[]>(
+    "/package-group/list",
+  );
+
+export const createPackageGroup = (
+  data: import("@/api/types").PackageGroupMutationPayload,
+) => Network.post("/package-group/create", data);
+
+export const updatePackageGroup = (
+  data: import("@/api/types").PackageGroupMutationPayload,
+) => Network.post("/package-group/update", data);
+
+export const deletePackageGroup = (id: number) =>
+  Network.post("/package-group/delete", { id });
+
+export const assignPackageToGroup = (
+  packageId: number,
+  groupId: number | null,
+) => Network.post("/package-group/assign", { packageId, groupId });
+
 export const getNodeTagList = () =>
   Network.post<NodeTagApiItem[]>("/node-tag/list");
 

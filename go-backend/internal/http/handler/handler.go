@@ -47,6 +47,7 @@ type Handler struct {
 	qualityProber *tunnelQualityProber
 	nodeGroupHandler *NodeGroupHandler
 	nodeTagHandler   *NodeTagHandler
+	packageGroupHandler *PackageGroupHandler
 
 	nftablesDomainMu    sync.Mutex
 	nftablesDomainCache map[int64]string
@@ -143,6 +144,7 @@ func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
 	})
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)
+	h.packageGroupHandler = NewPackageGroupHandler(repo)
 	return h
 }
 
@@ -344,6 +346,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node-tag/update", h.nodeTagHandler.update)
 	mux.HandleFunc("/api/v1/node-tag/delete", h.nodeTagHandler.delete)
 	mux.HandleFunc("/api/v1/node-tag/assign", h.nodeTagHandler.assign)
+
+	// Package group management
+	mux.HandleFunc("/api/v1/package-group/list", h.packageGroupHandler.list)
+	mux.HandleFunc("/api/v1/package-group/create", h.packageGroupHandler.create)
+	mux.HandleFunc("/api/v1/package-group/update", h.packageGroupHandler.update)
+	mux.HandleFunc("/api/v1/package-group/delete", h.packageGroupHandler.delete)
+	mux.HandleFunc("/api/v1/package-group/assign", h.packageGroupHandler.assign)
 
 	// Package (套餐)
 	mux.HandleFunc("/api/v1/package/list", h.listPackages)

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -73,6 +74,7 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		AutoBuyTrafficEnabled int     `json:"autoBuyTrafficEnabled"`
 		Stock                 int64   `json:"stock"`
 		Recommended           int     `json:"recommended"`
+		GroupID               *int64  `json:"groupId"`
 		TunnelGroupIDs        []int64 `json:"tunnelGroupIds"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
@@ -106,6 +108,9 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		Stock:                 req.Stock,
 		Recommended:           req.Recommended,
 	}
+	if req.GroupID != nil {
+		pkg.GroupID = sql.NullInt64{Int64: *req.GroupID, Valid: true}
+	}
 	if err := h.repo.CreatePackage(pkg, req.TunnelGroupIDs); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -137,6 +142,7 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		AutoBuyTrafficEnabled int     `json:"autoBuyTrafficEnabled"`
 		Stock                 int64   `json:"stock"`
 		Recommended           int     `json:"recommended"`
+		GroupID               *int64  `json:"groupId"`
 		TunnelGroupIDs        []int64 `json:"tunnelGroupIds"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
@@ -170,6 +176,9 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		AutoBuyTrafficEnabled: req.AutoBuyTrafficEnabled,
 		Stock:                 req.Stock,
 		Recommended:           req.Recommended,
+	}
+	if req.GroupID != nil {
+		pkg.GroupID = sql.NullInt64{Int64: *req.GroupID, Valid: true}
 	}
 	if err := h.repo.UpdatePackage(pkg, req.TunnelGroupIDs); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))

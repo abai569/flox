@@ -1,5 +1,7 @@
 package model
 
+import "database/sql"
+
 // SubscriptionPackage 套餐订阅 — 定义资源配额和关联的隧道分组
 type SubscriptionPackage struct {
 	ID             int64  `gorm:"primaryKey;autoIncrement" json:"id"`
@@ -21,6 +23,7 @@ type SubscriptionPackage struct {
 	AutoBuyTrafficEnabled  int    `gorm:"column:auto_buy_traffic_enabled;default:0" json:"autoBuyTrafficEnabled"` // 标记为自动购流来源 (0=否，1=是)
 	Stock                  int64  `gorm:"column:stock;default:-1" json:"stock"`                                  // -1=不限，0=售罄，>0=剩余库存
 	Recommended            int    `gorm:"column:recommended;default:0" json:"recommended"`                        // 0=否，1=推荐
+	GroupID                sql.NullInt64 `gorm:"column:group_id;index:idx_package_group_id" json:"groupId"`      // 分组ID，NULL=未分组
 	CreatedAt              int64  `gorm:"column:created_at;not null" json:"createdAt"`
 	UpdatedAt      int64  `gorm:"column:updated_at;not null" json:"updatedAt"`
 }

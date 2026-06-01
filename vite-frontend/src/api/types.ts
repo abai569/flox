@@ -616,6 +616,25 @@ export interface NodeGroupMutationPayload {
   inx?: number;
 }
 
+export interface PackageGroupApiItem {
+  id: number;
+  name: string;
+  description: string;
+  color: string;
+  inx: number;
+  createdTime: number;
+  updatedTime?: number;
+  packageCount: number;
+}
+
+export interface PackageGroupMutationPayload {
+  id?: number;
+  name: string;
+  description?: string;
+  color?: string;
+  inx?: number;
+}
+
 export interface NodeTagApiItem {
   id: number;
   name: string;
@@ -801,6 +820,7 @@ export interface SubscriptionPackageApiItem {
   autoBuyTrafficEnabled: number; // 标记为自动购流来源 (0/1)
   stock: number; // -1=不限，0=售罄，>0=剩余
   recommended: number; // 0=否，1=推荐
+  groupId?: number; // 分组ID，null或undefined=未分组
   createdAt: number;
   updatedAt: number;
 }

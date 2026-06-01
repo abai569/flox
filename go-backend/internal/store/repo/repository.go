@@ -234,6 +234,7 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.TunnelList{},
 		&model.TunnelListTunnel{},
 		&model.NodeGroup{},
+		&model.PackageGroup{},
 		&model.NodeTag{},
 		&model.NodeTagNode{},
 		&model.ForwardTrafficResetLog{},
