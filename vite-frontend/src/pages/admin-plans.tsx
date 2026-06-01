@@ -11,7 +11,7 @@ import { AnimatedPage } from "@/components/animated-page";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input } from "@/shadcn-bridge/heroui/input";
-//import { Textarea } from "@/shadcn-bridge/heroui/input";
+import { Textarea } from "@/shadcn-bridge/heroui/input";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
 import { Switch } from "@/shadcn-bridge/heroui/switch";
@@ -142,6 +142,12 @@ export default function AdminPlansPage() {
   const [assignPkgId, setAssignPkgId] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
 
+  const [descModalOpen, setDescModalOpen] = useState(false);
+  const [descEditItem, setDescEditItem] =
+    useState<SubscriptionPackageApiItem | null>(null);
+  const [descText, setDescText] = useState("");
+  const [descSaving, setDescSaving] = useState(false);
+
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
 
   const filteredList = pkgList.filter((p) => p.type === activeTab);
@@ -193,7 +199,7 @@ export default function AdminPlansPage() {
           type: p.type || "subscription",
           name: p.name,
           description: p.description || "",
-          priceYuan: (p.price / 100).toFixed(2),
+        priceYuan: (p.price / 100).toFixed(2),
           validityDays: p.validityDays,
           trafficLimit: p.trafficLimit,
           /* portCount: p.portCount, */ speedLimit: p.speedLimit,
@@ -287,6 +293,58 @@ export default function AdminPlansPage() {
       }
     } catch {
       toast.error("网络错误");
+    }
+  };
+
+  // ── Description edit ──
+  const handleOpenDescEdit = (item: SubscriptionPackageApiItem) => {
+    setDescEditItem(item);
+    setDescText(item.description || "");
+    setDescModalOpen(true);
+  };
+
+  const handleDescSave = async () => {
+    if (!descEditItem) return;
+    setDescSaving(true);
+    try {
+      const detailRes = await getPackageDetail(descEditItem.id);
+      if (detailRes.code !== 0) {
+        toast.error(detailRes.msg || "获取详情失败");
+        return;
+      }
+      const p = detailRes.data.package;
+      const data: Record<string, unknown> = {
+        id: p.id,
+        type: p.type,
+        name: p.name,
+        description: descText,
+        priceYuan: p.price / 100,
+        validityDays: p.validityDays,
+        trafficLimit: p.trafficLimit,
+        speedLimit: p.speedLimit,
+        maxRules: p.maxRules,
+        maxConnections: p.maxConnections,
+        autoRenew: p.autoRenew,
+        enabled: p.enabled,
+        shopVisible: p.shopVisible,
+        autoBuyTrafficEnabled: p.autoBuyTrafficEnabled,
+        sortOrder: p.sortOrder,
+        stock: p.stock,
+        recommended: p.recommended,
+        tunnelGroupIds: detailRes.data.tunnelGroupIds || [],
+      };
+      const saveRes = await updatePackage(data);
+      if (saveRes.code === 0) {
+        toast.success("描述更新成功");
+        setDescModalOpen(false);
+        loadPackages();
+      } else {
+        toast.error(saveRes.msg || "更新失败");
+      }
+    } catch {
+      toast.error("网络错误");
+    } finally {
+      setDescSaving(false);
     }
   };
 
@@ -481,6 +539,9 @@ export default function AdminPlansPage() {
               <TableColumn className="whitespace-nowrap min-w-[120px]">
                 名称
               </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">
+                描述
+              </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[140px]">
                 价格
               </TableColumn>
@@ -517,11 +578,15 @@ export default function AdminPlansPage() {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="font-medium text-sm">{item.name}</div>
-                    {item.description && (
-                      <div className="text-xs text-gray-400 truncate max-w-48">
-                        {item.description}
-                      </div>
-                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      onPress={() => handleOpenDescEdit(item)}
+                    >
+                      编辑
+                    </Button>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm whitespace-nowrap">
@@ -672,7 +737,7 @@ export default function AdminPlansPage() {
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-gray-400"
-                    colSpan={9}
+                    colSpan={10}
                   >
                     暂无订阅套餐
                   </TableCell>
@@ -697,6 +762,9 @@ export default function AdminPlansPage() {
             <TableHeader>
               <TableColumn className="whitespace-nowrap min-w-[120px]">
                 名称
+              </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">
+                描述
               </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[120px]">
                 价格
@@ -728,11 +796,15 @@ export default function AdminPlansPage() {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="font-medium text-sm">{item.name}</div>
-                    {item.description && (
-                      <div className="text-xs text-gray-400 truncate max-w-48">
-                        {item.description}
-                      </div>
-                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      onPress={() => handleOpenDescEdit(item)}
+                    >
+                      编辑
+                    </Button>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm whitespace-nowrap">
@@ -853,7 +925,7 @@ export default function AdminPlansPage() {
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-gray-400"
-                    colSpan={8}
+                    colSpan={9}
                   >
                     暂无流量快餐
                   </TableCell>
@@ -879,6 +951,9 @@ export default function AdminPlansPage() {
               <TableColumn className="whitespace-nowrap min-w-[120px]">
                 名称
               </TableColumn>
+              <TableColumn className="whitespace-nowrap min-w-[80px]">
+                描述
+              </TableColumn>
               <TableColumn className="whitespace-nowrap min-w-[140px]">
                 充值金额
               </TableColumn>
@@ -903,11 +978,15 @@ export default function AdminPlansPage() {
                 <TableRow key={item.id}>
                   <TableCell>
                     <div className="font-medium text-sm">{item.name}</div>
-                    {item.description && (
-                      <div className="text-xs text-gray-400 truncate max-w-48">
-                        {item.description}
-                      </div>
-                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      onPress={() => handleOpenDescEdit(item)}
+                    >
+                      编辑
+                    </Button>
                   </TableCell>
                   <TableCell>
                     <div className="text-sm whitespace-nowrap">
@@ -1005,7 +1084,7 @@ export default function AdminPlansPage() {
                 <TableRow>
                   <TableCell
                     className="py-10 text-center text-gray-400"
-                    colSpan={6}
+                    colSpan={7}
                   >
                     暂无余额充值套餐
                   </TableCell>
@@ -1015,6 +1094,44 @@ export default function AdminPlansPage() {
           </Table>
         </div>
       )}
+
+      {/* ── 描述编辑弹窗 ── */}
+      <Modal
+        isOpen={descModalOpen}
+        placement="center"
+        onOpenChange={(open) => {
+          if (!open) setDescModalOpen(false);
+        }}
+      >
+        <ModalContent>
+          <ModalHeader>编辑描述</ModalHeader>
+          <ModalBody>
+            <Textarea
+              label="描述"
+              placeholder="输入套餐描述，支持回车换行"
+              value={descText}
+              variant="bordered"
+              minRows={3}
+              onChange={(e) => setDescText(e.target.value)}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="flat"
+              onPress={() => setDescModalOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              color="primary"
+              isLoading={descSaving}
+              onPress={handleDescSave}
+            >
+              保存
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
       <Modal
         isOpen={pkgModalOpen}
