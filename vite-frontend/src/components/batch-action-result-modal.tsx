@@ -17,6 +17,7 @@ interface BatchActionResultModalProps {
   failures: BatchOperationFailure[];
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  skipped?: BatchOperationFailure[];
   summary: string;
   title: string;
 }
@@ -65,6 +66,7 @@ export function BatchActionResultModal({
   failures,
   isOpen,
   onOpenChange,
+  skipped,
   summary,
   title,
 }: BatchActionResultModalProps) {
@@ -89,6 +91,9 @@ export function BatchActionResultModal({
     }
   };
 
+  const skippedList = skipped ?? [];
+  const totalCount = failures.length + skippedList.length;
+
   return (
     <Modal
       isOpen={isOpen}
@@ -102,39 +107,67 @@ export function BatchActionResultModal({
             <ModalHeader>{title}</ModalHeader>
             <ModalBody className="space-y-4">
               <Alert
-                color="warning"
+                color={failures.length > 0 ? "warning" : "default"}
                 description={summary}
-                title={`共 ${failures.length} 项需要处理`}
+                title={`共 ${totalCount} 项需要处理`}
                 variant="flat"
               />
-              <div className="space-y-3">
-                {failures.map((failure, index) => (
-                  <details
-                    key={`${failure.id ?? "unknown"}-${index}`}
-                    className="group rounded-xl border border-divider bg-content2/40 px-4 py-3"
-                  >
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {getFailureTitle(failure, index)}
-                        </p>
-                        <p className="mt-1 text-xs text-default-500 group-open:hidden">
-                          点击展开查看失败原因
-                        </p>
+              {failures.length > 0 && (
+                <div className="space-y-3">
+                  {failures.map((failure, index) => (
+                    <details
+                      key={`fail-${failure.id ?? "unknown"}-${index}`}
+                      className="group rounded-xl border border-divider bg-content2/40 px-4 py-3"
+                    >
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {getFailureTitle(failure, index)}
+                          </p>
+                          <p className="mt-1 text-xs text-default-500 group-open:hidden">
+                            点击展开查看失败原因
+                          </p>
+                        </div>
+                        <Chip color="danger" size="sm" variant="flat">
+                          失败
+                        </Chip>
+                      </summary>
+                      <div className="mt-3 rounded-lg bg-background/70 p-3 text-sm leading-6 text-foreground/90">
+                        {getFailureReason(failure)}
                       </div>
-                      <Chip color="danger" size="sm" variant="flat">
-                        失败
-                      </Chip>
-                    </summary>
-                    <div className="mt-3 rounded-lg bg-background/70 p-3 text-sm leading-6 text-foreground/90">
-                      {getFailureReason(failure)}
+                    </details>
+                  ))}
+                </div>
+              )}
+              {skippedList.length > 0 && (
+                <div className="space-y-3">
+                  {skippedList.map((item, index) => (
+                    <div
+                      key={`skip-${item.id ?? "unknown"}-${index}`}
+                      className="rounded-xl border border-divider bg-content2/40 px-4 py-3"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {getFailureTitle(item, index)}
+                        </p>
+                        <Chip color="default" size="sm" variant="flat">
+                          跳过
+                        </Chip>
+                      </div>
+                      <p className="mt-1 text-xs text-default-500">
+                        {getFailureReason(item)}
+                      </p>
                     </div>
-                  </details>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </ModalBody>
             <ModalFooter>
-              <Button variant="flat" onPress={handleCopy}>
+              <Button
+                isDisabled={failures.length === 0}
+                variant="flat"
+                onPress={handleCopy}
+              >
                 复制失败原因
               </Button>
               <Button color="primary" onPress={onClose}>

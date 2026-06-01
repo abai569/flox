@@ -2412,10 +2412,18 @@ type batchFailureDetail struct {
 	Reason string `json:"reason"`
 }
 
+type batchSkippedDetail struct {
+	ID     int64  `json:"id"`
+	Name   string `json:"name,omitempty"`
+	Reason string `json:"reason"`
+}
+
 type batchOperationResult struct {
 	SuccessCount int                  `json:"successCount"`
 	FailCount    int                  `json:"failCount"`
+	SkippedCount int                  `json:"skippedCount,omitempty"`
 	Failures     []batchFailureDetail `json:"failures,omitempty"`
+	Skipped      []batchSkippedDetail `json:"skipped,omitempty"`
 }
 
 func appendBatchFailure(failures []batchFailureDetail, id int64, name string, err error) []batchFailureDetail {
@@ -2476,7 +2484,9 @@ func (h *Handler) tunnelBatchRedeploy(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	success := 0
 	fail := 0
+	skipped := 0
 	failures := make([]batchFailureDetail, 0)
+	skippedItems := make([]batchSkippedDetail, 0)
 
 	for _, tunnelID := range ids {
 		wg.Add(1)
@@ -2494,6 +2504,15 @@ func (h *Handler) tunnelBatchRedeploy(w http.ResponseWriter, r *http.Request) {
 				mu.Unlock()
 				return
 			}
+			if tunnel != nil && tunnel.Status == 0 {
+				mu.Lock()
+				skipped++
+				skippedItems = append(skippedItems, batchSkippedDetail{
+					ID: id, Name: tunnelName, Reason: "已禁用",
+				})
+				mu.Unlock()
+				return
+			}
 			if err := h.redeployTunnelAndForwards(id); err != nil {
 				mu.Lock()
 				fail++
@@ -2508,7 +2527,13 @@ func (h *Handler) tunnelBatchRedeploy(w http.ResponseWriter, r *http.Request) {
 	}
 	wg.Wait()
 
-	response.WriteJSON(w, response.OK(batchOperationResult{SuccessCount: success, FailCount: fail, Failures: failures}))
+	response.WriteJSON(w, response.OK(batchOperationResult{
+		SuccessCount: success,
+		FailCount:    fail,
+		SkippedCount: skipped,
+		Failures:     failures,
+		Skipped:      skippedItems,
+	}))
 }
 
 func (h *Handler) userTunnelAssign(w http.ResponseWriter, r *http.Request) {

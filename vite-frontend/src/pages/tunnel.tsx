@@ -173,6 +173,7 @@ interface BatchProgressState {
 interface BatchResultModalState {
   failures: BatchOperationFailure[];
   open: boolean;
+  skipped: BatchOperationFailure[];
   summary: string;
   title: string;
 }
@@ -180,6 +181,7 @@ type TunnelDeleteAction = "replace" | "delete_forwards";
 const EMPTY_BATCH_RESULT_MODAL_STATE: BatchResultModalState = {
   failures: [],
   open: false,
+  skipped: [],
   summary: "",
   title: "",
 };
@@ -858,6 +860,7 @@ export default function TunnelPage() {
           setBatchResultModal({
             failures,
             open: true,
+            skipped: [],
             summary: `成功 ${Number(result.successCount ?? 0)} 项，失败 ${Number(result.failCount ?? failures.length)} 项`,
             title: "规则处理失败",
           });
@@ -1611,10 +1614,16 @@ export default function TunnelPage() {
     setSelectedIds(new Set());
   };
   const openBatchResultModal = useCallback(
-    (title: string, summary: string, failures: BatchOperationFailure[]) => {
+    (
+      title: string,
+      summary: string,
+      failures: BatchOperationFailure[],
+      skipped: BatchOperationFailure[] = [],
+    ) => {
       setBatchResultModal({
         failures,
         open: true,
+        skipped,
         summary,
         title,
       });
@@ -1753,17 +1762,21 @@ export default function TunnelPage() {
 
       if (res.code === 0) {
         const result = res.data;
+        const skippedList = Array.isArray(result?.skipped) ? result.skipped : [];
+        const skippedCount =
+          typeof result?.skippedCount === "number" ? result.skippedCount : skippedList.length;
 
-        if (result.failCount === 0) {
+        if (result.failCount === 0 && skippedCount === 0) {
           toast.success(`成功重新下发 ${result.successCount} 项`);
         } else {
           const failures = extractBatchFailures(result);
 
-          if (failures.length > 0) {
+          if (failures.length > 0 || skippedCount > 0) {
             openBatchResultModal(
               "批量下发结果",
-              `成功 ${result.successCount} 项，失败 ${result.failCount} 项`,
+              `成功 ${result.successCount} 项，失败 ${result.failCount} 项，跳过 ${skippedCount} 项`,
               failures,
+              skippedList,
             );
           } else {
             toast.error(
@@ -5076,6 +5089,7 @@ export default function TunnelPage() {
       <BatchActionResultModal
         failures={batchResultModal.failures}
         isOpen={batchResultModal.open}
+        skipped={batchResultModal.skipped}
         summary={batchResultModal.summary}
         title={batchResultModal.title}
         onOpenChange={(open) => {
