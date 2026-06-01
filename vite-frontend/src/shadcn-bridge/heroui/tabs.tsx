@@ -66,11 +66,11 @@ export function Tabs({ children, onSelectionChange, selectedKey }: TabsProps) {
         onSelectionChange?.(nextValue);
       }}
     >
-      <TabsList className="w-fit">
+      <TabsList className="w-fit overflow-x-auto scrollbar-hide gap-0 sm:gap-2">
         {tabs.map((item) => (
           <TabsTrigger
             key={item.key}
-            className="px-4 py-2 text-base font-semibold"
+            className="px-3 py-1.5 text-sm font-semibold sm:px-4 sm:py-2 sm:text-base whitespace-nowrap"
             value={item.key}
           >
             {item.title}
