@@ -170,9 +170,6 @@ func (r *Repository) RecordFlowResetHistory(snapshots []model.UserFlowSnapshot, 
 	}
 	for _, s := range snapshots {
 		totalBytes := s.InFlow + s.OutFlow
-		if totalBytes <= 0 {
-			continue
-		}
 		history := &model.UserQuotaHistory{
 			UserID:        s.UserID,
 			PeriodType:    "monthly",
