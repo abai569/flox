@@ -845,7 +845,7 @@ export default function DashboardPage() {
                       <div className="mt-1 flex items-center gap-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
                         <span className="text-xs text-default-500">
-                          用完流量后将停用
+                          流量用完后将禁用账户
                         </span>
                       </div>
                     ) : (
@@ -881,26 +881,17 @@ export default function DashboardPage() {
                       </div>
                     )
                   ) : userInfo.autoBuyTraffic === 1 ? (
-                    <div className="mt-2 space-y-2">
-                      {(userInfo.autoBuyTrafficPackageId ?? 0) > 0 ? (
-                        <div className="flex items-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                          <span className="text-xs text-success">
-                            自动购买流运行中
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-default-500">
-                          {userInfo.buyTrafficAmount || 0}GB /{" "}
-                          {userInfo.buyTrafficPrice || 0}元
-                        </div>
-                      )}
+                    <div className="mt-1 flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-warning" />
+                      <span className="text-xs text-warning">
+                        管理员手动开启 自动购流运行中
+                      </span>
                     </div>
                   ) : (
                     <div className="mt-1 flex items-center gap-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
                       <span className="text-xs text-default-500">
-                        用完流量后将停用
+                        流量用完后将禁用账户
                       </span>
                     </div>
                   )
