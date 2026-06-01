@@ -1711,6 +1711,9 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 	protocols := []string{"tcp", "udp"}
 	services := make([]map[string]interface{}, 0, 2)
 	targets := splitRemoteTargets(forward.RemoteAddr)
+	for i, t := range targets {
+		targets[i] = resolveTargetIP(t)
+	}
 	strategy := strings.TrimSpace(forward.Strategy)
 	if strategy == "" {
 		strategy = "fifo"
