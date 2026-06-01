@@ -66,22 +66,28 @@ export function PackageGroupedView({
 
   const renderGroupBadge = (groupId?: number) => {
     if (!groupId || groupId <= 0)
-      return <span className="text-xs text-default-400">未分组</span>;
+      return (
+        <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-default-500/10 text-default-500">
+          未分组
+        </span>
+      );
     const group = packageGroups.find((g) => Number(g.id) === groupId);
     if (!group)
-      return <span className="text-xs text-default-400">未分组</span>;
+      return (
+        <span className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-default-500/10 text-default-500">
+          未分组
+        </span>
+      );
     return (
       <button
-        className="inline-flex items-center gap-1 cursor-pointer hover:underline"
+        className="flex-shrink-0 inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium cursor-pointer hover:opacity-80"
+        style={{
+          backgroundColor: `${group.color}1A`,
+          color: group.color,
+        }}
         onClick={() => onGroupFilter(groupId)}
       >
-        <div
-          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: group.color }}
-        />
-        <span className="text-xs font-medium" style={{ color: group.color }}>
-          {group.name}
-        </span>
+        {group.name}
       </button>
     );
   };
