@@ -5622,7 +5622,7 @@ export default function ForwardPage() {
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
-                <h2 className="text-lg font-bold text-danger">确认删除</h2>
+                <h2 className="text-lg font-bold text-danger">确认</h2>
               </ModalHeader>
               <ModalBody>
                 <p className="text-default-600">
@@ -5645,7 +5645,7 @@ export default function ForwardPage() {
                   isLoading={deleteLoading}
                   onPress={confirmDelete}
                 >
-                  确认删除
+                  确认
                 </Button>
               </ModalFooter>
             </>
@@ -6804,7 +6804,7 @@ export default function ForwardPage() {
       >
         <ModalContent>
           <ModalHeader className="text-base font-semibold">
-            确认删除
+            确认
           </ModalHeader>
           <ModalBody className="py-4">
             <p className="text-sm text-default-600">
