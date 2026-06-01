@@ -888,23 +888,6 @@ export interface PanelUpgradeCheckResponse {
   hasUpdate: boolean;
 }
 
-export interface PanelReleaseItem {
-  version: string;
-  name: string;
-  publishedAt: string;
-  prerelease: boolean;
-  channel: string;
-}
-
-export const checkPanelUpgrade = (channel?: string) =>
-  Network.post<PanelUpgradeCheckResponse>("/panel/upgrade/check", { channel });
-
-export const getPanelReleases = (channel?: string) =>
-  Network.post<PanelReleaseItem[]>("/panel/upgrade/releases", { channel });
-
-export const upgradePanel = (version?: string, channel?: string) =>
-  Network.post("/panel/upgrade", { version, channel });
-
 // ─── System Upgrade ────────────────────────────────────────────────────
 
 export const getSystemUpgradeVersion = () =>

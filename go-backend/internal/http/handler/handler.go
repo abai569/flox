@@ -248,9 +248,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/traffic-reset-log/delete", h.deleteNodeTrafficResetLog)
 	mux.HandleFunc("/api/v1/traffic-history/list", h.trafficHistoryList)
 	mux.HandleFunc("/api/v1/traffic-history/delete", h.trafficHistoryDelete)
-	mux.HandleFunc("/api/v1/panel/upgrade/check", h.panelUpgradeCheck)
-	mux.HandleFunc("/api/v1/panel/upgrade/releases", h.panelReleases)
-	mux.HandleFunc("/api/v1/panel/upgrade", h.panelUpgrade)
+
 	mux.HandleFunc("/api/v1/speed-limit/list", h.speedLimitList)
 	mux.HandleFunc("/api/v1/speed-limit/create", h.speedLimitCreate)
 	mux.HandleFunc("/api/v1/speed-limit/update", h.speedLimitUpdate)

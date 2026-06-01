@@ -568,6 +568,17 @@ func (h *Handler) systemUpgrade(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 后台上报安装统计，不阻塞响应
+	go func() {
+		licenseURL := os.Getenv("LICENSE_SERVER_URL")
+		if licenseURL == "" {
+			licenseURL = "https://sq.abai.eu.org"
+		}
+		client := &http.Client{Timeout: 3 * time.Second}
+		req, _ := http.NewRequest("GET", licenseURL+"/api/stats/install", nil)
+		client.Do(req)
+	}()
+
 	response.WriteJSON(w, response.OK(systemUpgradeRunData{
 		Version:         version,
 		Channel:         channel,

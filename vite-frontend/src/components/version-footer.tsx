@@ -20,7 +20,8 @@ import {
   hasVersionUpdate,
   setUpdateReleaseChannel,
 } from "@/utils/version-update";
-import { getPanelReleases, type PanelReleaseItem } from "@/api";
+import { checkSystemUpgrade } from "@/api";
+import type { SystemUpgradeReleaseApiItem } from "@/api/types";
 import { runSystemUpgrade } from "@/api/index";
 
 const FALLBACK_GITHUB_REPO = "https://github.com/abai569/flvx";
@@ -75,7 +76,7 @@ export function VersionFooter({
 
   // Manual upgrade modal state
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
-  const [releases, setReleases] = useState<PanelReleaseItem[]>([]);
+  const [releases, setReleases] = useState<SystemUpgradeReleaseApiItem[]>([]);
   const [releasesLoading, setReleasesLoading] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState("");
   const [panelLatestVersion, setPanelLatestVersion] = useState<string | null>(
@@ -144,12 +145,12 @@ export function VersionFooter({
   const loadReleases = async () => {
     setReleasesLoading(true);
     try {
-      const res = await getPanelReleases(channel);
+      const res = await checkSystemUpgrade(channel);
 
-      if (res.code === 0 && res.data) {
-        setReleases(res.data);
-        if (!panelLatestVersion && res.data.length > 0) {
-          setPanelLatestVersion(res.data[0].version);
+      if (res.code === 0 && res.data && res.data.releases) {
+        setReleases(res.data.releases);
+        if (!panelLatestVersion && res.data.releases.length > 0) {
+          setPanelLatestVersion(res.data.releases[0].version);
         }
       }
     } catch (err) {
