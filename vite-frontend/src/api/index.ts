@@ -1061,6 +1061,7 @@ export const getPackageDetail = (id: number) =>
   Network.post<{
     package: SubscriptionPackageApiItem;
     tunnelGroupIds: number[];
+    groupId?: number;
   }>("/package/detail", { id });
 
 export const createPackageOrder = (data: {

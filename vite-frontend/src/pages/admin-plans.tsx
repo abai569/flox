@@ -253,7 +253,7 @@ export default function AdminPlansPage() {
           stock: p.stock ?? -1,
           recommended: p.recommended === 1,
           tunnelGroupIds: res.data.tunnelGroupIds || [],
-          groupId: p.groupId || null,
+          groupId: res.data.groupId ?? null,
         });
       } else {
         toast.error(res.msg || "获取套餐详情失败");
