@@ -3089,13 +3089,10 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 
 	port := asInt(req["inPort"], 0)
 	if port <= 0 {
-		minPort := h.repo.GetMinForwardPort(id)
-		if minPort.Valid {
-			port = int(minPort.Int64)
-		}
-		if port <= 0 {
-			port = h.pickTunnelPort(tunnelID)
-		}
+		port = h.pickTunnelPort(tunnelID)
+	}
+	if port <= 0 {
+		port = 10000
 	}
 	hasInIP := false
 	inIp := ""
