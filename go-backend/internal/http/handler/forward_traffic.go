@@ -168,9 +168,13 @@ func (h *Handler) nodeTrafficResetLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, _, err := userRoleFromRequest(r)
+	_, actorRole, err := userRoleFromRequest(r)
 	if err != nil {
 		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
+		return
+	}
+	if actorRole != 1 {
+		response.WriteJSON(w, response.Err(403, "无权操作"))
 		return
 	}
 
@@ -204,6 +208,16 @@ func (h *Handler) deleteNodeTrafficResetLog(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	_, actorRole, err := userRoleFromRequest(r)
+	if err != nil {
+		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
+		return
+	}
+	if actorRole != 1 {
+		response.WriteJSON(w, response.Err(403, "无权操作"))
+		return
+	}
+
 	var req struct {
 		ID int64 `json:"id"`
 	}
@@ -228,6 +242,16 @@ func (h *Handler) deleteNodeTrafficResetLog(w http.ResponseWriter, r *http.Reque
 func (h *Handler) deleteForwardTrafficResetLog(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求方法错误"))
+		return
+	}
+
+	_, actorRole, err := userRoleFromRequest(r)
+	if err != nil {
+		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
+		return
+	}
+	if actorRole != 1 {
+		response.WriteJSON(w, response.Err(403, "无权操作"))
 		return
 	}
 

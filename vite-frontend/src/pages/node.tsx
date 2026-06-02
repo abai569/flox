@@ -1471,8 +1471,8 @@ export default function NodePage() {
         const metrics = realtimeNodeMetrics[nodeId];
 
         if (metrics) {
-          totalInFlow += metrics.uploadTraffic || 0;
-          totalOutFlow += metrics.downloadTraffic || 0;
+          totalInFlow += metrics.periodTraffic?.tx || 0;
+          totalOutFlow += metrics.periodTraffic?.rx || 0;
         }
       });
 

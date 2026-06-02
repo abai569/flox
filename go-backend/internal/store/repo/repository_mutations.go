@@ -3134,14 +3134,15 @@ func (r *Repository) cleanupForwardTrafficResetLogs(forwardID int64) error {
 	}
 
 	if count > 30 {
-		var oldestLog model.ForwardTrafficResetLog
+		var cutoffLog model.ForwardTrafficResetLog
 		if err := r.db.Where("forward_id = ?", forwardID).
-			Order("created_time ASC").
-			First(&oldestLog).Error; err != nil {
+			Order("created_time DESC").
+			Offset(29).Limit(1).
+			First(&cutoffLog).Error; err != nil {
 			return err
 		}
 
-		return r.db.Where("forward_id = ? AND created_time <= ?", forwardID, oldestLog.CreatedTime).
+		return r.db.Where("forward_id = ? AND created_time < ?", forwardID, cutoffLog.CreatedTime).
 			Delete(&model.ForwardTrafficResetLog{}).Error
 	}
 
@@ -3246,14 +3247,15 @@ func (r *Repository) cleanupNodeTrafficResetLogs(nodeID int64) error {
 	}
 
 	if count > 30 {
-		var oldestLog model.NodeTrafficResetLog
+		var cutoffLog model.NodeTrafficResetLog
 		if err := r.db.Where("node_id = ?", nodeID).
-			Order("created_time ASC").
-			First(&oldestLog).Error; err != nil {
+			Order("created_time DESC").
+			Offset(29).Limit(1).
+			First(&cutoffLog).Error; err != nil {
 			return err
 		}
 
-		return r.db.Where("node_id = ? AND created_time <= ?", nodeID, oldestLog.CreatedTime).
+		return r.db.Where("node_id = ? AND created_time < ?", nodeID, cutoffLog.CreatedTime).
 			Delete(&model.NodeTrafficResetLog{}).Error
 	}
 
