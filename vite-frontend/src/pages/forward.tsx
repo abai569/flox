@@ -841,20 +841,25 @@ const SortableTableRow = ({
             <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
           </svg>
           <span
-            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate max-w-[100px] inline-block"
-            onClick={() => {
-              if (inAddrNoPorts.split(",").length > 1) {
-                showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
-              } else {
-                copyToClipboard(inAddrNoPorts, "入口地址");
-              }
-            }}
+            className="flex items-center gap-1 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+            onClick={() => copyToClipboard(
+              inAddrNoPorts.split(",").join("\n"),
+              "入口地址",
+            )}
           >
-            {inAddrNoPorts.split(",").length > 1
-              ? `${inAddrNoPorts.split(",")[0].trim()} `
-              : inAddrNoPorts}
+            <span className="text-sm font-medium text-foreground truncate max-w-[80px] inline-block">
+              {inAddrNoPorts.split(",").length > 1
+                ? inAddrNoPorts.split(",")[0].trim()
+                : inAddrNoPorts}
+            </span>
             {inAddrNoPorts.split(",").length > 1 && (
-              <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full ml-0.5">
+              <span
+                className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full shrink-0 cursor-pointer hover:bg-default-300 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
+                }}
+              >
                 +{inAddrNoPorts.split(",").length - 1}
               </span>
             )}
@@ -1172,20 +1177,25 @@ const SortableCompactTableRow = ({
             <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
           </svg>
           <span
-            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate max-w-[100px] inline-block"
-            onClick={() => {
-              if (inAddrNoPorts.split(",").length > 1) {
-                showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
-              } else {
-                copyToClipboard(inAddrNoPorts, "入口地址");
-              }
-            }}
+            className="flex items-center gap-1 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+            onClick={() => copyToClipboard(
+              inAddrNoPorts.split(",").join("\n"),
+              "入口地址",
+            )}
           >
-            {inAddrNoPorts.split(",").length > 1
-              ? `${inAddrNoPorts.split(",")[0].trim()} `
-              : inAddrNoPorts}
+            <span className="text-sm font-medium text-foreground truncate max-w-[80px] inline-block">
+              {inAddrNoPorts.split(",").length > 1
+                ? inAddrNoPorts.split(",")[0].trim()
+                : inAddrNoPorts}
+            </span>
             {inAddrNoPorts.split(",").length > 1 && (
-              <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full ml-0.5">
+              <span
+                className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full shrink-0 cursor-pointer hover:bg-default-300 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
+                }}
+              >
                 +{inAddrNoPorts.split(",").length - 1}
               </span>
             )}
@@ -2897,58 +2907,56 @@ export default function ForwardPage() {
     setAddressModalOpen(true);
   };
   // 复制到剪贴板
-  const copyToClipboard = async (text: string, label: string = "内容") => {
+  const copyToClipboard = (text: string, label: string = "内容") => {
+    // 1. 安全环境 (HTTPS/localhost) 优先使用现代 API
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text)
+        .then(() => toast.success(`已复制${label}`))
+        .catch(() => {
+          window.prompt(`复制失败，请手动复制${label}：`, text);
+        });
+      return;
+    }
+
+    // 2. 非安全环境 (HTTP) 必须同步执行 execCommand，不能用 Promise 或 setTimeout，否则会丢失权限
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      // 完全隐藏
+      ta.style.cssText = "position:absolute;left:-9999px;top:0;opacity:0;";
+      ta.setAttribute("readonly", "");
+
+      // 🎯 核心破局点：将输入框挂载到当前获得焦点的元素（即被点击的按钮）内部！
+      // 这样 textarea 就处在 Modal 内部，FocusTrap 就不会拦截它的焦点了
+      const container = document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+      container.appendChild(ta);
+
+      ta.select();
+      ta.setSelectionRange(0, 999999); // 兼容 iOS
+
+      const ok = document.execCommand("copy");
+      ta.remove();
+
+      if (ok) {
         toast.success(`已复制${label}`);
       } else {
-        const textArea = document.createElement("textarea");
-
-        textArea.value = text;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-9999px";
-        textArea.style.top = "0";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try {
-          document.execCommand("copy");
-          toast.success(`已复制${label}`);
-        } catch (err) {
-          toast.error("复制失败");
-        }
-        document.body.removeChild(textArea);
+        window.prompt(`复制失败，请手动复制${label}：`, text);
       }
-    } catch {
-      toast.error("复制失败");
+    } catch (err) {
+      window.prompt(`复制失败，请手动复制${label}：`, text);
     }
   };
-  // 复制地址
-  const copyAddress = async (addressItem: ForwardAddressItem) => {
-    try {
-      setAddressList((prev) =>
-        prev.map((item) =>
-          item.id === addressItem.id ? { ...item, copying: true } : item,
-        ),
-      );
-      await copyToClipboard(addressItem.address, "地址");
-    } catch {
-      toast.error("复制失败");
-    } finally {
-      setAddressList((prev) =>
-        prev.map((item) =>
-          item.id === addressItem.id ? { ...item, copying: false } : item,
-        ),
-      );
-    }
+
+  const execCommandCopy = (text: string, label: string) => {
+    copyToClipboard(text, label); // 向下兼容其他地方的旧调用
   };
   // 复制所有地址
-  const copyAllAddresses = async () => {
+  const copyAllAddresses = () => {
     if (addressList.length === 0) return;
-    const allAddresses = addressList.map((item) => item.address).join("\n");
-
-    await copyToClipboard(allAddresses, "所有地址");
+    copyToClipboard(
+      addressList.map((item) => item.address).join("\n"),
+      "所有地址",
+    );
   };
   // 导出规则数据
   const handleExport = () => {
@@ -2990,8 +2998,8 @@ export default function ForwardPage() {
     }
   };
   // 复制导出数据
-  const copyExportData = async () => {
-    await copyToClipboard(exportData, "规则数据");
+  const copyExportData = () => {
+    copyToClipboard(exportData, "规则数据");
   };
   // 导入规则数据
   const handleImport = () => {
@@ -4360,25 +4368,30 @@ export default function ForwardPage() {
                     >
                       <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                     </svg>
-                    <code
-                      className="text-xs font-medium text-foreground font-bold truncate block flex-1 cursor-pointer max-w-[100px]"
-                      onClick={() => {
-                        if (inAddrNoPorts.split(",").length > 1) {
-                          showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
-                        } else {
-                          copyToClipboard(inAddrNoPorts, "入口地址");
-                        }
-                      }}
+                    <span
+                      className="flex items-center gap-1 flex-1 cursor-pointer"
+                      onClick={() => copyToClipboard(
+                        inAddrNoPorts.split(",").join("\n"),
+                        "入口地址",
+                      )}
                     >
-                      {inAddrNoPorts.split(",").length > 1
-                        ? `${inAddrNoPorts.split(",")[0].trim()} `
-                        : (forward.inIp || "").replace(/:\d+$/, "") || "默认IP"}
+                      <code className="text-xs font-medium text-foreground font-bold truncate block max-w-[80px]">
+                        {inAddrNoPorts.split(",").length > 1
+                          ? inAddrNoPorts.split(",")[0].trim()
+                          : (forward.inIp || "").replace(/:\d+$/, "") || "默认IP"}
+                      </code>
                       {inAddrNoPorts.split(",").length > 1 && (
-                        <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full ml-0.5">
+                        <span
+                          className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full shrink-0 cursor-pointer hover:bg-default-300 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
+                          }}
+                        >
                           +{inAddrNoPorts.split(",").length - 1}
                         </span>
                       )}
-                    </code>
+                    </span>
                   </div>
                 </div>
                 <div
@@ -5689,36 +5702,62 @@ export default function ForwardPage() {
         }}
         isOpen={addressModalOpen}
         scrollBehavior="outside"
-        size="lg"
+        size="md"
         onClose={() => setAddressModalOpen(false)}
       >
         <ModalContent>
           <ModalHeader className="text-base">{addressModalTitle}</ModalHeader>
           <ModalBody className="pb-6">
             <div className="mb-4 text-right">
-              <Button size="sm" onPress={copyAllAddresses}>
-                复制
-              </Button>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center px-3 h-8 text-sm font-medium bg-default-100 hover:bg-default-200 dark:bg-default-50 dark:hover:bg-default-200 rounded-lg transition-colors"
+                onClick={copyAllAddresses}
+              >
+                复制全部
+              </button>
             </div>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {addressList.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex justify-between items-center p-3 border border-default-200 dark:border-default-100 rounded-lg"
-                >
-                  <code className="text-sm flex-1 mr-3 text-foreground">
-                    {item.address}
-                  </code>
-                  <Button
-                    isLoading={item.copying}
-                    size="sm"
-                    variant="flat"
-                    onPress={() => copyAddress(item)}
+              {addressList.map((item) => {
+                const lastColon = item.address.lastIndexOf(":");
+                const host =
+                  lastColon > 0 ? item.address.substring(0, lastColon) : item.address;
+                const port =
+                  lastColon > 0 ? item.address.substring(lastColon + 1) : "";
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2 p-3 border border-default-200 dark:border-default-100 rounded-lg"
                   >
-                    复制
-                  </Button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <span
+                        className="text-sm text-foreground truncate cursor-pointer hover:text-primary transition-colors"
+                        onClick={() => copyToClipboard(host, "地址")}
+                      >
+                        {host}
+                      </span>
+                      <span className="text-sm text-default-500 shrink-0">:</span>
+                      <span
+                        className="text-sm text-foreground font-mono cursor-pointer hover:text-primary transition-colors shrink-0"
+                        onClick={() => copyToClipboard(port, "端口")}
+                      >
+                        {port}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center px-3 h-8 text-sm font-medium bg-default-100 hover:bg-default-200 dark:bg-default-50 dark:hover:bg-default-200 rounded-lg transition-colors shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(item.address, "完整地址");
+                      }}
+                    >
+                      复制
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </ModalBody>
         </ModalContent>
