@@ -2946,10 +2946,6 @@ export default function ForwardPage() {
       window.prompt(`复制失败，请手动复制${label}：`, text);
     }
   };
-
-  const execCommandCopy = (text: string, label: string) => {
-    copyToClipboard(text, label); // 向下兼容其他地方的旧调用
-  };
   // 复制所有地址
   const copyAllAddresses = () => {
     if (addressList.length === 0) return;
