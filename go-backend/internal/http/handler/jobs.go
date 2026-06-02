@@ -274,6 +274,7 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 		}
 
 		// 检查是否启用自动续费
+		resetReason := "到期自动归零"
 		if user.AutoRenew == 1 && user.RenewalAmount > 0 {
 			// 检查余额是否充足
 			if user.Balance >= user.RenewalAmount {
@@ -296,10 +297,12 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 					continue // 续费成功，跳过禁用
 				} else {
 					log.Printf("用户 %d 自动续费失败：%v，将执行禁用", userID, renewErr)
+					resetReason = "自动续费失败（扣款失败）"
 				}
 			} else {
 				log.Printf("用户 %d 余额不足：余额 %d 分，需要 %d 分，将执行禁用",
 					userID, user.Balance, user.RenewalAmount)
+				resetReason = "自动续费失败（余额不足）"
 			}
 		}
 
@@ -309,7 +312,7 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 			h.pauseForwardRecords(forwards, nowMs)
 		}
 
-		// 归零用户流量并记录日志（到期自动归零）
+		// 归零用户流量并记录日志
 		inFlowBefore := user.InFlow
 		outFlowBefore := user.OutFlow
 		totalBytes := inFlowBefore + outFlowBefore
@@ -329,7 +332,7 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 			UsedBytes:     totalBytes,
 			ResetTime:     nowMs,
 			CreatedTime:   nowMs,
-			ResetReason:   "到期自动归零",
+			ResetReason:   resetReason,
 		}
 		_ = h.repo.DB().Create(history).Error
 
