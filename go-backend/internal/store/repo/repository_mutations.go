@@ -189,7 +189,10 @@ func (r *Repository) ResetUserFlowByUser(userID int64, now int64) {
 	outFlowBefore := user.OutFlow
 	totalBytes := inFlowBefore + outFlowBefore
 
-	_ = r.db.Model(&model.User{}).
+	tx := r.db.Begin()
+	defer func() { tx.Rollback() }()
+
+	_ = tx.Model(&model.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{
 			"in_flow":      0,
@@ -197,31 +200,31 @@ func (r *Repository) ResetUserFlowByUser(userID int64, now int64) {
 			"updated_time": sql.NullInt64{Int64: now, Valid: true},
 		}).Error
 
-	_ = r.db.Model(&model.UserQuota{}).
+	_ = tx.Model(&model.UserQuota{}).
 		Where("user_id = ?", userID).
 		Updates(map[string]interface{}{
 			"monthly_used_bytes": 0,
 			"updated_time":       now,
 		}).Error
 
-	if totalBytes > 0 {
-		history := &model.UserQuotaHistory{
-			UserID:        userID,
-			PeriodType:    "monthly",
-			PeriodKey:     quota.MonthKey,
-			InFlowBefore:  inFlowBefore,
-			OutFlowBefore: outFlowBefore,
-			UsedBytes:     totalBytes,
-			ResetTime:     now,
-			CreatedTime:   now,
-			ResetReason:   "管理员手动归零",
-		}
-		r.db.Create(history)
+	history := &model.UserQuotaHistory{
+		UserID:        userID,
+		PeriodType:    "monthly",
+		PeriodKey:     quota.MonthKey,
+		InFlowBefore:  inFlowBefore,
+		OutFlowBefore: outFlowBefore,
+		UsedBytes:     totalBytes,
+		ResetTime:     now,
+		CreatedTime:   now,
+		ResetReason:   "管理员手动归零",
 	}
+	_ = tx.Create(history).Error
 
-	_ = r.db.Model(&model.UserTunnel{}).
+	_ = tx.Model(&model.UserTunnel{}).
 		Where("user_id = ?", userID).
 		Updates(map[string]interface{}{"in_flow": 0, "out_flow": 0}).Error
+
+	tx.Commit()
 }
 
 func (r *Repository) ResetUserFlowByUserTunnel(userTunnelID int64) {
@@ -2007,6 +2010,30 @@ func (r *Repository) DeleteUserRenewalLog(id int64) error {
 		return errors.New("repository not initialized")
 	}
 	return r.db.Delete(&model.UserRenewalLog{}, id).Error
+}
+
+func (r *Repository) CreateUserRenewalLog(userID int64, renewalAmount, balanceBefore, balanceAfter, expTimeBefore, expTimeAfter, now int64, operatorName, reason string) {
+	if r == nil || r.db == nil {
+		return
+	}
+	user, err := r.GetUserByID(userID)
+	if err != nil {
+		return
+	}
+	log := &model.UserRenewalLog{
+		UserID:          userID,
+		UserName:        user.User,
+		RenewalAmount:   renewalAmount,
+		BalanceBefore:   balanceBefore,
+		BalanceAfter:    balanceAfter,
+		ExpTimeBefore:   expTimeBefore,
+		ExpTimeAfter:    expTimeAfter,
+		RenewalTime:     now,
+		OperatorID:      sql.NullInt64{Int64: 1, Valid: true},
+		OperatorName:    sql.NullString{String: operatorName, Valid: true},
+		Reason:          reason,
+	}
+	_ = r.db.Create(log).Error
 }
 
 func (r *Repository) GetUserRenewalLogs(userID int64, limit int) ([]UserRenewalLogItem, error) {

@@ -27,6 +27,7 @@ import type {
   UserListQuery,
   UserPackageInfoApiData,
   UserQuotaHistoryItem,
+  UserRenewalLogItem,
   UserTunnelPermissionApiItem,
   TunnelApiItem,
   UserTunnelApiItem,
@@ -333,6 +334,8 @@ export const getUserQuotaHistory = (userId: number, limit: number = 50) =>
 export const deleteUserQuotaHistory = (id: number) =>
   Network.post("/user/quota/history/delete", { id });
 
+export const getUserRenewalLogs = (userId: number, limit: number = 50) =>
+  Network.post<UserRenewalLogItem[]>("/user/renewal-logs", { userId, limit });
 export const deleteUserRenewalLog = (id: number) =>
   Network.post("/user/renewal-log/delete", { id });
 

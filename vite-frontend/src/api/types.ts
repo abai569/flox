@@ -660,7 +660,7 @@ export interface OfflineDeployPayload {
 // 用户流量历史项
 export interface UserQuotaHistoryItem {
   id: number;
-  periodType: "daily" | "monthly";
+  periodType: "daily" | "monthly" | "tunnel";
   periodKey: number; // YYYYMMDD 或 YYYYMM
   usedBytes: number;
   inFlowBefore: number;
@@ -671,6 +671,21 @@ export interface UserQuotaHistoryItem {
   resetTime: number;
   createdTime: number;
   resetReason?: string;
+}
+
+// 续费记录
+export interface UserRenewalLogItem {
+  id: number;
+  userId: number;
+  userName: string;
+  renewalAmount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  expTimeBefore: number;
+  expTimeAfter: number;
+  renewalTime: number;
+  operatorName: string;
+  reason: string;
 }
 
 export interface TrafficHistoryItem {

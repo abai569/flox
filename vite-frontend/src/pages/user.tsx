@@ -1,5 +1,4 @@
-import type { UserQuotaHistoryItem } from "@/api/types";
-import type { UserRenewalLog } from "@/types";
+import type { UserQuotaHistoryItem, UserRenewalLogItem } from "@/api/types";
 
 import React, {
   useState,
@@ -96,6 +95,7 @@ import {
   updateUserOrder,
   getUserQuotaHistory,
   deleteUserQuotaHistory,
+  getUserRenewalLogs,
   deleteUserRenewalLog,
   batchUpdateUserTunnelStatus,
   getConfigByName,
@@ -340,7 +340,7 @@ export default function UserPage() {
   const [isRenewalLogModalOpen, setIsRenewalLogModalOpen] = useState(false);
   const [selectedRenewalLogUser, setSelectedRenewalLogUser] =
     useState<User | null>(null);
-  const [renewalLogs, setRenewalLogs] = useState<UserRenewalLog[]>([]);
+  const [renewalLogs, setRenewalLogs] = useState<UserRenewalLogItem[]>([]);
   const [renewalLogLoading, setRenewalLogLoading] = useState(false);
   const [renewalLogToDelete, setRenewalLogToDelete] = useState<number | null>(
     null,
@@ -1218,22 +1218,10 @@ export default function UserPage() {
     setRenewalLogs([]);
 
     try {
-      const response = await fetch("/api/v1/user/renewal-logs", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: localStorage.token,
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          limit: 50,
-        }),
-      });
+      const res = await getUserRenewalLogs(user.id, 50);
 
-      const data = await response.json();
-
-      if (data.code === 0) {
-        setRenewalLogs(data.data || []);
+      if (res.code === 0) {
+        setRenewalLogs(res.data || []);
       }
     } catch (error) {
       console.error("获取续费日志失败:", error);
@@ -1251,21 +1239,10 @@ export default function UserPage() {
         toast.success("删除成功");
         if (selectedRenewalLogUser) {
           try {
-            const refreshRes = await fetch("/api/v1/user/renewal-logs", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: localStorage.token,
-              },
-              body: JSON.stringify({
-                userId: selectedRenewalLogUser.id,
-                limit: 50,
-              }),
-            });
-            const refreshData = await refreshRes.json();
+            const refreshRes = await getUserRenewalLogs(selectedRenewalLogUser.id, 50);
 
-            if (refreshData.code === 0) {
-              setRenewalLogs(refreshData.data || []);
+            if (refreshRes.code === 0) {
+              setRenewalLogs(refreshRes.data || []);
             }
           } catch {}
         }

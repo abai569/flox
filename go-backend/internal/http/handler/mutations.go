@@ -20,6 +20,7 @@ import (
 
 	"go-backend/internal/auth"
 	"go-backend/internal/http/client"
+	httpmiddleware "go-backend/internal/http/middleware"
 	"go-backend/internal/http/response"
 	"go-backend/internal/middleware"
 	"go-backend/internal/security"
@@ -288,6 +289,17 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 			h.repo.CreateBalanceLog(id, username, diff, oldUser.Balance, balance, now, "管理员充值")
 		} else {
 			h.repo.CreateBalanceLog(id, username, diff, oldUser.Balance, balance, now, "管理员扣减")
+		}
+	}
+
+	if oldUser != nil && (oldUser.ExpTime != expTime || oldUser.Balance != balance) {
+		operatorName := "管理员"
+		if claims, ok := r.Context().Value(httpmiddleware.ClaimsContextKey).(auth.Claims); ok {
+			operatorName = claims.User
+		}
+		balanceDiff := balance - oldUser.Balance
+		if balanceDiff > 0 || oldUser.ExpTime != expTime {
+			h.repo.CreateUserRenewalLog(id, balanceDiff, oldUser.Balance, balance, oldUser.ExpTime, expTime, now, operatorName, "管理员充值续费")
 		}
 	}
 
