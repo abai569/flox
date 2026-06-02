@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 )
 
@@ -302,11 +303,43 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 			}
 		}
 
-		// 余额不足或未启用自动续费：执行禁用
+		// 余额不足或未启用自动续费：执行禁用 + 归零流量
 		forwards, err := h.listActiveForwardsByUser(userID)
 		if err == nil {
 			h.pauseForwardRecords(forwards, nowMs)
 		}
+
+		// 归零用户流量并记录日志（到期自动归零）
+		inFlowBefore := user.InFlow
+		outFlowBefore := user.OutFlow
+		totalBytes := inFlowBefore + outFlowBefore
+
+		_ = h.repo.DB().Model(&model.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+			"in_flow":      0,
+			"out_flow":     0,
+			"updated_time": nowMs,
+		}).Error
+
+		history := &model.UserQuotaHistory{
+			UserID:        userID,
+			PeriodType:    "monthly",
+			PeriodKey:     int64(time.UnixMilli(nowMs).Year()*100 + int(time.UnixMilli(nowMs).Month())),
+			InFlowBefore:  inFlowBefore,
+			OutFlowBefore: outFlowBefore,
+			UsedBytes:     totalBytes,
+			ResetTime:     nowMs,
+			CreatedTime:   nowMs,
+			ResetReason:   "到期自动归零",
+		}
+		_ = h.repo.DB().Create(history).Error
+
+		// 归零 UserTunnel 流量（不记录日志）
+		_ = h.repo.DB().Model(&model.UserTunnel{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
+			"in_flow":  0,
+			"out_flow": 0,
+		}).Error
+
+		// 禁用用户
 		_ = h.repo.DisableUser(userID)
 	}
 }
