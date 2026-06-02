@@ -412,8 +412,10 @@ export const batchResetForward = (forwardIds: number[]) =>
     forwardIds,
   });
 export const getForwardTrafficResetLogs = (forwardId: number, limit?: number) =>
-  Network.post<
-    {
+  Network.post<{
+    forwardId: number;
+    forwardName: string;
+    logs: {
       id: number;
       forwardId: number;
       forwardName: string;
@@ -426,13 +428,15 @@ export const getForwardTrafficResetLogs = (forwardId: number, limit?: number) =>
       operatorName: string;
       reason: string;
       createdTime: number;
-    }[]
-  >("/forward/traffic-reset-logs", { forwardId, limit });
+    }[];
+  }>("/forward/traffic-reset-logs", { forwardId, limit });
 export const deleteForwardTrafficResetLog = (id: number) =>
   Network.post("/forward/traffic-reset-log/delete", { id });
 export const getNodeTrafficResetLogs = (nodeId: number, limit?: number) =>
-  Network.post<
-    {
+  Network.post<{
+    nodeId: number;
+    nodeName: string;
+    logs: {
       id: number;
       nodeId: number;
       nodeName: string;
@@ -443,8 +447,8 @@ export const getNodeTrafficResetLogs = (nodeId: number, limit?: number) =>
       inFlowBefore: number;
       outFlowBefore: number;
       createdTime: number;
-    }[]
-  >("/node/traffic-reset-logs", { nodeId, limit });
+    }[];
+  }>("/node/traffic-reset-logs", { nodeId, limit });
 export const deleteNodeTrafficResetLog = (id: number) =>
   Network.post("/node/traffic-reset-log/delete", { id });
 export const batchRedeployForwards = (ids: number[]) =>

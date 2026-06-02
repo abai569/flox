@@ -2406,7 +2406,7 @@ export default function ForwardPage() {
         );
 
         if (refreshRes.code === 0) {
-          setTrafficResetLogs(refreshRes.data || []);
+          setTrafficResetLogs((refreshRes.data as any)?.logs || []);
         }
         setDeleteLogModalOpen(false);
         setLogToDelete(null);
