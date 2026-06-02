@@ -2142,28 +2142,6 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           {user.expTime && user.expTime > 0 ? (
                             <div className="flex items-center gap-1">
-                              <Button
-                                isIconOnly
-                                className="w-6 h-6 min-w-6"
-                                size="sm"
-                                variant="flat"
-                                onPress={() => handleOpenRenewalLogModal(user)}
-                              >
-                                <svg
-                                  aria-hidden="true"
-                                  className="w-4 h-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth={2}
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    d="M19 9l-7 7-7-7"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </Button>
                               {expStatus?.color === "success" ? (
                                 <span className="text-sm text-primary">
                                   {new Date(user.expTime)
@@ -2198,11 +2176,35 @@ export default function UserPage() {
                           )}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          <span className="text-sm text-default-600">
-                            {user.renewalAmount && user.renewalAmount > 0
-                              ? `${user.renewalAmount}元`
-                              : "-"}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              isIconOnly
+                              className="w-6 h-6 min-w-6"
+                              size="sm"
+                              variant="flat"
+                              onPress={() => handleOpenRenewalLogModal(user)}
+                            >
+                              <svg
+                                aria-hidden="true"
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  d="M19 9l-7 7-7-7"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </Button>
+                            <span className="text-sm text-default-600">
+                              {user.renewalAmount && user.renewalAmount > 0
+                                ? `${user.renewalAmount}元`
+                                : "-"}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span
@@ -2464,37 +2466,49 @@ export default function UserPage() {
                                         {expStatus?.text || "未知状态"}
                                       </span>
                                     )}
-                                    <Button
-                                      isIconOnly
-                                      className="w-5 h-5 min-w-5"
-                                      size="sm"
-                                      variant="flat"
-                                      onPress={(e) => {
-                                        e?.stopPropagation();
-                                        handleOpenRenewalLogModal(user);
-                                      }}
-                                    >
-                                      <svg
-                                        aria-hidden="true"
-                                        className="w-3 h-3"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth={2}
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          d="M19 9l-7 7-7-7"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                        />
-                                      </svg>
-                                    </Button>
                                   </>
                                 ) : (
                                   <span className="text-xs text-default-600">
                                     永久
                                   </span>
                                 )}
+                              </div>
+                            </div>
+                            <div className="flex justify-between text-sm items-center">
+                              <span className="text-default-600 text-xs">
+                                续费金额
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  isIconOnly
+                                  className="w-5 h-5 min-w-5"
+                                  size="sm"
+                                  variant="flat"
+                                  onPress={(e) => {
+                                    e?.stopPropagation();
+                                    handleOpenRenewalLogModal(user);
+                                  }}
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    className="w-3 h-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      d="M19 9l-7 7-7-7"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                </Button>
+                                <span className="text-xs font-medium text-default-700">
+                                  {user.renewalAmount && user.renewalAmount > 0
+                                    ? `${user.renewalAmount}元`
+                                    : "-"}
+                                </span>
                               </div>
                             </div>
                             <div className="flex justify-between text-sm items-center">
@@ -2515,16 +2529,6 @@ export default function UserPage() {
                               </span>
                               <span className="font-medium text-xs">
                                 {user.num}个
-                              </span>
-                            </div>
-                            <div className="flex justify-between text-sm items-center">
-                              <span className="text-default-600 text-xs">
-                                续费金额
-                              </span>
-                              <span className="text-xs font-medium text-default-700">
-                                {user.renewalAmount && user.renewalAmount > 0
-                                  ? `${user.renewalAmount}元`
-                                  : "-"}
                               </span>
                             </div>
                             <div className="flex justify-between text-sm items-center">
