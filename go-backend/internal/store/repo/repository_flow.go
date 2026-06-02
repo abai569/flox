@@ -107,6 +107,39 @@ func (r *Repository) ListActiveForwardsByUserTunnel(userID, tunnelID int64) ([]m
 	return rows, nil
 }
 
+func (r *Repository) ListActiveForwardsByTunnel(tunnelID int64) ([]model.ForwardRecord, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var forwards []model.Forward
+	err := r.db.Where("tunnel_id = ? AND status = 1", tunnelID).Order("id ASC").Find(&forwards).Error
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]model.ForwardRecord, 0, len(forwards))
+	for _, f := range forwards {
+		rows = append(rows, model.ForwardRecord{
+			ID:             f.ID,
+			UserID:         f.UserID,
+			UserName:       f.UserName,
+			Name:           f.Name,
+			TunnelID:       f.TunnelID,
+			RemoteAddr:     f.RemoteAddr,
+			Strategy:       f.Strategy,
+			Status:         f.Status,
+			SpeedID:        f.SpeedID,
+			MaxConnections: f.MaxConnections,
+			Mode:           f.Mode,
+		})
+	}
+	for i := range rows {
+		if strings.TrimSpace(rows[i].Strategy) == "" {
+			rows[i].Strategy = "fifo"
+		}
+	}
+	return rows, nil
+}
+
 func (r *Repository) ListForwardsByUserAndTunnel(userID, tunnelID int64) ([]model.ForwardRecord, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")

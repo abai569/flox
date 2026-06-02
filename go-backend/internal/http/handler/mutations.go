@@ -1593,11 +1593,13 @@ func (h *Handler) tunnelToggleStatus(w http.ResponseWriter, r *http.Request) {
 	// 禁用时级联禁用 UserTunnel + 暂停关联的转发
 	if newStatus == 0 {
 		nowMs := time.Now().UnixMilli()
+		// 直接按隧道ID暂停所有活跃转发，不依赖 user_tunnel 记录
+		if forwards, err := h.listActiveForwardsByTunnel(id); err == nil {
+			h.pauseForwardRecords(forwards, nowMs)
+		}
+		// 清理 user_tunnel 记录
 		userTunnels, _ := h.repo.ListActiveUserTunnelsByTunnel(id)
 		for _, ut := range userTunnels {
-			if forwards, err := h.listActiveForwardsByUserTunnel(ut.UserID, ut.TunnelID); err == nil {
-				h.pauseForwardRecords(forwards, nowMs)
-			}
 			_ = h.repo.DisableUserTunnel(ut.ID)
 		}
 	}
@@ -1804,11 +1806,13 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	// 禁用隧道时级联禁用 UserTunnel + 暂停关联的转发
 	if asInt(req["status"], 1) == 0 {
 		nowMs := time.Now().UnixMilli()
+		// 直接按隧道ID暂停所有活跃转发，不依赖 user_tunnel 记录
+		if forwards, err := h.listActiveForwardsByTunnel(id); err == nil {
+			h.pauseForwardRecords(forwards, nowMs)
+		}
+		// 清理 user_tunnel 记录
 		userTunnels, _ := h.repo.ListActiveUserTunnelsByTunnel(id)
 		for _, ut := range userTunnels {
-			if forwards, err := h.listActiveForwardsByUserTunnel(ut.UserID, ut.TunnelID); err == nil {
-				h.pauseForwardRecords(forwards, nowMs)
-			}
 			_ = h.repo.DisableUserTunnel(ut.ID)
 		}
 	}

@@ -489,6 +489,10 @@ func (h *Handler) listActiveForwardsByUserTunnel(userID int64, tunnelID int64) (
 	return h.repo.ListActiveForwardsByUserTunnel(userID, tunnelID)
 }
 
+func (h *Handler) listActiveForwardsByTunnel(tunnelID int64) ([]forwardRecord, error) {
+	return h.repo.ListActiveForwardsByTunnel(tunnelID)
+}
+
 func (h *Handler) cleanNodeConfigs(nodeID int64, rawConfig string) {
 	if h == nil || h.repo == nil || nodeID <= 0 {
 		return
