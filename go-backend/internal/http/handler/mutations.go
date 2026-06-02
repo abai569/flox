@@ -3283,7 +3283,9 @@ func (h *Handler) forwardDelete(w http.ResponseWriter, r *http.Request) {
 		bases, _ := h.forwardServiceBaseCandidates(forward)
 		if len(bases) > 0 {
 			for _, fp := range ports {
-				_ = h.deleteForwardServiceBasesOnNode(fp.NodeID, bases)
+				if err := h.deleteForwardServiceBasesOnNode(fp.NodeID, bases); err != nil {
+					log.Printf("forward %d 清理节点 %d 基础服务失败: %v", id, fp.NodeID, err)
+				}
 			}
 		}
 	} else {
@@ -3598,9 +3600,7 @@ func (h *Handler) forwardBatchPause(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if err := h.controlForwardServices(forward, "TerminateConnections", false); err != nil {
-				f++
-				failures = appendBatchFailure(failures, id, forward.Name, err)
-				continue
+				log.Printf("forward %d TerminateConnections 失败: %v", id, err)
 			}
 		}
 		if err := h.repo.UpdateForwardStatus(id, 0, time.Now().UnixMilli()); err != nil {
@@ -3646,6 +3646,11 @@ func (h *Handler) forwardBatchResume(w http.ResponseWriter, r *http.Request) {
 			failures = appendBatchFailure(failures, id, forward.Name, err)
 			continue
 		}
+
+		// 先更新状态，避免 syncForwardServicesWithWarnings 末尾的暂停检查删除刚添加的规则
+		_ = h.repo.UpdateForwardStatus(id, 1, now)
+		forward.Status = 1
+
 		if strings.EqualFold(forward.Mode, "nftables") {
 			if err := h.syncForwardServices(forward, "UpdateService", true); err != nil {
 				f++
