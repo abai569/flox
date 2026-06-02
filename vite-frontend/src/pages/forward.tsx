@@ -5724,7 +5724,7 @@ export default function ForwardPage() {
                       >
                         {host}
                       </span>
-                      <span className="text-sm text-default-500 shrink-0">:</span>
+                      <span className="text-sm text-default-600 shrink-0">:</span>
                       <span
                         className="text-sm text-foreground font-mono cursor-pointer hover:text-primary transition-colors shrink-0"
                         onClick={() => copyToClipboard(port, "端口")}
