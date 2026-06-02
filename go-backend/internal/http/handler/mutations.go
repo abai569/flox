@@ -3599,6 +3599,7 @@ func (h *Handler) forwardBatchPause(w http.ResponseWriter, r *http.Request) {
 			if err := h.controlForwardServices(forward, "TerminateConnections", false); err != nil {
 				f++
 				failures = appendBatchFailure(failures, id, forward.Name, err)
+				continue
 			}
 		}
 		if err := h.repo.UpdateForwardStatus(id, 0, time.Now().UnixMilli()); err != nil {
