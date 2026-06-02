@@ -726,6 +726,7 @@ const SortableTableRow = ({
   formatSpeed,
   isAdmin,
   togglingIds,
+  showAddressModal,
 }: any) => {
   const {
     attributes,
@@ -841,12 +842,22 @@ const SortableTableRow = ({
           </svg>
           <span
             className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate max-w-[100px] inline-block"
-            title={inAddrNoPorts}
-            onClick={() =>
-              copyToClipboard(inAddrNoPorts.split(",").join("\n"), "入口地址")
-            }
+            onClick={() => {
+              if (inAddrNoPorts.split(",").length > 1) {
+                showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
+              } else {
+                copyToClipboard(inAddrNoPorts, "入口地址");
+              }
+            }}
           >
-            {inAddrNoPorts}
+            {inAddrNoPorts.split(",").length > 1
+              ? `${inAddrNoPorts.split(",")[0].trim()} `
+              : inAddrNoPorts}
+            {inAddrNoPorts.split(",").length > 1 && (
+              <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full ml-0.5">
+                +{inAddrNoPorts.split(",").length - 1}
+              </span>
+            )}
           </span>
         </div>
       </TableCell>
@@ -1035,6 +1046,7 @@ const SortableCompactTableRow = ({
   formatSpeed,
   isAdmin,
   togglingIds,
+  showAddressModal,
 }: any) => {
   const {
     attributes,
@@ -1161,12 +1173,22 @@ const SortableCompactTableRow = ({
           </svg>
           <span
             className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate max-w-[100px] inline-block"
-            title={inAddrNoPorts}
-            onClick={() =>
-              copyToClipboard(inAddrNoPorts.split(",").join("\n"), "入口地址")
-            }
+            onClick={() => {
+              if (inAddrNoPorts.split(",").length > 1) {
+                showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
+              } else {
+                copyToClipboard(inAddrNoPorts, "入口地址");
+              }
+            }}
           >
-            {inAddrNoPorts}
+            {inAddrNoPorts.split(",").length > 1
+              ? `${inAddrNoPorts.split(",")[0].trim()} `
+              : inAddrNoPorts}
+            {inAddrNoPorts.split(",").length > 1 && (
+              <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full ml-0.5">
+                +{inAddrNoPorts.split(",").length - 1}
+              </span>
+            )}
           </span>
         </div>
       </TableCell>
@@ -4340,15 +4362,22 @@ export default function ForwardPage() {
                     </svg>
                     <code
                       className="text-xs font-medium text-foreground font-bold truncate block flex-1 cursor-pointer max-w-[100px]"
-                      title={inAddrNoPorts}
-                      onClick={() =>
-                        copyToClipboard(
-                          inAddrNoPorts.split(",").join("\n"),
-                          "入口地址",
-                        )
-                      }
+                      onClick={() => {
+                        if (inAddrNoPorts.split(",").length > 1) {
+                          showAddressModal(inAddrNoPorts, forward.inPort, "入口地址");
+                        } else {
+                          copyToClipboard(inAddrNoPorts, "入口地址");
+                        }
+                      }}
                     >
-                      {(forward.inIp || "").replace(/:\d+$/, "") || "默认IP"}
+                      {inAddrNoPorts.split(",").length > 1
+                        ? `${inAddrNoPorts.split(",")[0].trim()} `
+                        : (forward.inIp || "").replace(/:\d+$/, "") || "默认IP"}
+                      {inAddrNoPorts.split(",").length > 1 && (
+                        <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full ml-0.5">
+                          +{inAddrNoPorts.split(",").length - 1}
+                        </span>
+                      )}
                     </code>
                   </div>
                 </div>
@@ -5214,6 +5243,7 @@ export default function ForwardPage() {
                                               }
                                               isAdmin={isAdmin}
                                               selectedIds={selectedIds}
+                                              showAddressModal={showAddressModal}
                                               toggleSelect={toggleSelect}
                                               togglingIds={togglingIds}
                                             />
