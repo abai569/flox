@@ -208,6 +208,11 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now().UnixMilli()
 
+	// 到期时间在未来，自动启用用户
+	if expTime > now && status == 0 {
+		status = 1
+	}
+
 	oldUser, _ := h.repo.GetUserByID(id)
 
 	name := asString(req["name"]) // 解析前端传来的备注名称
