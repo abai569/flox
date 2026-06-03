@@ -168,6 +168,21 @@ type ServiceMonitorCheckResult struct {
 	ErrorMessage string  `json:"errorMessage,omitempty"`
 }
 
+// ListServicesResult 返回当前注册的所有 GOST 服务状态
+type ListServicesResult struct {
+	Services []ServiceStatus `json:"services"`
+}
+
+// ServiceStatus 单个服务的运行时状态
+type ServiceStatus struct {
+	Name      string `json:"name"`
+	Addr      string `json:"addr"`
+	State     string `json:"state"`
+	Listener  string `json:"listener"`
+	Handler   string `json:"handler"`
+	Chain     string `json:"chain,omitempty"`
+}
+
 const (
 	reporterReadWait  = 60 * time.Second
 	reporterWriteWait = 5 * time.Second
@@ -1374,6 +1389,13 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		response.Data = tcpPingResult
 		// needSaveConfig = false (默认值)
 
+	// List local GOST services (read-only)
+	case "ListServices":
+		var listResult ListServicesResult
+		listResult, err = w.handleListServices(cmd.Data)
+		response.Type = "ListServicesResponse"
+		response.Data = listResult
+
 	// Service monitor check (read-only)
 	case "ServiceMonitorCheck":
 		var checkResult ServiceMonitorCheckResult
@@ -2552,6 +2574,54 @@ func (w *WebSocketReporter) handleServiceMonitorCheck(data interface{}) (Service
 	res.ErrorMessage = "未知错误"
 	res.LatencyMs = float64(time.Since(start).Milliseconds())
 	return res, nil
+}
+
+func (w *WebSocketReporter) handleListServices(data interface{}) (ListServicesResult, error) {
+	result := ListServicesResult{
+		Services: make([]ServiceStatus, 0),
+	}
+
+	cfg := config.Global()
+	serviceConfigs := make(map[string]*config.ServiceConfig)
+	for _, s := range cfg.Services {
+		if s != nil {
+			serviceConfigs[strings.TrimSpace(s.Name)] = s
+		}
+	}
+
+	for name, svc := range registry.ServiceRegistry().GetAll() {
+		status := ServiceStatus{
+			Name: name,
+		}
+
+		if svc != nil {
+			if addr := svc.Addr(); addr != nil {
+				status.Addr = addr.String()
+			}
+		}
+
+		// Try to get runtime state via type assertion to *xservice.defaultService
+		if stater, ok := svc.(interface{ Status() *service.Status }); ok {
+			if st := stater.Status(); st != nil {
+				status.State = string(st.State())
+			}
+		}
+
+		// Enrich with config info
+		if svcCfg, ok := serviceConfigs[name]; ok && svcCfg != nil {
+			if svcCfg.Listener != nil {
+				status.Listener = strings.TrimSpace(svcCfg.Listener.Type)
+			}
+			if svcCfg.Handler != nil {
+				status.Handler = strings.TrimSpace(svcCfg.Handler.Type)
+				status.Chain = strings.TrimSpace(svcCfg.Handler.Chain)
+			}
+		}
+
+		result.Services = append(result.Services, status)
+	}
+
+	return result, nil
 }
 
 func icmpPing(target string, timeout time.Duration) (time.Duration, error) {

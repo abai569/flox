@@ -1385,7 +1385,60 @@ func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nod
 		h.appendFailedDiagnosis(results, nodeCache, fromNodeID, strings.Trim(strings.TrimSpace(targetNode.ServerIP), "[]"), toNode.Port, description, metadata, err.Error())
 		return
 	}
-	h.appendPathDiagnosis(results, nodeCache, fromNodeID, targetIP, targetPort, description, metadata, options)
+
+	item := newDiagnosisResultItem(fromNodeID, targetIP, targetPort, description, metadata)
+	if fromNode != nil {
+		item["nodeName"] = fromNode.Name
+	}
+
+	var pingData map[string]interface{}
+	var pingErr error
+	if fromNode != nil && fromNode.IsRemote == 1 {
+		pingData, pingErr = h.tcpPingViaRemoteNode(fromNode, targetIP, targetPort, options)
+	} else {
+		pingData, pingErr = h.tcpPingViaNode(fromNodeID, targetIP, targetPort, options)
+	}
+	if pingErr != nil {
+		item["success"] = false
+		item["message"] = pingErr.Error()
+		*results = append(*results, item)
+		return
+	}
+
+	success := asBool(pingData["success"], false)
+	item["success"] = success
+	item["averageTime"] = asFloat(pingData["averageTime"], 0)
+	item["packetLoss"] = asFloat(pingData["packetLoss"], 100)
+
+	msg := strings.TrimSpace(asString(pingData["message"]))
+	if success {
+		if msg == "" {
+			msg = "TCP连接成功"
+		}
+		// TCP ping 通过后，尝试检查目标节点的服务状态（仅辅助信息，不覆盖 TCP ping 结果）
+		if targetNode != nil && targetNode.IsRemote != 1 {
+			svcState, svcErr := h.checkServiceStatusViaNode(toNode.NodeID, targetPort, options)
+			if svcErr == nil {
+				item["serviceState"] = svcState
+				msg = fmt.Sprintf("%s，服务状态正常(%s)", msg, svcState)
+			} else {
+				item["serviceState"] = svcState
+				// 服务状态检查失败时记录到 message 但不覆盖 success（例如节点离线时无法检查）
+				if !strings.Contains(svcErr.Error(), "节点不在线") {
+					msg = fmt.Sprintf("%s，服务状态警告: %v", msg, svcErr)
+				}
+			}
+		}
+	} else {
+		if msg == "" {
+			msg = strings.TrimSpace(asString(pingData["errorMessage"]))
+		}
+		if msg == "" {
+			msg = "TCP连接失败"
+		}
+	}
+	item["message"] = msg
+	*results = append(*results, item)
 }
 
 func (h *Handler) appendExitTestRotation(results *[]map[string]interface{}, fromNodeID int64, description string, metadata map[string]interface{}, options diagnosisExecOptions) {
@@ -1498,6 +1551,48 @@ func firstPortFromRange(portRange string) int {
 
 func (h *Handler) listChainNodesForTunnel(tunnelID int64) ([]chainNodeRecord, error) {
 	return h.repo.ListChainNodesForTunnel(tunnelID)
+}
+
+// checkServiceStatusViaNode sends a ListServices command to the target node and
+// checks whether a service is listening on the specified port with a healthy state.
+func (h *Handler) checkServiceStatusViaNode(nodeID int64, port int, options diagnosisExecOptions) (string, error) {
+	if options.commandTimeout <= 0 {
+		options.commandTimeout = diagnosisCommandTimeout
+	}
+	res, err := h.sendNodeCommandWithTimeout(nodeID, "ListServices", map[string]interface{}{}, options.commandTimeout, false, false)
+	if err != nil {
+		return "", err
+	}
+	if res.Data == nil {
+		return "", errors.New("节点未返回服务列表")
+	}
+	servicesRaw, ok := res.Data["services"].([]interface{})
+	if !ok || len(servicesRaw) == 0 {
+		return "", errors.New("节点服务列表为空")
+	}
+	for _, s := range servicesRaw {
+		svc, ok := s.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		addr := asString(svc["addr"])
+		if addr == "" {
+			continue
+		}
+		_, svcPort, splitErr := net.SplitHostPort(addr)
+		if splitErr != nil {
+			continue
+		}
+		if asInt(svcPort, 0) != port {
+			continue
+		}
+		state := strings.ToLower(asString(svc["state"]))
+		if state == "running" || state == "ready" {
+			return state, nil
+		}
+		return state, fmt.Errorf("服务状态异常: %s", state)
+	}
+	return "", fmt.Errorf("端口 %d 无监听服务", port)
 }
 
 func (h *Handler) tcpPingViaNode(nodeID int64, ip string, port int, options diagnosisExecOptions) (map[string]interface{}, error) {
