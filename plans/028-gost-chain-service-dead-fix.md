@@ -105,7 +105,7 @@ _, _ = h.sendNodeCommand(row.NodeID, "DeleteService", ..., false, true)
 - [x] 修复 1：Agent 侧服务 watchdog 自动恢复
 - [x] 修复 2：Agent 侧 WebSocket 重连后配置同步
 - [x] 修复 3：后端 cleanupTunnelRuntime 重试和日志
-- [ ] 修复 4：诊断增加服务状态验证（后续迭代：需在 agent 新增 `ListServices` 命令）
+- [x] 修复 4：诊断增加服务状态验证（已在 agent 新增 `ListServices` 命令，后端诊断调用验证）
 - [x] 修复 5：resolveChainNextHop 退化修复
 - [x] 验证：诊断 contract 测试通过 (`TestDiagnosisChainCoverageContracts`, `TestDiagnosisUsesFederationRuntimeForRemoteNodes`)
 - [x] 验证：联邦 contract 测试通过 (`TestFederationDualPanelMiddleExitAutoPortContract` 等)
