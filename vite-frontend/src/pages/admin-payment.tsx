@@ -264,9 +264,22 @@ export default function AdminPaymentPage() {
       try {
         const parsed = JSON.parse(yipayConfig.config);
 
-        setYipay({ enabled: !!yipayConfig.enabled, ...parsed });
+        setYipay({
+          enabled: !!yipayConfig.enabled,
+          gateway_url: parsed.gateway_url || "",
+          pid: parsed.pid || "",
+          key: parsed.key || "",
+          notify_url:
+            parsed.notify_url || panelUrl + "/api/v1/payment/callback/yipay",
+          return_url: parsed.return_url || panelUrl + "/shop",
+        });
       } catch {
-        setYipay((p) => ({ ...p, enabled: !!yipayConfig.enabled }));
+        setYipay((p) => ({
+          ...p,
+          enabled: !!yipayConfig.enabled,
+          notify_url: panelUrl + "/api/v1/payment/callback/yipay",
+          return_url: panelUrl + "/shop",
+        }));
       }
     }
   }, [yipayConfig]);
@@ -866,45 +879,27 @@ export default function AdminPaymentPage() {
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">
                       异步通知地址
                     </label>
-                    <div className="h-10 flex items-center justify-between px-3 border border-default-200 rounded-lg bg-gray-50 dark:bg-gray-900 text-sm">
-                      <span className="truncate text-xs text-gray-600 dark:text-gray-400 mr-2">
-                        {panelUrl}/api/v1/payment/callback/yipay
-                      </span>
-                      <Button
-                        className="shrink-0"
-                        size="sm"
-                        variant="flat"
-                        onPress={() => {
-                          navigator.clipboard.writeText(
-                            panelUrl + "/api/v1/payment/callback/yipay",
-                          );
-                          toast.success("已复制");
-                        }}
-                      >
-                        复制
-                      </Button>
-                    </div>
+                    <Input
+                      placeholder={panelUrl + "/api/v1/payment/callback/yipay"}
+                      value={yipay.notify_url}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setYipay((p) => ({ ...p, notify_url: e.target.value }))
+                      }
+                    />
                   </div>
                   <div>
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">
                       同步跳转地址
                     </label>
-                    <div className="h-10 flex items-center justify-between px-3 border border-default-200 rounded-lg bg-gray-50 dark:bg-gray-900 text-sm">
-                      <span className="truncate text-xs text-gray-600 dark:text-gray-400 mr-2">
-                        {panelUrl}/shop
-                      </span>
-                      <Button
-                        className="shrink-0"
-                        size="sm"
-                        variant="flat"
-                        onPress={() => {
-                          navigator.clipboard.writeText(panelUrl + "/shop");
-                          toast.success("已复制");
-                        }}
-                      >
-                        复制
-                      </Button>
-                    </div>
+                    <Input
+                      placeholder={panelUrl + "/shop"}
+                      value={yipay.return_url}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setYipay((p) => ({ ...p, return_url: e.target.value }))
+                      }
+                    />
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
