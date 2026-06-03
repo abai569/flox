@@ -168,6 +168,7 @@ export default function AdminPaymentPage() {
 
   const [yipay, setYipay] = useState<YiPayForm>(defaultYiPay);
   const [usdt, setUsdt] = useState<UsdtForm>(defaultUsdt);
+  const [editingYiPayKey, setEditingYiPayKey] = useState(false);
   const [editingUsdtKey, setEditingUsdtKey] = useState(false);
 
   const [testChannel, setTestChannel] = useState("YIPAY");
@@ -809,24 +810,31 @@ export default function AdminPaymentPage() {
                     isSelected={yipay.enabled}
                     size="lg"
                     onValueChange={async (v) => {
-                      setYipay((p) => ({ ...p, enabled: v }));
-                      try {
-                        const { enabled, ...rest } = { ...yipay, enabled: v };
-                        const res = await Network.post("/payment/config/save", {
-                          channel: "YIPAY",
-                          config: JSON.stringify(rest),
-                          enabled: v ? 1 : 0,
-                        });
+                      setYipay((prev) => {
+                        const updated = { ...prev, enabled: v };
+                        const { enabled: _, key: k, ...rest } = updated;
+                        const cfg: Record<string, unknown> = { ...rest };
 
-                        if (res?.code === 0) {
-                          toast.success("设置成功");
-                          loadPaymentData();
-                        } else {
-                          toast.error(res?.msg || "保存失败");
-                        }
-                      } catch {
-                        toast.error("保存失败");
-                      }
+                        if (k) cfg.key = k;
+                        Network.post("/payment/config/save", {
+                          channel: "YIPAY",
+                          config: JSON.stringify(cfg),
+                          enabled: v ? 1 : 0,
+                        })
+                          .then((res) => {
+                            if (res?.code === 0) {
+                              toast.success("设置成功");
+                              loadPaymentData();
+                            } else {
+                              toast.error(res?.msg || "保存失败");
+                            }
+                          })
+                          .catch(() => {
+                            toast.error("保存失败");
+                          });
+
+                        return updated;
+                      });
                     }}
                   />
                 </div>
@@ -863,15 +871,48 @@ export default function AdminPaymentPage() {
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">
                       商户密钥
                     </label>
-                    <Input
-                      placeholder="商户密钥"
-                      type="password"
-                      value={yipay.key}
-                      variant="bordered"
-                      onChange={(e) =>
-                        setYipay((p) => ({ ...p, key: e.target.value }))
-                      }
-                    />
+                    {yipay.key && !editingYiPayKey ? (
+                      <div className="h-10 flex items-center gap-2 px-3 border border-default-200 rounded-lg bg-gray-50 dark:bg-gray-900 text-sm">
+                        <span className="truncate text-xs text-gray-600 dark:text-gray-400 font-mono">
+                          {"\u2022".repeat(
+                            Math.max(0, yipay.key.length - 6),
+                          )}
+                          {yipay.key.slice(-6)}
+                        </span>
+                        <Button
+                          className="shrink-0 ml-auto"
+                          size="sm"
+                          variant="flat"
+                          onPress={() => setEditingYiPayKey(true)}
+                        >
+                          修改
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="留空不修改"
+                          value={yipay.key}
+                          variant="bordered"
+                          onChange={(e) =>
+                            setYipay((p) => ({
+                              ...p,
+                              key: e.target.value,
+                            }))
+                          }
+                        />
+                        {yipay.key && (
+                          <Button
+                            className="shrink-0"
+                            size="sm"
+                            variant="flat"
+                            onPress={() => setEditingYiPayKey(false)}
+                          >
+                            取消
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -906,9 +947,11 @@ export default function AdminPaymentPage() {
                   <Button
                     color="primary"
                     onPress={() => {
-                      const { enabled, ...rest } = yipay;
+                      const { enabled, key: k, ...rest } = yipay;
+                      const cfg: Record<string, unknown> = { ...rest };
 
-                      saveConfig("YIPAY", enabled, rest);
+                      if (k) cfg.key = k;
+                      saveConfig("YIPAY", enabled, cfg);
                     }}
                   >
                     保存配置
