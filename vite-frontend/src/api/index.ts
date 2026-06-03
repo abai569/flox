@@ -1058,6 +1058,8 @@ export const createPackageOrder = (data: {
   package_id: number;
   pay_currency: string;
   quantity?: number;
+  pay_type?: string;
+  pay_network?: string;
 }) => Network.post<{ orderId: number }>("/package/order/create", data);
 
 export const getStoreStatus = () =>

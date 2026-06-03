@@ -630,33 +630,26 @@ export default function MyHomePage() {
         <ModalContent>
           <ModalHeader>去支付</ModalHeader>
           <ModalBody>
-            {payResult?.payUrl ? (
-              <div>
-                <p className="mb-2">点击下方按钮跳转支付：</p>
-                <Button
-                  className="w-full"
-                  color="primary"
-                  onPress={() => window.open(payResult.payUrl, "_blank")}
-                >
-                  前去支付
-                </Button>
-              </div>
-            ) : null}
-            {payResult?.payAddress ? (
+            {payResult?.payUrl && (
+              <p className="text-sm text-gray-500">
+                订单已创建，请在收银台完成付款。
+              </p>
+            )}
+            {payResult?.payAddress && (
               <div>
                 <p className="mb-2">请向以下地址转账 USDT (TRC-20)：</p>
                 <div className="bg-gray-100 dark:bg-gray-800 p-3 rounded text-sm break-all font-mono">
                   {payResult.payAddress}
                 </div>
-                {payResult.payAmount ? (
+                {payResult.payAmount && (
                   <p className="mt-2 text-sm">
                     金额: <strong>{payResult.payAmount} USDT</strong>
                   </p>
-                ) : null}
+                )}
               </div>
-            ) : null}
-            <p className="text-xs text-gray-400 mt-2">
-              支付完成后页面会自动更新状态
+            )}
+            <p className="text-xs text-gray-400">
+              支付完成后返回本页面，状态将自动刷新。
             </p>
           </ModalBody>
           <ModalFooter>
@@ -670,6 +663,14 @@ export default function MyHomePage() {
             >
               关闭
             </Button>
+            {payResult?.payUrl && (
+              <Button
+                color="primary"
+                onPress={() => window.open(payResult.payUrl, "_blank")}
+              >
+                支付
+              </Button>
+            )}
           </ModalFooter>
         </ModalContent>
       </Modal>

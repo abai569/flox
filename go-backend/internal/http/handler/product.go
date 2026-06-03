@@ -381,6 +381,8 @@ func (h *Handler) createPackageOrder(w http.ResponseWriter, r *http.Request) {
 		ProductMeta: string(meta),
 		Amount:      totalAmount,
 		PayCurrency: currency,
+		PayType:     asString(req["pay_type"]),
+		PayNetwork:  asString(req["pay_network"]),
 		Status:      0,
 	}
 

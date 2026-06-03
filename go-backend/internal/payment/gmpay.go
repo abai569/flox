@@ -92,7 +92,10 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 	if token == "" {
 		token = "usdt"
 	}
-	network := g.config.Network
+	network := order.PayNetwork
+	if network == "" {
+		network = g.config.Network
+	}
 	if network == "" {
 		network = "tron"
 	}

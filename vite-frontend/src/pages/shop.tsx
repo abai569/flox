@@ -50,6 +50,8 @@ export default function ShopPage() {
   const [selectedTab, setSelectedTab] = useState(
     localStorage.getItem("shop-active-tab") || "subscription",
   );
+  const [selectedPayType, setSelectedPayType] = useState("alipay");
+  const [selectedPayNetwork, setSelectedPayNetwork] = useState("tron");
   const [packageGroups, setPackageGroups] = useState<PackageGroupApiItem[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -164,25 +166,33 @@ export default function ShopPage() {
         desc: "使用账户余额",
       });
     }
-    payChannels
-      .filter((c) => c.enabled)
-      .forEach((c) => {
-        let network = "TRC-20";
+    const enabled = payChannels.filter((c) => c.enabled);
+    const usdt = enabled.find((c) => c.channel === "USDT");
+    const yipay = enabled.find((c) => c.channel === "YIPAY");
 
-        try {
-          const cfg = JSON.parse(c.config);
+    if (usdt) {
+      let network = "TRC-20";
 
-          network = networkLabelMap[cfg.network] || "TRC-20";
-        } catch {
-          /* ignore */
-        }
-        channels.push({
-          channel: c.channel,
-          label:
-            c.channel === "USDT" ? `USDT (${network})` : "易支付 (支付宝/微信)",
-          desc: c.channel === "USDT" ? "加密货币支付" : "扫码支付",
-        });
+      try {
+        const cfg = JSON.parse(usdt.config);
+
+        network = networkLabelMap[cfg.network] || "TRC-20";
+      } catch {
+        /* ignore */
+      }
+      channels.push({
+        channel: "USDT",
+        label: `USDT (${network})`,
+        desc: "加密货币支付",
       });
+    }
+    if (yipay) {
+      channels.push({
+        channel: "YIPAY",
+        label: "易支付 (支付宝/微信)",
+        desc: "扫码支付",
+      });
+    }
 
     return channels;
   })();
@@ -196,6 +206,12 @@ export default function ShopPage() {
           package_id: selectedPackage.id,
           pay_currency: selectedCurrency,
           quantity: 1,
+          ...(selectedCurrency === "YIPAY"
+            ? { pay_type: selectedPayType }
+            : {}),
+          ...(selectedCurrency === "USDT"
+            ? { pay_network: selectedPayNetwork }
+            : {}),
         });
 
         if (createRes.code !== 0) {
@@ -677,7 +693,12 @@ export default function ShopPage() {
                         ? "border-primary bg-primary/5"
                         : "border-divider hover:border-default-400"
                     }`}
-                    onClick={() => setSelectedCurrency(ch.channel)}
+                    onClick={() => {
+                      setSelectedCurrency(ch.channel);
+                      if (ch.channel === "YIPAY") setSelectedPayType("alipay");
+                      if (ch.channel === "USDT")
+                        setSelectedPayNetwork("tron");
+                    }}
                   >
                     <div>
                       <div className="font-medium text-sm">{ch.label}</div>
@@ -693,6 +714,60 @@ export default function ShopPage() {
                   </button>
                 ))}
               </div>
+              {selectedCurrency === "YIPAY" && (
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">支付渠道</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
+                        selectedPayType === "alipay"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-divider hover:border-default-400"
+                      }`}
+                      onClick={() => setSelectedPayType("alipay")}
+                    >
+                      支付宝
+                    </button>
+                    <button
+                      className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
+                        selectedPayType === "wxpay"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-divider hover:border-default-400"
+                      }`}
+                      onClick={() => setSelectedPayType("wxpay")}
+                    >
+                      微信
+                    </button>
+                  </div>
+                </div>
+              )}
+              {selectedCurrency === "USDT" && (
+                <div className="space-y-2">
+                  <label className="text-sm text-gray-400">网络</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
+                        selectedPayNetwork === "polygon"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-divider hover:border-default-400"
+                      }`}
+                      onClick={() => setSelectedPayNetwork("polygon")}
+                    >
+                      Polygon
+                    </button>
+                    <button
+                      className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
+                        selectedPayNetwork === "tron"
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-divider hover:border-default-400"
+                      }`}
+                      onClick={() => setSelectedPayNetwork("tron")}
+                    >
+                      TRC-20
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </ModalBody>
           <ModalFooter>

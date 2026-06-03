@@ -75,9 +75,14 @@ func (g *yiPayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 	// 金额转换：分 -> 元
 	money := fmt.Sprintf("%.2f", float64(order.Amount)/100.0)
 
+	payType := order.PayType
+	if payType == "" {
+		payType = "alipay"
+	}
+
 	params := map[string]string{
 		"pid":          g.config.PID,
-		"type":         "alipay",
+		"type":         payType,
 		"out_trade_no": order.OrderNo,
 		"notify_url":   g.config.NotifyURL,
 		"return_url":   g.config.ReturnURL,
