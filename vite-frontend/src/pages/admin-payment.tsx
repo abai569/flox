@@ -121,7 +121,6 @@ interface UsdtForm {
   return_url: string;
   currency: string;
   token: string;
-  network: string;
   enable_tron: boolean;
   enable_polygon: boolean;
 }
@@ -160,7 +159,6 @@ const defaultUsdt: UsdtForm = {
   return_url: "",
   currency: "cny",
   token: "usdt",
-  network: "polygon",
   enable_tron: true,
   enable_polygon: true,
 };
@@ -316,7 +314,6 @@ export default function AdminPaymentPage() {
           return_url: parsed.return_url || "",
           currency: parsed.currency || "cny",
           token: parsed.token || "usdt",
-          network: parsed.network || "polygon",
           enable_tron: parsed.enable_tron !== false,
           enable_polygon: parsed.enable_polygon !== false,
         });
@@ -1163,23 +1160,6 @@ export default function AdminPaymentPage() {
                         setUsdt((p) => ({ ...p, return_url: e.target.value }))
                       }
                     />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-400 text-foreground mb-1 block">
-                      U 支付网络
-                    </label>
-                    <Select
-                      selectedKeys={[usdt.network]}
-                      variant="bordered"
-                      onSelectionChange={(keys) => {
-                        const v = Array.from(keys)[0] as string;
-
-                        if (v) setUsdt((p) => ({ ...p, network: v }));
-                      }}
-                    >
-                      <SelectItem key="tron">TRC-20</SelectItem>
-                      <SelectItem key="polygon">Polygon</SelectItem>
-                    </Select>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">

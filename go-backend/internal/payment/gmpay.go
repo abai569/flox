@@ -23,7 +23,6 @@ type GMPayConfig struct {
 	ReturnURL      string `json:"return_url"`
 	Currency       string `json:"currency"`
 	Token          string `json:"token"`
-	Network        string `json:"network"`
 	EnableTron     bool   `json:"enable_tron"`     // 启用 TRC-20
 	EnablePolygon  bool   `json:"enable_polygon"`  // 启用 Polygon
 }
@@ -95,9 +94,6 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 		token = "usdt"
 	}
 	network := order.PayNetwork
-	if network == "" {
-		network = g.config.Network
-	}
 	if network == "" {
 		network = "tron"
 	}
