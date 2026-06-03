@@ -107,6 +107,7 @@ interface YiPayForm {
   key: string;
   notify_url: string;
   return_url: string;
+  sign_mode: string;
 }
 
 interface UsdtForm {
@@ -141,6 +142,7 @@ const defaultYiPay: YiPayForm = {
   key: "",
   notify_url: "",
   return_url: "",
+  sign_mode: "epay",
 };
 
 const defaultUsdt: UsdtForm = {
@@ -273,6 +275,7 @@ export default function AdminPaymentPage() {
           notify_url:
             parsed.notify_url || panelUrl + "/api/v1/payment/callback/yipay",
           return_url: parsed.return_url || panelUrl + "/shop",
+          sign_mode: parsed.sign_mode || "epay",
         });
       } catch {
         setYipay((p) => ({
@@ -280,6 +283,7 @@ export default function AdminPaymentPage() {
           enabled: !!yipayConfig.enabled,
           notify_url: panelUrl + "/api/v1/payment/callback/yipay",
           return_url: panelUrl + "/shop",
+          sign_mode: "epay",
         }));
       }
     }
@@ -915,7 +919,7 @@ export default function AdminPaymentPage() {
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">
                       异步通知地址
@@ -941,6 +945,22 @@ export default function AdminPaymentPage() {
                         setYipay((p) => ({ ...p, return_url: e.target.value }))
                       }
                     />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 text-foreground mb-1 block">
+                      签名模式
+                    </label>
+                    <Select
+                      selectedKeys={[yipay.sign_mode]}
+                      variant="bordered"
+                      onSelectionChange={(keys) => {
+                        const v = Array.from(keys)[0] as string;
+                        if (v) setYipay((p) => ({ ...p, sign_mode: v }));
+                      }}
+                    >
+                      <SelectItem key="epay">标准易支付</SelectItem>
+                      <SelectItem key="mpay">码支付 MPay</SelectItem>
+                    </Select>
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">

@@ -19,6 +19,7 @@ type YiPayConfig struct {
 	Key        string `json:"key"`         // 商户密钥
 	NotifyURL  string `json:"notify_url"`  // 异步回调地址
 	ReturnURL  string `json:"return_url"`  // 同步跳转地址
+	SignMode   string `json:"sign_mode"` // 签名模式: epay | mpay
 }
 
 type yiPayGateway struct {
@@ -32,8 +33,10 @@ func NewYiPay(cfg *YiPayConfig) PaymentGateway {
 func (g *yiPayGateway) Name() string { return "YIPAY" }
 
 // yipaySign 生成易支付 MD5 签名
-// 签名规则：按参数名字典序拼接 key=value，最后拼接商户密钥，md5 后转小写
-func yipaySign(params map[string]string, key string) string {
+// 支持两种模式：
+//   - epay（标准易支付）：末尾 &key=商户密钥
+//   - mpay（码支付）：去掉末尾 &，直接拼接密钥
+func yipaySign(params map[string]string, key string, signMode string) string {
 	keys := make([]string, 0, len(params))
 	for k := range params {
 		keys = append(keys, k)
@@ -50,9 +53,20 @@ func yipaySign(params map[string]string, key string) string {
 		buf.WriteString(params[k])
 		buf.WriteString("&")
 	}
+
+	if signMode == "mpay" {
+		signstr := buf.String()
+		if len(signstr) > 0 && signstr[len(signstr)-1] == '&' {
+			signstr = signstr[:len(signstr)-1]
+		}
+		signstr += key
+		h := md5.Sum([]byte(signstr))
+		return hex.EncodeToString(h[:])
+	}
+
+	// 标准易支付（默认）
 	buf.WriteString("key=")
 	buf.WriteString(key)
-
 	h := md5.Sum([]byte(buf.String()))
 	return hex.EncodeToString(h[:])
 }
@@ -70,7 +84,7 @@ func (g *yiPayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 		"name":         order.ProductName,
 		"money":        money,
 	}
-	params["sign"] = yipaySign(params, g.config.Key)
+	params["sign"] = yipaySign(params, g.config.Key, g.config.SignMode)
 	params["sign_type"] = "MD5"
 
 	// Build checkout URL
@@ -135,7 +149,7 @@ func (g *yiPayGateway) VerifyCallback(r *http.Request) (orderNo string, txHash s
 		"money":        cb.Money,
 		"trade_status": cb.TradeStatus,
 	}
-	expectedSign := yipaySign(params, g.config.Key)
+	expectedSign := yipaySign(params, g.config.Key, g.config.SignMode)
 	if !strings.EqualFold(expectedSign, cb.Sign) {
 		return "", "", fmt.Errorf("sign mismatch")
 	}
