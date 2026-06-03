@@ -2066,6 +2066,24 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 	}
 
 	chainNodes, _ := h.listChainNodesForTunnel(forward.TunnelID)
+
+	// 🛠 修复：为链节点填充缺失的 ConnectIP，避免 resolveChainNextHop 退化到 finalTarget
+	for i := range chainNodes {
+		if strings.TrimSpace(chainNodes[i].ConnectIP) != "" {
+			continue
+		}
+		node, err := h.getNodeRecord(chainNodes[i].NodeID)
+		if err != nil || node == nil {
+			continue
+		}
+		// 优先使用 ServerIPv4，其次是 ServerIP
+		if v := strings.TrimSpace(node.ServerIPv4); v != "" {
+			chainNodes[i].ConnectIP = v
+		} else if v := strings.TrimSpace(node.ServerIP); v != "" {
+			chainNodes[i].ConnectIP = v
+		}
+	}
+
 	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, userTunnelID, speedLimit)
 	fmt.Printf("[nft.debug] built %d rule payloads for forwardID=%d\n", len(rules), forward.ID)
 

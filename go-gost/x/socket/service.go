@@ -11,6 +11,7 @@ import (
 	parser "github.com/go-gost/x/config/parsing/service"
 	kill "github.com/go-gost/x/internal/util/port"
 	"github.com/go-gost/x/registry"
+	xservice "github.com/go-gost/x/service"
 )
 
 func createServices(req createServicesRequest) error {
@@ -536,4 +537,65 @@ type updateServicesRequest struct {
 
 type createServicesRequest struct {
 	Data []config.ServiceConfig `json:"data"`
+}
+
+// restartDeadServices scans all registered services and restarts any that have
+// entered StateClosed (e.g. listener died). It looks up the original config
+// from the global in-memory config and recreates the service.
+func restartDeadServices() {
+	services := registry.ServiceRegistry().GetAll()
+	if len(services) == 0 {
+		return
+	}
+
+	for name, svc := range services {
+		// Use type assertion to access Status() which is implemented by
+		// *xservice.defaultService but not guaranteed by core/service.Service.
+		stater, ok := svc.(interface{ Status() *xservice.Status })
+		if !ok {
+			continue
+		}
+		if stater.Status().State() != xservice.StateClosed {
+			continue
+		}
+
+		fmt.Printf("⚠️ 检测到服务 %s 已停止，尝试自动重启...\n", name)
+
+		// Lookup the service config from global config.
+		cfg := config.Global()
+		var svcCfg *config.ServiceConfig
+		for _, s := range cfg.Services {
+			if s != nil && strings.TrimSpace(s.Name) == name {
+				svcCfg = s
+				break
+			}
+		}
+		if svcCfg == nil {
+			fmt.Printf("❌ 无法找到服务 %s 的配置，跳过重启\n", name)
+			continue
+		}
+
+		// Use updateServices to rebuild (closes old, parses new, registers, starts).
+		if err := updateServices(updateServicesRequest{Data: []config.ServiceConfig{*svcCfg}}); err != nil {
+			fmt.Printf("❌ 服务 %s 自动重启失败: %v\n", name, err)
+		} else {
+			fmt.Printf("✅ 服务 %s 自动重启成功\n", name)
+		}
+	}
+}
+
+// StartServiceWatchdog starts a background goroutine that periodically checks
+// all registered GOST services. Any service whose listener has died
+// (StateClosed) is automatically recreated from the in-memory config.
+func StartServiceWatchdog() {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				restartDeadServices()
+			}
+		}
+	}()
 }

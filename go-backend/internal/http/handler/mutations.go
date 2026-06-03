@@ -1513,14 +1513,39 @@ func (h *Handler) cleanupTunnelRuntime(tunnelID int64) {
 	chainName := fmt.Sprintf("chains_%d", tunnelID)
 
 	for _, row := range chainRows {
-		if row.ChainType == 1 {
-			_, _ = h.sendNodeCommand(row.NodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true)
-		} else if row.ChainType == 2 {
-			_, _ = h.sendNodeCommand(row.NodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true)
-			_, _ = h.sendNodeCommand(row.NodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true)
-		} else if row.ChainType == 3 {
-			_, _ = h.sendNodeCommand(row.NodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true)
+		nodeID := row.NodeID
+		nodeName := row.NodeName
+		if nodeName == "" {
+			nodeName = fmt.Sprintf("node_%d", nodeID)
 		}
+		if row.ChainType == 1 {
+			h.sendNodeCommandWithRetry(nodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true, 3, "清理入口节点 "+nodeName+" 链配置")
+		} else if row.ChainType == 2 {
+			h.sendNodeCommandWithRetry(nodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true, 3, "清理链节点 "+nodeName+" 链配置")
+			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, 3, "清理链节点 "+nodeName+" 服务")
+		} else if row.ChainType == 3 {
+			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, 3, "清理出口节点 "+nodeName+" 服务")
+		}
+	}
+}
+
+// sendNodeCommandWithRetry sends a node command with retries and logs warnings on final failure.
+func (h *Handler) sendNodeCommandWithRetry(nodeID int64, commandType string, data interface{}, tolerateExists bool, tolerateNotFound bool, maxRetries int, desc string) {
+	if maxRetries <= 0 {
+		maxRetries = 1
+	}
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		if i > 0 {
+			time.Sleep(500 * time.Millisecond)
+		}
+		_, lastErr = h.sendNodeCommand(nodeID, commandType, data, tolerateExists, tolerateNotFound)
+		if lastErr == nil {
+			return
+		}
+	}
+	if lastErr != nil {
+		log.Printf("⚠️ %s 失败 (节点 %d, %d 次重试): %v", desc, nodeID, maxRetries, lastErr)
 	}
 }
 

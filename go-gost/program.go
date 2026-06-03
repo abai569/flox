@@ -15,6 +15,7 @@ import (
 	xmetrics "github.com/go-gost/x/metrics"
 	metrics "github.com/go-gost/x/metrics/service"
 	"github.com/go-gost/x/registry"
+	xsocket "github.com/go-gost/x/socket"
 	xservice "github.com/go-gost/x/service"
 	"github.com/judwhite/go-svc"
 	"net/http"
@@ -69,6 +70,9 @@ func (p *program) Start() error {
 	if err := p.run(cfg); err != nil {
 		return err
 	}
+
+	// 启动服务 watchdog，自动恢复已停止的 listener 服务
+	xsocket.StartServiceWatchdog()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel

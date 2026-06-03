@@ -394,7 +394,49 @@ func (w *WebSocketReporter) connect() error {
 	ipv6 := getPublicIPv6()
 	w.reportPublicIPs(ipv4, ipv6)
 
+	// 重连后同步服务配置：恢复可能因崩溃/重启而缺失的服务
+	go syncServicesAfterReconnect()
+
 	return nil
+}
+
+// syncServicesAfterReconnect compares the in-memory config with the currently
+// registered services and recreates any missing or dead (StateClosed) services.
+// This is called after WebSocket reconnect to recover from agent crashes or
+// unexpected listener closures.
+func syncServicesAfterReconnect() {
+	cfg := config.Global()
+	if len(cfg.Services) == 0 {
+		return
+	}
+
+	for _, svcCfg := range cfg.Services {
+		if svcCfg == nil {
+			continue
+		}
+		name := strings.TrimSpace(svcCfg.Name)
+		if name == "" {
+			continue
+		}
+
+		existing := registry.ServiceRegistry().Get(name)
+		if existing == nil {
+			fmt.Printf("🔌 重连后检测到服务 %s 缺失，尝试恢复...\n", name)
+		} else {
+			// Check if the service is alive
+			stater, ok := existing.(interface{ Status() *service.Status })
+			if ok && stater.Status().State() != service.StateClosed {
+				continue
+			}
+			fmt.Printf("🔌 重连后检测到服务 %s 已停止，尝试恢复...\n", name)
+		}
+
+		if err := updateServices(updateServicesRequest{Data: []config.ServiceConfig{*svcCfg}}); err != nil {
+			fmt.Printf("❌ 服务 %s 恢复失败: %v\n", name, err)
+		} else {
+			fmt.Printf("✅ 服务 %s 恢复成功\n", name)
+		}
+	}
 }
 
 // getConfigDir 根据 serviceName 获取配置目录
