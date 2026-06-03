@@ -619,7 +619,7 @@ export default function MyHomePage() {
       <Modal
         isOpen={payModalOpen}
         placement="center"
-        size="2xl"
+        size="md"
         onOpenChange={(open) => {
           if (!open) {
             setPayModalOpen(false);
