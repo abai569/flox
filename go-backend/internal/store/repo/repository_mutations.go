@@ -1800,9 +1800,13 @@ func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64
 	if err := r.IncreaseUserBalance(userID, totalAmount); err != nil {
 		return err
 	}
-	return r.CreateBalanceLog(userID, user.User, totalAmount,
+	if err := r.CreateBalanceLog(userID, user.User, totalAmount,
 		user.Balance, user.Balance+totalAmount,
-		now, "余额充值:"+pkgName)
+		now, "余额充值:"+pkgName); err != nil {
+		return err
+	}
+	r.TryAutoRenewForUser(userID)
+	return nil
 }
 
 // DeliverTrafficPackageToUser applies a traffic package: adds flow to user.
@@ -3213,6 +3217,35 @@ func (r *Repository) IncreaseUserBalance(userID int64, amount int64) error {
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
 		Update("balance", gorm.Expr("balance + ?", amount)).Error
+}
+
+// TryAutoRenewForUser checks if the user qualifies for auto-renewal and triggers it.
+func (r *Repository) TryAutoRenewForUser(userID int64) {
+	if r == nil || r.db == nil {
+		return
+	}
+
+	var user model.User
+	if err := r.db.Where("id = ?", userID).First(&user).Error; err != nil {
+		return
+	}
+
+	if user.Status != 0 || user.AutoRenew != 1 || user.RenewalAmount <= 0 || user.Balance < user.RenewalAmount || user.ExpTime > time.Now().UnixMilli() {
+		return
+	}
+
+	now := time.Now().UnixMilli()
+	baseTime := user.ExpTime
+	if baseTime < now {
+		baseTime = now
+	}
+	newExpTime := time.UnixMilli(baseTime).AddDate(0, 1, 0).UnixMilli()
+
+	if err := r.RenewUserWithBalance(user.ID, user.RenewalAmount, newExpTime, now); err != nil {
+		return
+	}
+
+	_ = r.db.Model(&model.User{}).Where("id = ?", user.ID).Update("status", 1).Error
 }
 
 // IncreaseUserFlow increases a user's base flow by the given GB amount.

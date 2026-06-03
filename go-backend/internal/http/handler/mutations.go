@@ -303,6 +303,10 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if oldUser != nil && oldUser.Status == 0 && oldUser.ExpTime <= now && autoRenew == 1 && renewalAmount > 0 && balance > oldUser.Balance && balance >= renewalAmount && expTime <= now {
+		h.repo.TryAutoRenewForUser(id)
+	}
+
 	response.WriteJSON(w, response.OKEmpty())
 }
 

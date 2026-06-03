@@ -328,6 +328,8 @@ func (h *Handler) adminRefundOrder(w http.ResponseWriter, r *http.Request) {
 		user.Balance, user.Balance+order.Amount,
 		now, "订单退款")
 
+	h.repo.TryAutoRenewForUser(order.UserID)
+
 	// Reverse delivery by package type
 	if order.ProductType == "package" {
 		var metaObj map[string]interface{}
