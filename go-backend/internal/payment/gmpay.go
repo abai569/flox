@@ -16,14 +16,16 @@ import (
 )
 
 type GMPayConfig struct {
-	PID       string `json:"pid"`
-	SecretKey string `json:"secret_key"`
-	APIURL    string `json:"api_url"`
-	NotifyURL string `json:"notify_url"`
-	ReturnURL string `json:"return_url"`
-	Currency  string `json:"currency"`
-	Token     string `json:"token"`
-	Network   string `json:"network"`
+	PID            string `json:"pid"`
+	SecretKey      string `json:"secret_key"`
+	APIURL         string `json:"api_url"`
+	NotifyURL      string `json:"notify_url"`
+	ReturnURL      string `json:"return_url"`
+	Currency       string `json:"currency"`
+	Token          string `json:"token"`
+	Network        string `json:"network"`
+	EnableTron     bool   `json:"enable_tron"`     // 启用 TRC-20
+	EnablePolygon  bool   `json:"enable_polygon"`  // 启用 Polygon
 }
 
 type gmpayGateway struct {

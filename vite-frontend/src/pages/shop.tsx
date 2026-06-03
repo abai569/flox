@@ -4,7 +4,7 @@ import type {
   PackageGroupApiItem,
 } from "@/api/types";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -148,12 +148,19 @@ export default function ShopPage() {
     }
   };
 
-  const networkLabelMap: Record<string, string> = {
-    tron: "TRC-20",
-    bsc: "BEP-20",
-    ethereum: "ERC-20",
-    polygon: "Polygon",
-  };
+
+
+  const parsedPayConfigs = useMemo(() => {
+    const result: Record<string, any> = {};
+    payChannels.forEach((c) => {
+      try {
+        result[c.channel] = JSON.parse(c.config);
+      } catch {
+        result[c.channel] = {};
+      }
+    });
+    return result;
+  }, [payChannels]);
 
   const availableChannels = (() => {
     const isBalanceType = selectedPackage?.type === "balance";
@@ -171,27 +178,28 @@ export default function ShopPage() {
     const yipay = enabled.find((c) => c.channel === "YIPAY");
 
     if (usdt) {
-      let network = "TRC-20";
-
-      try {
-        const cfg = JSON.parse(usdt.config);
-
-        network = networkLabelMap[cfg.network] || "TRC-20";
-      } catch {
-        /* ignore */
+      const cfg = parsedPayConfigs["USDT"] || {};
+      const hasTron = cfg.enable_tron !== false;
+      const hasPolygon = cfg.enable_polygon !== false;
+      if (hasTron || hasPolygon) {
+        channels.push({
+          channel: "USDT",
+          label: "USDT",
+          desc: "加密货币支付",
+        });
       }
-      channels.push({
-        channel: "USDT",
-        label: `USDT (${network})`,
-        desc: "加密货币支付",
-      });
     }
     if (yipay) {
-      channels.push({
-        channel: "YIPAY",
-        label: "易支付 (支付宝/微信)",
-        desc: "扫码支付",
-      });
+      const cfg = parsedPayConfigs["YIPAY"] || {};
+      const hasAlipay = cfg.enable_alipay !== false;
+      const hasWxpay = cfg.enable_wxpay !== false;
+      if (hasAlipay || hasWxpay) {
+        channels.push({
+          channel: "YIPAY",
+          label: "易支付",
+          desc: "扫码支付",
+        });
+      }
     }
 
     return channels;
@@ -714,60 +722,97 @@ export default function ShopPage() {
                   </button>
                 ))}
               </div>
-              {selectedCurrency === "YIPAY" && (
-                <div className="space-y-2">
-                  <label className="text-sm text-gray-400">支付渠道</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
-                        selectedPayType === "alipay"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-divider hover:border-default-400"
-                      }`}
-                      onClick={() => setSelectedPayType("alipay")}
-                    >
-                      支付宝
-                    </button>
-                    <button
-                      className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
-                        selectedPayType === "wxpay"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-divider hover:border-default-400"
-                      }`}
-                      onClick={() => setSelectedPayType("wxpay")}
-                    >
-                      微信
-                    </button>
+              {selectedCurrency === "YIPAY" && (() => {
+                const cfg = parsedPayConfigs["YIPAY"] || {};
+                const hasAlipay = cfg.enable_alipay !== false;
+                const hasWxpay = cfg.enable_wxpay !== false;
+                if (hasAlipay && !hasWxpay) {
+                  // 只有支付宝，自动选中
+                  if (selectedPayType !== "alipay") setSelectedPayType("alipay");
+                  return null;
+                }
+                if (!hasAlipay && hasWxpay) {
+                  // 只有微信，自动选中
+                  if (selectedPayType !== "wxpay") setSelectedPayType("wxpay");
+                  return null;
+                }
+                // 两个都有，显示让用户选
+                return (
+                  <div className="space-y-2">
+                    <label className="text-sm text-gray-400">支付渠道</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {hasAlipay && (
+                        <button
+                          className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
+                            selectedPayType === "alipay"
+                              ? "border-primary bg-primary/5 text-primary"
+                              : "border-divider hover:border-default-400"
+                          }`}
+                          onClick={() => setSelectedPayType("alipay")}
+                        >
+                          支付宝
+                        </button>
+                      )}
+                      {hasWxpay && (
+                        <button
+                          className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
+                            selectedPayType === "wxpay"
+                              ? "border-primary bg-primary/5 text-primary"
+                              : "border-divider hover:border-default-400"
+                          }`}
+                          onClick={() => setSelectedPayType("wxpay")}
+                        >
+                          微信
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-              {selectedCurrency === "USDT" && (
-                <div className="space-y-2">
-                  <label className="text-sm text-gray-400">网络</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
-                        selectedPayNetwork === "polygon"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-divider hover:border-default-400"
-                      }`}
-                      onClick={() => setSelectedPayNetwork("polygon")}
-                    >
-                      Polygon
-                    </button>
-                    <button
-                      className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
-                        selectedPayNetwork === "tron"
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-divider hover:border-default-400"
-                      }`}
-                      onClick={() => setSelectedPayNetwork("tron")}
-                    >
-                      TRC-20
-                    </button>
+                );
+              })()}
+              {selectedCurrency === "USDT" && (() => {
+                const cfg = parsedPayConfigs["USDT"] || {};
+                const hasTron = cfg.enable_tron !== false;
+                const hasPolygon = cfg.enable_polygon !== false;
+                if (hasTron && !hasPolygon) {
+                  if (selectedPayNetwork !== "tron") setSelectedPayNetwork("tron");
+                  return null;
+                }
+                if (!hasTron && hasPolygon) {
+                  if (selectedPayNetwork !== "polygon") setSelectedPayNetwork("polygon");
+                  return null;
+                }
+                return (
+                  <div className="space-y-2">
+                    <label className="text-sm text-gray-400">网络</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {hasPolygon && (
+                        <button
+                          className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
+                            selectedPayNetwork === "polygon"
+                              ? "border-primary bg-primary/5 text-primary"
+                              : "border-divider hover:border-default-400"
+                          }`}
+                          onClick={() => setSelectedPayNetwork("polygon")}
+                        >
+                          Polygon
+                        </button>
+                      )}
+                      {hasTron && (
+                        <button
+                          className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
+                            selectedPayNetwork === "tron"
+                              ? "border-primary bg-primary/5 text-primary"
+                              : "border-divider hover:border-default-400"
+                          }`}
+                          onClick={() => setSelectedPayNetwork("tron")}
+                        >
+                          TRC-20
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </ModalBody>
           <ModalFooter>

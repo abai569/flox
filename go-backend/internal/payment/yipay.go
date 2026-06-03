@@ -14,12 +14,14 @@ import (
 )
 
 type YiPayConfig struct {
-	GatewayURL string `json:"gateway_url"` // 易支付网关地址
-	PID        string `json:"pid"`         // 商户ID
-	Key        string `json:"key"`         // 商户密钥
-	NotifyURL  string `json:"notify_url"`  // 异步回调地址
-	ReturnURL  string `json:"return_url"`  // 同步跳转地址
-	SignMode   string `json:"sign_mode"` // 签名模式: epay | mpay
+	GatewayURL    string `json:"gateway_url"`    // 易支付网关地址
+	PID           string `json:"pid"`            // 商户ID
+	Key           string `json:"key"`            // 商户密钥
+	NotifyURL     string `json:"notify_url"`     // 异步回调地址
+	ReturnURL     string `json:"return_url"`     // 同步跳转地址
+	SignMode      string `json:"sign_mode"`      // 签名模式: epay | mpay
+	EnableAlipay  bool   `json:"enable_alipay"`  // 启用支付宝
+	EnableWxpay   bool   `json:"enable_wxpay"`   // 启用微信
 }
 
 type yiPayGateway struct {

@@ -108,6 +108,8 @@ interface YiPayForm {
   notify_url: string;
   return_url: string;
   sign_mode: string;
+  enable_alipay: boolean;
+  enable_wxpay: boolean;
 }
 
 interface UsdtForm {
@@ -120,6 +122,8 @@ interface UsdtForm {
   currency: string;
   token: string;
   network: string;
+  enable_tron: boolean;
+  enable_polygon: boolean;
 }
 
 interface PaymentStats {
@@ -143,6 +147,8 @@ const defaultYiPay: YiPayForm = {
   notify_url: "",
   return_url: "",
   sign_mode: "epay",
+  enable_alipay: true,
+  enable_wxpay: true,
 };
 
 const defaultUsdt: UsdtForm = {
@@ -155,6 +161,8 @@ const defaultUsdt: UsdtForm = {
   currency: "cny",
   token: "usdt",
   network: "polygon",
+  enable_tron: true,
+  enable_polygon: true,
 };
 
 export default function AdminPaymentPage() {
@@ -276,6 +284,8 @@ export default function AdminPaymentPage() {
             parsed.notify_url || panelUrl + "/api/v1/payment/callback/yipay",
           return_url: parsed.return_url || panelUrl + "/shop",
           sign_mode: parsed.sign_mode || "epay",
+          enable_alipay: parsed.enable_alipay !== false,
+          enable_wxpay: parsed.enable_wxpay !== false,
         });
       } catch {
         setYipay((p) => ({
@@ -284,6 +294,8 @@ export default function AdminPaymentPage() {
           notify_url: panelUrl + "/api/v1/payment/callback/yipay",
           return_url: panelUrl + "/shop",
           sign_mode: "epay",
+          enable_alipay: true,
+          enable_wxpay: true,
         }));
       }
     }
@@ -305,12 +317,16 @@ export default function AdminPaymentPage() {
           currency: parsed.currency || "cny",
           token: parsed.token || "usdt",
           network: parsed.network || "polygon",
+          enable_tron: parsed.enable_tron !== false,
+          enable_polygon: parsed.enable_polygon !== false,
         });
       } catch {
         setUsdt({
           ...defaultUsdt,
           enabled: !!usdtConfig.enabled,
           notify_url: panelUrl + "/api/v1/payment/callback/usdt",
+          enable_tron: true,
+          enable_polygon: true,
         });
       }
     }
@@ -962,6 +978,28 @@ export default function AdminPaymentPage() {
                       <SelectItem key="mpay">码支付 MPay</SelectItem>
                     </Select>
                   </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        isSelected={yipay.enable_alipay}
+                        size="sm"
+                        onValueChange={(v) =>
+                          setYipay((p) => ({ ...p, enable_alipay: v }))
+                        }
+                      />
+                      <span className="text-sm text-gray-400">启用支付宝</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        isSelected={yipay.enable_wxpay}
+                        size="sm"
+                        onValueChange={(v) =>
+                          setYipay((p) => ({ ...p, enable_wxpay: v }))
+                        }
+                      />
+                      <span className="text-sm text-gray-400">启用微信</span>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-end pt-2">
                   <Button
@@ -1142,6 +1180,28 @@ export default function AdminPaymentPage() {
                       <SelectItem key="tron">TRC-20</SelectItem>
                       <SelectItem key="polygon">Polygon</SelectItem>
                     </Select>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        isSelected={usdt.enable_tron}
+                        size="sm"
+                        onValueChange={(v) =>
+                          setUsdt((p) => ({ ...p, enable_tron: v }))
+                        }
+                      />
+                      <span className="text-sm text-gray-400">启用 TRC-20</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        isSelected={usdt.enable_polygon}
+                        size="sm"
+                        onValueChange={(v) =>
+                          setUsdt((p) => ({ ...p, enable_polygon: v }))
+                        }
+                      />
+                      <span className="text-sm text-gray-400">启用 Polygon</span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
