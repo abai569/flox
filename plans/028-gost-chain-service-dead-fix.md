@@ -93,12 +93,11 @@ _, _ = h.sendNodeCommand(row.NodeID, "DeleteService", ..., false, true)
 1. 在 `appendChainHopDiagnosis` 中，TCP ping 成功后增加 GOST 协议级验证
 2. 或增加新的诊断命令 `CheckServiceStatus` 让 agent 返回服务状态
 
-### 修复 5：修复 `resolveChainNextHop`
+### 修复 5：修复 `resolveChainNextHop` 链式路由退化
 
-**文件：** `go-backend/internal/http/handler/control_plane.go`
+**问题：** nftables 模式下 `syncNftablesRules` 自动填充 `ConnectIP` 时只检查 `ServerIPv4`/`ServerIP`，忽略了内网 IP，导致链式 DNAT 规则指向公网 IP 而非内网链路，造成转发不稳定。
 
-1. 当 `ConnectIP` 为空时，从 nodeRecord 获取实际 IP
-2. 不再退化到 finalTarget
+**修复：** 自动填充逻辑现在与 GOST 模式 `selectTunnelDialHost` 保持一致的 IP 优先级：`IntranetIP` (LAN) → `ExtraIPs` → `ServerIPv4` → `ServerIPv6` → `ServerIP`
 
 ## 任务清单
 
@@ -107,7 +106,7 @@ _, _ = h.sendNodeCommand(row.NodeID, "DeleteService", ..., false, true)
 - [x] 修复 3：后端 cleanupTunnelRuntime 重试和日志
 - [x] 修复 4：诊断增加服务状态验证（已在 agent 新增 `ListServices` 命令，后端诊断调用验证）
 - [x] 修复 5：resolveChainNextHop 退化修复
-- [x] 验证：诊断 contract 测试通过 (`TestDiagnosisChainCoverageContracts`, `TestDiagnosisUsesFederationRuntimeForRemoteNodes`)
-- [x] 验证：联邦 contract 测试通过 (`TestFederationDualPanelMiddleExitAutoPortContract` 等)
-- [x] 验证：后端编译通过 `go build ./...`
-- [x] 验证：Agent 编译通过 `go build .`
+  - [x] nftables 模式 ConnectIP 自动填充增加 LAN/ExtraIPs/IPv6 优先级
+- [x] 验证：诊断 contract 测试通过
+- [x] 验证：后端编译通过
+- [x] 验证：Agent 编译通过
