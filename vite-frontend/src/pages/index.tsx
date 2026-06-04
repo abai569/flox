@@ -132,10 +132,10 @@ export default function IndexPage() {
         return;
       }
 
-      if (response.data.requirePasswordChange) {
+      if (response.data.isDefaultAdmin) {
         writeLoginSession(response.data);
-        toast.success("检测到默认密码，即将跳转到修改密码页面");
-        window.location.href = "/change-password";
+        toast.warning("正在使用默认密码登录请尽快修改");
+        window.location.href = "/dashboard";
 
         return;
       }

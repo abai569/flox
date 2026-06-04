@@ -479,13 +479,19 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requirePasswordChange := req.Username == "admin_user" || req.Password == "admin_user"
+	isDefaultAdmin := false
+	if user.User == "admin" {
+		initPwdCfg, _ := h.repo.GetConfigByName("initial_admin_password")
+		if initPwdCfg != nil && initPwdCfg.Value == req.Password {
+			isDefaultAdmin = true
+		}
+	}
 	response.WriteJSON(w, response.OK(map[string]interface{}{
-		"token":                 token,
-		"name":                  user.User,
-		"role_id":               user.RoleID,
-		"restricted":            restricted,
-		"requirePasswordChange": requirePasswordChange,
+		"token":          token,
+		"name":           user.User,
+		"role_id":        user.RoleID,
+		"restricted":     restricted,
+		"isDefaultAdmin": isDefaultAdmin,
 	}))
 }
 

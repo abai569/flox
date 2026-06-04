@@ -22,6 +22,7 @@ services:
       LICENSE_KEY: ${LICENSE_KEY}
       SERVER_DOMAIN: ${SERVER_DOMAIN}
       HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-flvx_455f08ea-ce13-46d4-8574-ebd2a9d0e853}
+      INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD}
     ports:
       - "${BACKEND_PORT}:6365"
     volumes:

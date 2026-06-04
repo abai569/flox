@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 
+	"go-backend/internal/security"
 	"go-backend/internal/store/model"
 )
 
@@ -511,13 +512,25 @@ func migrateTunnelGroupNew(db *gorm.DB) error {
 }
 
 func seedData(db *gorm.DB) {
-	adminUser := model.User{
-		ID: 1, User: "admin_user", Pwd: "3c85cdebade1c51cf64ca9f3c09d182d",
-		RoleID: 0, ExpTime: 2727251700000, Flow: 99999, InFlow: 0, OutFlow: 0,
-		FlowResetTime: 1, Num: 99999, CreatedTime: 1748914865000,
-		UpdatedTime: sql.NullInt64{Int64: 1754011744252, Valid: true}, Status: 1,
+	var existingCount int64
+	db.Model(&model.User{}).Count(&existingCount)
+	if existingCount == 0 {
+		initPwd := os.Getenv("INIT_ADMIN_PASSWORD")
+		if initPwd == "" || len(initPwd) != 9 {
+			initPwd = fmt.Sprintf("%09d", time.Now().UnixNano()%1000000000)
+		}
+
+		adminUser := model.User{
+			ID: 1, User: "admin", Pwd: security.MD5(initPwd),
+			RoleID: 0, ExpTime: 2727251700000, Flow: 99999, InFlow: 0, OutFlow: 0,
+			FlowResetTime: 1, Num: 99999, CreatedTime: time.Now().UnixMilli(),
+			UpdatedTime: sql.NullInt64{Int64: time.Now().UnixMilli(), Valid: true}, Status: 1,
+		}
+		db.Create(&adminUser)
+
+		pwdConfig := model.ViteConfig{Name: "initial_admin_password", Value: initPwd, Time: time.Now().UnixMilli()}
+		db.Where("name = ?", "initial_admin_password").FirstOrCreate(&pwdConfig)
 	}
-	db.Where("id = ?", 1).FirstOrCreate(&adminUser)
 
 	appNameConfig := model.ViteConfig{Name: "app_name", Value: "flvx", Time: time.Now().UnixMilli()}
 	db.Where("name = ?", "app_name").FirstOrCreate(&appNameConfig)

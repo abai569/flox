@@ -336,6 +336,10 @@ generate_random() {
   LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c16
 }
 
+generate_9_digits() {
+  head -c 10 /dev/urandom | tr -dc '0-9' | head -c 9
+}
+
 upsert_env_var() {
   local file="$1"
   local key="$2"
@@ -475,6 +479,9 @@ get_config_params() {
   # 生成 JWT 密钥
   JWT_SECRET=$(generate_random)
   
+  # 生成 9 位数字初始密码
+  INIT_ADMIN_PASSWORD=$(generate_9_digits)
+  
   # 授权服务配置（可选，跳过后可在面板设置中输入）
   echo ""
   echo "🔐 授权服务配置："
@@ -530,6 +537,7 @@ JWT_SECRET=$JWT_SECRET
 FRONTEND_PORT=$FRONTEND_PORT
 BACKEND_PORT=$BACKEND_PORT
 FLUX_VERSION=$CURRENT_VERSION
+INIT_ADMIN_PASSWORD=$INIT_ADMIN_PASSWORD
 
 DB_TYPE=$DB_TYPE
 DATABASE_URL=$DATABASE_URL
@@ -558,8 +566,8 @@ EOF
   echo ""
   echo "📋 登录信息："
   echo "   访问地址：http://服务器 IP:$FRONTEND_PORT"
-  echo "   用户名：admin_user"
-  echo "   密码：admin_user"
+  echo "   用户名：admin"
+  echo "   密码：$INIT_ADMIN_PASSWORD"
   echo ""
   echo "📚 文档地址：https://tes.cc/guide.html"
   echo "⚠️  请妥善保管管理员密码！"
