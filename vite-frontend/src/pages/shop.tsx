@@ -708,7 +708,7 @@ export default function ShopPage() {
                 <span className="font-mono font-bold">
                   &yen;
                   {selectedPackage
-                    ? (selectedPackage.price / 100).toFixed(2)
+                    ? ((selectedPackage.price / 100) * (selectedPackage.type === "balance" ? pkgQuantity : 1)).toFixed(2)
                     : "0"}
                 </span>
               </div>
