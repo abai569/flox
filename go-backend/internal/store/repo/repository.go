@@ -534,6 +534,10 @@ func seedData(db *gorm.DB) {
 
 	appNameConfig := model.ViteConfig{Name: "app_name", Value: "flvx", Time: time.Now().UnixMilli()}
 	db.Where("name = ?", "app_name").FirstOrCreate(&appNameConfig)
+
+	// Default enable mall system
+	paymentEnabledConfig := model.ViteConfig{Name: "payment_enabled", Value: "true", Time: time.Now().UnixMilli()}
+	db.Where("name = ?", "payment_enabled").FirstOrCreate(&paymentEnabledConfig)
 }
 
 // ─── User Queries ────────────────────────────────────────────────────
