@@ -613,6 +613,7 @@ func (m *Manager) GetCounters() []CounterResult {
 func (m *Manager) RefreshCounters() []CounterResult {
 	rules, err := m.GetAllKernelRules()
 	if err != nil {
+		fmt.Printf("⚠️ [nftables] GetAllKernelRules failed: %v, fallback to in-memory counters\n", err)
 		return m.GetCounters()
 	}
 
@@ -636,7 +637,6 @@ func (m *Manager) RefreshCounters() []CounterResult {
 		for _, e := range rule.Exprs {
 			switch ex := e.(type) {
 			case *expr.Cmp:
-				// Proto match (1 byte) or port match (2 bytes)
 				if len(ex.Data) == 1 {
 					switch ex.Data[0] {
 					case unix.IPPROTO_TCP:
@@ -667,11 +667,11 @@ func (m *Manager) RefreshCounters() []CounterResult {
 		}
 	}
 
-	// Build port_protocol lookup from kernel entries
-	kernelMap := make(map[string]kernelEntry)
+	// Build port_protocol lookup from kernel entries (multi-value, same port+proto may have multiple rules)
+	kernelMultiMap := make(map[string][]kernelEntry)
 	for _, ke := range kernelEntries {
 		key := fmt.Sprintf("%s_%d", ke.protocol, ke.port)
-		kernelMap[key] = ke
+		kernelMultiMap[key] = append(kernelMultiMap[key], ke)
 	}
 
 	// Match against stored rules and return fresh counters
@@ -681,7 +681,9 @@ func (m *Manager) RefreshCounters() []CounterResult {
 	var results []CounterResult
 	for _, rs := range m.rules {
 		key := fmt.Sprintf("%s_%d", rs.Protocol, rs.Port)
-		if ke, ok := kernelMap[key]; ok {
+		if entries, ok := kernelMultiMap[key]; ok && len(entries) > 0 {
+			// Use the first matching kernel entry; kernel rules lack forwardID so exact match is impossible
+			ke := entries[0]
 			// Update in-memory counter objects so GetCounters also returns fresh data
 			if rs.Rule != nil {
 				for _, e := range rs.Rule.Exprs {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -1018,15 +1019,22 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 	secret := r.URL.Query().Get("secret")
 	node, _ := h.repo.GetNodeBySecret(secret)
 	if node == nil {
+		log.Printf("[flowUpload] node not found by secret (len=%d)", len(secret))
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok"))
 		return
 	}
 
 	raw, err := readAndDecryptFlowBody(r.Body, secret)
-	if err == nil && strings.TrimSpace(raw) != "" {
+	if err != nil {
+		log.Printf("[flowUpload] readAndDecryptFlowBody error: %v", err)
+	} else if strings.TrimSpace(raw) == "" {
+		log.Printf("[flowUpload] empty body from node %d", node.ID)
+	} else {
 		var items []flowItem
-		if json.Unmarshal([]byte(raw), &items) == nil {
+		if json.Unmarshal([]byte(raw), &items) != nil {
+			log.Printf("[flowUpload] json unmarshal failed node=%d raw=%.200s", node.ID, raw)
+		} else {
 			nowMs := time.Now().UnixMilli()
 			h.recordTunnelMetricsFromFlowItems(node.ID, items, nowMs)
 			for _, item := range items {

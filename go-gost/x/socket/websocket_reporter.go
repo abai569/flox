@@ -1043,7 +1043,6 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 			if total > prev {
 				delta = total - prev
 			} else if total < prev {
-				// 计数器被重置或回绕 — 用当前值作为首次 delta，尽量少计
 				delta = total
 			}
 			if delta > 0 {
@@ -1060,18 +1059,17 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		w.nftablesPrevCounters[key] = total
 	}
 
+	if len(deltas) == 0 {
+		return
+	}
+
 	// 注入流量统计
 	for _, d := range deltas {
-		// ForwardStatsManager → BandwidthCalculator 计算实时 InSpeed/OutSpeed
-		// nftables 内核计数器无法区分入站/出站方向，50/50 拆分让上下行都有显示。
-		// 总和（in+out）精确等于实际流量，但上下行各自数值仅供参考。
 		inHalf := d.delta / 2
-		outHalf := d.delta - inHalf // 确保奇数字节不丢失
+		outHalf := d.delta - inHalf
 		stats.AddForwardTraffic(d.forwardID, d.userID, 0, "", 0, d.port, true, inHalf)
 		stats.AddForwardTraffic(d.forwardID, d.userID, 0, "", 0, d.port, false, outHalf)
 
-		// GlobalTrafficManager → HTTP batch /flow/upload → 更新 DB in_flow/out_flow
-		// 使用真实的 userTunnelID（而非 0），确保隧道级流量统计和策略拦截正常
 		serviceName := fmt.Sprintf("%d_%d_%d_%s", d.forwardID, d.userID, d.userTunnelID, d.protocol)
 		service.GetGlobalTrafficManager().AddTraffic(serviceName, int64(inHalf), int64(outHalf))
 	}

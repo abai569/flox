@@ -45,7 +45,9 @@ func (h *Handler) processFlowItem(nodeID int64, item flowItem) {
 	forwardID, userID, userTunnelID, ok := parseFlowServiceIDs(serviceName)
 	if ok {
 		inFlow, outFlow := h.scaleFlowByTunnel(forwardID, item.D, item.U)
-		_ = h.repo.AddFlow(forwardID, userID, userTunnelID, inFlow, outFlow)
+		if err := h.repo.AddFlow(forwardID, userID, userTunnelID, inFlow, outFlow); err != nil {
+			log.Printf("[flow] AddFlow failed forward=%d user=%d: %v", forwardID, userID, err)
+		}
 		if quota, quotaErr := h.repo.AddUserQuotaUsage(userID, inFlow+outFlow, time.Now()); quotaErr == nil {
 			h.enforceUserQuotaIfNeeded(userID, quota)
 		}
@@ -314,8 +316,12 @@ func (h *Handler) scaleFlowByTunnel(forwardID int64, inFlow int64, outFlow int64
 		return inFlow, outFlow
 	}
 
-	scaledIn := int64(float64(inFlow)*tunnel.TrafficRatio) * tunnel.Flow
-	scaledOut := int64(float64(outFlow)*tunnel.TrafficRatio) * tunnel.Flow
+	flowMode := tunnel.Flow
+	if flowMode <= 0 {
+		flowMode = 1
+	}
+	scaledIn := int64(float64(inFlow) * tunnel.TrafficRatio * float64(flowMode))
+	scaledOut := int64(float64(outFlow) * tunnel.TrafficRatio * float64(flowMode))
 	return scaledIn, scaledOut
 }
 
