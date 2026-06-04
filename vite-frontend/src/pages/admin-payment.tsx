@@ -859,9 +859,6 @@ export default function AdminPaymentPage() {
               <CardBody className="p-4 space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <div className="text-xs text-default-500">
-                      对接自托管MPay易支付或标准易支付网关。请先在易支付管理后台创建商户获取 PID 和密钥。
-                    </div>
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">
                       易支付网关
                     </label>
@@ -1097,7 +1094,8 @@ export default function AdminPaymentPage() {
               </CardHeader>
               <CardBody className="p-4 space-y-4">
                 <div className="text-xs text-default-500">
-                  对接自托管 Epusdt (GMPay) 支付网关。请先在 Epusdt管理后台创建商户获取 PID 和密钥。
+                  对接自托管 Epusdt (GMPay) 支付网关。请先在 Epusdt
+                  管理后台创建商户获取 PID 和密钥。
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
