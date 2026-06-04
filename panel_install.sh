@@ -336,8 +336,8 @@ generate_random() {
   LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c16
 }
 
-generate_9_digits() {
-  tr -dc '0-9' < /dev/urandom | head -c 9
+generate_9_alphanum() {
+  LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c9
 }
 
 upsert_env_var() {
@@ -479,8 +479,8 @@ get_config_params() {
   # 生成 JWT 密钥
   JWT_SECRET=$(generate_random)
   
-  # 生成 9 位数字初始密码
-  INIT_ADMIN_PASSWORD=$(generate_9_digits)
+  # 生成 9 位随机密码（数字+大小写字母）
+  INIT_ADMIN_PASSWORD=$(generate_9_alphanum)
   
   # 授权服务配置（可选，跳过后可在面板设置中输入）
   echo ""
