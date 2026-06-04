@@ -144,7 +144,7 @@ export default function ShopPage() {
       return;
     }
     setSelectedPackage(pkg);
-    setPkgQuantity(pkg.type === "balance" ? 1 : 1);
+    setPkgQuantity(pkg.type === "balance" ? pkgQuantity : 1);
     setSelectedCurrency("BALANCE");
     setBuyModalOpen(true);
   };
