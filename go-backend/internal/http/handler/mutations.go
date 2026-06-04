@@ -299,7 +299,7 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 		balanceDiff := balance - oldUser.Balance
 		if balanceDiff > 0 || oldUser.ExpTime != expTime {
-			h.repo.CreateUserRenewalLog(id, balanceDiff, oldUser.Balance, balance, oldUser.ExpTime, expTime, now, operatorName, "管理员充值续费")
+			h.repo.CreateUserRenewalLog(id, balanceDiff, oldUser.Balance, balance, oldUser.ExpTime, expTime, now, operatorName, "管理员手动续费")
 		}
 	}
 
@@ -4122,7 +4122,6 @@ func (h *Handler) groupPermissionRemove(w http.ResponseWriter, r *http.Request) 
 		response.WriteJSON(w, response.Err(-2, tx.Error.Error()))
 		return
 	}
-
 
 	ug, tg, exists, err := h.repo.GetGroupPermissionPairByIDTx(tx, id)
 	if err != nil {
