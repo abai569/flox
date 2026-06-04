@@ -173,7 +173,7 @@ func (h *Handler) nodeTrafficResetLogs(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
 		return
 	}
-	if actorRole != 1 {
+	if actorRole != 0 {
 		response.WriteJSON(w, response.Err(403, "无权操作"))
 		return
 	}
@@ -213,7 +213,7 @@ func (h *Handler) deleteNodeTrafficResetLog(w http.ResponseWriter, r *http.Reque
 		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
 		return
 	}
-	if actorRole != 1 {
+	if actorRole != 0 {
 		response.WriteJSON(w, response.Err(403, "无权操作"))
 		return
 	}
@@ -250,7 +250,7 @@ func (h *Handler) deleteForwardTrafficResetLog(w http.ResponseWriter, r *http.Re
 		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
 		return
 	}
-	if actorRole != 1 {
+	if actorRole != 0 {
 		response.WriteJSON(w, response.Err(403, "无权操作"))
 		return
 	}
