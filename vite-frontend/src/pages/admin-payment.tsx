@@ -458,7 +458,7 @@ export default function AdminPaymentPage() {
       const res = await getAllUsers({ size: 1000 });
 
       if (res.code === 0) setUsers(Array.isArray(res.data) ? res.data : []);
-    } catch {}
+    } catch { }
   }, []);
 
   const handleDeleteLog = (log: BalanceLogItem) => {
@@ -980,9 +980,28 @@ export default function AdminPaymentPage() {
                       <Switch
                         isSelected={yipay.enable_alipay}
                         size="sm"
-                        onValueChange={(v) =>
-                          setYipay((p) => ({ ...p, enable_alipay: v }))
-                        }
+                        onValueChange={async (v) => {
+                          const updated = { ...yipay, enable_alipay: v };
+                          setYipay(updated);
+                          try {
+                            const { enabled, key: k, ...rest } = updated;
+                            const cfg: Record<string, unknown> = { ...rest };
+                            if (k) cfg.key = k;
+                            const res = await Network.post("/payment/config/save", {
+                              channel: "YIPAY",
+                              config: JSON.stringify(cfg),
+                              enabled: enabled ? 1 : 0,
+                            });
+                            if (res?.code === 0) {
+                              toast.success("设置成功");
+                              loadPaymentData();
+                            } else {
+                              toast.error(res?.msg || "保存失败");
+                            }
+                          } catch {
+                            toast.error("保存失败");
+                          }
+                        }}
                       />
                       <span className="text-sm text-gray-400">启用支付宝</span>
                     </div>
@@ -990,9 +1009,28 @@ export default function AdminPaymentPage() {
                       <Switch
                         isSelected={yipay.enable_wxpay}
                         size="sm"
-                        onValueChange={(v) =>
-                          setYipay((p) => ({ ...p, enable_wxpay: v }))
-                        }
+                        onValueChange={async (v) => {
+                          const updated = { ...yipay, enable_wxpay: v };
+                          setYipay(updated);
+                          try {
+                            const { enabled, key: k, ...rest } = updated;
+                            const cfg: Record<string, unknown> = { ...rest };
+                            if (k) cfg.key = k;
+                            const res = await Network.post("/payment/config/save", {
+                              channel: "YIPAY",
+                              config: JSON.stringify(cfg),
+                              enabled: enabled ? 1 : 0,
+                            });
+                            if (res?.code === 0) {
+                              toast.success("设置成功");
+                              loadPaymentData();
+                            } else {
+                              toast.error(res?.msg || "保存失败");
+                            }
+                          } catch {
+                            toast.error("保存失败");
+                          }
+                        }}
                       />
                       <span className="text-sm text-gray-400">启用微信</span>
                     </div>
@@ -1134,7 +1172,7 @@ export default function AdminPaymentPage() {
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm text-gray-400 text-foreground mb-1 block">
                       U 支付异步通知地址
@@ -1161,27 +1199,65 @@ export default function AdminPaymentPage() {
                       }
                     />
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        isSelected={usdt.enable_tron}
-                        size="sm"
-                        onValueChange={(v) =>
-                          setUsdt((p) => ({ ...p, enable_tron: v }))
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      isSelected={usdt.enable_tron}
+                      size="sm"
+                      onValueChange={async (v) => {
+                        const updated = { ...usdt, enable_tron: v };
+                        setUsdt(updated);
+                        try {
+                          const { enabled, secret_key: sk, ...rest } = updated;
+                          const cfg: Record<string, unknown> = { ...rest };
+                          if (sk) cfg.secret_key = sk;
+                          const res = await Network.post("/payment/config/save", {
+                            channel: "USDT",
+                            config: JSON.stringify(cfg),
+                            enabled: enabled ? 1 : 0,
+                          });
+                          if (res?.code === 0) {
+                            toast.success("设置成功");
+                            loadPaymentData();
+                          } else {
+                            toast.error(res?.msg || "保存失败");
+                          }
+                        } catch {
+                          toast.error("保存失败");
                         }
-                      />
-                      <span className="text-sm text-gray-400">启用 TRC-20</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        isSelected={usdt.enable_polygon}
-                        size="sm"
-                        onValueChange={(v) =>
-                          setUsdt((p) => ({ ...p, enable_polygon: v }))
+                      }}
+                    />
+                    <span className="text-sm text-gray-400">启用 TRC-20</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      isSelected={usdt.enable_polygon}
+                      size="sm"
+                      onValueChange={async (v) => {
+                        const updated = { ...usdt, enable_polygon: v };
+                        setUsdt(updated);
+                        try {
+                          const { enabled, secret_key: sk, ...rest } = updated;
+                          const cfg: Record<string, unknown> = { ...rest };
+                          if (sk) cfg.secret_key = sk;
+                          const res = await Network.post("/payment/config/save", {
+                            channel: "USDT",
+                            config: JSON.stringify(cfg),
+                            enabled: enabled ? 1 : 0,
+                          });
+                          if (res?.code === 0) {
+                            toast.success("设置成功");
+                            loadPaymentData();
+                          } else {
+                            toast.error(res?.msg || "保存失败");
+                          }
+                        } catch {
+                          toast.error("保存失败");
                         }
-                      />
-                      <span className="text-sm text-gray-400">启用 Polygon</span>
-                    </div>
+                      }}
+                    />
+                    <span className="text-sm text-gray-400">启用 Polygon</span>
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">
