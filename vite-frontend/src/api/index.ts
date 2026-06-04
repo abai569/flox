@@ -85,6 +85,7 @@ export interface LoginResponse {
   role_id: number;
   name: string;
   requirePasswordChange?: boolean;
+  isDefaultAdmin?: boolean;
 }
 
 export const login = (data: LoginData) =>

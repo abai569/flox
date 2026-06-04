@@ -134,7 +134,10 @@ export default function IndexPage() {
 
       if (response.data.isDefaultAdmin) {
         writeLoginSession(response.data);
-        toast.warning("正在使用默认密码登录请尽快修改");
+        toast("正在使用默认密码登录请尽快修改", {
+          icon: "⚠️",
+          duration: 5000,
+        });
         window.location.href = "/dashboard";
 
         return;
