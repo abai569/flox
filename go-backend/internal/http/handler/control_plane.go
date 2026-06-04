@@ -2171,10 +2171,32 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		if err != nil || node == nil {
 			continue
 		}
-		// 优先使用 ServerIPv4，其次是 ServerIP
+		// 与 selectTunnelDialHost 保持一致：LAN → IPv4 → IPv6 → ServerIP
+		if v := strings.TrimSpace(node.IntranetIP); v != "" {
+			chainNodes[i].ConnectIP = v
+			continue
+		}
+		if v := strings.TrimSpace(node.ExtraIPs); v != "" {
+			for _, ip := range strings.Split(v, ",") {
+				ip = strings.TrimSpace(ip)
+				if ip != "" && !strings.HasPrefix(ip, "[") {
+					chainNodes[i].ConnectIP = ip
+					break
+				}
+			}
+			if chainNodes[i].ConnectIP != "" {
+				continue
+			}
+		}
 		if v := strings.TrimSpace(node.ServerIPv4); v != "" {
 			chainNodes[i].ConnectIP = v
-		} else if v := strings.TrimSpace(node.ServerIP); v != "" {
+			continue
+		}
+		if v := strings.TrimSpace(node.ServerIPv6); v != "" {
+			chainNodes[i].ConnectIP = v
+			continue
+		}
+		if v := strings.TrimSpace(node.ServerIP); v != "" {
 			chainNodes[i].ConnectIP = v
 		}
 	}
