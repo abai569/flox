@@ -236,7 +236,7 @@ export default function ShopPage() {
         const createRes = await createPackageOrder({
           package_id: selectedPackage.id,
           pay_currency: selectedCurrency,
-          quantity: 1,
+          quantity: selectedPackage.type === "balance" ? pkgQuantity : 1,
           ...(selectedCurrency === "YIPAY"
             ? { pay_type: selectedPayType }
             : {}),
