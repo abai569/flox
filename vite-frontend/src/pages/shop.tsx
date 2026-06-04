@@ -124,6 +124,17 @@ export default function ShopPage() {
 
   usePullToRefresh(loadData);
 
+  // 购买弹窗打开时，静默刷新支付配置，确保后台开关变更及时生效
+  useEffect(() => {
+    if (buyModalOpen) {
+      getPaymentConfigs().then((res) => {
+        if (res.code === 0) {
+          setPayChannels(Array.isArray(res.data) ? res.data : []);
+        }
+      });
+    }
+  }, [buyModalOpen]);
+
   const handleBuyPackage = (pkg: SubscriptionPackageApiItem) => {
     if (pkg.stock === 0) return;
     if (pkg.type === "subscription" && activeSub) {
