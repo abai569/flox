@@ -336,8 +336,14 @@ generate_random() {
   LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c16
 }
 
-generate_9_alphanum() {
-  LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c9
+generate_admin_password() {
+  # 6位随机 + 1位数字 + 1位大写 + 1位小写，保证混合
+  local str="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c6)$(tr -dc '0-9' </dev/urandom | head -c1)$(tr -dc 'A-Z' </dev/urandom | head -c1)$(tr -dc 'a-z' </dev/urandom | head -c1)"
+  if command -v shuf &>/dev/null; then
+    echo "$str" | fold -w1 | shuf | tr -d '\n'
+  else
+    echo "$str"
+  fi
 }
 
 upsert_env_var() {
@@ -480,7 +486,7 @@ get_config_params() {
   JWT_SECRET=$(generate_random)
   
   # 生成 9 位随机密码（数字+大小写字母）
-  INIT_ADMIN_PASSWORD=$(generate_9_alphanum)
+  INIT_ADMIN_PASSWORD=$(generate_admin_password)
   
   # 授权服务配置（可选，跳过后可在面板设置中输入）
   echo ""
