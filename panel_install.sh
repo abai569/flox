@@ -337,7 +337,7 @@ generate_random() {
 }
 
 generate_9_digits() {
-  head -c 10 /dev/urandom | tr -dc '0-9' | head -c 9
+  tr -dc '0-9' < /dev/urandom | head -c 9
 }
 
 upsert_env_var() {
@@ -569,7 +569,7 @@ EOF
   echo "   用户名：admin"
   echo "   密码：$INIT_ADMIN_PASSWORD"
   echo ""
-  echo "📚 文档地址：https://tes.cc/guide.html"
+  echo "📚 文档地址：https://abai569.github.io/flvx/"
   echo "⚠️  请妥善保管管理员密码！"
 
   # 上报安装统计
