@@ -91,6 +91,7 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 	if token == "" {
 		token = "usdt"
 	}
+	network := "tron"
 
 	// Build params for signing (all strings)
 	signParams := map[string]string{
@@ -98,6 +99,7 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 		"order_id":   order.OrderNo,
 		"currency":   currency,
 		"token":      token,
+		"network":    network,
 		"amount":     amountStr,
 		"notify_url": g.config.NotifyURL,
 	}
@@ -112,6 +114,7 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 		"order_id":   order.OrderNo,
 		"currency":   currency,
 		"token":      token,
+		"network":    network,
 		"amount":     amountCNY,
 		"notify_url": g.config.NotifyURL,
 		"signature":  signature,
