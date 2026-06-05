@@ -71,7 +71,7 @@ func (h *Handler) yipayCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.completePayment(orderNo, txHash)
-	io.WriteString(w, "ok")
+	io.WriteString(w, "success")
 }
 
 func (h *Handler) usdtCallback(w http.ResponseWriter, r *http.Request) {
@@ -88,7 +88,7 @@ func (h *Handler) usdtCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.completePayment(orderNo, txHash)
-	io.WriteString(w, "ok")
+	io.WriteString(w, "success")
 }
 
 func (h *Handler) completePayment(orderNo, txHash string) {

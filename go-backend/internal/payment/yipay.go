@@ -124,10 +124,14 @@ func (g *yiPayGateway) VerifyCallback(r *http.Request) (orderNo string, txHash s
 		return "", "", fmt.Errorf("read body: %w", err)
 	}
 
-	// Parse form-encoded or JSON body
-	values, err := url.ParseQuery(string(body))
-	if err != nil {
-		return "", "", fmt.Errorf("parse form: %w", err)
+	var values url.Values
+	if len(body) > 0 {
+		values, err = url.ParseQuery(string(body))
+		if err != nil {
+			return "", "", fmt.Errorf("parse form: %w", err)
+		}
+	} else {
+		values = r.URL.Query()
 	}
 
 	cb := yipayCallback{
