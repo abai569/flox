@@ -121,7 +121,7 @@ func (h *Handler) completePayment(orderNo, txHash string) {
 			}
 			switch pkg.Type {
 			case "balance":
-				_ = h.repo.DeliverBalancePackageToUser(userID, order.Amount, pkg.Name, order.ID, qty)
+				_ = h.repo.DeliverBalancePackageToUser(userID, order.Amount, pkg.Name, order.ID)
 			case "traffic":
 				_ = h.repo.DeliverTrafficPackageToUser(userID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit, qty)
 			default:

@@ -444,7 +444,7 @@ func (h *Handler) assignPackageToUser(w http.ResponseWriter, r *http.Request) {
 	}
 	switch pkg.Type {
 	case "balance":
-		if err := h.repo.DeliverBalancePackageToUser(req.UserID, pkg.Price, pkg.Name, 0, 1); err != nil {
+		if err := h.repo.DeliverBalancePackageToUser(req.UserID, pkg.Price, pkg.Name, 0); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}

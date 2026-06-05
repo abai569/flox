@@ -173,6 +173,5 @@ func (g *yiPayGateway) QueryStatus(orderNo string) (bool, string, error) {
 	return false, "", nil
 }
 
-// Ensure interfaces are satisfied
-var _ PaymentGateway = (*nowPaymentsGateway)(nil)
+// Ensure interface is satisfied
 var _ PaymentGateway = (*yiPayGateway)(nil)

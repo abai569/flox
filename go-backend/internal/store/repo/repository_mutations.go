@@ -1787,12 +1787,12 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 }
 
 // DeliverBalancePackageToUser applies a balance package: adds balance to user.
-func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64, pkgName string, orderID int64, quantity int64) error {
+func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64, pkgName string, orderID int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 	now := time.Now().UnixMilli()
-	totalAmount := amountCents * quantity
+	totalAmount := amountCents
 	user, err := r.GetUserByID(userID)
 	if err != nil {
 		return err
