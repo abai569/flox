@@ -122,8 +122,6 @@ interface UsdtForm {
   return_url: string;
   currency: string;
   token: string;
-  enable_tron: boolean;
-  enable_polygon: boolean;
 }
 
 interface PaymentStats {
@@ -160,8 +158,6 @@ const defaultUsdt: UsdtForm = {
   return_url: "",
   currency: "cny",
   token: "usdt",
-  enable_tron: true,
-  enable_polygon: true,
 };
 
 export default function AdminPaymentPage() {
@@ -316,16 +312,12 @@ export default function AdminPaymentPage() {
           return_url: parsed.return_url || "",
           currency: parsed.currency || "cny",
           token: parsed.token || "usdt",
-          enable_tron: parsed.enable_tron !== false,
-          enable_polygon: parsed.enable_polygon !== false,
         });
       } catch {
         setUsdt({
           ...defaultUsdt,
           enabled: !!usdtConfig.enabled,
           notify_url: panelUrl + "/api/v1/payment/callback/usdt",
-          enable_tron: true,
-          enable_polygon: true,
         });
       }
     }
@@ -1231,66 +1223,6 @@ export default function AdminPaymentPage() {
                         setUsdt((p) => ({ ...p, return_url: e.target.value }))
                       }
                     />
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      isSelected={usdt.enable_tron}
-                      size="sm"
-                      onValueChange={async (v) => {
-                        const updated = { ...usdt, enable_tron: v };
-                        setUsdt(updated);
-                        try {
-                          const { enabled, secret_key: sk, ...rest } = updated;
-                          const cfg: Record<string, unknown> = { ...rest };
-                          if (sk) cfg.secret_key = sk;
-                          const res = await Network.post("/payment/config/save", {
-                            channel: "USDT",
-                            config: JSON.stringify(cfg),
-                            enabled: enabled ? 1 : 0,
-                          });
-                          if (res?.code === 0) {
-                            toast.success("设置成功");
-                            loadPaymentData();
-                          } else {
-                            toast.error(res?.msg || "保存失败");
-                          }
-                        } catch {
-                          toast.error("保存失败");
-                        }
-                      }}
-                    />
-                    <span className="text-sm text-gray-400">启用 TRC-20</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      isSelected={usdt.enable_polygon}
-                      size="sm"
-                      onValueChange={async (v) => {
-                        const updated = { ...usdt, enable_polygon: v };
-                        setUsdt(updated);
-                        try {
-                          const { enabled, secret_key: sk, ...rest } = updated;
-                          const cfg: Record<string, unknown> = { ...rest };
-                          if (sk) cfg.secret_key = sk;
-                          const res = await Network.post("/payment/config/save", {
-                            channel: "USDT",
-                            config: JSON.stringify(cfg),
-                            enabled: enabled ? 1 : 0,
-                          });
-                          if (res?.code === 0) {
-                            toast.success("设置成功");
-                            loadPaymentData();
-                          } else {
-                            toast.error(res?.msg || "保存失败");
-                          }
-                        } catch {
-                          toast.error("保存失败");
-                        }
-                      }}
-                    />
-                    <span className="text-sm text-gray-400">启用 Polygon</span>
                   </div>
                 </div>
                 <div className="flex justify-end pt-2">

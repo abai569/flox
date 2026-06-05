@@ -16,15 +16,13 @@ import (
 )
 
 type GMPayConfig struct {
-	PID            string `json:"pid"`
-	SecretKey      string `json:"secret_key"`
-	APIURL         string `json:"api_url"`
-	NotifyURL      string `json:"notify_url"`
-	ReturnURL      string `json:"return_url"`
-	Currency       string `json:"currency"`
-	Token          string `json:"token"`
-	EnableTron     bool   `json:"enable_tron"`     // 启用 TRC-20
-	EnablePolygon  bool   `json:"enable_polygon"`  // 启用 Polygon
+	PID       string `json:"pid"`
+	SecretKey string `json:"secret_key"`
+	APIURL    string `json:"api_url"`
+	NotifyURL string `json:"notify_url"`
+	ReturnURL string `json:"return_url"`
+	Currency  string `json:"currency"`
+	Token     string `json:"token"`
 }
 
 type gmpayGateway struct {
@@ -93,10 +91,6 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 	if token == "" {
 		token = "usdt"
 	}
-	network := order.PayNetwork
-	if network == "" {
-		network = "tron"
-	}
 
 	// Build params for signing (all strings)
 	signParams := map[string]string{
@@ -104,7 +98,6 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 		"order_id":   order.OrderNo,
 		"currency":   currency,
 		"token":      token,
-		"network":    network,
 		"amount":     amountStr,
 		"notify_url": g.config.NotifyURL,
 	}
@@ -119,7 +112,6 @@ func (g *gmpayGateway) CreateInvoice(order *model.Order) (*PaymentResult, error)
 		"order_id":   order.OrderNo,
 		"currency":   currency,
 		"token":      token,
-		"network":    network,
 		"amount":     amountCNY,
 		"notify_url": g.config.NotifyURL,
 		"signature":  signature,

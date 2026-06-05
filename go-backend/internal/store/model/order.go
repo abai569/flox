@@ -17,7 +17,6 @@ type Order struct {
 	PayAddress    string `gorm:"column:pay_address;type:varchar(100);default:''" json:"payAddress"`
 	TxHash        string `gorm:"column:tx_hash;type:varchar(100);default:''" json:"txHash"`
 	PayType       string `gorm:"column:pay_type;type:varchar(20);default:''" json:"payType"`      // alipay | wxpay
-	PayNetwork    string `gorm:"column:pay_network;type:varchar(20);default:''" json:"payNetwork"` // tron | polygon
 	CreatedAt     int64  `gorm:"column:created_at;not null" json:"createdAt"`
 	UpdatedAt     int64  `gorm:"column:updated_at;not null" json:"updatedAt"`
 }

@@ -51,7 +51,6 @@ export default function ShopPage() {
     localStorage.getItem("shop-active-tab") || "subscription",
   );
   const [selectedPayType, setSelectedPayType] = useState("alipay");
-  const [selectedPayNetwork, setSelectedPayNetwork] = useState("tron");
   const [packageGroups, setPackageGroups] = useState<PackageGroupApiItem[]>([]);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
@@ -185,17 +184,7 @@ export default function ShopPage() {
         setSelectedPayType("alipay");
       }
     }
-    if (selectedCurrency === "USDT") {
-      const cfg = parsedPayConfigs["USDT"] || {};
-      const hasTron = cfg.enable_tron !== false;
-      const hasPolygon = cfg.enable_polygon !== false;
-      if (!hasTron && hasPolygon && selectedPayNetwork !== "polygon") {
-        setSelectedPayNetwork("polygon");
-      } else if (hasTron && !hasPolygon && selectedPayNetwork !== "tron") {
-        setSelectedPayNetwork("tron");
-      }
-    }
-  }, [selectedCurrency, parsedPayConfigs, selectedPayType, selectedPayNetwork]);
+  }, [selectedCurrency, parsedPayConfigs, selectedPayType]);
 
   const availableChannels = (() => {
     const isBalanceType = selectedPackage?.type === "balance";
@@ -239,9 +228,6 @@ export default function ShopPage() {
           quantity: selectedPackage.type === "balance" ? pkgQuantity : 1,
           ...(selectedCurrency === "YIPAY"
             ? { pay_type: selectedPayType }
-            : {}),
-          ...(selectedCurrency === "USDT"
-            ? { pay_network: selectedPayNetwork }
             : {}),
         });
 
@@ -727,8 +713,6 @@ export default function ShopPage() {
                     onClick={() => {
                       setSelectedCurrency(ch.channel);
                       if (ch.channel === "YIPAY") setSelectedPayType("alipay");
-                      if (ch.channel === "USDT")
-                        setSelectedPayNetwork("tron");
                     }}
                   >
                     <div>
@@ -778,41 +762,7 @@ export default function ShopPage() {
                     </div>
                   </div>
                 );
-              })()}
-              {selectedCurrency === "USDT" && (() => {
-                const cfg = parsedPayConfigs["USDT"] || {};
-                const hasTron = cfg.enable_tron !== false;
-                const hasPolygon = cfg.enable_polygon !== false;
-                return (
-                  <div className="space-y-2">
-                    <label className="text-sm text-gray-400">网络</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        disabled={!hasPolygon}
-                        className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
-                          selectedPayNetwork === "polygon"
-                            ? "border-primary bg-primary/5 text-primary"
-                            : "border-divider hover:border-default-400"
-                        } ${!hasPolygon ? "opacity-50 cursor-not-allowed" : ""}`}
-                        onClick={() => hasPolygon && setSelectedPayNetwork("polygon")}
-                      >
-                        Polygon
-                      </button>
-                      <button
-                        disabled={!hasTron}
-                        className={`p-2.5 rounded-lg border text-sm text-center transition-colors ${
-                          selectedPayNetwork === "tron"
-                            ? "border-primary bg-primary/5 text-primary"
-                            : "border-divider hover:border-default-400"
-                        } ${!hasTron ? "opacity-50 cursor-not-allowed" : ""}`}
-                        onClick={() => hasTron && setSelectedPayNetwork("tron")}
-                      >
-                        TRC-20
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
+               })()}
             </div>
           </ModalBody>
           <ModalFooter>
