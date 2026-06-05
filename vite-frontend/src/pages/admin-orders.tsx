@@ -33,6 +33,10 @@ import {
   deleteOrder,
   updateOrder,
   refundOrder,
+  completeOrder,
+  batchCompleteOrders,
+  batchRefundOrders,
+  batchDeleteOrders,
 } from "@/api";
 
 const statusMap: Record<
@@ -84,6 +88,7 @@ export default function AdminOrdersPage() {
   const [deleteTarget, setDeleteTarget] = useState<OrderApiItem | null>(null);
   const [refundConfirmOpen, setRefundConfirmOpen] = useState(false);
   const [refundTarget, setRefundTarget] = useState<OrderApiItem | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [stats, setStats] = useState({
     paidAmount: 0,
     paidOrders: 0,
@@ -227,6 +232,75 @@ export default function AdminOrdersPage() {
       loadData();
     } else {
       toast.error(res.msg || "删除失败");
+    }
+  };
+
+  const toggleSelectId = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === orders.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(orders.map((o) => o.id)));
+    }
+  };
+
+  const handleBatchComplete = async () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const res = await batchCompleteOrders(ids);
+    if (res.code === 0) {
+      const d = res.data as { success: number; skipped: number };
+      toast.success(`补单成功 ${d.success} 条，跳过 ${d.skipped} 条`);
+      setSelectedIds(new Set());
+      loadData();
+    } else {
+      toast.error(res.msg || "批量补单失败");
+    }
+  };
+
+  const handleBatchRefund = async () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const res = await batchRefundOrders(ids);
+    if (res.code === 0) {
+      const d = res.data as { success: number; skipped: number };
+      toast.success(`退款成功 ${d.success} 条，跳过 ${d.skipped} 条`);
+      setSelectedIds(new Set());
+      loadData();
+    } else {
+      toast.error(res.msg || "批量退款失败");
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    const res = await batchDeleteOrders(ids);
+    if (res.code === 0) {
+      const d = res.data as { success: number };
+      toast.success(`删除成功 ${d.success} 条`);
+      setSelectedIds(new Set());
+      loadData();
+    } else {
+      toast.error(res.msg || "批量删除失败");
+    }
+  };
+
+  const handleCompleteSingle = async (order: OrderApiItem) => {
+    const res = await completeOrder(order.id);
+    if (res.code === 0) {
+      toast.success("补单成功");
+      loadData();
+    } else {
+      toast.error(res.msg || "补单失败");
     }
   };
 
@@ -449,6 +523,21 @@ export default function AdminOrdersPage() {
         </div>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm text-default-500 mr-1">已选 {selectedIds.size} 项</span>
+          <Button color="success" size="sm" variant="flat" onPress={handleBatchComplete}>
+            批量补单
+          </Button>
+          <Button color="secondary" size="sm" variant="flat" onPress={handleBatchRefund}>
+            批量退款
+          </Button>
+          <Button color="danger" size="sm" variant="flat" onPress={handleBatchDelete}>
+            批量删除
+          </Button>
+        </div>
+      )}
+
       <div className="relative overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
         {refreshing && (
           <div className="absolute inset-0 bg-white/60 dark:bg-black/40 z-10 flex items-center justify-center">
@@ -481,6 +570,14 @@ export default function AdminOrdersPage() {
           }}
         >
           <TableHeader>
+            <TableColumn className="whitespace-nowrap w-10">
+              <input
+                checked={orders.length > 0 && selectedIds.size === orders.length}
+                className="cursor-pointer"
+                type="checkbox"
+                onChange={toggleSelectAll}
+              />
+            </TableColumn>
             <TableColumn className="whitespace-nowrap">订单号</TableColumn>
             <TableColumn className="whitespace-nowrap">用户</TableColumn>
             <TableColumn className="whitespace-nowrap">商品</TableColumn>
@@ -493,12 +590,12 @@ export default function AdminOrdersPage() {
           <TableBody>
             {orders.length === 0 ? (
               <TableRow>
-                <TableCell
-                  className="text-center text-default-400 py-8"
-                  colSpan={8}
-                >
-                  暂无订单
-                </TableCell>
+                  <TableCell
+                    className="text-center text-default-400 py-8"
+                    colSpan={9}
+                  >
+                    暂无订单
+                  </TableCell>
               </TableRow>
             ) : (
               orders.map((order) => {
@@ -509,6 +606,14 @@ export default function AdminOrdersPage() {
 
                 return (
                   <TableRow key={order.id}>
+                    <TableCell>
+                      <input
+                        checked={selectedIds.has(order.id)}
+                        className="cursor-pointer"
+                        type="checkbox"
+                        onChange={() => toggleSelectId(order.id)}
+                      />
+                    </TableCell>
                     <TableCell className="font-mono text-xs whitespace-nowrap">
                       {order.orderNo}
                     </TableCell>
@@ -552,6 +657,16 @@ export default function AdminOrdersPage() {
                         >
                           编辑
                         </Button>
+                        {order.status === 0 && (
+                          <Button
+                            color="success"
+                            size="sm"
+                            variant="flat"
+                            onPress={() => handleCompleteSingle(order)}
+                          >
+                            补单
+                          </Button>
+                        )}
                         {order.status === 1 && (
                           <Button
                             color="secondary"

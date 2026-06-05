@@ -210,6 +210,32 @@ func (h *Handler) adminDeleteBalanceLog(w http.ResponseWriter, r *http.Request) 
 	response.WriteJSON(w, response.OKEmpty())
 }
 
+func (h *Handler) adminBatchDeleteBalanceLogs(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if len(req.IDs) == 0 {
+		response.WriteJSON(w, response.ErrDefault("流水ID列表不能为空"))
+		return
+	}
+	success := 0
+	for _, id := range req.IDs {
+		if err := h.repo.DeleteBalanceLog(id); err == nil {
+			success++
+		}
+	}
+	response.WriteJSON(w, response.OK(map[string]int{
+		"success": success,
+	}))
+}
+
 func (h *Handler) adminCleanupBalanceLogs(w http.ResponseWriter, r *http.Request) {
 	if !h.ensureAdminAccess(w, r) {
 		return

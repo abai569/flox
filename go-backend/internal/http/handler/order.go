@@ -366,6 +366,161 @@ func (h *Handler) adminRefundOrder(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OKEmpty())
 }
 
+func (h *Handler) adminCompleteOrder(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if req.ID <= 0 {
+		response.WriteJSON(w, response.ErrDefault("订单ID不能为空"))
+		return
+	}
+	order, err := h.repo.GetOrder(req.ID)
+	if err != nil {
+		response.WriteJSON(w, response.ErrDefault("订单不存在"))
+		return
+	}
+	if order.Status != 0 {
+		response.WriteJSON(w, response.ErrDefault("只有待支付订单才能补单"))
+		return
+	}
+	h.completePayment(order.OrderNo, "")
+	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) adminBatchCompleteOrders(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if len(req.IDs) == 0 {
+		response.WriteJSON(w, response.ErrDefault("订单ID列表不能为空"))
+		return
+	}
+	success := 0
+	skipped := 0
+	for _, id := range req.IDs {
+		order, err := h.repo.GetOrder(id)
+		if err != nil || order.Status != 0 {
+			skipped++
+			continue
+		}
+		h.completePayment(order.OrderNo, "")
+		success++
+	}
+	response.WriteJSON(w, response.OK(map[string]int{
+		"success": success,
+		"skipped": skipped,
+	}))
+}
+
+func (h *Handler) adminBatchRefundOrders(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if len(req.IDs) == 0 {
+		response.WriteJSON(w, response.ErrDefault("订单ID列表不能为空"))
+		return
+	}
+	success := 0
+	skipped := 0
+	for _, id := range req.IDs {
+		order, err := h.repo.GetOrder(id)
+		if err != nil || order.Status != 1 {
+			skipped++
+			continue
+		}
+		now := time.Now().Unix()
+		user, err := h.repo.GetUserByID(order.UserID)
+		if err != nil {
+			skipped++
+			continue
+		}
+		if err := h.repo.IncreaseUserBalance(order.UserID, order.Amount); err != nil {
+			skipped++
+			continue
+		}
+		_ = h.repo.CreateBalanceLog(order.UserID, order.UserName, order.Amount,
+			user.Balance, user.Balance+order.Amount, now, "订单退款")
+		h.repo.TryAutoRenewForUser(order.UserID)
+		if order.ProductType == "package" {
+			var metaObj map[string]interface{}
+			if err := json.Unmarshal([]byte(order.ProductMeta), &metaObj); err == nil {
+				var pkg model.SubscriptionPackage
+				pkgData, _ := json.Marshal(metaObj["pkg"])
+				_ = json.Unmarshal(pkgData, &pkg)
+				qty := int64(1)
+				if q, ok := metaObj["quantity"].(float64); ok && q > 0 {
+					qty = int64(q)
+				}
+				switch pkg.Type {
+				case "traffic":
+					_ = h.repo.RefundTrafficPackage(order.UserID, pkg.TrafficLimit*qty)
+				case "balance":
+				default:
+					sub, err := h.repo.GetPackageSubscriptionByOrderID(order.ID)
+					if err == nil && sub.Status == 1 {
+						_ = h.repo.ExpirePackageSubscription(sub.ID)
+						_ = h.repo.ResetUserPackageQuotas(order.UserID)
+					}
+				}
+				_ = h.repo.RestorePackageStock(pkg.ID, qty)
+			}
+		}
+		_ = h.repo.UpdateOrderStatus(id, 3)
+		success++
+	}
+	response.WriteJSON(w, response.OK(map[string]int{
+		"success": success,
+		"skipped": skipped,
+	}))
+}
+
+func (h *Handler) adminBatchDeleteOrders(w http.ResponseWriter, r *http.Request) {
+	if !h.ensureAdminAccess(w, r) {
+		return
+	}
+	var req struct {
+		IDs []int64 `json:"ids"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if len(req.IDs) == 0 {
+		response.WriteJSON(w, response.ErrDefault("订单ID列表不能为空"))
+		return
+	}
+	success := 0
+	for _, id := range req.IDs {
+		if err := h.repo.DeleteOrder(id); err == nil {
+			success++
+		}
+	}
+	response.WriteJSON(w, response.OK(map[string]int{
+		"success": success,
+	}))
+}
+
 func (h *Handler) userNameFromRequest(r *http.Request) (int64, string) {
 	uid, roleID, err := userRoleFromRequest(r)
 	if err != nil {

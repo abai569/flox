@@ -969,6 +969,18 @@ export const updateOrder = (data: {
 export const refundOrder = (id: number) =>
   Network.post("/order/admin/refund", { id });
 
+export const completeOrder = (id: number) =>
+  Network.post("/order/admin/complete", { id });
+
+export const batchCompleteOrders = (ids: number[]) =>
+  Network.post("/order/admin/batch-complete", { ids });
+
+export const batchRefundOrders = (ids: number[]) =>
+  Network.post("/order/admin/batch-refund", { ids });
+
+export const batchDeleteOrders = (ids: number[]) =>
+  Network.post("/order/admin/batch-delete", { ids });
+
 export const getPaymentConfigs = () =>
   Network.post<PaymentChannelItem[]>("/payment/config");
 
@@ -1034,6 +1046,9 @@ export const deleteBalanceLog = (id: number) =>
 
 export const cleanupBalanceLogs = () =>
   Network.post<{ deleted: number }>("/billing/balance-log/cleanup");
+
+export const batchDeleteBalanceLogs = (ids: number[]) =>
+  Network.post("/billing/balance-log/batch-delete", { ids });
 
 // ─── Subscription Packages ─────────────────────────────────────
 export const getPackageList = () =>

@@ -374,6 +374,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/order/admin/delete", h.adminDeleteOrder)
 	mux.HandleFunc("/api/v1/order/admin/update", h.adminUpdateOrder)
 	mux.HandleFunc("/api/v1/order/admin/refund", h.adminRefundOrder)
+	mux.HandleFunc("/api/v1/order/admin/complete", h.adminCompleteOrder)
+	mux.HandleFunc("/api/v1/order/admin/batch-complete", h.adminBatchCompleteOrders)
+	mux.HandleFunc("/api/v1/order/admin/batch-refund", h.adminBatchRefundOrders)
+	mux.HandleFunc("/api/v1/order/admin/batch-delete", h.adminBatchDeleteOrders)
 
 	mux.HandleFunc("/api/v1/payment/pay", h.payOrder)
 	mux.HandleFunc("/api/v1/payment/callback/yipay", h.yipayCallback)
@@ -393,6 +397,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/billing/discount/delete", h.deleteDiscountCode)
 	mux.HandleFunc("/api/v1/billing/balance-log/list", h.listBalanceLogs)
 	mux.HandleFunc("/api/v1/billing/balance-log/delete", h.adminDeleteBalanceLog)
+	mux.HandleFunc("/api/v1/billing/balance-log/batch-delete", h.adminBatchDeleteBalanceLogs)
 	mux.HandleFunc("/api/v1/billing/balance-log/cleanup", h.adminCleanupBalanceLogs)
 	mux.HandleFunc("/api/v1/billing/feature-status", h.getBillingFeatureStatus)
 	mux.HandleFunc("/api/v1/billing/feature-status/save", h.setBillingFeatureStatus)

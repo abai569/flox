@@ -43,6 +43,7 @@ import {
   getBalanceLogs,
   deleteBalanceLog,
   cleanupBalanceLogs,
+  batchDeleteBalanceLogs,
   getRedeemCodes,
   createRedeemCodes,
   deleteRedeemCode,
@@ -197,6 +198,7 @@ export default function AdminPaymentPage() {
     () => localStorage.getItem("adminPaymentLogUserFilter") || "all",
   );
   const [users, setUsers] = useState<UserApiItem[]>([]);
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<number>>(new Set());
   const [deleteLogConfirmOpen, setDeleteLogConfirmOpen] = useState(false);
   const [deleteLogTarget, setDeleteLogTarget] = useState<BalanceLogItem | null>(
     null,
@@ -495,6 +497,37 @@ export default function AdminPaymentPage() {
       loadBillingData();
     } else {
       toast.error(res.msg || "清理失败");
+    }
+  };
+
+  const toggleSelectLogId = (id: number) => {
+    setSelectedLogIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllLogs = () => {
+    if (selectedLogIds.size === logs.length) {
+      setSelectedLogIds(new Set());
+    } else {
+      setSelectedLogIds(new Set(logs.map((l) => l.id)));
+    }
+  };
+
+  const handleBatchDeleteLogs = async () => {
+    if (selectedLogIds.size === 0) return;
+    const ids = Array.from(selectedLogIds);
+    const res = await batchDeleteBalanceLogs(ids);
+    if (res.code === 0) {
+      const d = res.data as { success: number };
+      toast.success(`删除成功 ${d.success} 条`);
+      setSelectedLogIds(new Set());
+      loadBillingData();
+    } else {
+      toast.error(res.msg || "批量删除失败");
     }
   };
 
@@ -1504,6 +1537,14 @@ export default function AdminPaymentPage() {
               </Button>
             </div>
           </div>
+          {selectedLogIds.size > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm text-default-500 mr-1">已选 {selectedLogIds.size} 项</span>
+              <Button color="danger" size="sm" variant="flat" onPress={handleBatchDeleteLogs}>
+                批量删除
+              </Button>
+            </div>
+          )}
           <div className="relative overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
             <Table
               classNames={{
@@ -1513,6 +1554,14 @@ export default function AdminPaymentPage() {
               }}
             >
               <TableHeader>
+                <TableColumn className="whitespace-nowrap w-10">
+                  <input
+                    checked={logs.length > 0 && selectedLogIds.size === logs.length}
+                    className="cursor-pointer"
+                    type="checkbox"
+                    onChange={toggleSelectAllLogs}
+                  />
+                </TableColumn>
                 <TableColumn className="whitespace-nowrap">用户</TableColumn>
                 <TableColumn className="whitespace-nowrap">金额</TableColumn>
                 <TableColumn className="whitespace-nowrap">变动前</TableColumn>
@@ -1526,7 +1575,7 @@ export default function AdminPaymentPage() {
                   <TableRow>
                     <TableCell
                       className="text-center text-default-400 py-8"
-                      colSpan={7}
+                      colSpan={8}
                     >
                       暂无记录
                     </TableCell>
@@ -1534,6 +1583,14 @@ export default function AdminPaymentPage() {
                 ) : (
                   logs.map((log) => (
                     <TableRow key={log.id}>
+                      <TableCell>
+                        <input
+                          checked={selectedLogIds.has(log.id)}
+                          className="cursor-pointer"
+                          type="checkbox"
+                          onChange={() => toggleSelectLogId(log.id)}
+                        />
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {log.userName}
                       </TableCell>
