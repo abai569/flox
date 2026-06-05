@@ -434,8 +434,8 @@ export default function AdminLayout({
           const ts = parseInt(redBannerClosed, 10);
 
           if (!isNaN(ts) && (ts === -1 || ts > Date.now())) {
-            // 只有试用已过期关闭过才恢复关闭状态；其他原因不恢复
-            if (redBannerClosedReason === "试用已过期") {
+            // 只有体验已到期关闭过才恢复关闭状态；其他原因不恢复
+            if (redBannerClosedReason === "体验已到期") {
               setIsRedBannerClosed(true);
             }
           }
@@ -458,14 +458,14 @@ export default function AdminLayout({
             setIsBannerClosed(false);
           }
         }
-        // 试用已过期关闭过就不再重置，其他原因继续弹
+        // 体验已到期关闭过就不再重置，其他原因继续弹
         const closedReason = localStorage.getItem(
           "flvx_license_banner_closed_reason",
         );
 
         if (
-          licenseInfo.reason === "试用已过期" &&
-          closedReason === "试用已过期"
+          licenseInfo.reason === "体验已到期" &&
+          closedReason === "体验已到期"
         ) {
           // 保持关闭
         } else {
@@ -920,7 +920,7 @@ export default function AdminLayout({
           (licenseInfo.tier === "free" ||
             (!licenseInfo.has_license_key && !licenseInfo.tier)) &&
           !isBannerClosed && (
-            <div className="bg-yellow-500 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2 z-20 shadow-md relative">
+            <div className="bg-yellow-500 text-white text-center text-sm py-2 font-medium flex items-center justify-center gap-2 shadow-md relative">
               <svg
                 className="w-5 h-5 flex-shrink-0"
                 fill="none"
@@ -957,7 +957,7 @@ export default function AdminLayout({
                   </svg>
                 </button>
                 {snoozeMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[100] min-w-[120px] text-gray-700">
+                  <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-[200] min-w-[120px] text-gray-700">
                     <button
                       className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition-colors"
                       onClick={() => handleSnooze(1)}
