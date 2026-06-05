@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"go-backend/internal/http/response"
+	"go-backend/internal/middleware"
 	"go-backend/internal/store/model"
 )
 
@@ -464,6 +465,13 @@ func (h *Handler) assignPackageToUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getStoreStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+	tier, _ := middleware.GetLicenseTier()
+	if tier != middleware.TierPremium {
+		response.WriteJSON(w, response.OK(map[string]interface{}{
+			"enabled": false,
+		}))
 		return
 	}
 	enabled := true

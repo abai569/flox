@@ -2899,19 +2899,6 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tier, _ := middleware.GetLicenseTier()
-	if tier == middleware.TierBlocked {
-		response.WriteJSON(w, response.Err(403, "授权无效，请联系管理员"))
-		return
-	}
-	if tier == middleware.TierFree {
-		count, err := h.repo.CountForwards()
-		if err == nil && count >= 25 {
-			response.WriteJSON(w, response.Err(403, "免费版最多 25 条转发规则，请配置正式授权"))
-			return
-		}
-	}
-
 	userID, roleID, err := userRoleFromRequest(r)
 	if err != nil {
 		response.WriteJSON(w, response.Err(401, "无效的token或token已过期"))

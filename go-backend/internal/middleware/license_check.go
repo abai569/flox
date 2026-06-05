@@ -361,8 +361,8 @@ func GetLicenseTier() (TierType, string) {
 		switch globalLicenseState.reason {
 		case "域名不匹配", "授权已过期", "授权已被禁用":
 			return TierBlocked, globalLicenseState.reason
-		case "试用已过期":
-			return TierFree, "试用已过期，已降级为免费版"
+		case "体验已到期":
+			return TierFree, "体验已到期，已降级为免费版"
 		default:
 			return TierFree, "验证服务不可达，已降级为免费版"
 		}
@@ -371,31 +371,7 @@ func GetLicenseTier() (TierType, string) {
 	return TierPremium, ""
 }
 
-var freeLimits = map[string]int{
-	"node":    5,
-	"tunnel":  5,
-	"user":    1,
-	"forward": 25,
-}
 
-// CheckResourceLimit 检查资源是否超出免费版限制
-func CheckResourceLimit(resourceType string, currentCount int) error {
-	tier, reason := GetLicenseTier()
-	if tier == TierPremium {
-		return nil
-	}
-	if tier == TierBlocked {
-		return fmt.Errorf("授权无效 (%s)，请联系管理员", reason)
-	}
-	limit, ok := freeLimits[resourceType]
-	if !ok {
-		return nil
-	}
-	if currentCount >= limit {
-		return fmt.Errorf("免费版最多 %d 个%s，请配置正式授权以解除限制", limit, resourceType)
-	}
-	return nil
-}
 
 // GetLicenseState returns the current license state
 func GetLicenseState() (valid bool, expireTime int64, reason string, isTrial bool) {

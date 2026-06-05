@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 
 	"go-backend/internal/http/response"
 	"go-backend/internal/middleware"
@@ -39,6 +40,17 @@ func TrialGuard(next http.Handler, r *repo.Repository) http.Handler {
 				response.WriteJSON(w, response.Err(403, "免费版限制：用户最多 1 个，请配置正式授权以解除限制"))
 				return
 			}
+		}
+
+		// 免费版禁用商城系统
+		if strings.HasPrefix(req.URL.Path, "/api/v1/package/") &&
+			req.URL.Path != "/api/v1/package/store-status" {
+			response.WriteJSON(w, response.Err(403, "免费版不支持商城系统，请配置正式授权以解除限制"))
+			return
+		}
+		if strings.HasPrefix(req.URL.Path, "/api/v1/package-group/") {
+			response.WriteJSON(w, response.Err(403, "免费版不支持商城系统，请配置正式授权以解除限制"))
+			return
 		}
 
 		next.ServeHTTP(w, req)
