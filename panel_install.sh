@@ -109,6 +109,20 @@ maybe_proxy_url() {
   echo "${url}"
 }
 
+# 获取服务器公网 IPv4 地址（多个备用源）
+get_public_ipv4() {
+  local ip
+  for url in "https://ifconfig.me" "https://ip.sb" "https://icanhazip.com" "https://api.ipify.org" "https://checkip.amazonaws.com"; do
+    ip=$(curl -fsSL --max-time 3 "$url" 2>/dev/null | head -1)
+    if [[ -n "$ip" ]] && [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      echo "$ip"
+      return 0
+    fi
+  done
+  echo ""
+  return 1
+}
+
 resolve_latest_release_tag() {
   local tag
 
@@ -571,12 +585,16 @@ EOF
   echo "🎉 部署完成"
   echo ""
   echo "📋 登录信息："
-  echo "   访问地址：http://服务器 IP:$FRONTEND_PORT"
+  local public_ip=$(get_public_ipv4)
+  public_ip=${public_ip:-"服务器 IP"}
+  echo "   访问地址：http://${public_ip}:$FRONTEND_PORT"
   echo "   用户名：admin"
   echo "   密码：$INIT_ADMIN_PASSWORD"
+  echo "⚠️ 安全起见，首次登录后请修改默认密码！"
   echo ""
+  echo "🔑 授权购买：https://sq.abai.eu.org/renew/"
   echo "📚 文档地址：https://abai569.github.io/flvx/"
-  echo "⚠️  请妥善保管管理员密码！"
+
 
   # 上报安装统计
   local install_count=$(curl -fsSL --max-time 3 "${LICENSE_SERVER_URL}/api/stats/install" 2>/dev/null | grep -o '"total":[0-9]*' | grep -o '[0-9]*')
