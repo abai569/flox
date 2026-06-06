@@ -1134,8 +1134,8 @@ export default function ConfigPage() {
                   <div className="flex-shrink-0">
                     <Switch
                       color="primary"
-                      isDisabled={licenseStatus?.tier === "free"}
-                      isSelected={licenseStatus?.tier === "free" ? false : configs[item.key] === "true"}
+                      isDisabled={item.key === "payment_enabled" && licenseStatus?.tier === "free"}
+                      isSelected={item.key === "payment_enabled" && licenseStatus?.tier === "free" ? false : configs[item.key] === "true"}
                       size="sm"
                       onValueChange={(checked) =>
                         handleDirectSwitchChange(item.key, checked)
