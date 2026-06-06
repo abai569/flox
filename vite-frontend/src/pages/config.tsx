@@ -859,8 +859,7 @@ export default function ConfigPage() {
                 wrapper: isChanged ? "border-warning-300" : "",
               }}
               color="primary"
-              isDisabled={licenseStatus?.tier === "free"}
-              isSelected={licenseStatus?.tier === "free" ? false : configs[item.key] === "true"}
+              isSelected={configs[item.key] === "true"}
               size="md"
               onValueChange={(checked) =>
                 handleConfigChange(item.key, checked ? "true" : "false")
@@ -1135,7 +1134,8 @@ export default function ConfigPage() {
                   <div className="flex-shrink-0">
                     <Switch
                       color="primary"
-                      isSelected={configs[item.key] === "true"}
+                      isDisabled={licenseStatus?.tier === "free"}
+                      isSelected={licenseStatus?.tier === "free" ? false : configs[item.key] === "true"}
                       size="sm"
                       onValueChange={(checked) =>
                         handleDirectSwitchChange(item.key, checked)
