@@ -859,7 +859,8 @@ export default function ConfigPage() {
                 wrapper: isChanged ? "border-warning-300" : "",
               }}
               color="primary"
-              isSelected={configs[item.key] === "true"}
+              isDisabled={licenseStatus?.tier === "free"}
+              isSelected={licenseStatus?.tier === "free" ? false : configs[item.key] === "true"}
               size="md"
               onValueChange={(checked) =>
                 handleConfigChange(item.key, checked ? "true" : "false")
@@ -1400,7 +1401,7 @@ export default function ConfigPage() {
                         ? `商业版，授权剩余 ${licenseStatus.expire_time ? Math.floor((licenseStatus.expire_time - Date.now()) / 86400000) : "？"} 天`
                         : licenseStatus.tier === "blocked"
                           ? `授权已阻断：${licenseStatus.reason || "未知原因"}`
-                          : "免费版（5 节点 / 5 隧道 / 1 用户）"}
+                          : "免费版（5 节点 / 5 隧道 / 1 用户，禁用商城系统）"}
                   </span>
                 )}
               </div>
