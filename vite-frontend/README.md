@@ -31,10 +31,10 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o instal
 ```
 #### 默认管理员账号
 
-- **账号**: admin_user
-- **密码**: admin_user
+- **账号**: admin
+- **密码**: 随机9位数
 
-> ⚠️ 首次登录后请立即修改默认密码！
+> ⚠️ 安全起见，首次登录后请修改默认密码！
 
 ---
 #### 安装特定版本
