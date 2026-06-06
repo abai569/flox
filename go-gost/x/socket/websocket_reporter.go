@@ -404,9 +404,12 @@ func (w *WebSocketReporter) connect() error {
 	// Initialize nftables manager (Linux-only)
 	w.initNftablesManager()
 
-	// 获取并上报公网 IPv4 和 IPv6
+	// 获取并上报公网 IP：优先 IPv4，IPv4 通就不查 IPv6
 	ipv4 := getPublicIPv4()
-	ipv6 := getPublicIPv6()
+	var ipv6 string
+	if ipv4 == "" {
+		ipv6 = getPublicIPv6()
+	}
 	w.reportPublicIPs(ipv4, ipv6)
 
 	// 重连后同步服务配置：恢复可能因崩溃/重启而缺失的服务
