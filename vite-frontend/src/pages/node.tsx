@@ -34,6 +34,8 @@ import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input } from "@/shadcn-bridge/heroui/input";
 import { Textarea } from "@/shadcn-bridge/heroui/input";
+import { Input as BaseInput } from "@/components/ui/input";
+import { FieldContainer } from "@/shadcn-bridge/heroui/shared";
 import {
   Modal,
   ModalContent,
@@ -2992,30 +2994,32 @@ export default function NodePage() {
                     </SelectItem>
                   ))}
                 </Select>
-                <div>
-                  <Input
-                    description="节点密钥，用于 Agent 加密通信"
-                    label="密钥"
-                    placeholder="输入密钥或点击随机生成"
-                    value={form.secret}
-                    variant="bordered"
-                    onChange={(e) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        secret: e.target.value,
-                      }))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    <button
-                      className="text-primary hover:underline"
-                      type="button"
+                <FieldContainer
+                  label="密钥"
+                  description="节点密钥，用于 Agent 加密通信"
+                >
+                  <div className="flex items-center gap-2">
+                    <BaseInput
+                      className="flex-1"
+                      placeholder="输入密钥或点击随机生成"
+                      value={form.secret}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          secret: e.target.value,
+                        }))
+                      }
+                    />
+                    <Button
+                      color="primary"
+                      size="sm"
+                      variant="flat"
                       onClick={handleRegenerateSecret}
                     >
                       随机生成
-                    </button>
-                  </p>
-                </div>
+                    </Button>
+                  </div>
+                </FieldContainer>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select
