@@ -25,11 +25,13 @@ interface NotificationItemProps {
 
 function NotificationItem({ icon, title, desc }: NotificationItemProps) {
   return (
-    <div className="flex items-start gap-2.5 py-1.5">
-      <span className="text-lg leading-none mt-0.5">{icon}</span>
-      <div>
-        <p className="text-sm font-medium">{title}</p>
-        <p className="text-xs text-muted-foreground">{desc}</p>
+    <div className="flex items-center gap-3 p-3.5 rounded-xl border border-divider bg-default-50/50 hover:bg-default-100/80 transition-colors shadow-sm cursor-default">
+      <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 text-xl shadow-sm border border-primary/20">
+        {icon}
+      </div>
+      <div className="flex flex-col min-w-0">
+        <p className="text-sm font-semibold text-foreground truncate">{title}</p>
+        <p className="text-xs text-default-500 truncate mt-0.5">{desc}</p>
       </div>
     </div>
   );
@@ -161,6 +163,7 @@ export default function AdminTelegramPage() {
               value={config.bot_token}
               isDisabled={isFree}
               onChange={(e) => setConfig((c) => ({ ...c, bot_token: e.target.value }))}
+              description="通过 Telegram @BotFather 创建机器人后向机器人发送 /start 获取，格式如 123456:ABC-DEF..."
             />
             <Input
               label="Chat ID"
@@ -168,24 +171,8 @@ export default function AdminTelegramPage() {
               value={config.chat_id}
               isDisabled={isFree}
               onChange={(e) => setConfig((c) => ({ ...c, chat_id: e.target.value }))}
+              description="向机器人发送 /start 获取，群/频道通过 @getidsbot 获取（频道格式为 -100xxxxxxxxxx）"
             />
-          </div>
-
-          <div className="mb-4">
-            <div className="flex flex-wrap sm:flex-nowrap gap-4 items-start sm:items-end">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">Bot Token</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  通过 Telegram @BotFather 创建机器人后获取，格式如 123456:ABC-DEF...
-                </p>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">Chat ID</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  接收通知的目标聊天 ID（<strong>不是 Bot 用户名</strong>）。私聊通过 @userinfobot 获取，群/频道通过 @getidsbot 获取（频道格式为 -100xxxxxxxxxx）
-                </p>
-              </div>
-            </div>
           </div>
 
           <div className="flex items-center justify-between gap-3 pt-2">
@@ -234,47 +221,20 @@ export default function AdminTelegramPage() {
         </CardBody>
       </Card>
 
-      <Card className="mt-6">
-        <CardHeader>
-          <h2 className="text-lg font-semibold">推送通知列表</h2>
+      <Card className="mt-6 border border-divider shadow-sm">
+        <CardHeader className="flex flex-col items-start gap-1 pb-4 pt-5 px-5">
+          <h2 className="text-lg font-bold">推送通知列表</h2>
+          <p className="text-xs text-default-500">当以下事件触发时，面板将自动通过 Telegram Bot 发送实时通知</p>
         </CardHeader>
-        <CardBody className="pt-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <NotificationItem
-              icon=" 节点上下线"
-              title="节点上下线"
-              desc="节点连接/断开时推送"
-            />
-            <NotificationItem
-              icon=" 监控告警"
-              title="监控告警"
-              desc=" 检查失败 / ✅ 恢复时通知"
-            />
-            <NotificationItem
-              icon=" 节点到期提醒"
-              title="节点到期提醒"
-              desc="到期前 3 天起每天推送一次"
-            />
-            <NotificationItem
-              icon=" 用户到期通知"
-              title="用户到期通知"
-              desc="用户到期自动禁用时推送"
-            />
-            <NotificationItem
-              icon=" 流量归零通知"
-              title="流量归零通知"
-              desc="手动/自动/到期/续费归零"
-            />
-            <NotificationItem
-              icon=" 面板启动/升级"
-              title="面板启动/升级"
-              desc="面板启动或版本升级时推送"
-            />
-            <NotificationItem
-              icon=" 流量告警"
-              title="流量告警"
-              desc="用户流量使用达到阈值时推送"
-            />
+        <CardBody className="pt-0 pb-5 px-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+            <NotificationItem icon="🔌" title="节点上下线" desc="节点连接 / 断开时推送" />
+            <NotificationItem icon="🚨" title="监控告警" desc="服务检查失败 / 恢复时通知" />
+            <NotificationItem icon="⏳" title="节点到期提醒" desc="到期前 3 天起每天推送一次" />
+            <NotificationItem icon="🚫" title="用户到期通知" desc="用户到期自动禁用时推送" />
+            <NotificationItem icon="🔄" title="流量归零通知" desc="手动 / 自动 / 到期 / 续费归零" />
+            <NotificationItem icon="🚀" title="面板启动/升级" desc="面板启动或版本升级时推送" />
+            <NotificationItem icon="📊" title="流量告警" desc="用户流量使用达到阈值时推送" />
           </div>
         </CardBody>
       </Card>
