@@ -117,7 +117,22 @@ export default function AdminTelegramPage() {
             color="primary"
             isDisabled={isFree}
             isSelected={config.enabled}
-            onValueChange={(v) => setConfig((c) => ({ ...c, enabled: v }))}
+            onValueChange={(v) => {
+              setConfig((c) => ({ ...c, enabled: v }));
+              updateTelegramConfig(config.bot_token, config.chat_id, v)
+                .then((res) => {
+                  if (res.code === 0) {
+                    toast.success(v ? "Bot 已启用" : "Bot 已禁用");
+                  } else {
+                    toast.error(res.msg || "切换失败");
+                    setConfig((c) => ({ ...c, enabled: !v }));
+                  }
+                })
+                .catch(() => {
+                  toast.error("切换失败");
+                  setConfig((c) => ({ ...c, enabled: !v }));
+                });
+            }}
           />
         </CardHeader>
         <CardBody className="pt-0">
@@ -142,22 +157,27 @@ export default function AdminTelegramPage() {
 
           <div className="flex items-center justify-between gap-3 pt-2">
             <div className="min-w-0">
-              {config.enabled && (
-                <p className="text-xs text-muted-foreground">
-                  Bot 状态：{isFree ? "未启用（免费版）" : "运行中"}
-                </p>
-              )}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Bot 状态：</span>
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      config.enabled && !isFree
+                        ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"
+                        : "bg-red-500"
+                    }`}
+                  />
+                  <span
+                    className={`text-xs font-medium ${
+                      config.enabled && !isFree ? "text-green-600" : "text-red-500"
+                    }`}
+                  >
+                    {isFree ? "未启用（免费版）" : config.enabled ? "运行中" : "睡觉中"}
+                  </span>
+                </span>
+              </div>
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              <Button
-                color="secondary"
-                isLoading={testing}
-                isDisabled={isFree || !config.enabled}
-                size="sm"
-                onPress={handleTest}
-              >
-                先测试
-              </Button>
               <Button
                 color="primary"
                 isLoading={saving}
@@ -165,8 +185,17 @@ export default function AdminTelegramPage() {
                 size="sm"
                 onPress={handleSave}
               >
-                再保存
+                保存
               </Button>
+              <Button
+                color="secondary"
+                isLoading={testing}
+                isDisabled={isFree || !config.enabled}
+                size="sm"
+                onPress={handleTest}
+              >
+                测试
+              </Button> 
             </div>
           </div>
         </CardBody>
