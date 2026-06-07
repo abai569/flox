@@ -394,12 +394,14 @@ func (h *Handler) listReleases(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(items))
 }
 
-const notifyCooldownMs = 2 * 60 * 1000
+const onlineCooldownMs = 60 * 1000    // 1 分钟
+const offlineCooldownMs = 2 * 60 * 1000 // 2 分钟
 
 type nodeNotifyState struct {
-	offlineSince       int64
-	offlineNotifiedAt  int64
-	stillOfflineNotified bool
+	onlineNotifiedAt  int64
+	offlineNotifiedAt int64
+	offlineSince      int64
+	stillOfflineDone  bool
 }
 
 var notifyStateMu sync.RWMutex
@@ -412,6 +414,15 @@ func (h *Handler) onNodeOnline(nodeID int64) {
 
 func (h *Handler) onNodeOffline(nodeID int64) {
 	go h.notifyNodeOffline(nodeID)
+}
+
+func getNodeNotifyState(nodeID int64) *nodeNotifyState {
+	state, exists := notifyStates[nodeID]
+	if !exists {
+		state = &nodeNotifyState{}
+		notifyStates[nodeID] = state
+	}
+	return state
 }
 
 func (h *Handler) notifyNodeOnline(nodeID int64) {
@@ -427,11 +438,20 @@ func (h *Handler) notifyNodeOnline(nodeID int64) {
 	if err != nil || node == nil {
 		return
 	}
-	// 上线通知不受冷却限制，清除冷却记录
+	nowMs := time.Now().UnixMilli()
 	notifyStateMu.Lock()
-	delete(notifyStates, nodeID)
+	state := getNodeNotifyState(nodeID)
+	shouldNotify := nowMs-state.onlineNotifiedAt >= onlineCooldownMs
+	if shouldNotify {
+		state.onlineNotifiedAt = nowMs
+		state.offlineNotifiedAt = 0
+		state.offlineSince = 0
+		state.stillOfflineDone = false
+	}
 	notifyStateMu.Unlock()
-	bot.SendNodeOnline(node.Name)
+	if shouldNotify {
+		bot.SendNodeOnline(node.Name)
+	}
 }
 
 func (h *Handler) notifyNodeOffline(nodeID int64) {
@@ -449,14 +469,17 @@ func (h *Handler) notifyNodeOffline(nodeID int64) {
 	}
 	nowMs := time.Now().UnixMilli()
 	notifyStateMu.Lock()
-	defer notifyStateMu.Unlock()
-	state, exists := notifyStates[nodeID]
-	if !exists || nowMs-state.offlineNotifiedAt >= notifyCooldownMs {
-		state = &nodeNotifyState{offlineSince: nowMs}
-		notifyStates[nodeID] = state
+	state := getNodeNotifyState(nodeID)
+	shouldNotify := nowMs-state.offlineNotifiedAt >= offlineCooldownMs
+	if shouldNotify {
 		state.offlineNotifiedAt = nowMs
-		state.stillOfflineNotified = false
-		bot.SendNodeOffline(node.Name) // 首次离线，推送
+		state.offlineSince = nowMs
+		state.stillOfflineDone = false
+		state.onlineNotifiedAt = 0
+	}
+	notifyStateMu.Unlock()
+	if shouldNotify {
+		bot.SendNodeOffline(node.Name)
 	}
 }
 

@@ -797,12 +797,11 @@ func (h *Handler) checkStillOfflineNotifications() {
 	}
 	notifyStateMu.RUnlock()
 	nowMs := time.Now().UnixMilli()
-	offlineMinutes := int64(2)
 	for nodeID, state := range candidates {
-		if state.stillOfflineNotified {
+		if state.stillOfflineDone {
 			continue
 		}
-		if nowMs-state.offlineNotifiedAt < notifyCooldownMs {
+		if nowMs-state.offlineNotifiedAt < offlineCooldownMs {
 			continue
 		}
 		node, err := h.repo.GetNodeByID(nodeID)
@@ -824,13 +823,13 @@ func (h *Handler) checkStillOfflineNotifications() {
 			continue
 		}
 		elapsedMin := (nowMs - state.offlineSince) / 60000
-		if elapsedMin < offlineMinutes {
-			elapsedMin = offlineMinutes
+		if elapsedMin < 2 {
+			elapsedMin = 2
 		}
 		bot.SendNodeStillOffline(node.Name, int(elapsedMin))
 		notifyStateMu.Lock()
 		if ns := notifyStates[nodeID]; ns != nil {
-			ns.stillOfflineNotified = true
+			ns.stillOfflineDone = true
 		}
 		notifyStateMu.Unlock()
 	}
