@@ -156,7 +156,7 @@ export default function AdminTelegramPage() {
                 size="sm"
                 onPress={handleTest}
               >
-                测试连接
+                先测试
               </Button>
               <Button
                 color="primary"
@@ -165,7 +165,7 @@ export default function AdminTelegramPage() {
                 size="sm"
                 onPress={handleSave}
               >
-                保存
+                再保存
               </Button>
             </div>
           </div>
