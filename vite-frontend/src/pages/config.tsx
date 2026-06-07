@@ -1337,7 +1337,7 @@ export default function ConfigPage() {
                     rel="noopener noreferrer"
                     target="_blank"
                   >
-                    授权码续费
+                    授权码购买/续费
                   </a>
                 </p>
               </div>
