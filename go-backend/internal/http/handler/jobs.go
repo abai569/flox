@@ -291,9 +291,17 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 					log.Printf("用户 %d 自动续费成功：扣款 %d 分，新到期时间 %v",
 						userID, user.RenewalAmount, time.UnixMilli(newExpTime))
 					// 续费成功后重置流量配额为初始值
-					if user.BaseFlow > 0 && user.Flow != user.BaseFlow {
-						_ = h.repo.ResetUserFlowToBase(userID, user.BaseFlow, nowMs)
-					}
+					h.repo.ResetUserFlowByUser(userID, nowMs)
+					// 同步 UserTunnel 到期时间、流量归零、状态启用到 newExpTime
+					_ = h.repo.DB().Model(&model.UserTunnel{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
+						"exp_time": newExpTime,
+						"in_flow":  0,
+						"out_flow": 0,
+						"status":   1,
+					}).Error
+					// 恢复 Forward 规则（状态更新 + 节点服务恢复）
+					_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
+					h.resumePausedForwardsByUser(userID, nowMs)
 					continue // 续费成功，跳过禁用
 				} else {
 					log.Printf("用户 %d 自动续费失败：%v，将执行禁用", userID, renewErr)

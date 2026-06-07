@@ -499,6 +499,29 @@ func (h *Handler) listActiveForwardsByTunnel(tunnelID int64) ([]forwardRecord, e
 	return h.repo.ListActiveForwardsByTunnel(tunnelID)
 }
 
+func (h *Handler) resumePausedForwardsByUser(userID int64, now int64) {
+	paused, err := h.repo.ListPausedForwardsByUser(userID)
+	if err != nil || len(paused) == 0 {
+		return
+	}
+	for i := range paused {
+		forward := paused[i]
+		if err := h.ensureUserTunnelForwardAllowed(forward.UserID, forward.TunnelID, now); err != nil {
+			continue
+		}
+		if strings.EqualFold(forward.Mode, "nftables") {
+			if err := h.syncForwardServices(&forward, "UpdateService", true); err != nil {
+				continue
+			}
+		} else {
+			if err := h.controlForwardServices(&forward, "ResumeService", false); err != nil {
+				continue
+			}
+		}
+		_ = h.repo.UpdateForwardStatus(forward.ID, 1, now)
+	}
+}
+
 func (h *Handler) cleanNodeConfigs(nodeID int64, rawConfig string) {
 	if h == nil || h.repo == nil || nodeID <= 0 {
 		return
