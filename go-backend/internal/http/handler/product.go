@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -102,7 +103,7 @@ func (h *Handler) createPackage(w http.ResponseWriter, r *http.Request) {
 		Type:                  req.Type,
 		Name:                  req.Name,
 		Description:           req.Description,
-		Price:                 int64(req.PriceYuan * 100),
+		Price:                 int64(math.Round(req.PriceYuan * 100)),
 		ValidityDays:          req.ValidityDays,
 		TrafficLimit:          req.TrafficLimit,
 		PortCount:             req.PortCount,
@@ -171,7 +172,7 @@ func (h *Handler) updatePackage(w http.ResponseWriter, r *http.Request) {
 		Type:                  req.Type,
 		Name:                  req.Name,
 		Description:           req.Description,
-		Price:                 int64(req.PriceYuan * 100),
+		Price:                 int64(math.Round(req.PriceYuan * 100)),
 		ValidityDays:          req.ValidityDays,
 		TrafficLimit:          req.TrafficLimit,
 		PortCount:             req.PortCount,
