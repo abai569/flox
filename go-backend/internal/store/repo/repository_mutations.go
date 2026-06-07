@@ -1766,6 +1766,7 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 			return err
 		}
 		newFlow := int64(pkg.TrafficLimit)
+		isAdmin := existingUser.RoleID == 0
 		newExpTime := expireAt
 		newNum := pkg.MaxRules
 		newSpeedLimit := pkg.SpeedLimit
@@ -1781,15 +1782,17 @@ func (r *Repository) DeliverPackageToUser(userID int64, pkg *model.SubscriptionP
 			newMaxIP = existingUser.MaxIPAccess
 		}
 		updates := map[string]interface{}{
-			"flow":            newFlow,
-			"num":             newNum,
 			"exp_time":        newExpTime,
 			"flow_reset_time": time.UnixMilli(expireAt).Day(),
 			"renewal_amount":  pkg.Price,
-			"speed_limit":     newSpeedLimit,
-			"max_connections": newMaxConns,
-			"max_ip_access":   newMaxIP,
 			"updated_time":    now,
+		}
+		if !isAdmin {
+			updates["flow"] = newFlow
+			updates["num"] = newNum
+			updates["speed_limit"] = newSpeedLimit
+			updates["max_connections"] = newMaxConns
+			updates["max_ip_access"] = newMaxIP
 		}
 		if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
 			return err
