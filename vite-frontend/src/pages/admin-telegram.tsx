@@ -105,58 +105,85 @@ export default function AdminTelegramPage() {
         </div>
       )}
 
-      <Card className="max-w-xl">
-        <CardHeader>
-          <h2 className="text-lg font-semibold">基本设置</h2>
-        </CardHeader>
-        <CardBody className="space-y-4">
-          <Input
-            label="Bot Token"
-            placeholder="输入 Telegram Bot Token"
-            value={config.bot_token}
-            isDisabled={isFree}
-            onChange={(e) => setConfig((c) => ({ ...c, bot_token: e.target.value }))}
-          />
-          <Input
-            label="Chat ID"
-            placeholder="输入目标 Chat ID"
-            value={config.chat_id}
-            isDisabled={isFree}
-            onChange={(e) => setConfig((c) => ({ ...c, chat_id: e.target.value }))}
-          />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">基本设置</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              填写 Bot Token 和 Chat ID，即可在 Telegram 中接收面板告警通知
+            </p>
+          </div>
           <Switch
             color="primary"
             isDisabled={isFree}
             isSelected={config.enabled}
             onValueChange={(v) => setConfig((c) => ({ ...c, enabled: v }))}
-          >
-            启用 Telegram Bot
-          </Switch>
-
-          <div className="flex gap-3 pt-2">
-            <Button
-              color="primary"
-              isLoading={saving}
+          />
+        </CardHeader>
+        <CardBody className="pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <Input
+              label="Bot Token"
+              placeholder="123456:ABC-DEF1234ghIkl-zyx..."
+              value={config.bot_token}
               isDisabled={isFree}
-              onPress={handleSave}
-            >
-              保存
-            </Button>
-            <Button
-              color="secondary"
-              isLoading={testing}
-              isDisabled={isFree || !config.enabled}
-              onPress={handleTest}
-            >
-              测试连接
-            </Button>
+              onChange={(e) => setConfig((c) => ({ ...c, bot_token: e.target.value }))}
+            />
+            <Input
+              label="Chat ID"
+              placeholder="个人 ID 或 -100xxxxxxxxxx"
+              value={config.chat_id}
+              isDisabled={isFree}
+              onChange={(e) => setConfig((c) => ({ ...c, chat_id: e.target.value }))}
+            />
           </div>
 
-          {config.enabled && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Bot 状态：{isFree ? "未启用（免费版）" : "运行中"}
-            </p>
-          )}
+          <div className="mb-4">
+            <div className="flex flex-wrap sm:flex-nowrap gap-4 items-start sm:items-end">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Bot Token</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  通过 Telegram @BotFather 创建机器人后获取，格式如 123456:ABC-DEF...
+                </p>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Chat ID</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  接收通知的目标聊天 ID（<strong>不是 Bot 用户名</strong>）。私聊通过 @userinfobot 获取，群/频道通过 @getidsbot 获取（频道格式为 -100xxxxxxxxxx）
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <div className="min-w-0">
+              {config.enabled && (
+                <p className="text-xs text-muted-foreground">
+                  Bot 状态：{isFree ? "未启用（免费版）" : "运行中"}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <Button
+                color="secondary"
+                isLoading={testing}
+                isDisabled={isFree || !config.enabled}
+                size="sm"
+                onPress={handleTest}
+              >
+                测试连接
+              </Button>
+              <Button
+                color="primary"
+                isLoading={saving}
+                isDisabled={isFree}
+                size="sm"
+                onPress={handleSave}
+              >
+                保存
+              </Button>
+            </div>
+          </div>
         </CardBody>
       </Card>
     </AnimatedPage>
