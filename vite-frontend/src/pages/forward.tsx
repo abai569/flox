@@ -2962,20 +2962,19 @@ export default function ForwardPage() {
   };
   // 执行导出
   const executeExport = () => {
-    if (!selectedTunnelForExport) {
-      toast.error("请选择要导出的隧道");
-
-      return;
-    }
     setExportLoading(true);
     try {
-      // 获取要导出的规则列表
-      const forwardsToExport = sortedForwards.filter(
-        (forward) => forward.tunnelId === selectedTunnelForExport,
-      );
+      // 获取要导出的规则列表：选择隧道则按隧道过滤，否则导出全部
+      const forwardsToExport = selectedTunnelForExport
+        ? sortedForwards.filter(
+            (forward) => forward.tunnelId === selectedTunnelForExport,
+          )
+        : sortedForwards;
 
       if (forwardsToExport.length === 0) {
-        toast.error("所选隧道没有规则数据");
+        toast.error(
+          selectedTunnelForExport ? "所选隧道没有规则数据" : "没有可导出的规则数据",
+        );
         setExportLoading(false);
 
         return;
@@ -5786,9 +5785,8 @@ export default function ForwardPage() {
               {/* 隧道选择 */}
               <div>
                 <Select
-                  isRequired
-                  label="选择导出隧道"
-                  placeholder="请选择要导出的隧道"
+                  label="选择导出隧道（可选）"
+                  placeholder="不选则导出全部隧道"
                   selectedKeys={
                     selectedTunnelForExport
                       ? [selectedTunnelForExport.toString()]
@@ -5829,7 +5827,6 @@ export default function ForwardPage() {
                 <div className="flex justify-between items-center">
                   <Button
                     color="primary"
-                    isDisabled={!selectedTunnelForExport}
                     isLoading={exportLoading}
                     size="sm"
                     startContent={
@@ -5875,7 +5872,6 @@ export default function ForwardPage() {
                 <div className="text-right">
                   <Button
                     color="primary"
-                    isDisabled={!selectedTunnelForExport}
                     isLoading={exportLoading}
                     size="sm"
                     startContent={
