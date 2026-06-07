@@ -110,6 +110,10 @@ func (b *Bot) SendUserExpired(userName string) {
 func (b *Bot) SendNodeExpired(nodeName string) {
 	b.SendAlert("⏰ 节点到期", fmt.Sprintf("节点 %s 已到期", nodeName))
 }
+func (b *Bot) SendNodeExpirySoon(nodeName string, daysLeft int) {
+	b.SendAlert(" 节点即将到期", fmt.Sprintf("节点 %s 将在 %d 天后到期，请及时续费", nodeName, daysLeft))
+}
+
 
 func (b *Bot) SendTrafficAlert(userName string, pct float64) {
 	b.SendAlert("📊 流量告警", fmt.Sprintf("用户 %s 流量使用已达 %.0f%%", userName, pct))

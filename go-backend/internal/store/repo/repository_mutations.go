@@ -815,6 +815,35 @@ func (r *Repository) UpdateNodeExpiryReminderDismissed(nodeID int64, dismissed i
 		Update("expiry_reminder_dismissed", dismissed).Error
 }
 
+
+// ListNodesExpiringWithin returns nodes whose expiry_time is within (now, now + days*24h]
+// and either never reminded or last reminded > 24h ago.
+func (r *Repository) ListNodesExpiringWithin(nowMs int64, days int) ([]model.Node, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	deadline := nowMs + int64(days)*86400000
+	twentyFourHoursMs := int64(86400000)
+	var nodes []model.Node
+	if err := r.db.Where(
+		"expiry_time IS NOT NULL AND expiry_time > ? AND expiry_time <= ? AND (expiry_reminder_dismissed_until IS NULL OR expiry_reminder_dismissed_until <= ? OR expiry_reminder_dismissed_until = 0)",
+		0, deadline, nowMs-twentyFourHoursMs,
+	).Find(&nodes).Error; err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}
+
+// UpdateNodeExpiryReminderDismissedUntil sets expiry_reminder_dismissed_until to prevent duplicate notifications within 24h.
+func (r *Repository) UpdateNodeExpiryReminderDismissedUntil(nodeID int64, untilMs int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).
+		Where("id = ?", nodeID).
+		Update("expiry_reminder_dismissed_until", untilMs).Error
+}
+
 func (r *Repository) DeleteNodeCascade(nodeID int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")

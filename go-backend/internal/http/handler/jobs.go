@@ -186,6 +186,7 @@ func (h *Handler) runResetAndExpiryJob(now time.Time) {
 	h.disableExpiredForwards(now.UnixMilli())
 	h.resetNodeMonthlyTraffic(now)
 	h.verifyBalances(now)
+	h.checkNodeExpiryNotifications(now.UnixMilli())
 }
 
 func (h *Handler) verifyBalances(now time.Time) {
@@ -738,6 +739,39 @@ func (h *Handler) expirePackageSubscriptions() {
 	}
 
 	log.Printf("[packages] 已过期 %d 个套餐订阅", len(expired))
+}
+
+
+// checkNodeExpiryNotifications checks nodes expiring within 3 days and sends Telegram notifications.
+// Only notifies once per 24h per node to avoid spam.
+func (h *Handler) checkNodeExpiryNotifications(nowMs int64) {
+	nodes, err := h.repo.ListNodesExpiringWithin(nowMs, 3)
+	if err != nil || len(nodes) == 0 {
+		return
+	}
+	for _, node := range nodes {
+		daysLeft := (node.ExpiryTime.Int64 - nowMs) / 86400000
+		if daysLeft < 1 {
+			daysLeft = 0
+		}
+
+		_ = h.repo.UpdateNodeExpiryReminderDismissedUntil(node.ID, nowMs+86400000)
+
+		tier, _ := middleware.GetLicenseTier()
+		if tier == middleware.TierFree {
+			continue
+		}
+		bot := h.TelegramBot()
+		if bot == nil || !bot.Enabled() || !bot.Running() {
+			continue
+		}
+
+		if daysLeft <= 0 {
+			bot.SendNodeExpired(node.Name)
+		} else {
+			bot.SendNodeExpirySoon(node.Name, int(daysLeft))
+		}
+	}
 }
 
 func (h *Handler) runTelegramBotLoop(ctx context.Context) {
