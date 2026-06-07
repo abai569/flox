@@ -367,7 +367,7 @@ func (r *Repository) UpdateNodePublicIPs(nodeID int64, ipv4, ipv6 string) error 
 		}).Error
 }
 
-func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, serverIPV6, intranetIP, port, interfaceName, extraIPs, remark, expiryTime, renewalCycle, groupID interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, tcpAddr, udpAddr string, now int64) error {
+func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, serverIPV6, intranetIP, port, interfaceName, extraIPs, remark, expiryTime, renewalCycle, groupID, secret interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, tcpAddr, udpAddr string, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -396,6 +396,9 @@ func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, ser
 		updates["group_id"] = groupID
 	} else {
 		updates["group_id"] = sql.NullInt64{Int64: 0, Valid: false}
+	}
+	if s, ok := secret.(string); ok && s != "" {
+		updates["secret"] = s
 	}
 	return r.db.Model(&model.Node{}).
 		Where("id = ?", id).

@@ -971,6 +971,7 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"remoteUrl":               nullableString(n.RemoteURL),
 			"remoteToken":             nullableString(n.RemoteToken),
 			"remoteConfig":            nullableString(n.RemoteConfig),
+			"secret":                  n.Secret,
 			"expiryReminderDismissed": n.ExpiryReminderDismissed,
 			"groupId":                 nullableInt64(n.GroupID),
 			"periodTraffic":           pt,

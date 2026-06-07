@@ -139,6 +139,7 @@ interface Node {
   upgradeLoading?: boolean;
   rollbackLoading?: boolean;
   groupId?: number | null;
+  secret?: string;
   periodTraffic?: {
     rx: number;
     tx: number;
@@ -165,6 +166,7 @@ interface NodeForm {
   http: number;
   tls: number;
   socks: number;
+  secret: string;
 }
 type NodeViewMode = "grid" | "list" | "grouped";
 const EXPIRING_SOON_DAYS = 7;
@@ -363,6 +365,7 @@ export default function NodePage() {
     udpListenAddr: "[::]",
     interfaceName: "",
     extraIPs: "",
+    secret: "",
     http: 0,
     tls: 0,
     socks: 0,
@@ -1024,11 +1027,20 @@ export default function NodePage() {
       udpListenAddr: node.udpListenAddr || "[::]",
       interfaceName: (node as any).interfaceName || "",
       extraIPs: node.extraIPs || "",
+      secret: node.secret || "",
       http: typeof node.http === "number" ? node.http : 1,
       tls: typeof node.tls === "number" ? node.tls : 1,
       socks: typeof node.socks === "number" ? node.socks : 1,
     });
     setDialogVisible(true);
+  };
+  const handleRegenerateSecret = () => {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    const newSecret = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
+      "",
+    );
+    setForm((prev) => ({ ...prev, secret: newSecret }));
   };
   const handleDelete = (node: Node) => {
     setNodeToDelete(node);
@@ -1508,9 +1520,10 @@ export default function NodePage() {
     setSubmitLoading(true);
     try {
       const apiCall = isEdit ? updateNode : createNode;
-      const { intranetIp, serverIpV4, serverIpV6, ...rest } = form;
+      const { intranetIp, serverIpV4, serverIpV6, secret, ...rest } = form;
       const data = {
         ...rest,
+        ...(secret && secret.trim() !== "" ? { secret: secret.trim() } : {}),
         remark: form.remark.trim(),
         expiryTime: form.expiryTime,
         renewalCycle: form.renewalCycle,
@@ -1544,6 +1557,7 @@ export default function NodePage() {
                     tcpListenAddr: form.tcpListenAddr,
                     udpListenAddr: form.udpListenAddr,
                     interfaceName: form.interfaceName,
+                    secret: form.secret || n.secret,
                     http: form.http,
                     tls: form.tls,
                     socks: form.socks,
@@ -1582,6 +1596,7 @@ export default function NodePage() {
       udpListenAddr: "[::]",
       interfaceName: "",
       extraIPs: "",
+      secret: "",
       http: 0,
       tls: 0,
       socks: 0,
@@ -2940,42 +2955,68 @@ export default function NodePage() {
                   }
                 />
               </div>
-              <Select
-                description="将节点分配到指定分组（可选）"
-                label="分组"
-                placeholder="选择分组"
-                selectedKeys={
-                  form.groupId && form.groupId > 0 ? [String(form.groupId)] : []
-                }
-                variant="bordered"
-                onSelectionChange={(keys) => {
-                  const selected = Array.from(keys)[0] as string | undefined;
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select
+                  description="将节点分配到指定分组（可选）"
+                  label="分组"
+                  placeholder="选择分组"
+                  selectedKeys={
+                    form.groupId && form.groupId > 0 ? [String(form.groupId)] : []
+                  }
+                  variant="bordered"
+                  onSelectionChange={(keys) => {
+                    const selected = Array.from(keys)[0] as string | undefined;
 
-                  setForm((prev) => ({
-                    ...prev,
-                    groupId:
-                      selected && selected !== "" ? parseInt(selected) : null,
-                  }));
-                }}
-              >
-                <SelectItem key="" textValue="未分组">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-gray-300" />
-                    <span>未分组</span>
-                  </div>
-                </SelectItem>
-                {nodeGroups.map((group) => (
-                  <SelectItem key={group.id} textValue={group.name}>
+                    setForm((prev) => ({
+                      ...prev,
+                      groupId:
+                        selected && selected !== "" ? parseInt(selected) : null,
+                    }));
+                  }}
+                >
+                  <SelectItem key="" textValue="未分组">
                     <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: group.color }}
-                      />
-                      <span>{group.name}</span>
+                      <div className="w-3 h-3 rounded-full bg-gray-300" />
+                      <span>未分组</span>
                     </div>
                   </SelectItem>
-                ))}
-              </Select>
+                  {nodeGroups.map((group) => (
+                    <SelectItem key={group.id} textValue={group.name}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: group.color }}
+                        />
+                        <span>{group.name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </Select>
+                <div>
+                  <Input
+                    description="节点密钥，用于 Agent 加密通信"
+                    label="密钥"
+                    placeholder="输入密钥或点击随机生成"
+                    value={form.secret}
+                    variant="bordered"
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        secret: e.target.value,
+                      }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <button
+                      className="text-primary hover:underline"
+                      type="button"
+                      onClick={handleRegenerateSecret}
+                    >
+                      随机生成
+                    </button>
+                  </p>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Select
                   description="支持月、季、半年、年四种周期"

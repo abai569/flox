@@ -370,6 +370,7 @@ export interface NodeMutationPayload {
   tcpListenAddr?: string;
   udpListenAddr?: string;
   interfaceName?: string;
+  secret?: string;
   http?: number;
   tls?: number;
   socks?: number;

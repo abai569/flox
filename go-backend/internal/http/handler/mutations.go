@@ -821,6 +821,12 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 	if serverIP == "" {
 		serverIP = asString(req["intranetIp"])
 	}
+	var secret interface{}
+	if secretRaw, ok := req["secret"]; ok && secretRaw != nil {
+		if s := asString(secretRaw); s != "" {
+			secret = s
+		}
+	}
 	if err := h.repo.UpdateNode(id,
 		asString(req["name"]),
 		serverIP,
@@ -834,6 +840,7 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 		nullableUnixMilli(asInt64(req["expiryTime"], 0)),
 		nullableText(normalizeNodeRenewalCycle(asString(req["renewalCycle"]))),
 		groupID,
+		secret,
 		newHTTP,
 		newTLS,
 		newSocks,
