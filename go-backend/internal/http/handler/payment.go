@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"go-backend/internal/http/response"
 	"go-backend/internal/payment"
@@ -122,6 +123,9 @@ func (h *Handler) completePayment(orderNo, txHash string) {
 			switch pkg.Type {
 			case "balance":
 				_ = h.repo.DeliverBalancePackageToUser(userID, order.Amount, pkg.Name, order.ID)
+				nowMs := time.Now().UnixMilli()
+				_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
+				h.resumePausedForwardsByUser(userID, nowMs)
 			case "traffic":
 				_ = h.repo.DeliverTrafficPackageToUser(userID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit, qty)
 			default:

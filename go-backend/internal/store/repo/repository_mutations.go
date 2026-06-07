@@ -3246,6 +3246,13 @@ func (r *Repository) TryAutoRenewForUser(userID int64) {
 	}
 
 	_ = r.db.Model(&model.User{}).Where("id = ?", user.ID).Update("status", 1).Error
+
+	_ = r.db.Model(&model.UserTunnel{}).Where("user_id = ?", user.ID).Updates(map[string]interface{}{
+		"exp_time": newExpTime,
+		"in_flow":  0,
+		"out_flow": 0,
+		"status":   1,
+	}).Error
 }
 
 // IncreaseUserFlow increases a user's base flow by the given GB amount.

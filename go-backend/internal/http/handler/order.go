@@ -329,6 +329,8 @@ func (h *Handler) adminRefundOrder(w http.ResponseWriter, r *http.Request) {
 		now, "订单退款")
 
 	h.repo.TryAutoRenewForUser(order.UserID)
+	_ = h.repo.UpdateUserForwardsStatus(order.UserID, 1, now)
+	h.resumePausedForwardsByUser(order.UserID, now)
 
 	// Reverse delivery by package type
 	if order.ProductType == "package" {

@@ -305,6 +305,8 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 
 	if oldUser != nil && oldUser.Status == 0 && oldUser.ExpTime <= now && autoRenew == 1 && renewalAmount > 0 && balance > oldUser.Balance && balance >= renewalAmount && expTime <= now {
 		h.repo.TryAutoRenewForUser(id)
+		_ = h.repo.UpdateUserForwardsStatus(id, 1, now)
+		h.resumePausedForwardsByUser(id, now)
 	}
 
 	response.WriteJSON(w, response.OKEmpty())

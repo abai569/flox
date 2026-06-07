@@ -448,6 +448,9 @@ func (h *Handler) assignPackageToUser(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
+		nowMs := time.Now().UnixMilli()
+		_ = h.repo.UpdateUserForwardsStatus(req.UserID, 1, nowMs)
+		h.resumePausedForwardsByUser(req.UserID, nowMs)
 	case "traffic":
 		if err := h.repo.DeliverTrafficPackageToUser(req.UserID, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit, 1); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
