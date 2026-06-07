@@ -301,7 +301,7 @@ func (b *Bot) handleStart(msg *messageData) {
 	msgText += "我是 FLVX 面板的告警通知机器人。\n\n"
 	msgText += "📋 <b>面板配置信息</b>\n"
 	msgText += "━━━━━━━━━━━━━━━\n"
-	msgText += "🔑 <b>Bot Token</b>:\n<code>你的BotToken</code>\n\n"
+	msgText += fmt.Sprintf("🔑 <b>Bot Token</b>:\n<code>%s</code>\n\n", b.Token())
 	msgText += fmt.Sprintf("🆔 <b>你的 Chat ID</b>:\n<code>%d</code>\n\n", myID)
 	msgText += fmt.Sprintf("🤖 <b>Bot 用户名</b>:\n@%s\n\n", botUsername)
 	msgText += "━━━━━━━━━━━━━━━\n\n"
