@@ -23,6 +23,7 @@ import (
 	"go-backend/internal/metrics"
 	"go-backend/internal/security"
 	"go-backend/internal/store/repo"
+	"go-backend/internal/telegram"
 	"go-backend/internal/ws"
 )
 
@@ -52,6 +53,15 @@ type Handler struct {
 
 	nftablesDomainMu    sync.Mutex
 	nftablesDomainCache map[int64]string
+
+	telegramBot *telegram.Bot
+}
+
+func (h *Handler) TelegramBot() *telegram.Bot {
+	if h == nil {
+		return nil
+	}
+	return h.telegramBot
 }
 
 // GetForwardConnections 获取指定转发的当前连接数
@@ -118,8 +128,10 @@ func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
 		nftablesDomainCache:  make(map[int64]string),
 	}
 	h.healthCheck = health.NewChecker(repo, h.wsServer)
+	h.healthCheck.SetOnResult(h.onServiceMonitorResult)
 	h.qualityProber = newTunnelQualityProber(h)
 	h.wsServer.SetNodeOnlineHook(h.onNodeOnline)
+	h.wsServer.SetNodeOfflineHook(h.onNodeOffline)
 	h.wsServer.SetNodeMetricHook(func(nodeID int64, info ws.SystemInfo) {
 		metricInfo := metrics.SystemInfo{
 			Uptime:                 info.Uptime,
@@ -146,6 +158,13 @@ func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)
 	h.packageGroupHandler = NewPackageGroupHandler(repo)
+
+	cfgMap, _ := repo.GetConfigsByNames([]string{"telegram_bot_token", "telegram_chat_id", "telegram_enabled"})
+	botToken := cfgMap["telegram_bot_token"]
+	chatID := cfgMap["telegram_chat_id"]
+	enabled := cfgMap["telegram_enabled"] == "true"
+	h.telegramBot = telegram.New(botToken, chatID, enabled)
+
 	return h
 }
 
@@ -309,7 +328,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/license/info", h.licenseInfo)
 	mux.HandleFunc("/api/v1/license/config", h.licenseConfig)
 	mux.HandleFunc("/api/v1/license/transfer", h.licenseTransfer)
-
+	mux.HandleFunc("/api/v1/telegram/test", h.telegramTest)
 
 
 	mux.HandleFunc("/api/v1/monitor/access", h.monitorAccessHandler)

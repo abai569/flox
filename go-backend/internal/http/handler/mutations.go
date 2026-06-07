@@ -26,6 +26,7 @@ import (
 	"go-backend/internal/security"
 	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
+	"go-backend/internal/telegram"
 
 	"gorm.io/gorm"
 )
@@ -478,6 +479,12 @@ func (h *Handler) userResetFlow(w http.ResponseWriter, r *http.Request) {
 
 	if typeVal == 1 {
 		h.repo.ResetUserFlowByUser(id, time.Now().UnixMilli())
+		user, _ := h.repo.GetUserByID(id)
+		if user != nil {
+			h.sendBotNotification(func(bot *telegram.Bot) {
+				bot.SendUserFlowReset(user.User)
+			})
+		}
 	} else {
 		h.repo.ResetUserFlowByUserTunnel(id)
 	}

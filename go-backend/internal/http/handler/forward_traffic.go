@@ -7,6 +7,7 @@ import (
 
 	"go-backend/internal/http/response"
 	"go-backend/internal/store/repo"
+	"go-backend/internal/telegram"
 )
 
 type forwardBatchResetTrafficRequest struct {
@@ -89,6 +90,10 @@ func (h *Handler) forwardBatchResetTraffic(w http.ResponseWriter, r *http.Reques
 		result.Success = true
 		result.ForwardName = forward.Name
 		results = append(results, result)
+
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendForwardTrafficReset(forward.Name, forward.UserName)
+		})
 	}
 
 	response.WriteJSON(w, response.OK(results))

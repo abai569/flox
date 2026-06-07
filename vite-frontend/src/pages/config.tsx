@@ -1401,7 +1401,7 @@ export default function ConfigPage() {
                         ? `商业版，授权剩余 ${licenseStatus.expire_time ? Math.floor((licenseStatus.expire_time - Date.now()) / 86400000) : "？"} 天`
                         : licenseStatus.tier === "blocked"
                           ? `授权已阻断：${licenseStatus.reason || "未知原因"}`
-                          : "免费版（5 节点 / 5 隧道 / 1 用户，禁用商城系统）"}
+                          : "免费版（5 节点 / 5 隧道 / 1 用户，禁用商城系统/TG机器人）"}
                   </span>
                 )}
               </div>

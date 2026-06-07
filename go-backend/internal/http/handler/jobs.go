@@ -6,8 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"go-backend/internal/middleware"
 	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
+	"go-backend/internal/telegram"
 )
 
 func (h *Handler) StartBackgroundJobs() {
@@ -23,7 +25,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(10)
+	h.jobsWG.Add(11)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -36,6 +38,15 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runNftablesDomainRefreshLoop(ctx)
 	go h.runCancelExpiredOrdersLoop(ctx)
 	go h.runExpirePackageSubscriptionsLoop(ctx)
+	go h.runTelegramBotLoop(ctx)
+
+	tier, _ := middleware.GetLicenseTier()
+	if tier != middleware.TierFree {
+		bot := h.TelegramBot()
+		if bot != nil && bot.Enabled() {
+			bot.SendSystemStartup(h.fluxVersion)
+		}
+	}
 }
 
 func (h *Handler) StopBackgroundJobs() {
@@ -258,6 +269,10 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 			InFlowBefore:  node.PeriodTx,
 			OutFlowBefore: node.PeriodRx,
 		})
+
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendNodeTrafficReset(node.Name, "自动周期归零")
+		})
 	}
 }
 
@@ -302,6 +317,11 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 					// 恢复 Forward 规则（状态更新 + 节点服务恢复）
 					_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
 					h.resumePausedForwardsByUser(userID, nowMs)
+
+					h.sendBotNotification(func(bot *telegram.Bot) {
+						bot.SendUserFlowReset(user.User)
+					})
+
 					continue // 续费成功，跳过禁用
 				} else {
 					log.Printf("用户 %d 自动续费失败：%v，将执行禁用", userID, renewErr)
@@ -352,6 +372,10 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 
 		// 禁用用户
 		_ = h.repo.DisableUser(userID)
+
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendUserFlowReset(user.User)
+		})
 	}
 }
 
@@ -403,6 +427,10 @@ func (h *Handler) disableExpiredForwards(nowMs int64) {
 			OperatorID:    1,
 			OperatorName:  "system",
 			Reason:        "到期归零",
+		})
+
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendForwardTrafficReset(forward.Name, forward.UserName)
 		})
 	}
 }
@@ -710,4 +738,68 @@ func (h *Handler) expirePackageSubscriptions() {
 	}
 
 	log.Printf("[packages] 已过期 %d 个套餐订阅", len(expired))
+}
+
+func (h *Handler) runTelegramBotLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+
+	refreshTicker := time.NewTicker(30 * time.Second)
+	defer refreshTicker.Stop()
+
+	readConfig := func() (token, chatID string, enabled bool) {
+		cfg, err := h.repo.GetConfigsByNames([]string{"telegram_bot_token", "telegram_chat_id", "telegram_enabled"})
+		if err != nil {
+			return "", "", false
+		}
+		return cfg["telegram_bot_token"], cfg["telegram_chat_id"], cfg["telegram_enabled"] == "true"
+	}
+
+	token, chatID, enabled := readConfig()
+	bot := h.TelegramBot()
+	if bot != nil {
+		bot.UpdateConfig(token, chatID, enabled)
+	}
+
+	tier, _ := middleware.GetLicenseTier()
+	if bot != nil && enabled && tier != middleware.TierFree {
+		bot.Start(ctx)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			if bot != nil {
+				bot.Stop()
+			}
+			return
+		case <-refreshTicker.C:
+			newToken, newChatID, newEnabled := readConfig()
+			if bot == nil {
+				continue
+			}
+
+			oldToken := bot.Token()
+			oldChatID := bot.ChatID()
+			oldEnabled := bot.Enabled()
+
+			if newToken != oldToken || newChatID != oldChatID || newEnabled != oldEnabled {
+				bot.Stop()
+				bot.UpdateConfig(newToken, newChatID, newEnabled)
+
+				tier, _ := middleware.GetLicenseTier()
+				if newEnabled && tier != middleware.TierFree {
+					bot.Start(ctx)
+				}
+			}
+
+			tier, _ := middleware.GetLicenseTier()
+			if tier == middleware.TierFree && bot.Running() {
+				log.Println("[telegram] license downgraded to free, stopping bot")
+				bot.Stop()
+			} else if tier != middleware.TierFree && bot.Enabled() && !bot.Running() {
+				log.Println("[telegram] license upgraded, starting bot")
+				bot.Start(ctx)
+			}
+		}
+	}
 }

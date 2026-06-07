@@ -9,6 +9,7 @@ import (
 	"go-backend/internal/http/response"
 	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
+	"go-backend/internal/telegram"
 )
 
 func isUserQuotaExceeded(view *model.UserQuotaView) bool {
@@ -134,6 +135,14 @@ func (h *Handler) userQuotaReset(w http.ResponseWriter, r *http.Request) {
 	}
 	nowMs := time.Now().UnixMilli()
 	h.applyUserQuotaRelease(release, nowMs)
+
+	user, _ := h.repo.GetUserByID(req.UserID)
+	if user != nil {
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendUserFlowReset(user.User)
+		})
+	}
+
 	response.WriteJSON(w, response.OKEmpty())
 }
 

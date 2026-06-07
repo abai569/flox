@@ -1,0 +1,164 @@
+import { useState, useEffect, useCallback } from "react";
+import toast from "react-hot-toast";
+
+import { Button } from "@/shadcn-bridge/heroui/button";
+import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
+import { Input } from "@/shadcn-bridge/heroui/input";
+import { Switch } from "@/shadcn-bridge/heroui/switch";
+import { Spinner } from "@/shadcn-bridge/heroui/spinner";
+
+import { AnimatedPage } from "@/components/animated-page";
+import { getLicenseInfo, type LicenseInfo } from "@/api";
+
+import {
+  getTelegramConfig,
+  updateTelegramConfig,
+  testTelegramBot,
+  type TelegramConfig,
+} from "@/api";
+
+export default function AdminTelegramPage() {
+  const [config, setConfig] = useState<TelegramConfig>({
+    bot_token: "",
+    chat_id: "",
+    enabled: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null);
+
+  const isFree = licenseInfo?.tier === "free";
+
+  const loadData = useCallback(async () => {
+    try {
+      const [cfg, lic] = await Promise.all([
+        getTelegramConfig(),
+        getLicenseInfo(),
+      ]);
+      setConfig(cfg);
+      setLicenseInfo(lic.data || null);
+    } catch {
+      toast.error("加载配置失败");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await updateTelegramConfig(
+        config.bot_token,
+        config.chat_id,
+        config.enabled,
+      );
+      if (res.code === 0) {
+        toast.success("保存成功");
+      } else {
+        toast.error(res.msg || "保存失败");
+      }
+    } catch {
+      toast.error("保存失败");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await testTelegramBot();
+      if (res.code === 0) {
+        toast.success("测试消息已发送，请在 Telegram 中查看");
+      } else {
+        toast.error(res.msg || "测试失败");
+      }
+    } catch {
+      toast.error("测试失败");
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <AnimatedPage className="px-3 lg:px-6 py-8 flex items-center justify-center">
+        <Spinner size="lg" />
+      </AnimatedPage>
+    );
+  }
+
+  return (
+    <AnimatedPage className="px-3 lg:px-6 py-8">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">Telegram Bot 配置</h1>
+      </div>
+
+      {isFree && (
+        <div className="bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-800 dark:text-yellow-200 px-4 py-3 rounded-lg mb-6">
+          免费版不支持 Telegram Bot，请配置正式授权以使用此功能
+        </div>
+      )}
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <h2 className="text-lg font-semibold">基本设置</h2>
+        </CardHeader>
+        <CardBody className="space-y-4">
+          <Input
+            label="Bot Token"
+            placeholder="输入 Telegram Bot Token"
+            value={config.bot_token}
+            isDisabled={isFree}
+            onChange={(e) => setConfig((c) => ({ ...c, bot_token: e.target.value }))}
+          />
+          <Input
+            label="Chat ID"
+            placeholder="输入目标 Chat ID"
+            value={config.chat_id}
+            isDisabled={isFree}
+            onChange={(e) => setConfig((c) => ({ ...c, chat_id: e.target.value }))}
+          />
+          <Switch
+            color="primary"
+            isDisabled={isFree}
+            isSelected={config.enabled}
+            onValueChange={(v) => setConfig((c) => ({ ...c, enabled: v }))}
+          >
+            启用 Telegram Bot
+          </Switch>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              color="primary"
+              isLoading={saving}
+              isDisabled={isFree}
+              onPress={handleSave}
+            >
+              保存
+            </Button>
+            <Button
+              color="secondary"
+              isLoading={testing}
+              isDisabled={isFree || !config.enabled}
+              onPress={handleTest}
+            >
+              测试连接
+            </Button>
+          </div>
+
+          {config.enabled && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Bot 状态：{isFree ? "未启用（免费版）" : "运行中"}
+            </p>
+          )}
+        </CardBody>
+      </Card>
+    </AnimatedPage>
+  );
+}

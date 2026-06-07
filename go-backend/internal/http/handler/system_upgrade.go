@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go-backend/internal/http/response"
+	"go-backend/internal/middleware"
 )
 
 const (
@@ -510,6 +511,16 @@ func (h *Handler) systemUpgrade(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	go func() {
+		bot := h.TelegramBot()
+		if bot != nil && bot.Enabled() && bot.Running() {
+			tier, _ := middleware.GetLicenseTier()
+			if tier != middleware.TierFree {
+				bot.SendSystemUpgrade(version)
+			}
+		}
+	}()
 
 	exec := newSystemUpgradeExecutor()
 	capability := exec.capability(r.Context())

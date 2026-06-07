@@ -23,6 +23,8 @@ type nodeCommander interface {
 
 const serviceMonitorReportInterval = 30 * time.Second // DB write interval per monitor
 
+type OnResultFunc func(m *model.ServiceMonitor, result *model.ServiceMonitorResult)
+
 type Checker struct {
 	repo      *repo.Repository
 	commander nodeCommander
@@ -37,6 +39,14 @@ type Checker struct {
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
 	checking int32 // atomic flag: 1 = runChecks running, 0 = idle
+
+	onResult OnResultFunc
+}
+
+func (c *Checker) SetOnResult(fn OnResultFunc) {
+	c.mu.Lock()
+	c.onResult = fn
+	c.mu.Unlock()
 }
 
 func NewChecker(repo *repo.Repository, commander nodeCommander) *Checker {
@@ -237,6 +247,14 @@ func (c *Checker) runChecks(ctx context.Context) {
 						if err := c.repo.InsertServiceMonitorResult(result); err != nil {
 							log.Printf("monitoring write failed op=service_monitor_result.insert monitor_id=%d err=%v", result.MonitorID, err)
 						}
+					}
+
+					c.mu.RLock()
+					onResult := c.onResult
+					c.mu.RUnlock()
+					if onResult != nil {
+						mCopy := m
+						onResult(&mCopy, result)
 					}
 				}
 			}

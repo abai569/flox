@@ -1105,3 +1105,29 @@ export const listAutoBuyTrafficPackages = () =>
 
 export const getMySubscription = () =>
   Network.post<{ subscription: any; package: any }>("/user/my-subscription");
+
+// === Telegram Bot ===
+export interface TelegramConfig {
+  bot_token: string;
+  chat_id: string;
+  enabled: boolean;
+}
+
+export const getTelegramConfig = async (): Promise<TelegramConfig> => {
+  const res = await Network.post<Record<string, string>>("/config/list");
+  const cfg: TelegramConfig = {
+    bot_token: res.data?.telegram_bot_token || "",
+    chat_id: res.data?.telegram_chat_id || "",
+    enabled: res.data?.telegram_enabled === "true",
+  };
+  return cfg;
+};
+
+export const updateTelegramConfig = (token: string, chatId: string, enabled: boolean) =>
+  Network.post("/config/update", {
+    telegram_bot_token: token,
+    telegram_chat_id: chatId,
+    telegram_enabled: enabled ? "true" : "false",
+  });
+
+export const testTelegramBot = () => Network.post("/telegram/test");

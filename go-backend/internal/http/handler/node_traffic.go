@@ -7,6 +7,7 @@ import (
 
 	"go-backend/internal/http/response"
 	"go-backend/internal/store/repo"
+	"go-backend/internal/telegram"
 )
 
 type nodeRecordOfflineLogRequest struct {
@@ -165,6 +166,10 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 		result.Success = true
 		result.NodeName = node.Name
 		results = append(results, result)
+
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendNodeTrafficReset(node.Name, req.Reason)
+		})
 	}
 
 	response.WriteJSON(w, response.OK(results))

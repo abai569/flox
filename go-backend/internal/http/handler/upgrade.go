@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"go-backend/internal/http/response"
+	"go-backend/internal/middleware"
 	"go-backend/internal/store/model"
 )
 
@@ -394,9 +395,44 @@ func (h *Handler) listReleases(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) onNodeOnline(nodeID int64) {
-	// 节点重新上线时自动下发隧道和转发规则
-	// 适用于：续费后上线、网络恢复、节点重启、升级后重连
 	h.redeployNodeRuntime(nodeID)
+	go h.notifyNodeOnline(nodeID)
+}
+
+func (h *Handler) onNodeOffline(nodeID int64) {
+	go h.notifyNodeOffline(nodeID)
+}
+
+func (h *Handler) notifyNodeOnline(nodeID int64) {
+	bot := h.TelegramBot()
+	if bot == nil || !bot.Enabled() || !bot.Running() {
+		return
+	}
+	tier, _ := middleware.GetLicenseTier()
+	if tier == middleware.TierFree {
+		return
+	}
+	node, err := h.repo.GetNodeByID(nodeID)
+	if err != nil || node == nil {
+		return
+	}
+	bot.SendNodeOnline(node.Name)
+}
+
+func (h *Handler) notifyNodeOffline(nodeID int64) {
+	bot := h.TelegramBot()
+	if bot == nil || !bot.Enabled() || !bot.Running() {
+		return
+	}
+	tier, _ := middleware.GetLicenseTier()
+	if tier == middleware.TierFree {
+		return
+	}
+	node, err := h.repo.GetNodeByID(nodeID)
+	if err != nil || node == nil {
+		return
+	}
+	bot.SendNodeOffline(node.Name)
 }
 
 func (h *Handler) redeployNodeRuntime(nodeID int64) {

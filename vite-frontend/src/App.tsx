@@ -20,6 +20,7 @@ import MyHomePage from "@/pages/myhome";
 import AdminPlansPage from "@/pages/admin-plans";
 import AdminOrdersPage from "@/pages/admin-orders";
 import AdminPaymentPage from "@/pages/admin-payment";
+import AdminTelegramPage from "@/pages/admin-telegram";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
 import { isLoggedIn } from "@/utils/auth";
@@ -257,6 +258,14 @@ function App() {
           </ProtectedRoute>
         }
         path="/admin/payment"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AdminTelegramPage />
+          </ProtectedRoute>
+        }
+        path="/admin/telegram"
       />
     </Routes>
   );

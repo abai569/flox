@@ -72,8 +72,9 @@ type Server struct {
 	repo         *repo.Repository
 	jwtSecret    string
 	upgrader     websocket.Upgrader
-	onNodeOnline func(nodeID int64)
-	onNodeMetric func(nodeID int64, info SystemInfo)
+	onNodeOnline  func(nodeID int64)
+	onNodeOffline func(nodeID int64)
+	onNodeMetric  func(nodeID int64, info SystemInfo)
 
 	mu                    sync.RWMutex
 	admins                map[*connWrap]struct{}
@@ -131,6 +132,15 @@ func (s *Server) SetNodeOnlineHook(fn func(nodeID int64)) {
 	}
 	s.mu.Lock()
 	s.onNodeOnline = fn
+	s.mu.Unlock()
+}
+
+func (s *Server) SetNodeOfflineHook(fn func(nodeID int64)) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.onNodeOffline = fn
 	s.mu.Unlock()
 }
 
@@ -405,6 +415,13 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 			s.failPendingForNode(nodeID, "节点连接已断开")
 			_ = s.repo.UpdateNodeStatus(nodeID, 0)
 			s.broadcastStatus(nodeID, 0)
+
+			s.mu.RLock()
+			offlineHook := s.onNodeOffline
+			s.mu.RUnlock()
+			if offlineHook != nil {
+				go offlineHook(nodeID)
+			}
 		}
 		_ = conn.Close()
 	}()
