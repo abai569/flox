@@ -128,6 +128,7 @@ export default function AdminTelegramPage() {
               value={config.bot_token}
               isDisabled={isFree}
               onChange={(e) => setConfig((c) => ({ ...c, bot_token: e.target.value }))}
+              description="通过 Telegram @BotFather 创建机器人后向机器人发送 /start 获取，格式如 123456:ABC-DEF..."
             />
             <Input
               label="Chat ID"
@@ -135,25 +136,26 @@ export default function AdminTelegramPage() {
               value={config.chat_id}
               isDisabled={isFree}
               onChange={(e) => setConfig((c) => ({ ...c, chat_id: e.target.value }))}
+              description="向机器人发送 /start 获取，群/频道通过 @getidsbot 获取（频道格式为 -100xxxxxxxxxx）"
             />
           </div>
 
-          <div className="mb-4">
+          {/* <div className="mb-4">
             <div className="flex flex-wrap sm:flex-nowrap gap-4 items-start sm:items-end">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">Bot Token</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  通过 Telegram @BotFather 创建机器人后获取，格式如 123456:ABC-DEF...
+                  通过 Telegram @BotFather 创建机器人后向机器人发送 /start 获取，格式如 123456:ABC-DEF...
                 </p>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">Chat ID</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  接收通知的目标聊天 ID（<strong>不是 Bot 用户名</strong>）。私聊通过 @userinfobot 获取，群/频道通过 @getidsbot 获取（频道格式为 -100xxxxxxxxxx）
+                  向机器人发送 /start 获取，群/频道通过 @getidsbot 获取（频道格式为 -100xxxxxxxxxx）
                 </p>
               </div>
             </div>
-          </div>
+          </div> */}
 
           <div className="flex items-center justify-between gap-3 pt-2">
             <div className="min-w-0">
