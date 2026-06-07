@@ -1,4 +1,4 @@
-package telegram
+﻿package telegram
 
 import (
 	"context"
@@ -127,7 +127,7 @@ func (b *Bot) getBotUsername() (string, error) {
 	}
 
 	apiURL := fmt.Sprintf("%s/bot%s/getMe", apiBaseURL, token)
-	resp, err := b.client.http.Get(apiURL)
+	resp, err := b.client.httpClient.Get(apiURL)
 	if err != nil {
 		return "", err
 	}
@@ -161,7 +161,7 @@ func (b *Bot) processUpdates(botUsername string) {
 	}
 
 	tgURL := fmt.Sprintf("%s/bot%s/getUpdates?offset=%d&timeout=1&allowed_updates=[\"message\"]", apiBaseURL, token, lastOffset+1)
-	resp, err := b.client.http.Get(tgURL)
+	resp, err := b.client.httpClient.Get(tgURL)
 	if err != nil {
 		return
 	}
@@ -262,7 +262,7 @@ func (b *Bot) reply(chatID int64, text string) {
 	data.Set("text", text)
 	data.Set("parse_mode", "HTML")
 
-	resp, err := b.client.http.PostForm(tgURL, data)
+	resp, err := b.client.httpClient.PostForm(tgURL, data)
 	if err != nil {
 		log.Printf("[telegram] reply failed: %v", err)
 		return
@@ -348,7 +348,7 @@ func (b *Bot) BotUsername() string {
 	}
 
 	apiURL := fmt.Sprintf("%s/bot%s/getMe", apiBaseURL, token)
-	resp, err := b.client.http.Get(apiURL)
+	resp, err := b.client.httpClient.Get(apiURL)
 	if err != nil {
 		return ""
 	}

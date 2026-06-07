@@ -25,7 +25,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(11)
+	h.jobsWG.Add(12)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -38,6 +38,7 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runNftablesDomainRefreshLoop(ctx)
 	go h.runCancelExpiredOrdersLoop(ctx)
 	go h.runExpirePackageSubscriptionsLoop(ctx)
+	go h.runNodeNotifyCooldownLoop(ctx)
 	go h.runTelegramBotLoop(ctx)
 
 	tier, _ := middleware.GetLicenseTier()
@@ -771,6 +772,67 @@ func (h *Handler) checkNodeExpiryNotifications(nowMs int64) {
 		} else {
 			bot.SendNodeExpirySoon(node.Name, int(daysLeft))
 		}
+	}
+}
+
+func (h *Handler) runNodeNotifyCooldownLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.checkStillOfflineNotifications()
+		}
+	}
+}
+
+func (h *Handler) checkStillOfflineNotifications() {
+	notifyStateMu.RLock()
+	candidates := make(map[int64]*nodeNotifyState, len(notifyStates))
+	for id, state := range notifyStates {
+		candidates[id] = state
+	}
+	notifyStateMu.RUnlock()
+	nowMs := time.Now().UnixMilli()
+	offlineMinutes := int64(2)
+	for nodeID, state := range candidates {
+		if state.stillOfflineNotified {
+			continue
+		}
+		if nowMs-state.offlineNotifiedAt < notifyCooldownMs {
+			continue
+		}
+		node, err := h.repo.GetNodeByID(nodeID)
+		if err != nil || node == nil {
+			continue
+		}
+		if node.Status == 1 {
+			notifyStateMu.Lock()
+			delete(notifyStates, nodeID)
+			notifyStateMu.Unlock()
+			continue
+		}
+		bot := h.TelegramBot()
+		if bot == nil || !bot.Enabled() || !bot.Running() {
+			continue
+		}
+		tier, _ := middleware.GetLicenseTier()
+		if tier == middleware.TierFree {
+			continue
+		}
+		elapsedMin := (nowMs - state.offlineSince) / 60000
+		if elapsedMin < offlineMinutes {
+			elapsedMin = offlineMinutes
+		}
+		bot.SendNodeStillOffline(node.Name, int(elapsedMin))
+		notifyStateMu.Lock()
+		if ns := notifyStates[nodeID]; ns != nil {
+			ns.stillOfflineNotified = true
+		}
+		notifyStateMu.Unlock()
 	}
 }
 

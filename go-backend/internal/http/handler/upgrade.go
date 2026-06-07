@@ -394,6 +394,17 @@ func (h *Handler) listReleases(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(items))
 }
 
+const notifyCooldownMs = 2 * 60 * 1000
+
+type nodeNotifyState struct {
+	offlineSince       int64
+	offlineNotifiedAt  int64
+	stillOfflineNotified bool
+}
+
+var notifyStateMu sync.RWMutex
+var notifyStates = make(map[int64]*nodeNotifyState)
+
 func (h *Handler) onNodeOnline(nodeID int64) {
 	h.redeployNodeRuntime(nodeID)
 	go h.notifyNodeOnline(nodeID)
@@ -416,6 +427,10 @@ func (h *Handler) notifyNodeOnline(nodeID int64) {
 	if err != nil || node == nil {
 		return
 	}
+	// 上线通知不受冷却限制，清除冷却记录
+	notifyStateMu.Lock()
+	delete(notifyStates, nodeID)
+	notifyStateMu.Unlock()
 	bot.SendNodeOnline(node.Name)
 }
 
@@ -432,7 +447,23 @@ func (h *Handler) notifyNodeOffline(nodeID int64) {
 	if err != nil || node == nil {
 		return
 	}
-	bot.SendNodeOffline(node.Name)
+	nowMs := time.Now().UnixMilli()
+	notifyStateMu.Lock()
+	defer notifyStateMu.Unlock()
+	state, exists := notifyStates[nodeID]
+	if !exists || nowMs-state.offlineNotifiedAt >= notifyCooldownMs {
+		state = &nodeNotifyState{offlineSince: nowMs}
+		notifyStates[nodeID] = state
+		state.offlineNotifiedAt = nowMs
+		state.stillOfflineNotified = false
+		bot.SendNodeOffline(node.Name) // 首次离线，推送
+	}
+}
+
+func (h *Handler) resetNodeNotifyCooldown(nodeID int64) {
+	notifyStateMu.Lock()
+	delete(notifyStates, nodeID)
+	notifyStateMu.Unlock()
 }
 
 func (h *Handler) redeployNodeRuntime(nodeID int64) {
