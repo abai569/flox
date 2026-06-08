@@ -86,25 +86,35 @@ type VersionParts = {
 
 const parseVersionParts = (version: string): VersionParts => {
   const normalized = normalizeTag(version).toLowerCase();
-  const numberMatches = normalized.match(/\d+/g) || [];
-  const numbers = numberMatches.map((item) => Number.parseInt(item, 10));
 
   let stageRank = 0;
+  let stageNumber = 0;
 
-  if (normalized.includes("rc")) {
-    stageRank = 3;
-  } else if (normalized.includes("beta")) {
-    stageRank = 2;
-  } else if (normalized.includes("alpha")) {
-    stageRank = 1;
+  const preReleaseMatch = normalized.match(
+    /[.-](alpha|beta|rc|dev)[.-]?(\d*)$/,
+  );
+  let baseVersion = normalized;
+
+  if (preReleaseMatch) {
+    const stage = preReleaseMatch[1];
+    if (stage === "rc") {
+      stageRank = 3;
+    } else if (stage === "beta") {
+      stageRank = 2;
+    } else if (stage === "alpha") {
+      stageRank = 1;
+    }
+    stageNumber = preReleaseMatch[2]
+      ? Number.parseInt(preReleaseMatch[2], 10)
+      : 0;
+    baseVersion = normalized.slice(0, preReleaseMatch.index);
   } else if (stableVersionPattern.test(normalized)) {
     stageRank = 4;
   }
 
-  const stageNumberMatch = normalized.match(/(?:alpha|beta|rc)[.-]?(\d+)/);
-  const stageNumber = stageNumberMatch
-    ? Number.parseInt(stageNumberMatch[1], 10)
-    : 0;
+  const numbers = (baseVersion.match(/\d+/g) || []).map((item) =>
+    Number.parseInt(item, 10),
+  );
 
   return {
     numbers,
