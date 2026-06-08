@@ -766,6 +766,39 @@ func (s *Server) broadcastStatus(nodeID int64, status int) {
 	s.broadcastToPublics(msg)
 }
 
+func (s *Server) DisconnectNode(nodeID int64) {
+	if s == nil {
+		return
+	}
+
+	s.mu.Lock()
+	ns, ok := s.nodes[nodeID]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+
+	s.nodeOfflineTime[nodeID] = time.Now().Unix()
+
+	if ns.conn != nil && ns.conn.conn != nil {
+		_ = ns.conn.conn.Close()
+		delete(s.byConn, ns.conn.conn)
+	}
+	delete(s.nodes, nodeID)
+	s.mu.Unlock()
+
+	s.failPendingForNode(nodeID, "节点被面板踢下线")
+	_ = s.repo.UpdateNodeStatus(nodeID, 0)
+	s.broadcastStatus(nodeID, 0)
+
+	s.mu.RLock()
+	offlineHook := s.onNodeOffline
+	s.mu.RUnlock()
+	if offlineHook != nil {
+		go offlineHook(nodeID)
+	}
+}
+
 func (s *Server) broadcastInfo(nodeID int64, data string) {
 	payload := broadcastMessage{ID: nodeID, Type: "info", Data: data}
 	raw, _ := json.Marshal(payload)

@@ -828,6 +828,8 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	oldSecret, _ := h.repo.GetNodeSecret(id)
+
 	if err := h.repo.UpdateNode(id,
 		asString(req["name"]),
 		serverIP,
@@ -852,6 +854,10 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
+	}
+
+	if secret != nil && secret != "" && oldSecret != "" && secret.(string) != oldSecret {
+		h.wsServer.DisconnectNode(id)
 	}
 
 	response.WriteJSON(w, response.OKEmpty())
