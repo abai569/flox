@@ -53,37 +53,29 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 ## 本地开发流程
 
 ```bash
-# ── 首次开发 ──
-# 恢复商城代码（仅首次需要，后续 merge-mall.ps1 会更新）
-./scripts/merge-mall.ps1
-
 # ── 日常开发 ──
-# 开发前（恢复最新商城代码）
-./scripts/merge-mall.ps1
+./scripts/merge-mall.ps1                   # 恢复商城代码到主仓库
+cd go-backend && go run ./cmd/paneld       # 后端 :6365
+cd vite-frontend && npm run dev            # 前端 :3000
+# 改动商城代码后会同步到主仓库，尽情修改
 
-# 后端
-cd go-backend
-go run ./cmd/paneld          # 启动后端 :6365
+# ── 提交发布 ──
+./scripts/strip-mall.ps1                   # ① 改动自动同步回 mall-private/
+                                           # ② 从主仓库删除纯商城文件
+cd mall-private
+git add -A && git commit -m "update mall"  # ③ 推送商城改动到私有仓库
+git push origin main
+cd ..
 
-# 前端
-cd vite-frontend
-npm run dev                  # 启动前端 :3000
-
-# ── 发版流程 ──
-# 代码修改完成后，剥离商城代码再提交
-./scripts/strip-mall.ps1     # 移除商城文件
-git add -A
-git commit -m "..."
-git push origin main         # 触发 ci-build.yml（验证剥离版编译）
-git tag v3.0.0               # 触发 docker-build.yml（拉取私有 mall 仓库 → 全功能构建）
-git push origin --tags
-
+git add -A && git commit -m "..."          # ④ 提交主仓库（剥离版）
+git push origin main                       # 触发 ci-build.yml 验证编译
+git tag v3.0.0 && git push origin --tags   # ⑤ 发版（docker-build.yml 自动拉取
+                                           #    私有仓库 → 全功能镜像）
 # ── 继续开发 ──
-./scripts/merge-mall.ps1     # 恢复商城代码继续
-cd go-backend && go run ./cmd/paneld
+./scripts/merge-mall.ps1                   # 恢复最新商城代码
 ```
 
-> **注意**: `go build`/`go test`/`docker compose` 等命令与之前完全一致，不受影响。
+> **注意**: `go build`/`go test`/`docker compose` 等命令不变，`strip-mall.ps1` 会自动同步改过的商城文件到 `mall-private/`，无需手动操作。
 
 ---
 
