@@ -8,10 +8,10 @@ gh repo create abai569/flvx-mall --private --description "FLVX mall/shop system 
 
 Or create manually at https://github.com/new (name: `flvx-mall`, private).
 
-## 2. Push mall-private content
+## 2. Push mall content
 
 ```bash
-cd mall-private
+cd mall
 git remote add origin https://github.com/abai569/flvx-mall.git
 git push -u origin master
 ```

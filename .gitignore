@@ -268,7 +268,7 @@ analysis/
 sql/
 
 # Private mall module — never committed
-mall-private/
+mall/
 
 !go-backend/internal/store/sqlite/sql/
 !go-backend/internal/store/sqlite/sql/schema.sql
