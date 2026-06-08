@@ -31,7 +31,7 @@ import {
   updateLicenseConfig,
   transferLicense,
   type LicenseInfo,
-
+  setStoreStatus,
 } from "@/api";
 // 主题设置暂时放在这里，后续可以独立成一个页面或者组件
 import { isAdmin } from "@/utils/auth";
@@ -63,6 +63,7 @@ const toBrandAssetKind = (key: BrandPreviewKey): BrandAssetKind => {
 };
 // 快捷开关（直接生效，不受保存按钮控制）
 const STANDALONE_SWITCH_KEYS = [
+  "payment_enabled",
   "registration_enabled",
   "login_monitor_link",
 ];
@@ -130,6 +131,13 @@ const CONFIG_ITEMS: ConfigItem[] = [
     type: "switch",
   },
   {
+    key: "payment_enabled",
+    label: "商城系统",
+    description:
+      "关闭后，将隐藏所有支付、套餐、订单、商城相关菜单项和页面，同时关闭用户注册",
+    type: "switch",
+  },
+  {
     key: "registration_enabled",
     label: "开放注册",
     description: "开启后允许用户自助注册账号",
@@ -168,6 +176,7 @@ const getInitialConfigs = (): Record<string, string> => {
     "captcha_enabled",
     "register_captcha_enabled",
     "registration_enabled",
+    "payment_enabled",
     "cloudflare_site_key",
     "cloudflare_secret_key",
     "forward_compact_mode",
@@ -186,6 +195,9 @@ const getInitialConfigs = (): Record<string, string> => {
 
       if (cachedValue) {
         initialConfigs[key] = cachedValue;
+      } else if (key === "payment_enabled") {
+        // 默认开启商城
+        initialConfigs[key] = "true";
       }
     });
   } catch {}
@@ -445,6 +457,11 @@ export default function ConfigPage() {
 
     const payload: Record<string, string> = { [key]: newValue };
 
+    // 关闭商城系统时联动关闭注册
+    if (key === "payment_enabled" && newValue === "false") {
+      payload.registration_enabled = "false";
+    }
+
     // 立即更新本地状态
     const newConfigs = { ...configs, ...payload };
 
@@ -471,6 +488,19 @@ export default function ConfigPage() {
           detail: { changedKeys: Object.keys(payload) },
         }),
       );
+      if (key === "payment_enabled") {
+        window.dispatchEvent(
+          new CustomEvent("paymentEnabledChanged", {
+            detail: { enabled: newValue !== "false" },
+          }),
+        );
+        window.dispatchEvent(
+          new CustomEvent("storeEnabledChanged", {
+            detail: { enabled: newValue !== "false" },
+          }),
+        );
+        setStoreStatus({ enabled: newValue !== "false" }).catch(() => {});
+      }
       toast.success("设置已更新");
     } catch {
       toast.error("保存失败");
@@ -507,6 +537,14 @@ export default function ConfigPage() {
 
         return;
       }
+      // 商城关闭时联动关闭注册
+      if (
+        changedKeys.includes("payment_enabled") &&
+        configs.payment_enabled === "false"
+      ) {
+        changedPayload.registration_enabled = "false";
+        configs.registration_enabled = "false";
+      }
       const response = await updateConfigs(changedPayload);
 
       if (response.code === 0) {
@@ -534,6 +572,23 @@ export default function ConfigPage() {
             detail: { changedKeys },
           }),
         );
+        if (changedKeys.includes("payment_enabled")) {
+          try {
+            localStorage.setItem(
+              "vite_config_payment_enabled",
+              configs.payment_enabled || "",
+            );
+          } catch {}
+          window.dispatchEvent(
+            new CustomEvent("paymentEnabledChanged", {
+              detail: { enabled: configs.payment_enabled !== "false" },
+            }),
+          );
+          // 同步后端 store_enabled
+          setStoreStatus({
+            enabled: configs.payment_enabled !== "false",
+          }).catch(() => {});
+        }
       } else {
         toast.error("保存配置失败: " + response.msg);
       }
@@ -797,6 +852,26 @@ export default function ConfigPage() {
           />
         );
       case "switch":
+        if (item.key === "payment_enabled") {
+          return (
+            <Switch
+              classNames={{
+                wrapper: isChanged ? "border-warning-300" : "",
+              }}
+              color="primary"
+              isSelected={configs[item.key] === "true"}
+              size="md"
+              onValueChange={(checked) =>
+                handleConfigChange(item.key, checked ? "true" : "false")
+              }
+            >
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                {configs[item.key] === "true" ? "已开启" : "已关闭"}
+              </span>
+            </Switch>
+          );
+        }
+
         return (
           <Switch
             classNames={{
@@ -1059,8 +1134,8 @@ export default function ConfigPage() {
                   <div className="flex-shrink-0">
                     <Switch
                       color="primary"
-                      isDisabled={false}
-                      isSelected={configs[item.key] === "true"}
+                      isDisabled={item.key === "payment_enabled" && licenseStatus?.tier === "free"}
+                      isSelected={item.key === "payment_enabled" && licenseStatus?.tier === "free" ? false : configs[item.key] === "true"}
                       size="sm"
                       onValueChange={(checked) =>
                         handleDirectSwitchChange(item.key, checked)

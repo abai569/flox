@@ -43,7 +43,7 @@ const ProtectedRoute = ({
     if (!authenticated) {
       navigate("/", { replace: true });
     } else if (restricted && !RESTRICTED_PATHS.includes(location.pathname)) {
-      navigate("/dashboard", { replace: true });
+      navigate("/myhome", { replace: true });
     }
   }, [authenticated, restricted, location.pathname, navigate]);
 

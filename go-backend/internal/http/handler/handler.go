@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,6 +49,7 @@ type Handler struct {
 	qualityProber *tunnelQualityProber
 	nodeGroupHandler *NodeGroupHandler
 	nodeTagHandler   *NodeTagHandler
+	packageGroupHandler *PackageGroupHandler
 
 	nftablesDomainMu    sync.Mutex
 	nftablesDomainCache map[int64]string
@@ -155,6 +157,7 @@ func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
 	})
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)
+	h.packageGroupHandler = NewPackageGroupHandler(repo)
 
 	cfgMap, _ := repo.GetConfigsByNames([]string{"telegram_bot_token", "telegram_chat_id", "telegram_enabled"})
 	botToken := cfgMap["telegram_bot_token"]
@@ -200,6 +203,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/backup/restore", h.backupImport)
 	mux.HandleFunc("/api/v1/captcha/check", h.checkCaptcha)
 	mux.HandleFunc("/api/v1/captcha/verify", h.captchaVerify)
+	mux.HandleFunc("/api/v1/user/package", h.userPackage)
+	mux.HandleFunc("/api/v1/user/my-subscription", h.userMySubscription)
 	mux.HandleFunc("/api/v1/user/updatePassword", h.updatePassword)
 	mux.HandleFunc("/api/v1/node/list", h.nodeList)
 	mux.HandleFunc("/api/v1/node/create", h.nodeCreate)
@@ -303,6 +308,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/group/permission/list", h.groupPermissionList)
 	mux.HandleFunc("/api/v1/group/permission/assign", h.groupPermissionAssign)
 	mux.HandleFunc("/api/v1/group/permission/remove", h.groupPermissionRemove)
+	mux.HandleFunc("/api/v1/open_api/sub_store", h.openAPISubStore)
 	mux.HandleFunc("/api/v1/federation/share/list", h.federationShareList)
 	mux.HandleFunc("/api/v1/federation/share/create", h.federationShareCreate)
 	mux.HandleFunc("/api/v1/federation/share/update", h.federationShareUpdate)
@@ -358,6 +364,62 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node-tag/update", h.nodeTagHandler.update)
 	mux.HandleFunc("/api/v1/node-tag/delete", h.nodeTagHandler.delete)
 	mux.HandleFunc("/api/v1/node-tag/assign", h.nodeTagHandler.assign)
+
+	// Package group management
+	mux.HandleFunc("/api/v1/package-group/list", h.packageGroupHandler.list)
+	mux.HandleFunc("/api/v1/package-group/create", h.packageGroupHandler.create)
+	mux.HandleFunc("/api/v1/package-group/update", h.packageGroupHandler.update)
+	mux.HandleFunc("/api/v1/package-group/delete", h.packageGroupHandler.delete)
+	mux.HandleFunc("/api/v1/package-group/assign", h.packageGroupHandler.assign)
+
+	// Package (套餐)
+	mux.HandleFunc("/api/v1/package/list", h.listPackages)
+	mux.HandleFunc("/api/v1/package/create", h.createPackage)
+	mux.HandleFunc("/api/v1/package/update", h.updatePackage)
+	mux.HandleFunc("/api/v1/package/delete", h.deletePackage)
+	mux.HandleFunc("/api/v1/package/detail", h.getPackageDetail)
+	mux.HandleFunc("/api/v1/package/order/create", h.createPackageOrder)
+	mux.HandleFunc("/api/v1/package/assign", h.assignPackageToUser)
+	mux.HandleFunc("/api/v1/package/store-status", h.getStoreStatus)
+	mux.HandleFunc("/api/v1/package/store-status/save", h.setStoreStatus)
+	mux.HandleFunc("/api/v1/package/toggle-auto-buy-traffic", h.togglePackageAutoBuyTraffic)
+	mux.HandleFunc("/api/v1/package/auto-buy-traffic/list", h.listAutoBuyTrafficPackages)
+
+	mux.HandleFunc("/api/v1/order/create", h.createOrder)
+	mux.HandleFunc("/api/v1/order/list", h.listOrders)
+	mux.HandleFunc("/api/v1/order/admin/list", h.listAllOrders)
+	mux.HandleFunc("/api/v1/order/cancel", h.cancelOrder)
+	mux.HandleFunc("/api/v1/order/status", h.getOrderStatus)
+	mux.HandleFunc("/api/v1/order/admin/delete", h.adminDeleteOrder)
+	mux.HandleFunc("/api/v1/order/admin/update", h.adminUpdateOrder)
+	mux.HandleFunc("/api/v1/order/admin/refund", h.adminRefundOrder)
+	mux.HandleFunc("/api/v1/order/admin/complete", h.adminCompleteOrder)
+	mux.HandleFunc("/api/v1/order/admin/batch-complete", h.adminBatchCompleteOrders)
+	mux.HandleFunc("/api/v1/order/admin/batch-refund", h.adminBatchRefundOrders)
+	mux.HandleFunc("/api/v1/order/admin/batch-delete", h.adminBatchDeleteOrders)
+
+	mux.HandleFunc("/api/v1/payment/pay", h.payOrder)
+	mux.HandleFunc("/api/v1/payment/callback/yipay", h.yipayCallback)
+	mux.HandleFunc("/api/v1/payment/callback/usdt", h.usdtCallback)
+	mux.HandleFunc("/api/v1/payment/stats", h.paymentStats)
+	mux.HandleFunc("/api/v1/payment/config", h.getPaymentConfigs)
+	mux.HandleFunc("/api/v1/payment/config/save", h.savePaymentConfig)
+	mux.HandleFunc("/api/v1/payment/config/admin/list", h.listAllPaymentConfigs)
+	mux.HandleFunc("/api/v1/payment/config/delete", h.deletePaymentConfig)
+
+	// Billing
+	mux.HandleFunc("/api/v1/billing/redeem/create", h.createRedeemCodes)
+	mux.HandleFunc("/api/v1/billing/redeem/list", h.listRedeemCodes)
+	mux.HandleFunc("/api/v1/billing/redeem/delete", h.deleteRedeemCode)
+	mux.HandleFunc("/api/v1/billing/discount/create", h.createDiscountCode)
+	mux.HandleFunc("/api/v1/billing/discount/list", h.listDiscountCodes)
+	mux.HandleFunc("/api/v1/billing/discount/delete", h.deleteDiscountCode)
+	mux.HandleFunc("/api/v1/billing/balance-log/list", h.listBalanceLogs)
+	mux.HandleFunc("/api/v1/billing/balance-log/delete", h.adminDeleteBalanceLog)
+	mux.HandleFunc("/api/v1/billing/balance-log/batch-delete", h.adminBatchDeleteBalanceLogs)
+	mux.HandleFunc("/api/v1/billing/balance-log/cleanup", h.adminCleanupBalanceLogs)
+	mux.HandleFunc("/api/v1/billing/feature-status", h.getBillingFeatureStatus)
+	mux.HandleFunc("/api/v1/billing/feature-status/save", h.setBillingFeatureStatus)
 
 	mux.HandleFunc("/flow/test", h.flowTest)
 	mux.HandleFunc("/flow/config", h.flowConfig)
@@ -702,7 +764,75 @@ func (h *Handler) speedLimitList(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(items))
 }
 
+func (h *Handler) openAPISubStore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+	if h == nil || h.repo == nil {
+		response.WriteJSON(w, response.Err(-2, "database unavailable"))
+		return
+	}
 
+	username := strings.TrimSpace(r.URL.Query().Get("user"))
+	password := strings.TrimSpace(r.URL.Query().Get("pwd"))
+	tunnel := strings.TrimSpace(r.URL.Query().Get("tunnel"))
+	if tunnel == "" {
+		tunnel = "-1"
+	}
+
+	if username == "" {
+		response.WriteJSON(w, response.ErrDefault("用户不能为空"))
+		return
+	}
+	if password == "" {
+		response.WriteJSON(w, response.ErrDefault("密码不能为空"))
+		return
+	}
+
+	user, err := h.repo.GetUserByUsername(username)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if user == nil || user.Pwd != security.MD5(password) {
+		response.WriteJSON(w, response.ErrDefault("鉴权失败"))
+		return
+	}
+
+	const giga = int64(1024 * 1024 * 1024)
+	headerValue := ""
+
+	if tunnel == "-1" {
+		headerValue = buildSubscriptionHeader(user.OutFlow, user.InFlow, user.Flow*giga, user.ExpTime/1000)
+	} else {
+		tunnelID, parseErr := strconv.ParseInt(tunnel, 10, 64)
+		if parseErr != nil || tunnelID <= 0 {
+			response.WriteJSON(w, response.ErrDefault("隧道不存在"))
+			return
+		}
+
+		ut, err := h.repo.GetUserTunnelByID(tunnelID)
+		if err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
+		if ut == nil {
+			response.WriteJSON(w, response.ErrDefault("隧道不存在"))
+			return
+		}
+		if ut.UserID != user.ID {
+			response.WriteJSON(w, response.ErrDefault("隧道不存在"))
+			return
+		}
+
+		headerValue = buildSubscriptionHeader(ut.OutFlow, ut.InFlow, ut.Flow*giga, ut.ExpTime/1000)
+	}
+
+	w.Header().Set("subscription-userinfo", headerValue)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(headerValue))
+}
 
 func (h *Handler) errorPage(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=UTF-8")
@@ -710,6 +840,9 @@ func (h *Handler) errorPage(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("<!DOCTYPE html><html lang='zh-CN'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>错误 404</title></head><body><div style='min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;'><div style='font-size:6rem;color:#333;font-weight:300;'>404</div><div style='font-size:1.2rem;color:#666;'>你推开了后端的大门，却发现里面只有寂寞。</div></div></body></html>"))
 }
 
+func buildSubscriptionHeader(upload, download, total, expire int64) string {
+	return fmt.Sprintf("upload=%d; download=%d; total=%d; expire=%d", download, upload, total, expire)
+}
 
 func (h *Handler) userTunnelVisibleList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -1043,6 +1176,138 @@ func normalizeAndValidateConfigValue(key, value string) (string, error) {
 	}
 }
 
+func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	claims, ok := r.Context().Value(middleware.ClaimsContextKey).(auth.Claims)
+	if !ok {
+		response.WriteJSON(w, response.Err(401, "无效的token或token已过期"))
+		return
+	}
+
+	userID, err := parseUserID(claims.Sub)
+	if err != nil {
+		response.WriteJSON(w, response.Err(401, "无效的token或token已过期"))
+		return
+	}
+
+	user, err := h.repo.GetUserByID(userID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if user == nil {
+		response.WriteJSON(w, response.ErrDefault("用户不存在"))
+		return
+	}
+
+	tunnels, err := h.repo.GetUserPackageTunnels(userID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	forwards, err := h.repo.GetUserPackageForwards(userID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	stats, err := h.repo.GetStatisticsFlows(userID, 24)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	sort.Slice(stats, func(i, j int) bool { return stats[i].ID < stats[j].ID })
+
+	tunnelOut := make([]map[string]interface{}, 0, len(tunnels))
+	for _, t := range tunnels {
+		item := map[string]interface{}{
+			"id":             t.ID,
+			"userId":         t.UserID,
+			"tunnelId":       t.TunnelID,
+			"tunnelName":     t.TunnelName,
+			"tunnelFlow":     t.TunnelFlow,
+			"flow":           t.Flow,
+			"inFlow":         t.InFlow,
+			"outFlow":        t.OutFlow,
+			"num":            t.Num,
+			"flowResetTime":  t.FlowResetTime,
+			"expTime":        t.ExpTime,
+			"speedId":        nil,
+			"speedLimitName": nil,
+			"speed":          nil,
+		}
+		if t.SpeedID.Valid {
+			item["speedId"] = t.SpeedID.Int64
+		}
+		if t.SpeedLimit.Valid {
+			item["speedLimitName"] = t.SpeedLimit.String
+		}
+		if t.Speed.Valid {
+			item["speed"] = t.Speed.Int64
+		}
+		tunnelOut = append(tunnelOut, item)
+	}
+
+	forwardOut := make([]map[string]interface{}, 0, len(forwards))
+	for _, f := range forwards {
+		item := map[string]interface{}{
+			"id":          f.ID,
+			"name":        f.Name,
+			"tunnelId":    f.TunnelID,
+			"tunnelName":  f.TunnelName,
+			"inIp":        f.InIP,
+			"inPort":      nil,
+			"remoteAddr":  f.RemoteAddr,
+			"inFlow":      f.InFlow,
+			"outFlow":     f.OutFlow,
+			"status":      f.Status,
+			"createdTime": f.CreatedAt,
+		}
+		if f.InPort.Valid {
+			item["inPort"] = f.InPort.Int64
+		}
+		forwardOut = append(forwardOut, item)
+	}
+
+	payload := map[string]interface{}{
+		"userInfo": map[string]interface{}{
+			"id":            user.ID,
+			"name":          user.User,
+			"user":          user.User,
+			"status":        user.Status,
+			"flow":          user.Flow,
+			"inFlow":        user.InFlow,
+			"outFlow":       user.OutFlow,
+			"num":           user.Num,
+			"expTime":       user.ExpTime,
+			"flowResetTime": user.FlowResetTime,
+			"createdTime":   user.CreatedTime,
+			"updatedTime":   nullableNullInt64(user.UpdatedTime),
+			"renewalAmount":    user.RenewalAmount,
+			"balance":          user.Balance,
+			"autoRenew":        user.AutoRenew,
+			"autoBuyTraffic":   user.AutoBuyTraffic,
+			"buyTrafficAmount": user.BuyTrafficAmount,
+			"buyTrafficPrice":  user.BuyTrafficPrice,
+			"autoBuyTrafficPackageId": user.AutoBuyTrafficPackageID,
+			"autoBuyTrafficThreshold": user.AutoBuyTrafficThreshold,
+			"baseFlow":         user.BaseFlow,
+			"trafficFlow":      user.TrafficFlow,
+		},
+		"tunnelPermissions": tunnelOut,
+		"forwards":          forwardOut,
+		"statisticsFlows":   stats,
+	}
+
+	response.WriteJSON(w, response.OK(payload))
+}
+
 func (h *Handler) updatePassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))
@@ -1119,6 +1384,34 @@ func (h *Handler) updatePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) userMySubscription(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+	userID, err := userIDFromRequest(r)
+	if err != nil || userID <= 0 {
+		response.WriteJSON(w, response.Err(401, "用户信息错误"))
+		return
+	}
+	sub, pkg, err := h.repo.GetUserActiveSubscription(userID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if sub == nil {
+		response.WriteJSON(w, response.OK(map[string]interface{}{
+			"subscription": nil,
+			"package":      nil,
+		}))
+		return
+	}
+	response.WriteJSON(w, response.OK(map[string]interface{}{
+		"subscription": sub,
+		"package":      pkg,
+	}))
 }
 
 func (h *Handler) captchaEnabled() (bool, error) {

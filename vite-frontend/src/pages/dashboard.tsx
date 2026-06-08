@@ -1,3 +1,4 @@
+import type { SubscriptionPackageApiItem } from "@/api/types";
 
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -6,7 +7,8 @@ import { AnimatedPage } from "@/components/animated-page";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Switch } from "@/shadcn-bridge/heroui/switch";
-
+import { Input } from "@/shadcn-bridge/heroui/input";
+import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
 import {
   Modal,
   ModalContent,
@@ -28,7 +30,12 @@ import {
   type DashboardNodeExpiryItem,
   type DashboardUserTunnel as UserTunnel,
 } from "@/pages/dashboard/use-dashboard-data";
-import { toggleUserAutoRenew } from "@/api";
+import {
+  toggleUserAutoRenew,
+  toggleUserAutoBuyTraffic,
+  getStoreStatus,
+  listAutoBuyTrafficPackages,
+} from "@/api";
 
 export default function DashboardPage() {
   const [quotaHistoryModalOpen, setQuotaHistoryModalOpen] = useState(false);
@@ -44,6 +51,7 @@ export default function DashboardPage() {
     quotaHistory,
     fetchQuotaHistory,
     deleteQuotaHistory,
+    refresh,
   } = useDashboardData();
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [historyToDelete, setHistoryToDelete] = useState<number | null>(null);
@@ -51,7 +59,20 @@ export default function DashboardPage() {
   const [autoRenewOverride, setAutoRenewOverride] = useState<number | null>(
     null,
   );
-
+  const [autoBuySwitchLoading, setAutoBuySwitchLoading] = useState(false);
+  const [autoBuyOverride, setAutoBuyOverride] = useState<number | null>(null);
+  const [autoBuyPackageIdOverride, setAutoBuyPackageIdOverride] = useState<
+    number | null
+  >(null);
+  const [autoBuyThresholdOverride, setAutoBuyThresholdOverride] = useState<
+    number | null
+  >(null);
+  const [storeEnabled, setStoreEnabled] = useState(false);
+  const [autoBuyPackages, setAutoBuyPackages] = useState<
+    SubscriptionPackageApiItem[]
+  >([]);
+  const [autoBuySettingsModalOpen, setAutoBuySettingsModalOpen] =
+    useState(false);
 
   const handleToggleAutoRenew = async (enabled: boolean) => {
     if (!userInfo.id || autoRenewSwitchLoading) return;
@@ -73,7 +94,113 @@ export default function DashboardPage() {
     }
   };
 
+  const handleToggleAutoBuyTraffic = async (enabled: boolean) => {
+    if (!userInfo.id || autoBuySwitchLoading) return;
+    setAutoBuySwitchLoading(true);
+    try {
+      const newValue = enabled ? 1 : 0;
+      const res = await toggleUserAutoBuyTraffic(userInfo.id, newValue);
 
+      if (res.code === 0) {
+        toast.success(enabled ? "自动购流已启用" : "自动购流已禁用");
+        setAutoBuyOverride(newValue);
+        if (enabled) {
+          setAutoBuySettingsModalOpen(true);
+        } else {
+          setAutoBuyPackageIdOverride(null);
+        }
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("操作失败");
+    } finally {
+      setAutoBuySwitchLoading(false);
+    }
+  };
+
+  const [draftThreshold, setDraftThreshold] = useState(10);
+  const [draftPackageId, setDraftPackageId] = useState(0);
+
+  useEffect(() => {
+    if (autoBuySettingsModalOpen) {
+      setDraftThreshold(
+        autoBuyThresholdOverride ?? userInfo.autoBuyTrafficThreshold ?? 10,
+      );
+      setDraftPackageId(
+        autoBuyPackageIdOverride ?? userInfo.autoBuyTrafficPackageId ?? 0,
+      );
+    }
+  }, [autoBuySettingsModalOpen]);
+
+  const handleAutoBuySettingsSave = async () => {
+    if (!userInfo.id || autoBuySwitchLoading) return;
+    if (draftPackageId <= 0) {
+      toast.error("请选择套餐");
+
+      return;
+    }
+    setAutoBuySwitchLoading(true);
+    try {
+      const res = await toggleUserAutoBuyTraffic(
+        userInfo.id,
+        1,
+        draftPackageId,
+        draftThreshold,
+      );
+
+      if (res.code === 0) {
+        toast.success("自动购流设置已保存");
+        setAutoBuyPackageIdOverride(null);
+        setAutoBuyThresholdOverride(null);
+        setAutoBuyOverride(null);
+        setAutoBuySettingsModalOpen(false);
+        localStorage.setItem("autoBuyConfigUpdated", Date.now().toString());
+        void refresh();
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("操作失败");
+    } finally {
+      setAutoBuySwitchLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    getStoreStatus().then((res) => {
+      if (res.code === 0) setStoreEnabled(res.data?.enabled ?? false);
+    });
+    listAutoBuyTrafficPackages().then((res) => {
+      if (res.code === 0 && Array.isArray(res.data))
+        setAutoBuyPackages(res.data);
+    });
+    const handleStoreEnabledChanged = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+
+      setStoreEnabled(!!detail.enabled);
+    };
+
+    // 监听 storage 事件（其他标签页修改 localStorage 时触发）
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "vite_config_payment_enabled") {
+        const enabled = e.newValue !== "false";
+
+        setStoreEnabled(enabled);
+      }
+    };
+
+    window.addEventListener("storeEnabledChanged", handleStoreEnabledChanged);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener(
+        "storeEnabledChanged",
+        handleStoreEnabledChanged,
+      );
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
 
   useEffect(() => {
     fetchQuotaHistory();
@@ -565,6 +692,19 @@ export default function DashboardPage() {
             {/* 5. 续费与余额 */}
             <div className="order-5 flex flex-col [&>*]:flex-1">
               <MetricCard
+                bottomContent={
+                  storeEnabled ? (
+                    <div className="mt-1 flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                      <span
+                        className="text-xs text-primary cursor-pointer hover:underline"
+                        onClick={() => (window.location.href = "/shop")}
+                      >
+                        去充值
+                      </span>
+                    </div>
+                  ) : null
+                }
                 icon={
                   <svg
                     aria-hidden="true"
@@ -696,7 +836,115 @@ export default function DashboardPage() {
                 value={`${((userInfo.renewalAmount ?? 0) / 100).toFixed(2)}元/月`}
               />
             </div>
+            {/* 8. 自动购买流量 */}
+            <div className="order-9 flex flex-col [&>*]:flex-1">
+              <MetricCard
+                bottomContent={
+                  storeEnabled ? (
+                    (autoBuyOverride ?? userInfo.autoBuyTraffic) === 0 ? (
+                      <div className="mt-1 flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
+                        <span className="text-xs text-default-500">
+                          流量用完后将禁用账户
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                          <span className="text-success">
+                            {(() => {
+                              const p = autoBuyPackages.find(
+                                (pkg) =>
+                                  pkg.id ===
+                                  (autoBuyPackageIdOverride ??
+                                    userInfo.autoBuyTrafficPackageId),
+                              );
 
+                              return p
+                                ? `${p.trafficLimit}GB / ¥${(p.price / 100).toFixed(2)} · `
+                                : "";
+                            })()}
+                            {autoBuyThresholdOverride ??
+                              userInfo.autoBuyTrafficThreshold ??
+                              10}
+                            GB 触发
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="light"
+                          onPress={() => setAutoBuySettingsModalOpen(true)}
+                        >
+                          设置
+                        </Button>
+                      </div>
+                    )
+                  ) : userInfo.autoBuyTraffic === 1 ? (
+                    <div className="mt-1 flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                      <span className="text-xs text-success">
+                        管理员手动开启 自动购流运行中
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mt-1 flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-default-400" />
+                      <span className="text-xs text-default-500">
+                        流量用完后将禁用账户
+                      </span>
+                    </div>
+                  )
+                }
+                icon={
+                  <svg
+                    className="w-4 h-4 text-orange-600"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
+                  </svg>
+                }
+                iconClassName="bg-orange-100 dark:bg-orange-500/20"
+                title={
+                  storeEnabled ? (
+                    <div className="flex items-center gap-2">
+                      <span>自动购流</span>
+                      <Switch
+                        isDisabled={autoBuySwitchLoading}
+                        isSelected={
+                          (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1
+                        }
+                        size="sm"
+                        onValueChange={handleToggleAutoBuyTraffic}
+                      />
+                    </div>
+                  ) : (
+                    "自动购流"
+                  )
+                }
+                value={
+                  storeEnabled
+                    ? (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1
+                      ? (autoBuyPackageIdOverride ??
+                          userInfo.autoBuyTrafficPackageId ??
+                          0) > 0
+                        ? (autoBuyPackages.find(
+                            (p) =>
+                              p.id ===
+                              (autoBuyPackageIdOverride ??
+                                userInfo.autoBuyTrafficPackageId),
+                          )?.name ?? "套餐自动购买")
+                        : "点击设置相关内容"
+                      : "禁用"
+                    : userInfo.autoBuyTraffic === 1
+                      ? (userInfo.autoBuyTrafficPackageId ?? 0) > 0
+                        ? "套餐自动购买"
+                        : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`
+                      : "禁用"
+                }
+              />
+            </div>
           </>
         )}
       </div>
@@ -1038,7 +1286,69 @@ export default function DashboardPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
+      {/* 自动购流设置弹窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-[420px] rounded-xl",
+        }}
+        isOpen={autoBuySettingsModalOpen}
+        placement="center"
+        onOpenChange={setAutoBuySettingsModalOpen}
+      >
+        <ModalContent>
+          <ModalHeader className="text-base font-semibold">
+            自动购流设置
+          </ModalHeader>
+          <ModalBody className="py-4 space-y-4">
+            <Input
+              label="触发阈值 (GB)"
+              min={1}
+              size="sm"
+              type="number"
+              value={String(draftThreshold)}
+              variant="bordered"
+              onChange={(e) => {
+                const n = parseInt(e.target.value);
 
+                if (!isNaN(n) && n > 0) setDraftThreshold(n);
+              }}
+            />
+            <Select
+              label="选择套餐"
+              selectedKeys={[String(draftPackageId)]}
+              variant="bordered"
+              onSelectionChange={(keys) => {
+                const key = Array.from(keys)[0] as string;
+
+                if (key && Number(key) > 0) setDraftPackageId(Number(key));
+              }}
+            >
+              {autoBuyPackages.map((pkg) => (
+                <SelectItem key={String(pkg.id)}>
+                  {pkg.name} ({pkg.trafficLimit}GB / ¥
+                  {(pkg.price / 100).toFixed(2)})
+                </SelectItem>
+              ))}
+            </Select>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              variant="flat"
+              onPress={() => setAutoBuySettingsModalOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              color="primary"
+              isDisabled={autoBuySwitchLoading || draftPackageId <= 0}
+              onPress={handleAutoBuySettingsSave}
+            >
+              保存
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </AnimatedPage>
   );
 }

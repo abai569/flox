@@ -25,16 +25,19 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(9)
+	h.jobsWG.Add(12)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
 	go h.runDailyMaintenanceLoop(ctx)
+	go h.runAutoBuyTrafficLoop(ctx)
 	go h.runNodeRenewalCycleLoop(ctx)
 	go h.runMetricsIngestion(ctx)
 	go h.runHealthChecks(ctx)
 	go h.runTunnelQualityProber(ctx)
 	go h.runNftablesDomainRefreshLoop(ctx)
+	go h.runCancelExpiredOrdersLoop(ctx)
+	go h.runExpirePackageSubscriptionsLoop(ctx)
 	go h.runNodeNotifyCooldownLoop(ctx)
 	go h.runTelegramBotLoop(ctx)
 
@@ -434,6 +437,100 @@ func (h *Handler) disableExpiredForwards(nowMs int64) {
 	}
 }
 
+func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
+	if h == nil || h.repo == nil {
+		return
+	}
+
+	users, err := h.repo.ListAutoBuyTrafficCandidates(nowMs)
+	if err != nil {
+		return
+	}
+
+	for _, user := range users {
+		usedBytes := user.InFlow + user.OutFlow
+		totalBytes := user.Flow * 1024 * 1024 * 1024
+		// C2: C1: C2: C2: C3: Use user-specific threshold, default 10 GB
+		threshold := user.AutoBuyTrafficThreshold
+		if threshold <= 0 {
+			threshold = 10
+		}
+		remainingBytes := totalBytes - usedBytes
+		if remainingBytes >= threshold*1024*1024*1024 {
+			continue
+		}
+
+		var price int64
+		var amount int64
+		if user.AutoBuyTrafficPackageID > 0 {
+			pkg, err := h.repo.GetPackageByID(user.AutoBuyTrafficPackageID)
+			if err != nil || pkg.Type != "traffic" || pkg.AutoBuyTrafficEnabled != 1 || pkg.Enabled != 1 {
+				continue
+			}
+		// A1: Check and decrement stock
+			if err := h.repo.CheckAndDecrementStock(pkg.ID, 1); err != nil {
+				log.Printf("用户 %d 自动购流：套餐 %d %s", user.ID, pkg.ID, err.Error())
+				// A2: Disable user auto-buy on stock error
+				_ = h.repo.UpdateUserAutoBuyTraffic(user.ID, 0)
+				// A3: If package stock is now 0, disable all associated users
+				if err.Error() == "库存不足" {
+					pkgNow, _ := h.repo.GetPackageByID(pkg.ID)
+					if pkgNow != nil && pkgNow.Stock == 0 {
+						log.Printf("套餐 %d 已售罄，批量停用关联用户自动购流", pkg.ID)
+						_ = h.repo.DisableUsersForZeroStockPackage(pkg.ID)
+					}
+				}
+				continue
+			}
+			price = pkg.Price
+			amount = pkg.TrafficLimit
+		} else {
+			price = user.BuyTrafficPrice
+			amount = user.BuyTrafficAmount
+		}
+
+		if user.Balance < price {
+			log.Printf("用户 %d 自动购流余额不足：余额 %d 分，需要 %d 分",
+				user.ID, user.Balance, price)
+			continue
+		}
+
+		const maxRetries = 3
+		purchased := false
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			if err := h.repo.BuyTrafficWithBalance(user.ID, price, amount, user.Flow, nowMs); err != nil {
+				log.Printf("用户 %d 自动购流失败（第%d/%d次）：%v", user.ID, attempt, maxRetries, err)
+				if attempt < maxRetries {
+					time.Sleep(1 * time.Second)
+					continue
+				}
+			} else {
+				log.Printf("用户 %d 自动购流成功（第%d次尝试）：扣款 %d 分，增加 %d GB",
+					user.ID, attempt, price, amount)
+				purchased = true
+				break
+			}
+		}
+		if !purchased {
+			log.Printf("用户 %d 自动购流最终失败（已重试 %d 次）", user.ID, maxRetries)
+		}
+	}
+}
+
+func (h *Handler) runAutoBuyTrafficLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.handleAutoBuyTraffic(time.Now().UnixMilli())
+		}
+	}
+}
+
 func (h *Handler) runNodeRenewalCycleLoop(ctx context.Context) {
 	defer h.jobsWG.Done()
 
@@ -564,6 +661,87 @@ func (h *Handler) runNftablesDomainRefreshJob() {
 		}
 	}
 }
+
+func (h *Handler) runCancelExpiredOrdersLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Minute):
+			h.cancelExpiredOrders()
+		}
+	}
+}
+
+func (h *Handler) cancelExpiredOrders() {
+	if h == nil || h.repo == nil {
+		return
+	}
+
+	orders, err := h.repo.ListExpiredPendingOrders(30)
+	if err != nil {
+		log.Printf("[orders] 查询超时订单失败: %v", err)
+		return
+	}
+	if len(orders) == 0 {
+		return
+	}
+
+	ids := make([]int64, 0, len(orders))
+	for _, o := range orders {
+		ids = append(ids, o.ID)
+	}
+
+	if err := h.repo.BatchCancelOrders(ids); err != nil {
+		log.Printf("[orders] 取消超时订单失败: %v", err)
+		return
+	}
+
+	log.Printf("[orders] 已取消 %d 个超时未支付订单", len(ids))
+}
+
+func (h *Handler) runExpirePackageSubscriptionsLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(10 * time.Minute):
+			h.expirePackageSubscriptions()
+		}
+	}
+}
+
+func (h *Handler) expirePackageSubscriptions() {
+	if h == nil || h.repo == nil {
+		return
+	}
+
+	expired, err := h.repo.ListExpiredPackageSubscriptions()
+	if err != nil {
+		log.Printf("[packages] 查询过期套餐失败: %v", err)
+		return
+	}
+	if len(expired) == 0 {
+		return
+	}
+
+	for _, sub := range expired {
+		if err := h.repo.ExpirePackageSubscription(sub.ID); err != nil {
+			log.Printf("[packages] 过期套餐 %d 失败: %v", sub.ID, err)
+			continue
+		}
+		if err := h.repo.ResetUserPackageQuotas(sub.UserID); err != nil {
+			log.Printf("[packages] 重置用户 %d 配额失败: %v", sub.UserID, err)
+		}
+	}
+
+	log.Printf("[packages] 已过期 %d 个套餐订阅", len(expired))
+}
+
 
 // checkNodeExpiryNotifications checks nodes expiring within 3 days and sends Telegram notifications.
 // Only notifies once per 24h per node to avoid spam.
