@@ -15,6 +15,11 @@ import ProfilePage from "@/pages/profile";
 import LimitPage from "@/pages/limit";
 import ConfigPage from "@/pages/config";
 import PanelSharingPage from "@/pages/panel-sharing";
+import ShopPage from "@/pages/shop";
+import MyHomePage from "@/pages/myhome";
+import AdminPlansPage from "@/pages/admin-plans";
+import AdminOrdersPage from "@/pages/admin-orders";
+import AdminPaymentPage from "@/pages/admin-payment";
 import AdminTelegramPage from "@/pages/admin-telegram";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
@@ -213,6 +218,46 @@ function App() {
           </ProtectedRoute>
         }
         path="/panel-sharing"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <ShopPage />
+          </ProtectedRoute>
+        }
+        path="/shop"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <MyHomePage />
+          </ProtectedRoute>
+        }
+        path="/myhome"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AdminPlansPage />
+          </ProtectedRoute>
+        }
+        path="/admin/plans"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AdminOrdersPage />
+          </ProtectedRoute>
+        }
+        path="/admin/orders"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AdminPaymentPage />
+          </ProtectedRoute>
+        }
+        path="/admin/payment"
       />
       <Route
         element={
