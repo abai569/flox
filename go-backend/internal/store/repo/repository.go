@@ -82,11 +82,6 @@ type TunnelMetric = model.TunnelMetric
 type ServiceMonitor = model.ServiceMonitor
 type ServiceMonitorResult = model.ServiceMonitorResult
 type TunnelQuality = model.TunnelQuality
-type SubscriptionPackage = model.SubscriptionPackage
-type SubscriptionPackageTunnelGroup = model.SubscriptionPackageTunnelGroup
-type PackageSubscription = model.PackageSubscription
-type OrderModel = model.Order
-type PaymentConfig = model.PaymentConfig
 
 // ─── Repository ──────────────────────────────────────────────────────
 
@@ -235,7 +230,6 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.TunnelList{},
 		&model.TunnelListTunnel{},
 		&model.NodeGroup{},
-		&model.PackageGroup{},
 		&model.NodeTag{},
 		&model.NodeTagNode{},
 		&model.ForwardTrafficResetLog{},
@@ -244,13 +238,6 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.UserTrafficBuyLog{},
 		&model.BalanceLog{},
 		&model.UserTrafficHistory{},
-		&model.Order{},
-		&model.PaymentConfig{},
-		&model.RedeemCode{},
-		&model.DiscountCode{},
-		&model.SubscriptionPackage{},
-		&model.SubscriptionPackageTunnelGroup{},
-		&model.PackageSubscription{},
 	}
 
 	if db.Dialector.Name() != "sqlite" {
@@ -535,9 +522,7 @@ func seedData(db *gorm.DB) {
 	appNameConfig := model.ViteConfig{Name: "app_name", Value: "flvx", Time: time.Now().UnixMilli()}
 	db.Where("name = ?", "app_name").FirstOrCreate(&appNameConfig)
 
-	// Default enable mall system
-	paymentEnabledConfig := model.ViteConfig{Name: "payment_enabled", Value: "true", Time: time.Now().UnixMilli()}
-	db.Where("name = ?", "payment_enabled").FirstOrCreate(&paymentEnabledConfig)
+
 }
 
 // ─── User Queries ────────────────────────────────────────────────────

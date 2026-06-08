@@ -15,11 +15,6 @@ import ProfilePage from "@/pages/profile";
 import LimitPage from "@/pages/limit";
 import ConfigPage from "@/pages/config";
 import PanelSharingPage from "@/pages/panel-sharing";
-import ShopPage from "@/pages/shop";
-import MyHomePage from "@/pages/myhome";
-import AdminPlansPage from "@/pages/admin-plans";
-import AdminOrdersPage from "@/pages/admin-orders";
-import AdminPaymentPage from "@/pages/admin-payment";
 import AdminTelegramPage from "@/pages/admin-telegram";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
@@ -28,7 +23,7 @@ import { isRestricted } from "@/utils/session";
 import { siteConfig, updateSiteConfig } from "@/config/site";
 import { useH5Mode } from "@/hooks/useH5Mode";
 
-const RESTRICTED_PATHS = ["/myhome", "/shop", "/dashboard"];
+const RESTRICTED_PATHS = ["/dashboard"];
 
 // 简化的路由保护组件 - 使用 React Router 导航避免循环
 const ProtectedRoute = ({
@@ -48,7 +43,7 @@ const ProtectedRoute = ({
     if (!authenticated) {
       navigate("/", { replace: true });
     } else if (restricted && !RESTRICTED_PATHS.includes(location.pathname)) {
-      navigate("/myhome", { replace: true });
+      navigate("/dashboard", { replace: true });
     }
   }, [authenticated, restricted, location.pathname, navigate]);
 
@@ -83,7 +78,7 @@ const LoginRoute = () => {
         sessionStorage.removeItem("login_redirect");
         navigate(redirect, { replace: true });
       } else if (restricted) {
-        navigate("/myhome", { replace: true });
+        navigate("/dashboard", { replace: true });
       } else {
         navigate("/dashboard", { replace: true });
       }
@@ -218,46 +213,6 @@ function App() {
           </ProtectedRoute>
         }
         path="/panel-sharing"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <ShopPage />
-          </ProtectedRoute>
-        }
-        path="/shop"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <MyHomePage />
-          </ProtectedRoute>
-        }
-        path="/myhome"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <AdminPlansPage />
-          </ProtectedRoute>
-        }
-        path="/admin/plans"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <AdminOrdersPage />
-          </ProtectedRoute>
-        }
-        path="/admin/orders"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <AdminPaymentPage />
-          </ProtectedRoute>
-        }
-        path="/admin/payment"
       />
       <Route
         element={

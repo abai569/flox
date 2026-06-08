@@ -889,18 +889,7 @@ type NodeGroup struct {
 
 func (NodeGroup) TableName() string { return "node_group" }
 
-// PackageGroup maps to the "package_group" table for package grouping.
-type PackageGroup struct {
-	ID          int64          `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name        string         `gorm:"type:varchar(100);not null;uniqueIndex:idx_package_group_name" json:"name"`
-	Description sql.NullString `gorm:"column:description;type:text" json:"description"`
-	Color       string         `gorm:"type:varchar(20);default:'#3b82f6'" json:"color"`
-	Inx         int            `gorm:"column:inx;default:0" json:"inx"`
-	CreatedTime int64          `gorm:"column:created_time;not null" json:"createdTime"`
-	UpdatedTime sql.NullInt64  `gorm:"column:updated_time" json:"updatedTime"`
-}
 
-func (PackageGroup) TableName() string { return "package_group" }
 
 // NodeTag maps to the "node_tag" table for node tagging.
 type NodeTag struct {
