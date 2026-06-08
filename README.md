@@ -48,38 +48,7 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 
 > ⚠️ 首次登录后请立即修改默认密码！
 
----
-
-## 本地开发流程
-
-```bash
-# ── 日常开发 ──
-./scripts/merge-mall.ps1                   # 恢复商城代码到主仓库
-cd go-backend && go run ./cmd/paneld       # 后端 :6365
-cd vite-frontend && npm run dev            # 前端 :3000
-# 改动商城代码后会同步到主仓库，尽情修改
-
-# ── 提交发布 ──
-./scripts/strip-mall.ps1                   # ① 改动自动同步回 mall-private/
-                                           # ② 从主仓库删除纯商城文件
-cd mall-private
-git add -A && git commit -m "update mall"  # ③ 推送商城改动到私有仓库
-git push origin main
-cd ..
-
-git add -A && git commit -m "..."          # ④ 提交主仓库（剥离版）
-git push origin main                       # 触发 ci-build.yml 验证编译
-git tag v3.0.0 && git push origin --tags   # ⑤ 发版（docker-build.yml 自动拉取
-                                           #    私有仓库 → 全功能镜像）
-# ── 继续开发 ──
-./scripts/merge-mall.ps1                   # 恢复最新商城代码
-```
-
-> **注意**: `go build`/`go test`/`docker compose` 等命令不变，`strip-mall.ps1` 会自动同步改过的商城文件到 `mall-private/`，无需手动操作。
-
----
-
-## Original Project
+---## Original Project
 - **Name**: FLVX转发面板
 - **Source**: https://github.com/Sagit-chu/flvx
 - **License**: Apache License 2.0
