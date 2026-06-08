@@ -154,6 +154,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout mall-private repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flvx-mall
+          path: mall-private
+          token: ${{ secrets.MALL_REPO_PAT }}
+
+      - name: Merge mall source
+        shell: pwsh
+        run: ./mall-private/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -194,6 +205,17 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mall-private repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flvx-mall
+          path: mall-private
+          token: ${{ secrets.MALL_REPO_PAT }}
+
+      - name: Merge mall source
+        shell: pwsh
+        run: ./mall-private/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
