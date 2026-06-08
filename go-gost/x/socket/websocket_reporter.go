@@ -1444,11 +1444,6 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		err = w.handleResetNftablesCounters(rawData)
 		response.Type = "ResetNftablesCountersResponse"
 
-	// 卸载 Agent 命令（异步执行，不需要保存配置）
-	case "UninstallAgent":
-		go w.handleUninstallAgent(cmd.Data)
-		response.Type = "UninstallAgentResponse"
-
 	default:
 		err = fmt.Errorf("未知命令类型: %s", cmd.Type)
 		response.Type = "UnknownCommandResponse"
@@ -2105,28 +2100,6 @@ func (w *WebSocketReporter) handleRollbackAgent(data interface{}) error {
 	// 推送进度：完成
 	w.sendUpgradeProgress("rollback", 100, "回退完成")
 
-	return nil
-}
-
-// handleUninstallAgent 处理卸载 Agent 命令
-func (w *WebSocketReporter) handleUninstallAgent(data interface{}) error {
-	configDir := getConfigDir(w.serviceName)
-	binaryName := configDir[strings.LastIndex(configDir, "/")+1:]
-
-	fmt.Println("️ 开始卸载 Agent...")
-
-	// 生成卸载脚本（异步执行，避免 cgroup 问题）
-	script := fmt.Sprintf(
-		"sleep 2 && systemctl stop %s && systemctl disable %s && rm -f /etc/systemd/system/%s.service && rm -rf %s && rm -f /usr/local/bin/%s && rm -f /usr/bin/%s && systemctl daemon-reload && echo '✅ 卸载完成'",
-		binaryName, binaryName, binaryName, configDir, binaryName, binaryName,
-	)
-	cmd := exec.Command("systemd-run", "--quiet", "/bin/sh", "-c", script)
-	if err := cmd.Start(); err != nil {
-		fmt.Printf("❌ 启动卸载脚本失败：%v\n", err)
-		return fmt.Errorf("启动卸载脚本失败：%v", err)
-	}
-
-	fmt.Println("🗑️ 卸载脚本已启动，Agent 将在 2 秒后卸载并退出...")
 	return nil
 }
 
