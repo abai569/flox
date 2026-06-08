@@ -48,7 +48,7 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 
 > ⚠️ 首次登录后请尽量修改默认密码！
 
----## Original Project
+## Original Project
 - **Name**: FLVX转发面板
 - **Source**: https://github.com/Sagit-chu/flvx
 - **License**: Apache License 2.0
