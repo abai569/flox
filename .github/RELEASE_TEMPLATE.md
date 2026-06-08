@@ -31,9 +31,9 @@ curl -L https://github.com/abai569/flvx/releases/download/2.1.0/install.sh -o in
 ## 默认账号
 
 - **账号**: admin_user
-- **密码**: admin_user
+- **密码**: 随机9位数（面板启动时终端输出）
 
-⚠️ 首次登录后请立即修改默认密码！
+> ⚠️ 首次登录后请尽量修改默认密码！
 
 ---
 
