@@ -539,6 +539,14 @@ export default function AdminPaymentPage() {
     return opts;
   }, [users]);
 
+  const userRemarkMap = useMemo(() => {
+    const map = new Map<number, string>();
+    users.forEach((u) => {
+      if (u.name && u.name.trim()) map.set(u.id, u.name.trim());
+    });
+    return map;
+  }, [users]);
+
   useEffect(() => {
     loadUsers();
   }, [loadUsers]);
@@ -1524,7 +1532,7 @@ export default function AdminPaymentPage() {
                         />
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
-                        {log.userName}
+                        {userRemarkMap.has(log.userId) ? `${userRemarkMap.get(log.userId)}@` : ''}{log.userName}
                       </TableCell>
                       <TableCell
                         className={

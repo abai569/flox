@@ -1,6 +1,6 @@
 import type { OrderApiItem, UserApiItem } from "@/api/types";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import toast from "react-hot-toast";
 
 import { AnimatedPage } from "@/components/animated-page";
@@ -73,6 +73,13 @@ export default function AdminOrdersPage() {
     () => localStorage.getItem("adminOrderUserFilter") || "all",
   );
   const [users, setUsers] = useState<UserApiItem[]>([]);
+  const userRemarkMap = useMemo(() => {
+    const map = new Map<number, string>();
+    users.forEach((u) => {
+      if (u.name && u.name.trim()) map.set(u.id, u.name.trim());
+    });
+    return map;
+  }, [users]);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [detailOrder, setDetailOrder] = useState<OrderApiItem | null>(null);
@@ -618,7 +625,7 @@ export default function AdminOrdersPage() {
                       {order.orderNo}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {order.userName}
+                      {userRemarkMap.has(order.userId) ? `${userRemarkMap.get(order.userId)}@` : ''}{order.userName}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {order.productName}
