@@ -6,8 +6,8 @@ set -e
 
 # 配置参数（可通过环境变量覆盖）
 DOMESTIC_WEBDAV_URL="${DOMESTIC_WEBDAV_URL:-https://chfs.646321.xyz:8/webdav/flvx}"
-DOMESTIC_USER="${DOMESTIC_USER:-admin}"
-DOMESTIC_PASS="${DOMESTIC_PASS:-admin123}"
+DOMESTIC_USER="${DOMESTIC_USER:?DOMESTIC_USER not set}"
+DOMESTIC_PASS="${DOMESTIC_PASS:?DOMESTIC_PASS not set}"
 GITHUB_REPO="abai569/flvx"
 
 echo "🔍 获取最新版本号..."

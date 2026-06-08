@@ -408,15 +408,23 @@ jobs:
           fi
           echo "✅ Release ${VERSION} 创建完成"
 
-      #- name: Sync to Chinese CDN
-      #  if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
-      #  run: ./scripts/sync-to-chfs.sh
-      #  env:
-      #    IS_PRERELEASE: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
-      #    CHFS_URL: ${{ secrets.CHSF_URL }}
-      #    CHFS_USER: ${{ secrets.CHSF_USER }}
-      #    CHFS_PASS: ${{ secrets.CHSF_PASS }}
-      #    ARTIFACTS_DIR: ./artifacts
+      - name: Sync GOST to domestic mirror
+        env:
+          DOMESTIC_USER: ${{ secrets.DOMESTIC_USER }}
+          DOMESTIC_PASS: ${{ secrets.DOMESTIC_PASS }}
+          DOMESTIC_WEBDAV_URL: https://chfs.646321.xyz:8/webdav/flvx
+        run: |
+          echo "⬆️  Uploading gost-amd64 to domestic mirror..."
+          curl -u "${DOMESTIC_USER}:${DOMESTIC_PASS}" \
+            -T ./artifacts/gost-amd64 \
+            "${DOMESTIC_WEBDAV_URL}/gost-amd64" || echo "⚠️  amd64 upload failed"
+
+          echo "⬆️  Uploading gost-arm64 to domestic mirror..."
+          curl -u "${DOMESTIC_USER}:${DOMESTIC_PASS}" \
+            -T ./artifacts/gost-arm64 \
+            "${DOMESTIC_WEBDAV_URL}/gost-arm64" || echo "⚠️  arm64 upload failed"
+
+          echo "✅ Sync to domestic mirror complete"
 
   update-release-gost:
     name: Update GOST Binaries in Release
