@@ -44,7 +44,7 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 #### 默认管理员账号
 
 - **账号**: admin_user
-- **密码**: admin_user
+- **密码**: 随机9位数（面板启动时终端输出）
 
 > ⚠️ 首次登录后请立即修改默认密码！
 
