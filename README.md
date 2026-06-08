@@ -50,6 +50,43 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 
 ---
 
+## 本地开发流程
+
+```bash
+# ── 首次开发 ──
+# 恢复商城代码（仅首次需要，后续 merge-mall.ps1 会更新）
+./scripts/merge-mall.ps1
+
+# ── 日常开发 ──
+# 开发前（恢复最新商城代码）
+./scripts/merge-mall.ps1
+
+# 后端
+cd go-backend
+go run ./cmd/paneld          # 启动后端 :6365
+
+# 前端
+cd vite-frontend
+npm run dev                  # 启动前端 :3000
+
+# ── 发版流程 ──
+# 代码修改完成后，剥离商城代码再提交
+./scripts/strip-mall.ps1     # 移除商城文件
+git add -A
+git commit -m "..."
+git push origin main         # 触发 ci-build.yml（验证剥离版编译）
+git tag v3.0.0               # 触发 docker-build.yml（拉取私有 mall 仓库 → 全功能构建）
+git push origin --tags
+
+# ── 继续开发 ──
+./scripts/merge-mall.ps1     # 恢复商城代码继续
+cd go-backend && go run ./cmd/paneld
+```
+
+> **注意**: `go build`/`go test`/`docker compose` 等命令与之前完全一致，不受影响。
+
+---
+
 ## Original Project
 - **Name**: FLVX转发面板
 - **Source**: https://github.com/Sagit-chu/flvx
