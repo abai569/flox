@@ -150,13 +150,13 @@ if [ "$CN" == "1" ]; then
       "$DOMESTIC_DOWNLOAD_URL"
       "https://chfs.646321.xyz:8/chfs/shared/flox"
       "$GLOBAL_DOWNLOAD_URL"
-      "https://ghfast.top/https://github.com/abai569/flvx/releases/latest/download"
+      "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
     )
   else
     DOWNLOAD_HOSTS=(
       "https://chfs.646321.xyz:8/chfs/shared/flox"
       "$GLOBAL_DOWNLOAD_URL"
-      "https://ghfast.top/https://github.com/abai569/flvx/releases/latest/download"
+      "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
     )
   fi
   echo "🌏 使用国内加速地址"
@@ -165,15 +165,15 @@ elif [ "$OS" == "1" ]; then
   if [ -n "$GLOBAL_DOWNLOAD_URL" ]; then
     DOWNLOAD_HOSTS=(
       "https://chfs.646321.xyz:8/chfs/shared/flox" 
-      "https://gh-proxy.com/https://github.com/abai569/flvx/releases/latest/download"
+      "https://gh-proxy.com/https://github.com/abai569/flox/releases/latest/download"
       "$GLOBAL_DOWNLOAD_URL"
-      "https://ghfast.top/https://github.com/abai569/flvx/releases/latest/download"
+      "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
     )
   else
     DOWNLOAD_HOSTS=(
       "https://chfs.646321.xyz:8/chfs/shared/flox" 
-      "https://gh-proxy.com/https://github.com/abai569/flvx/releases/latest/download"
-      "https://ghfast.top/https://github.com/abai569/flvx/releases/latest/download"
+      "https://gh-proxy.com/https://github.com/abai569/flox/releases/latest/download"
+      "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
     )
   fi
   echo "🌍 使用 GitHub 加速"
@@ -181,9 +181,9 @@ else
   # 检测失败：默认使用 GitHub
   DOWNLOAD_HOSTS=(
     "https://chfs.646321.xyz:8/chfs/shared/flox" 
-    "https://github.com/abai569/flvx/releases/latest/download"
+    "https://github.com/abai569/flox/releases/latest/download"
     "$GLOBAL_DOWNLOAD_URL"
-    "https://ghfast.top/https://github.com/abai569/flvx/releases/latest/download"
+    "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
   )
   echo "⚠️  网络检测失败，使用 GitHub 加速"
 fi
@@ -211,5 +211,5 @@ done
 echo " 所有下载源都失败，请检查网络连接"
 echo "💡 提示：可以尝试手动指定下载源"
 echo "   推荐：curl -L https://chfs.646321.xyz:8/chfs/shared/flox/install.sh -o ./install.sh"
-echo "   备用：curl -L https://github.com/abai569/flvx/releases/latest/download/install.sh -o ./install.sh"
+echo "   备用：curl -L https://github.com/abai569/flox/releases/latest/download/install.sh -o ./install.sh"
 exit 1

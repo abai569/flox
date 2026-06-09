@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # GitHub repo used for release downloads
-REPO="abai569/flvx"
+REPO="abai569/flox"
 
 # 固定版本号（Release 构建时自动填充，留空则获取最新版）
 PINNED_VERSION="2.2.6-beta1"
@@ -131,12 +131,12 @@ detect_download_host() {
         # 提取代理地址和 GitHub 路径
         echo "$script_url" | sed 's|/releases/.*||'
     elif [[ "$script_url" == *"ghfast.top"* ]]; then
-        echo "https://ghfast.top/https://github.com/abai569/flvx/releases/latest/download"
+        echo "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
     elif [[ "$script_url" == *"github.com"* ]]; then
-        echo "https://github.com/abai569/flvx/releases/latest/download"
+        echo "https://github.com/abai569/flox/releases/latest/download"
     else
         # 默认使用 GitHub
-        echo "https://github.com/abai569/flvx/releases/latest/download"
+        echo "https://github.com/abai569/flox/releases/latest/download"
     fi
 }
 
@@ -212,7 +212,7 @@ build_download_url() {
     # 只有当用户没有显式指定版本时，才从 GitHub API 获取最新版本号
     if [[ "$DOWNLOAD_HOST" == *"/latest"* ]] && [[ -z "${VERSION:-}" ]] && [[ -z "${FLUX_VERSION:-}" ]]; then
         # 从 GitHub API 获取最新版本号
-        actual_version=$(curl -fsSL --max-time 10 "https://api.github.com/repos/abai569/flvx/releases/latest" 2>/dev/null | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || echo "")
+        actual_version=$(curl -fsSL --max-time 10 "https://api.github.com/repos/abai569/flox/releases/latest" 2>/dev/null | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || echo "")
         if [ -n "$actual_version" ]; then
             RESOLVED_VERSION="$actual_version"
         fi

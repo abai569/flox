@@ -21,22 +21,22 @@
 
 **交互式安装（最新版）：**
 ```bash
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh)
+bash <(curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh)
 ```
 
 **指定版本安装：**
 ```bash
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) 3.6.5
+bash <(curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh) 3.6.5
 ```
 
 **一键升级（无交互）：**
 ```bash
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) update
+bash <(curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh) update
 ```
 
 **一键卸载（无交互）：**
 ```bash
-bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh) uninstall
+bash <(curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh) uninstall
 ```
 
 > ⚠️ 升级时会自动检测并兼容带 `v` 或不带 `v` 的版本号格式。

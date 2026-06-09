@@ -23,11 +23,11 @@
 #### 快速部署（安装最新版）
 面板端：
 ```bash
-curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
+curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
 节点端：
 ```bash
-curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+curl -L https://raw.githubusercontent.com/abai569/flox/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
 ```
 #### 默认管理员账号
 
@@ -38,15 +38,15 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o instal
 
 ---
 #### 安装特定版本
-从 [Releases](https://github.com/abai569/flvx/releases) 页面复制对应版本的安装命令，脚本会自动安装该版本而非最新版。
+从 [Releases](https://github.com/abai569/flox/releases) 页面复制对应版本的安装命令，脚本会自动安装该版本而非最新版。
 
 面板端（以 2.1.0 为例）：
 ```bash
-curl -L https://github.com/abai569/flvx/releases/download/2.1.0/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
+curl -L https://github.com/abai569/flox/releases/download/2.1.0/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
 节点端（以 2.1.0 为例）：
 ```bash
-curl -L https://github.com/abai569/flvx/releases/download/2.1.0/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+curl -L https://github.com/abai569/flox/releases/download/2.1.0/install.sh -o install.sh && chmod +x install.sh && ./install.sh
 ```
 
 #### PostgreSQL 部署（Docker Compose）

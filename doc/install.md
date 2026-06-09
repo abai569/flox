@@ -15,7 +15,7 @@
 使用以下命令即可快速安装面板：
 
 ```bash
-curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
+curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
 
 **安装过程中会提示输入以下信息：**
@@ -61,7 +61,7 @@ curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh -o 
 在节点服务器上运行：
 
 ```bash
-curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+curl -L https://raw.githubusercontent.com/abai569/flox/main/install.sh -o install.sh && chmod +x install.sh && ./install.sh
 ```
 
 **安装过程中会提示输入：**

@@ -6,24 +6,24 @@
 
 **最新版:**
 ```bash
-curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
+curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
 
 **特定版本 (示例 2.1.0):**
 ```bash
-curl -L https://github.com/abai569/flvx/releases/download/2.1.0/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
+curl -L https://github.com/abai569/flox/releases/download/2.1.0/panel_install.sh -o panel_install.sh && chmod +x panel_install.sh && ./panel_install.sh
 ```
 
 ### 节点端
 
 **最新版:**
 ```bash
-curl -L https://raw.githubusercontent.com/abai569/flvx/main/install.sh -o install.sh && chmod +x panel_install.sh && ./install.sh
+curl -L https://raw.githubusercontent.com/abai569/flox/main/install.sh -o install.sh && chmod +x panel_install.sh && ./install.sh
 ```
 
 **特定版本 (示例 2.1.0):**
 ```bash
-curl -L https://github.com/abai569/flvx/releases/download/2.1.0/install.sh -o install.sh && chmod +x install.sh && ./install.sh
+curl -L https://github.com/abai569/flox/releases/download/2.1.0/install.sh -o install.sh && chmod +x install.sh && ./install.sh
 ```
 
 ---
