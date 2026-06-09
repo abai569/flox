@@ -432,10 +432,10 @@ export default function AdminLayout({
       }
       // 初始化红色横幅关闭状态
       const redBannerClosed = localStorage.getItem(
-        "flvx_license_banner_closed_at",
+        "flox_license_banner_closed_at",
       );
       const redBannerClosedReason = localStorage.getItem(
-        "flvx_license_banner_closed_reason",
+        "flox_license_banner_closed_reason",
       );
 
       if (redBannerClosed) {
@@ -469,7 +469,7 @@ export default function AdminLayout({
         }
         // 体验已到期关闭过就不再重置，其他原因继续弹
         const closedReason = localStorage.getItem(
-          "flvx_license_banner_closed_reason",
+          "flox_license_banner_closed_reason",
         );
 
         if (
@@ -523,9 +523,9 @@ export default function AdminLayout({
 
   // 关闭红色授权横幅
   const handleRedBannerClose = useCallback(() => {
-    localStorage.setItem("flvx_license_banner_closed_at", "-1");
+    localStorage.setItem("flox_license_banner_closed_at", "-1");
     localStorage.setItem(
-      "flvx_license_banner_closed_reason",
+      "flox_license_banner_closed_reason",
       licenseInfo?.reason || "",
     );
     setIsRedBannerClosed(true);
@@ -1125,7 +1125,7 @@ export default function AdminLayout({
                   </span>
                   <a
                     className="text-blue-600 dark:text-blue-400 flex-shrink-0 underline whitespace-nowrap"
-                    href="https://t.me/erflvx"
+                    href="https://t.me/erFLOX"
                     rel="noopener noreferrer"
                     target="_blank"
                   >

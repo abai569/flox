@@ -19,7 +19,7 @@ jobs:
       - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-closed
+          repository: abai569/flox-closed
           path: closed
           token: ${{ secrets.CLOSED_REPO_PAT }}
 
@@ -51,7 +51,7 @@ jobs:
       - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-closed
+          repository: abai569/flox-closed
           path: closed
           token: ${{ secrets.CLOSED_REPO_PAT }}
 
@@ -98,7 +98,7 @@ jobs:
       - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-closed
+          repository: abai569/flox-closed
           path: closed
           token: ${{ secrets.CLOSED_REPO_PAT }}
 
@@ -118,8 +118,8 @@ jobs:
 
       - name: Run PostgreSQL contract test
         env:
-          FLVX_POSTGRES_TEST_DSN: 'postgres://flux_test:flux_test_pass@127.0.0.1:5432/flux_test?sslmode=disable'
-          FLVX_SKIP_LICENSE_CHECK: 'true'
+          FLOX_POSTGRES_TEST_DSN: 'postgres://flux_test:flux_test_pass@127.0.0.1:5432/flux_test?sslmode=disable'
+          FLOX_SKIP_LICENSE_CHECK: 'true'
         run: go test ./tests/contract -run TestPostgresNodeCreateRepairsMissingIDDefaultContract -count=1
 
   agent:

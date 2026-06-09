@@ -3,7 +3,7 @@
 **Generated:** Thu Feb 26 2026
 
 ## OVERVIEW
-HTTP request handlers for FLVX Admin API. Core business logic layer.
+HTTP request handlers for FLOX Admin API. Core business logic layer.
 **Stack:** Go 1.24, net/http, GORM via Repository pattern.
 
 ## STRUCTURE

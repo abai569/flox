@@ -1,4 +1,4 @@
-﻿//go:build linux
+//go:build linux
 
 package nftables
 
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	TableName      = "flvx"
+	TableName      = "FLOX"
 	TableFamily    = nftables.TableFamilyINet
 	PreroutingChain  = "prerouting"
 	PostroutingChain = "postrouting"

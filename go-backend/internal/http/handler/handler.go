@@ -1515,7 +1515,7 @@ func (h *Handler) apiClientCaptchaBypassEnabled(r *http.Request) bool {
 		return false
 	}
 
-	client := strings.ToLower(strings.TrimSpace(r.Header.Get("X-FLVX-API-Client")))
+	client := strings.ToLower(strings.TrimSpace(r.Header.Get("X-FLOX-API-Client")))
 	switch client {
 	case "whmcs", "whmcs-module":
 		return true

@@ -1,7 +1,7 @@
 # GO BACKEND KNOWLEDGE BASE
 
 ## OVERVIEW
-Go-based Admin API for FLVX. Replaced legacy Spring Boot backend.
+Go-based Admin API for FLOX. Replaced legacy Spring Boot backend.
 **Stack:** Go 1.24, net/http (std lib), GORM + SQLite/PostgreSQL (glebarez/sqlite - CGO-free).
 
 ## STRUCTURE

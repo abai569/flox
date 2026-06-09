@@ -7,7 +7,7 @@ import (
 )
 
 func UpdateEnvFile(licenseKey, domain, serverURL, hmacKey string) error {
-	envPath := "/opt/flvx-svc/.env"
+	envPath := "/opt/flox-svc/.env"
 	if _, err := os.Stat(envPath); os.IsNotExist(err) {
 		return nil
 	}

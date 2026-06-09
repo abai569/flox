@@ -437,8 +437,8 @@ wait_for_postgres_healthy() {
 
   echo "🔍 检查 PostgreSQL 服务状态..."
   for i in {1..90}; do
-    if docker ps --format "{{.Names}}" | grep -q "^flvx-svc-postgres$"; then
-      pg_health=$(docker inspect -f '{{.State.Health.Status}}' flvx-svc-postgres 2>/dev/null || echo "unknown")
+    if docker ps --format "{{.Names}}" | grep -q "^flox-svc-postgres$"; then
+      pg_health=$(docker inspect -f '{{.State.Health.Status}}' flox-svc-postgres 2>/dev/null || echo "unknown")
       if [[ "$pg_health" == "healthy" ]]; then
         echo "✅ PostgreSQL 服务健康检查通过"
         return 0
@@ -451,7 +451,7 @@ wait_for_postgres_healthy() {
 
     if [ $i -eq 90 ]; then
       echo "❌ PostgreSQL 启动超时（90秒）"
-      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flvx-svc-postgres 2>/dev/null || echo '容器不存在')"
+      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flox-svc-postgres 2>/dev/null || echo '容器不存在')"
       return 1
     fi
 
@@ -467,8 +467,8 @@ wait_for_backend_healthy() {
 
   echo "🔍 检查后端服务状态..."
   for i in {1..90}; do
-    if docker ps --format "{{.Names}}" | grep -q "^flvx-svc-backend$"; then
-      backend_health=$(docker inspect -f '{{.State.Health.Status}}' flvx-svc-backend 2>/dev/null || echo "unknown")
+    if docker ps --format "{{.Names}}" | grep -q "^flox-svc-backend$"; then
+      backend_health=$(docker inspect -f '{{.State.Health.Status}}' flox-svc-backend 2>/dev/null || echo "unknown")
       if [[ "$backend_health" == "healthy" ]]; then
         echo "✅ 后端服务健康检查通过"
         return 0
@@ -481,7 +481,7 @@ wait_for_backend_healthy() {
 
     if [ $i -eq 90 ]; then
       echo "❌ 后端服务启动超时（90秒）"
-      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flvx-svc-backend 2>/dev/null || echo '容器不存在')"
+      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flox-svc-backend 2>/dev/null || echo '容器不存在')"
       return 1
     fi
 
@@ -513,8 +513,8 @@ get_config_params() {
   read -p "后端端口（默认 63665）: " BACKEND_PORT
   BACKEND_PORT=${BACKEND_PORT:-63665}
 
-  POSTGRES_DB="flvx_svc"
-  POSTGRES_USER="flvx_svc"
+  POSTGRES_DB="flox_svc"
+  POSTGRES_USER="flox_svc"
   POSTGRES_PASSWORD=$(generate_random)
 
   # 固定使用 SQLite
@@ -554,7 +554,7 @@ install_panel() {
   echo "🚀 开始安装面板..."
   
   # 创建安装目录
-  INSTALL_DIR="/opt/flvx-svc"
+  INSTALL_DIR="/opt/flox-svc"
   echo "📁 创建安装目录：$INSTALL_DIR"
   $SUDO_CMD mkdir -p "$INSTALL_DIR"
   cd "$INSTALL_DIR"
@@ -595,7 +595,7 @@ POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 LICENSE_SERVER_URL=https://sq.abai.eu.org
 LICENSE_KEY=$LICENSE_KEY
 SERVER_DOMAIN=$SERVER_DOMAIN
-HMAC_SECRET_KEY=${HMAC_SECRET_KEY:-flvx_455f08ea-ce13-46d4-8574-ebd2a9d0e853}
+HMAC_SECRET_KEY=${HMAC_SECRET_KEY:-flox_455f08ea-ce13-46d4-8574-ebd2a9d0e853}
 EOF
 
   echo "🚀 启动 docker 服务..."
@@ -618,7 +618,7 @@ EOF
   echo "⚠️ 安全起见，首次登录后请修改默认密码！"
   echo ""
   echo "🔑 授权购买：https://sq.abai.eu.org/renew/"
-  echo "📚 文档地址：https://abai569.github.io/flvx/"
+  echo "📚 文档地址：https://abai569.github.io/flox/"
 
 
   # 上报安装统计
@@ -635,7 +635,7 @@ update_panel() {
   echo "🔄 开始更新面板..."
   
   # 切换到安装目录
-  INSTALL_DIR="/opt/flvx-svc"
+  INSTALL_DIR="/opt/flox-svc"
   
   # 检测目录是否存在，不存在则先创建
   if [[ ! -d "$INSTALL_DIR" ]]; then
@@ -657,7 +657,7 @@ update_panel() {
 
   # 备份数据库（统一使用手动备份标准）
   backup_panel_data || echo "⚠️ 自动备份失败，升级将继续进行"
-  BACKUP_INFO_RECENT=$(ls -1d /root/flvxbackup/flvx_backup_* 2>/dev/null | sort -r | head -1)
+  BACKUP_INFO_RECENT=$(ls -1d /root/floxbackup/flox_backup_* 2>/dev/null | sort -r | head -1)
 
   if [[ -n "$ARG_VERSION" ]]; then
     UPDATE_VERSION="$ARG_VERSION"
@@ -689,8 +689,8 @@ update_panel() {
   fi
 
   # 先发送 SIGTERM 信号，让应用优雅关闭
-  docker stop -t 30 flvx-svc-backend 2>/dev/null || true
-  docker stop -t 10 flvx-svc-frontend 2>/dev/null || true
+  docker stop -t 30 flox-svc-backend 2>/dev/null || true
+  docker stop -t 10 flox-svc-frontend 2>/dev/null || true
   
   # 等待 WAL 文件同步
   echo "⏳ 等待数据同步..."
@@ -785,8 +785,8 @@ migrate_to_postgres() {
   postgres_user=$(get_env_var "POSTGRES_USER")
   postgres_password=$(get_env_var "POSTGRES_PASSWORD")
 
-  postgres_db=${postgres_db:-flvx_svc}
-  postgres_user=${postgres_user:-flvx_svc}
+  postgres_db=${postgres_db:-flox_svc}
+  postgres_user=${postgres_user:-flox_svc}
   postgres_password=${postgres_password:-$(generate_random)}
 
   upsert_env_var ".env" "POSTGRES_DB" "$postgres_db"
@@ -794,8 +794,8 @@ migrate_to_postgres() {
   upsert_env_var ".env" "POSTGRES_PASSWORD" "$postgres_password"
 
   echo "🛑 停止当前服务..."
-  docker stop -t 30 flvx-svc-backend 2>/dev/null || true
-  docker stop -t 10 flvx-svc-frontend 2>/dev/null || true
+  docker stop -t 30 flox-svc-backend 2>/dev/null || true
+  docker stop -t 10 flox-svc-frontend 2>/dev/null || true
   echo "⏳ 等待数据同步..."
   sleep 5
   $DOCKER_CMD down
@@ -844,11 +844,11 @@ backup_panel_data() {
 
   echo "📦 开始备份面板数据..."
 
-  install_dir="/opt/flvx-svc"
-  backup_base="/root/flvxbackup"
+  install_dir="/opt/flox-svc"
+  backup_base="/root/floxbackup"
 
   if [[ ! -d "$install_dir" ]]; then
-    echo "❌ 未检测到面板安装（/opt/flvx-svc 不存在），请先安装面板"
+    echo "❌ 未检测到面板安装（/opt/flox-svc 不存在），请先安装面板"
     return 1
   fi
 
@@ -856,7 +856,7 @@ backup_panel_data() {
   check_docker
 
   timestamp=$(date +"%Y%m%d_%H%M%S")
-  backup_dir="${backup_base}/flvx_backup_${timestamp}"
+  backup_dir="${backup_base}/flox_backup_${timestamp}"
   mkdir -p "$backup_dir"
 
   # 备份配置文件
@@ -872,7 +872,7 @@ backup_panel_data() {
 
   if [[ "$current_db_type" == "sqlite" ]]; then
     echo "📦 备份 SQLite 数据库（在线热备）..."
-    if docker cp flvx-svc-backend:/app/data/gost.db "$backup_dir/gost.db" 2>/dev/null; then
+    if docker cp flox-svc-backend:/app/data/gost.db "$backup_dir/gost.db" 2>/dev/null; then
       echo "  gost.db → 已备份"
     else
       echo "❌ SQLite 数据库备份失败，请检查容器是否运行"
@@ -882,11 +882,11 @@ backup_panel_data() {
   elif [[ "$current_db_type" == "postgres" ]]; then
     postgres_user=$(get_env_var "POSTGRES_USER")
     postgres_db=$(get_env_var "POSTGRES_DB")
-    postgres_user=${postgres_user:-flvx_svc}
-    postgres_db=${postgres_db:-flvx_svc}
+    postgres_user=${postgres_user:-flox_svc}
+    postgres_db=${postgres_db:-flox_svc}
 
     echo "📦 备份 PostgreSQL 数据库（在线热备）..."
-    if docker exec flvx-svc-postgres pg_dump -U "$postgres_user" -d "$postgres_db" > "$backup_dir/backup.sql" 2>/dev/null; then
+    if docker exec flox-svc-postgres pg_dump -U "$postgres_user" -d "$postgres_db" > "$backup_dir/backup.sql" 2>/dev/null; then
       echo "  backup.sql → 已备份"
     else
       echo "❌ PostgreSQL 数据库备份失败，请检查容器是否运行"
@@ -919,10 +919,10 @@ backup_panel_data() {
   echo ""
   echo "🧹 清理旧备份（保留最近5次）..."
   local backup_count
-  backup_count=$(ls -1d "${backup_base}"/flvx_backup_* 2>/dev/null | wc -l)
+  backup_count=$(ls -1d "${backup_base}"/flox_backup_* 2>/dev/null | wc -l)
   if [[ "$backup_count" -gt 5 ]]; then
     local to_delete=$((backup_count - 5))
-    ls -1d "${backup_base}"/flvx_backup_* | head -n "$to_delete" | while read -r old_backup; do
+    ls -1d "${backup_base}"/flox_backup_* | head -n "$to_delete" | while read -r old_backup; do
       rm -rf "$old_backup"
       echo "  已删除旧备份：$(basename "$old_backup")"
     done
@@ -940,16 +940,16 @@ restore_panel_data() {
 
   echo "📥 开始恢复面板数据..."
 
-  install_dir="/opt/flvx-svc"
-  backup_base="/root/flvxbackup"
+  install_dir="/opt/flox-svc"
+  backup_base="/root/floxbackup"
 
   if [[ ! -d "$install_dir" ]]; then
-    echo "❌ 未检测到面板安装（/opt/flvx-svc 不存在），请先安装面板"
+    echo "❌ 未检测到面板安装（/opt/flox-svc 不存在），请先安装面板"
     return 1
   fi
 
   # 检查是否有可用备份
-  if ! ls -1d "${backup_base}"/flvx_backup_* &>/dev/null; then
+  if ! ls -1d "${backup_base}"/flox_backup_* &>/dev/null; then
     echo "❌ 未找到任何备份文件，请先执行备份操作"
     return 1
   fi
@@ -971,7 +971,7 @@ restore_panel_data() {
     bsize=$(du -sh "$dir" 2>/dev/null | cut -f1)
     echo "  $idx. $bname ($bsize)"
     idx=$((idx + 1))
-  done < <(ls -1d "${backup_base}"/flvx_backup_* | sort -r)
+  done < <(ls -1d "${backup_base}"/flox_backup_* | sort -r)
   echo "==============================================="
 
   if [[ "$idx" -eq 1 ]]; then
@@ -981,7 +981,7 @@ restore_panel_data() {
     echo "💡 换机恢复操作指南："
     echo "   1. 在新服务器正常运行此脚本，先完成面板安装"
     echo "   2. 将旧服务器备份的文件夹上传至新服务器："
-    echo "        /root/flvxbackup/ 自行创建目录"
+    echo "        /root/floxbackup/ 自行创建目录"
     echo "   3. 重新运行此脚本，选择 '5. 恢复数据' 即可"
     echo ""
     echo "   上传方式："
@@ -1018,7 +1018,7 @@ restore_panel_data() {
 
   # 停止后端服务
   echo "🛑 停止后端服务..."
-  docker stop -t 30 flvx-svc-backend 2>/dev/null || true
+  docker stop -t 30 flox-svc-backend 2>/dev/null || true
   sleep 3
 
   # 检测数据库类型并恢复
@@ -1028,7 +1028,7 @@ restore_panel_data() {
   if [[ "$current_db_type" == "sqlite" ]]; then
     if [[ -f "$backup_dir/gost.db" ]]; then
       echo "📦 恢复 SQLite 数据库..."
-      if docker cp "$backup_dir/gost.db" flvx-svc-backend:/app/data/gost.db 2>/dev/null; then
+      if docker cp "$backup_dir/gost.db" flox-svc-backend:/app/data/gost.db 2>/dev/null; then
         echo "  gost.db → 已恢复"
       else
         echo "❌ SQLite 数据库恢复失败"
@@ -1044,11 +1044,11 @@ restore_panel_data() {
       postgres_user=$(get_env_var "POSTGRES_USER")
       postgres_db=$(get_env_var "POSTGRES_DB")
       postgres_password=$(get_env_var "POSTGRES_PASSWORD")
-      postgres_user=${postgres_user:-flvx_svc}
-      postgres_db=${postgres_db:-flvx_svc}
+      postgres_user=${postgres_user:-flox_svc}
+      postgres_db=${postgres_db:-flox_svc}
 
       echo "📦 恢复 PostgreSQL 数据库..."
-      if docker exec -i flvx-svc-postgres psql -U "$postgres_user" -d "$postgres_db" < "$backup_dir/backup.sql" 2>/dev/null; then
+      if docker exec -i flox-svc-postgres psql -U "$postgres_user" -d "$postgres_db" < "$backup_dir/backup.sql" 2>/dev/null; then
         echo "  backup.sql → 已恢复"
       else
         echo "❌ PostgreSQL 数据库恢复失败"
@@ -1098,7 +1098,7 @@ uninstall_panel() {
   echo "🗑️ 开始卸载面板..."
   
   # 切换到安装目录
-  INSTALL_DIR="/opt/flvx-svc"
+  INSTALL_DIR="/opt/flox-svc"
   
   # 检测目录是否存在，不存在则先创建
   if [[ ! -d "$INSTALL_DIR" ]]; then
@@ -1184,10 +1184,10 @@ CADDY_EOF
 configure_caddy_interactive() {
   local install_dir domain port
 
-  install_dir="/opt/flvx-svc"
+  install_dir="/opt/flox-svc"
 
   if [[ ! -d "$install_dir" ]]; then
-    echo "❌ 未检测到面板安装（/opt/flvx-svc 不存在），请先安装面板"
+    echo "❌ 未检测到面板安装（/opt/flox-svc 不存在），请先安装面板"
     return 1
   fi
 
@@ -1233,7 +1233,7 @@ main() {
   # 无参数 update 直接升级到最新版
   if [[ "$1" == "update" ]]; then
     echo "🔄 直接进入更新流程（最新版）..."
-    if [[ ! -d "/opt/flvx-svc" ]]; then
+    if [[ ! -d "/opt/flox-svc" ]]; then
       echo "❌ 未检测到面板安装，请先执行安装操作"
       exit 1
     fi
@@ -1245,7 +1245,7 @@ main() {
   # 指定版本时直接升级（无交互）
   if [[ -n "$ARG_VERSION" ]]; then
     echo "🔄 指定版本：$ARG_VERSION，直接进入更新流程..."
-    if [[ ! -d "/opt/flvx-svc" ]]; then
+    if [[ ! -d "/opt/flox-svc" ]]; then
       echo "❌ 未检测到面板安装，请先执行安装操作"
       exit 1
     fi

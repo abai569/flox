@@ -4,11 +4,11 @@ export function usePullToRefresh(callback: () => void) {
   useEffect(() => {
     const handler = () => {
       callback();
-      window.dispatchEvent(new CustomEvent("flvx:pulltorefresh:done"));
+      window.dispatchEvent(new CustomEvent("flox:pulltorefresh:done"));
     };
 
-    window.addEventListener("flvx:pulltorefresh", handler);
+    window.addEventListener("flox:pulltorefresh", handler);
 
-    return () => window.removeEventListener("flvx:pulltorefresh", handler);
+    return () => window.removeEventListener("flox:pulltorefresh", handler);
   }, [callback]);
 }

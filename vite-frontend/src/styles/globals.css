@@ -134,8 +134,8 @@ body {
   overflow-x: hidden;
 }
 
-.no-flvx-transition,
-.no-flvx-transition * {
+.no-flox-transition,
+.no-flox-transition * {
   transition: none !important;
 }
 

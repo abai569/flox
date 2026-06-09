@@ -79,4 +79,4 @@ curl -L https://github.com/abai569/flvx/releases/download/2.1.0/install.sh -o in
 
 - 官网：https://yourdomain.com
 - 邮箱：support@yourdomain.com
-- Telegram: https://t.me/flvxpanel
+- Telegram: https://t.me/floxpanel

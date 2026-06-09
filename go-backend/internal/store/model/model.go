@@ -1,4 +1,4 @@
-﻿// Package model defines GORM model structs for all database tables,
+// Package model defines GORM model structs for all database tables,
 // providing a single source of truth for the schema that works
 // transparently with both SQLite and PostgreSQL.
 package model
@@ -87,7 +87,7 @@ type NftablesRule struct {
 	NodeID     int64  `gorm:"column:node_id;not null"`
 	Protocol   string `gorm:"type:varchar(10);not null"`
 	Port       int    `gorm:"not null"`
-	Table      string `gorm:"type:varchar(50);not null;default:'flvx'"`
+	Table      string `gorm:"type:varchar(50);not null;default:'FLOX'"`
 	Chain      string `gorm:"type:varchar(100);not null"`
 	RuleHandle uint64 `gorm:"column:rule_handle"`
 	Status     int    `gorm:"not null;default:1"`

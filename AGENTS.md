@@ -6,7 +6,7 @@
 **Tag:** 2.1.8
 
 ## OVERVIEW
-FLVX (formerly Flux Panel) is a traffic forwarding management system built on a forked GOST v3 stack. It ships as a Go-based admin API (SQLite/PostgreSQL) + Vite/React UI + Go forwarding agent, with optional mobile WebView wrappers.
+FLOX (formerly Flux Panel) is a traffic forwarding management system built on a forked GOST v3 stack. It ships as a Go-based admin API (SQLite/PostgreSQL) + Vite/React UI + Go forwarding agent, with optional mobile WebView wrappers.
 
 ## STRUCTURE
 ```
@@ -30,7 +30,7 @@ FLVX (formerly Flux Panel) is a traffic forwarding management system built on a 
 | **Deploy (Docker)** | `docker-compose-v4.yml` | Env: `JWT_SECRET`, `BACKEND_PORT`, `FRONTEND_PORT` |
 | **Deploy (IPv6)** | `docker-compose-v6.yml` | Same as v4 + IPv6-enabled bridge |
 | **Panel install** | `panel_install.sh` | Picks v4/v6, generates `JWT_SECRET`, downloads compose |
-| **Node install** | `install.sh` | Installs `/etc/flvx_agent/flvx_agent` + writes `config.json`/`gost.json` + systemd `flvx_agent.service` (migrates from legacy `/etc/flux_agent` automatically) |
+| **Node install** | `install.sh` | Installs `/etc/FLOX_agent/FLOX_agent` + writes `config.json`/`gost.json` + systemd `FLOX_agent.service` (migrates from legacy `/etc/flux_agent` automatically) |
 | **Admin API** | `go-backend/` | Go Admin API (SQLite/PostgreSQL) |
 | **Web UI** | `vite-frontend/` | React/Vite dashboard (shadcn bridge + Tailwind v4) |
 | **UI Compatibility** | `vite-frontend/src/shadcn-bridge/heroui/` | HeroUI-compatible API wrappers backed by shadcn/radix |
@@ -44,7 +44,7 @@ FLVX (formerly Flux Panel) is a traffic forwarding management system built on a 
 ## CODE MAP
 | Symbol | Type | Location | Role |
 |--------|------|----------|------|
-| `flvx` | Project | `.` | Root directory |
+| `FLOX` | Project | `.` | Root directory |
 | `main` | Func | `go-backend/cmd/paneld/main.go` | Backend Entry |
 | `App` | Component | `vite-frontend/src/App.tsx` | Frontend Entry |
 | `main` | Func | `go-gost/main.go` | Agent Entry |
@@ -109,7 +109,7 @@ docker compose -f docker-compose-v6.yml up -d
 - `panel_install.sh` auto-detects IPv6 and modifies `/etc/docker/daemon.json` to enable IPv6 bridge.
 - Download proxy `https://gcode.hostcentral.cc/` used for GitHub downloads in China/restricted environments.
 - Backend has contract tests in `go-backend/tests/contract/` - frontend has no test infrastructure.
-- `analysis/3x-ui/` contains a separate git repo for reference/comparison - not part of FLVX core.
+- `analysis/3x-ui/` contains a separate git repo for reference/comparison - not part of FLOX core.
 - CI workflows: `ci-build.yml` (build check), `docker-build.yml` (multi-arch images + release), `deploy-docs.yml` (MkDocs).
 - PostgreSQL migration supported via `panel_install.sh` menu option using pgloader.
 - Repository layer is large: `repository.go` (83k LOC), `repository_mutations.go` (43k LOC).

@@ -24,7 +24,7 @@ import { checkSystemUpgrade } from "@/api";
 import type { SystemUpgradeReleaseApiItem } from "@/api/types";
 import { runSystemUpgrade } from "@/api/index";
 
-const FALLBACK_GITHUB_REPO = "https://github.com/abai569/flvx";
+const FALLBACK_GITHUB_REPO = "https://github.com/abai569/FLOX";
 const UPGRADE_DISMISS_KEY = "upgrade_dismissed_date";
 
 const isUpgradeDismissedToday = (): boolean => {
@@ -302,7 +302,7 @@ export function VersionFooter({
             rel="noopener noreferrer"
             target="_blank"
           >
-            FLVX
+            Flox
           </a>
         </p>
       </div>

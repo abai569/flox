@@ -1,6 +1,6 @@
-# FLVX
+# FLOX
 
-> **联系我们**: [Telegram 群组](https://t.me/erflvx) | [文档](https://abai569.github.io/flvx/)
+> **联系我们**: [Telegram 群组](https://t.me/erflox) | [文档](https://abai569.github.io/flvx/)
 
 ## 特性
 
@@ -49,12 +49,12 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flvx/main/panel_install
 > ⚠️ 首次登录后请尽量修改默认密码！
 
 ## Original Project
-- **Name**: FLVX转发面板
+- **Name**: FLOX转发面板
 - **Source**: https://github.com/Sagit-chu/flvx
 - **License**: Apache License 2.0
 
 ## Modifications
-This fork (FLVX) is no longer a light patch on top of the upstream project. It has been deeply reworked, with both backend and frontend rebuilt around a Go-based architecture.
+This fork (FLOX) is no longer a light patch on top of the upstream project. It has been deeply reworked, with both backend and frontend rebuilt around a Go-based architecture.
 
 ### 1. Backend (Rewritten)
 - **Removed**: The original `springboot-backend/` (Java/Spring Boot) implementation.

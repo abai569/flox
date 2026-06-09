@@ -102,7 +102,7 @@ jobs:
       - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-closed
+          repository: abai569/flox-closed
           path: closed
           token: ${{ secrets.CLOSED_REPO_PAT }}
 
@@ -168,7 +168,7 @@ jobs:
       - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-closed
+          repository: abai569/flox-closed
           path: closed
           token: ${{ secrets.CLOSED_REPO_PAT }}
 
@@ -202,8 +202,8 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --push \
-            -t ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:latest \
-            -t ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION} \
+            -t ${{ env.REGISTRY }}/${OWNER}/flox-svc-frontend:latest \
+            -t ${{ env.REGISTRY }}/${OWNER}/flox-svc-frontend:${VERSION} \
             ./vite-frontend
 
   build-go-backend:
@@ -220,7 +220,7 @@ jobs:
       - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-closed
+          repository: abai569/flox-closed
           path: closed
           token: ${{ secrets.CLOSED_REPO_PAT }}
 
@@ -264,8 +264,8 @@ jobs:
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --push \
-            -t ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:latest \
-            -t ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION} \
+            -t ${{ env.REGISTRY }}/${OWNER}/flox-svc-backend:latest \
+            -t ${{ env.REGISTRY }}/${OWNER}/flox-svc-backend:${VERSION} \
             ./go-backend
 
   create-release:
@@ -318,22 +318,22 @@ jobs:
           cp docker-compose-v6.yml ./artifacts/docker-compose-v6.yml
 
           # 替换镜像地址为 GHCR
-          sed -i "s|image: .*flvx-svc-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION}|g" ./artifacts/docker-compose-v4.yml
-          sed -i "s|image: .*flvx-svc-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION}|g" ./artifacts/docker-compose-v4.yml
-          sed -i "s|image: .*flvx-svc-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
-          sed -i "s|image: .*flvx-svc-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
+          sed -i "s|image: .*flox-svc-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flox-svc-backend:${VERSION}|g" ./artifacts/docker-compose-v4.yml
+          sed -i "s|image: .*flox-svc-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flox-svc-frontend:${VERSION}|g" ./artifacts/docker-compose-v4.yml
+          sed -i "s|image: .*flox-svc-backend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flox-svc-backend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
+          sed -i "s|image: .*flox-svc-frontend:[^[:space:]]*|image: ${{ env.REGISTRY }}/${OWNER}/flox-svc-frontend:${VERSION}|g" ./artifacts/docker-compose-v6.yml
 
           # 构建离线包（amd64）
           echo "📦 构建离线包 (amd64)..."
           mkdir -p ./artifacts/offline-amd64
-          cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flvx_agent
+          cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flox_agent
           cp ./install.sh ./artifacts/offline-amd64/offline.sh
           cd ./artifacts/offline-amd64 && zip -r ../offline-amd64.zip . && cd ../..
 
           # 构建离线包（arm64）
           echo "📦 构建离线包 (arm64)..."
           mkdir -p ./artifacts/offline-arm64
-          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flvx_agent
+          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flox_agent
           cp ./install.sh ./artifacts/offline-arm64/offline.sh
           cd ./artifacts/offline-arm64 && zip -r ../offline-arm64.zip . && cd ../..
 
@@ -376,10 +376,10 @@ jobs:
 
           \`\`\`bash
           # Backend
-          docker pull ${{ env.REGISTRY }}/${OWNER}/flvx-svc-backend:${VERSION}
+          docker pull ${{ env.REGISTRY }}/${OWNER}/flox-svc-backend:${VERSION}
 
           # Frontend
-          docker pull ${{ env.REGISTRY }}/${OWNER}/flvx-svc-frontend:${VERSION}
+          docker pull ${{ env.REGISTRY }}/${OWNER}/flox-svc-frontend:${VERSION}
           \`\`\`
 
           ## 🚀 Quick Install
@@ -462,13 +462,13 @@ jobs:
         run: |
           echo "📦 构建离线包 (amd64)..."
           mkdir -p ./artifacts/offline-amd64
-          cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flvx_agent
+          cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flox_agent
           cp ./install.sh ./artifacts/offline-amd64/offline.sh
           cd ./artifacts/offline-amd64 && zip -r ../offline-amd64.zip . && cd ../..
 
           echo "📦 构建离线包 (arm64)..."
           mkdir -p ./artifacts/offline-arm64
-          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flvx_agent
+          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flox_agent
           cp ./install.sh ./artifacts/offline-arm64/offline.sh
           cd ./artifacts/offline-arm64 && zip -r ../offline-arm64.zip . && cd ../..
 
@@ -514,7 +514,7 @@ jobs:
         env:
           DOMESTIC_USER: ${{ secrets.DOMESTIC_USER }}
           DOMESTIC_PASS: ${{ secrets.DOMESTIC_PASS }}
-          DOMESTIC_WEBDAV_URL: https://chfs.646321.xyz:8/webdav/flvx
+          DOMESTIC_WEBDAV_URL: https://chfs.646321.xyz:8/webdav/flox
         run: |
           echo "⬆️  Syncing to domestic mirror (parallel)..."
           curl -s -u "${DOMESTIC_USER}:${DOMESTIC_PASS}" \

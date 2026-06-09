@@ -99,7 +99,7 @@ func TestCaptchaVerifyLoginContract(t *testing.T) {
 		body := bytes.NewBufferString(`{"username":"admin_user","password":"admin_user","captchaId":""}`)
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/user/login", body)
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-FLVX-API-Client", "whmcs")
+		req.Header.Set("X-FLOX-API-Client", "whmcs")
 		resp := httptest.NewRecorder()
 
 		router.ServeHTTP(resp, req)

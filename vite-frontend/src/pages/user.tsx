@@ -516,7 +516,7 @@ export default function UserPage() {
   // 拖拽排序相关状态
   const [sortableUserIds, setSortableUserIds] = useState<number[]>([]);
   const [userOrder, setUserOrder] = useLocalStorageState<number[]>(
-    "flvx-user-order",
+    "flox-user-order",
     [],
   );
   const sensors = useSensors(

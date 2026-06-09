@@ -2,7 +2,7 @@ import * as React from "react";
 
 type ThemeMode = "light" | "dark";
 
-const STORAGE_KEY = "flvx:theme";
+const STORAGE_KEY = "flox:theme";
 
 function resolveInitialTheme(): ThemeMode {
   if (typeof window === "undefined") {

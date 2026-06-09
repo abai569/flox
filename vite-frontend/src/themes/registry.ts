@@ -23,8 +23,8 @@ const installed = new Map<string, ThemePackage>();
 let activeId: string | null = null;
 let injectedStyleEl: HTMLStyleElement | null = null;
 
-const STORAGE_KEY = "flvx:active-theme";
-const MODE_KEY = "flvx:theme"; // backwards-compat with old use-theme
+const STORAGE_KEY = "flox:active-theme";
+const MODE_KEY = "flox:theme"; // backwards-compat with old use-theme
 
 type ChangeListener = () => void;
 const changeListeners = new Set<ChangeListener>();
@@ -117,7 +117,7 @@ export function activateTheme(id: string): void {
   const pkg = installed.get(id);
 
   if (!pkg) {
-    console.warn(`[FLVX themes] Theme "${id}" is not registered.`);
+    console.warn(`[FLOX themes] Theme "${id}" is not registered.`);
 
     return;
   }
@@ -130,7 +130,7 @@ export function activateTheme(id: string): void {
   // Temporarily disable transitions to prevent color flashing
   const root = document.documentElement;
 
-  root.classList.add("no-flvx-transition");
+  root.classList.add("no-flox-transition");
 
   // Inject tokens
   const mode = getEffectiveMode();
@@ -141,7 +141,7 @@ export function activateTheme(id: string): void {
   // Inject custom CSS
   if (pkg.css) {
     injectedStyleEl = document.createElement("style");
-    injectedStyleEl.setAttribute("data-flvx-theme", id);
+    injectedStyleEl.setAttribute("data-flox-theme", id);
     injectedStyleEl.textContent = pkg.css;
     document.head.appendChild(injectedStyleEl);
   }
@@ -152,7 +152,7 @@ export function activateTheme(id: string): void {
 
   // Force reflow then re-enable transitions
   root.offsetHeight;
-  root.classList.remove("no-flvx-transition");
+  root.classList.remove("no-flox-transition");
 
   // Lifecycle
   pkg.onActivate?.();
@@ -186,7 +186,7 @@ export function reapplyActiveTheme(): void {
   // Temporarily disable transitions to prevent color flashing
   const root = document.documentElement;
 
-  root.classList.add("no-flvx-transition");
+  root.classList.add("no-flox-transition");
 
   if (activeId) {
     const id = activeId;
@@ -213,7 +213,7 @@ export function reapplyActiveTheme(): void {
 
   // Force reflow then re-enable transitions
   root.offsetHeight;
-  root.classList.remove("no-flvx-transition");
+  root.classList.remove("no-flox-transition");
   notify();
 }
 

@@ -21,8 +21,8 @@ import (
 const (
 	panelDeployDirEnv                 = "PANEL_DEPLOY_DIR"
 	panelBackendContainerEnv          = "PANEL_BACKEND_CONTAINER"
-	defaultPanelDeployDir             = "/opt/flvx-svc"
-	defaultPanelBackendName           = "flvx-svc-backend"
+	defaultPanelDeployDir             = "/opt/flox-svc"
+	defaultPanelBackendName           = "flox-svc-backend"
 	dockerSocketPath                  = "/var/run/docker.sock"
 	maxSystemUpgradeComposeAssetBytes = 1 << 20
 	systemUpgradeMessage              = "升级 helper 已启动，面板服务将短暂重启"
@@ -569,7 +569,7 @@ func (h *Handler) systemUpgrade(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, "更新版本配置失败："+err.Error()))
 		return
 	}
-	helperName := fmt.Sprintf("flvx-upgrade-helper-%d", time.Now().Unix())
+	helperName := fmt.Sprintf("FLOX-upgrade-helper-%d", time.Now().Unix())
 	helperContainer, err := exec.startHelper(r.Context(), imageID, helperName)
 	if err != nil {
 		if restoreErr := exec.restoreUpgradeBackups(composePath, envPath); restoreErr != nil {

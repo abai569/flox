@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	githubRepo     = "abai569/flvx"
+	githubRepo     = "abai569/flox"
 	githubAPIBase  = "https://api.github.com"
 	githubHTMLBase = "https://github.com"
 	upgradeTimeout = 5 * time.Minute

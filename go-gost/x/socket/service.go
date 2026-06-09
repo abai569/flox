@@ -14,7 +14,7 @@ import (
 	xservice "github.com/go-gost/x/service"
 
 	"github.com/go-gost/x/adapter"
-	flvxcfg "github.com/go-gost/x/flvx-core/config"
+	floxcfg "github.com/go-gost/x/flox-core/config"
 )
 
 // kernelName returns the kernel name from service config metadata.
@@ -24,18 +24,18 @@ func kernelName(cfg *config.ServiceConfig) string {
 		return "gost"
 	}
 	if v, ok := cfg.Metadata["kernel"]; ok {
-		if s, ok := v.(string); ok && s == "flvxcore" {
-			return "flvxcore"
+		if s, ok := v.(string); ok && s == "floxcore" {
+			return "floxcore"
 		}
 	}
 	return "gost"
 }
 
-// toFlvxConfig converts a GOST ServiceConfig to FlvxCore ServiceConfig.
-func toFlvxConfig(cfg *config.ServiceConfig) *flvxcfg.ServiceConfig {
-	fwd := &flvxcfg.ForwarderConfig{}
+// toFloxConfig converts a GOST ServiceConfig to FloxCore ServiceConfig.
+func toFloxConfig(cfg *config.ServiceConfig) *floxcfg.ServiceConfig {
+	fwd := &floxcfg.ForwarderConfig{}
 	if cfg.Forwarder != nil {
-		fwd.Selector = flvxcfg.SelectorConfig{
+		fwd.Selector = floxcfg.SelectorConfig{
 			Strategy:    "round",
 			MaxFails:    0,
 			FailTimeout: 0,
@@ -43,14 +43,14 @@ func toFlvxConfig(cfg *config.ServiceConfig) *flvxcfg.ServiceConfig {
 		if cfg.Forwarder.Selector != nil {
 			fwd.Selector.Strategy = cfg.Forwarder.Selector.Strategy
 			fwd.Selector.MaxFails = cfg.Forwarder.Selector.MaxFails
-			fwd.Selector.FailTimeout = flvxcfg.Duration(cfg.Forwarder.Selector.FailTimeout)
+			fwd.Selector.FailTimeout = floxcfg.Duration(cfg.Forwarder.Selector.FailTimeout)
 		}
 		for _, n := range cfg.Forwarder.Nodes {
 			addr := n.Addr
 			if addr == "" {
 				addr = n.Name
 			}
-			fwd.Nodes = append(fwd.Nodes, flvxcfg.NodeConfig{
+			fwd.Nodes = append(fwd.Nodes, floxcfg.NodeConfig{
 				Name: n.Name,
 				Addr: addr,
 			})
@@ -80,11 +80,11 @@ func toFlvxConfig(cfg *config.ServiceConfig) *flvxcfg.ServiceConfig {
 		transportType = cfg.Listener.Type
 	}
 
-	return &flvxcfg.ServiceConfig{
+	return &floxcfg.ServiceConfig{
 		Name:      cfg.Name,
 		Addr:      cfg.Addr,
 		Transport: transportType,
-		Handler: flvxcfg.HandlerConfig{
+		Handler: floxcfg.HandlerConfig{
 			Type:     handlerType,
 			Metadata: cfg.Metadata,
 		},
@@ -97,13 +97,13 @@ func toFlvxConfig(cfg *config.ServiceConfig) *flvxcfg.ServiceConfig {
 
 // parseService routes to the appropriate kernel based on metadata.kernel.
 func parseService(cfg *config.ServiceConfig) (service.Service, error) {
-	if kernelName(cfg) == "flvxcore" {
+	if kernelName(cfg) == "floxcore" {
 		switch cfg.Handler.Type {
 		case "tcp", "udp":
-			sfc := toFlvxConfig(cfg)
+			sfc := toFloxConfig(cfg)
 			return adapter.NewForwardService(sfc)
 		case "relay":
-			sfc := toFlvxConfig(cfg)
+			sfc := toFloxConfig(cfg)
 			return adapter.NewRelayService(sfc, "", "", nil)
 		default:
 			// fallback to GOST for unknown handler types

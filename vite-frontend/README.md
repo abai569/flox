@@ -1,6 +1,6 @@
-# FLVX
+# FLOX
 
-> **联系我们**: [Telegram群组](https://t.me/flvxpanel)
+> **联系我们**: [Telegram群组](https://t.me/FLOXpanel)
 
 
 ## 特性
@@ -123,12 +123,12 @@ docker compose up -d
 5) 迁移完成后，登录面板检查用户、隧道、转发、节点数据是否正确。
 
 ## Original Project
-- **Name**: flvx-svc
-- **Source**: https://github.com/bqlpfy/flvx-svc
+- **Name**: FLOX-svc
+- **Source**: https://github.com/bqlpfy/FLOX-svc
 - **License**: Apache License 2.0
 
 ## Modifications
-This fork (FLVX) is no longer a light patch on top of the upstream project. It has been deeply reworked, with both backend and frontend rebuilt around a Go-based architecture.
+This fork (FLOX) is no longer a light patch on top of the upstream project. It has been deeply reworked, with both backend and frontend rebuilt around a Go-based architecture.
 
 ### 1. Backend (Rewritten)
 - **Removed**: The original `springboot-backend/` (Java/Spring Boot) implementation.

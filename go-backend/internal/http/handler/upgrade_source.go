@@ -16,7 +16,7 @@ const (
 
 // Default fallback addresses
 const (
-	chfsBaseURL = "https://chfs.646321.xyz:8/chfs/shared/flvx"
+	chfsBaseURL = "https://chfs.646321.xyz:8/chfs/shared/flox"
 	ghFastURL   = "https://ghfast.top"
 )
 

@@ -7,7 +7,7 @@ REPO="abai569/flvx"
 PINNED_VERSION="2.2.6-beta1"
 
 # 默认服务名
-SERVICE_NAME="flvx_agent"
+SERVICE_NAME="flox_agent"
 SERVER_ADDR=""
 SECRET=""
 
@@ -126,7 +126,7 @@ get_architecture() {
 detect_download_host() {
     local script_url="$1"
     if [[ "$script_url" == *"chfs.646321.xyz"* ]]; then
-        echo "https://chfs.646321.xyz:8/chfs/shared/flvx"
+        echo "https://chfs.646321.xyz:8/chfs/shared/flox"
     elif [[ "$script_url" == *"git-proxy.abai.eu.org"* ]]; then
         # 提取代理地址和 GitHub 路径
         echo "$script_url" | sed 's|/releases/.*||'
@@ -197,7 +197,7 @@ build_download_url() {
     
     # 国内 CDN 直接硬编码完整路径
     if [[ "$DOWNLOAD_HOST" == *"chfs.646321.xyz"* ]]; then
-        echo "https://chfs.646321.xyz:8/chfs/shared/flvx/gost-${ARCH}"
+        echo "https://chfs.646321.xyz:8/chfs/shared/flox/gost-${ARCH}"
         return
     fi
     
@@ -610,11 +610,11 @@ update_service() {
     return 1
   fi
 
-  # 从旧的 flux_agent 自动迁移到 flvx_agent
+  # 从旧的 flux_agent 自动迁移到 flox_agent
   if [[ "$SERVICE_NAME" == "flux_agent" ]]; then
-    echo "📦 检测到旧服务名称: flux_agent，正在迁移到 flvx_agent..."
+    echo "📦 检测到旧服务名称: flux_agent，正在迁移到 flox_agent..."
     local old_dir="/etc/flux_agent"
-    local new_name="flvx_agent"
+    local new_name="flox_agent"
     local new_dir="/etc/${new_name}"
 
     # 停止旧服务

@@ -85,7 +85,7 @@ export function GlobalPullToRefresh() {
       if (currentDistance.current >= THRESHOLD) {
         setRefreshing(true);
         setPullDistance(THRESHOLD - 20);
-        window.dispatchEvent(new CustomEvent("flvx:pulltorefresh"));
+        window.dispatchEvent(new CustomEvent("flox:pulltorefresh"));
       } else {
         setPullDistance(0);
         currentDistance.current = 0;
@@ -101,13 +101,13 @@ export function GlobalPullToRefresh() {
     document.addEventListener("touchstart", onTouchStart, { passive: true });
     document.addEventListener("touchmove", onTouchMove, { passive: false });
     document.addEventListener("touchend", onTouchEnd);
-    window.addEventListener("flvx:pulltorefresh:done", onRefreshDone);
+    window.addEventListener("flox:pulltorefresh:done", onRefreshDone);
 
     return () => {
       document.removeEventListener("touchstart", onTouchStart);
       document.removeEventListener("touchmove", onTouchMove);
       document.removeEventListener("touchend", onTouchEnd);
-      window.removeEventListener("flvx:pulltorefresh:done", onRefreshDone);
+      window.removeEventListener("flox:pulltorefresh:done", onRefreshDone);
       if (touchTimer.current) clearTimeout(touchTimer.current);
     };
   }, []);

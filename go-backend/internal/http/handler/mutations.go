@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"context"
@@ -943,7 +943,7 @@ func (h *Handler) nodeInstallDomestic(w http.ResponseWriter, r *http.Request) {
 	// 获取自定义国内加速地址
 	domesticURL, _ := h.repo.GetViteConfigValue("domestic_download_url")
 	if domesticURL == "" {
-		domesticURL = "https://chfs.646321.xyz:8/chfs/shared/flvx"
+		domesticURL = "https://chfs.646321.xyz:8/chfs/shared/flox"
 	}
 
 	// 获取自定义全局加速地址（用于 fallback）

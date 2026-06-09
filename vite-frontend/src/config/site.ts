@@ -9,12 +9,12 @@ const APP_VERSION = "1.0.3";
 const DEFAULT_FAVICON = "/favicon.ico";
 const FAVICON_LINK_ID = "app-favicon";
 const GITHUB_REPO =
-  import.meta.env.VITE_GITHUB_REPO || "https://github.com/abai569/flvx";
+  import.meta.env.VITE_GITHUB_REPO || "https://github.com/abai569/FLOX";
 
 const getInitialConfig = () => {
   if (typeof window === "undefined") {
     return {
-      name: "FLVX",
+      name: "FLOX",
       version: VERSION,
       app_version: APP_VERSION,
       github_repo: GITHUB_REPO,
@@ -40,7 +40,7 @@ const getInitialConfig = () => {
   }
 
   return {
-    name: "FLVX",
+    name: "FLOX",
     version: VERSION,
     app_version: APP_VERSION,
     github_repo: GITHUB_REPO,

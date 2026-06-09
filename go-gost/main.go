@@ -126,7 +126,7 @@ func main() {
 	stats.Init()
 
 	// 根据 service_name 确定配置目录
-	configDir := "/etc/flvx_agent"
+	configDir := "/etc/flox_agent"
 	if config.ServiceName != "" {
 		configDir = "/etc/" + config.ServiceName
 	}

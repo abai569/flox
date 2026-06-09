@@ -1,4 +1,4 @@
-﻿package socket
+package socket
 
 import (
 	"bytes"
@@ -345,7 +345,7 @@ func (w *WebSocketReporter) connect() error {
 
 	var cfg LocalConfig
 	// 先尝试从当前工作目录读取，再尝试默认路径
-	configPaths := []string{"config.json", "/etc/flvx_agent/config.json", "/etc/flux_agent/config.json"}
+	configPaths := []string{"config.json", "/etc/flox_agent/config.json", "/etc/flux_agent/config.json"}
 	for _, path := range configPaths {
 		if b, err := os.ReadFile(path); err == nil {
 			json.Unmarshal(b, &cfg)
@@ -462,7 +462,7 @@ func getConfigDir(serviceName string) string {
 	if serviceName != "" {
 		return "/etc/" + serviceName
 	}
-	return "/etc/flvx_agent"
+	return "/etc/flox_agent"
 }
 
 // fetchAndSaveNodeID 从面板获取节点 ID 并保存到 config.json，然后初始化基线管理器
@@ -2026,9 +2026,9 @@ func (w *WebSocketReporter) handleUpgradeAgent(data interface{}) error {
 
 	var script string
 	if strings.HasPrefix(w.serviceName, "flux_agent") {
-		// OTA 升级时自动迁移 flux_agent* → flvx_agent* (支持多实例后缀)
+		// OTA 升级时自动迁移 flux_agent* → flox_agent* (支持多实例后缀)
 		suffix := strings.TrimPrefix(w.serviceName, "flux_agent")
-		newName := "flvx_agent" + suffix
+		newName := "flox_agent" + suffix
 		newConfigDir := "/etc/" + newName
 		newBinaryPath := newConfigDir + "/" + newName
 		newSvcFile := "/etc/systemd/system/" + newName + ".service"
@@ -2375,7 +2375,7 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 		ServiceName string `json:"service_name"`
 	}
 	var cfg LocalConfig
-	configPaths := []string{"config.json", "/etc/flvx_agent/config.json", "/etc/flux_agent/config.json"}
+	configPaths := []string{"config.json", "/etc/flox_agent/config.json", "/etc/flux_agent/config.json"}
 	for _, path := range configPaths {
 		if b, err := os.ReadFile(path); err == nil {
 			json.Unmarshal(b, &cfg)
@@ -2387,7 +2387,7 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 	// 修复旧版 service 日志配置
 	serviceName := cfg.ServiceName
 	if serviceName == "" {
-		serviceName = "flvx_agent"
+		serviceName = "flox_agent"
 	}
 	fixServiceFile(serviceName)
 
@@ -2691,7 +2691,7 @@ func icmpPing(target string, timeout time.Duration) (time.Duration, error) {
 		Body: &icmp.Echo{
 			ID:   id,
 			Seq:  seq,
-			Data: []byte("FLVX-PING"),
+			Data: []byte("FLOX-PING"),
 		},
 	}
 	wb, err := wm.Marshal(nil)

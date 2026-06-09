@@ -6,7 +6,7 @@
 **Tag:** 2.1.5-rc15
 
 ## OVERVIEW
-Web management console for FLVX.
+Web management console for FLOX.
 **Stack:** React 18, rolldown-vite, TypeScript, Tailwind CSS v4, shadcn/radix primitives with HeroUI-compatible bridge.
 
 ## STRUCTURE

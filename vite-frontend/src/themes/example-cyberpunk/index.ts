@@ -18,7 +18,7 @@ import { CyberpunkButton } from "./components/button";
 const cyberpunkTheme: ThemePackage = {
   id: "cyberpunk",
   name: "赛博朋克",
-  author: "FLVX Community",
+  author: "FLOX Community",
   version: "1.0.0",
   description: "霓虹灯风格的赛博朋克暗色主题",
 
@@ -87,19 +87,19 @@ const cyberpunkTheme: ThemePackage = {
   // ── Raw CSS (glow effects, animations, fonts) ─────────────────────────────
   css: `
     /* Cyberpunk neon glow on primary buttons */
-    [data-flvx-theme="cyberpunk"] .bg-primary,
+    [data-flox-theme="cyberpunk"] .bg-primary,
     .bg-primary {
       box-shadow: 0 0 12px rgba(255, 0, 255, 0.4),
                   0 0 24px rgba(255, 0, 255, 0.15);
     }
 
     /* Neon border glow on cards */
-    [data-flvx-theme="cyberpunk"] [class*="border"] {
+    [data-flox-theme="cyberpunk"] [class*="border"] {
       border-color: rgba(255, 0, 255, 0.15);
     }
 
     /* Scanline overlay animation */
-    @keyframes flvx-scanline {
+    @keyframes Flox-scanline {
       0% { transform: translateY(-100%); }
       100% { transform: translateY(100vh); }
     }
@@ -124,10 +124,10 @@ const cyberpunkTheme: ThemePackage = {
     document.documentElement.classList.add("dark");
     document.documentElement.style.colorScheme = "dark";
     // Mark the body for theme-specific CSS selectors
-    document.body.setAttribute("data-flvx-theme", "cyberpunk");
+    document.body.setAttribute("data-flox-theme", "cyberpunk");
   },
   onDeactivate: () => {
-    document.body.removeAttribute("data-flvx-theme");
+    document.body.removeAttribute("data-flox-theme");
   },
 };
 

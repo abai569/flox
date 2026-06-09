@@ -1,4 +1,4 @@
-﻿package repo
+package repo
 
 import (
 	"crypto/hmac"
@@ -532,7 +532,7 @@ func seedData(db *gorm.DB) {
 		db.Where("name = ?", "initial_admin_password").FirstOrCreate(&pwdConfig)
 	}
 
-	appNameConfig := model.ViteConfig{Name: "app_name", Value: "flvx", Time: time.Now().UnixMilli()}
+	appNameConfig := model.ViteConfig{Name: "app_name", Value: "flox", Time: time.Now().UnixMilli()}
 	db.Where("name = ?", "app_name").FirstOrCreate(&appNameConfig)
 
 	// Default enable mall system

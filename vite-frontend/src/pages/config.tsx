@@ -94,7 +94,7 @@ const CONFIG_ITEMS: ConfigItem[] = [
   {
     key: "domestic_download_url",
     label: "自定义国内镜像源",
-    placeholder: "https://chfs.646321.xyz:8/chfs/shared/flvx",
+    placeholder: "https://chfs.646321.xyz:8/chfs/shared/FLOX",
     description: "国内机器首次对接安装时使用的加速地址，留空使用默认值",
     type: "input",
   },
@@ -1374,11 +1374,11 @@ export default function ConfigPage() {
               </div>
               <div className="space-y-3">
                 <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  flvx密钥
+                  Flox密钥
                 </label>
                 <Input
                   classNames={{ input: "text-sm" }}
-                  placeholder="联系管理员获取（flvx_ 开头）"
+                  placeholder="联系管理员获取（flox_ 开头）"
                   size="md"
                   value={hmacKey}
                   variant="bordered"

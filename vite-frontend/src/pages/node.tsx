@@ -406,7 +406,7 @@ export default function NodePage() {
   }, [infoPopoverOpenId]);
   const [installCommandModal, setInstallCommandModal] = useState(false);
   const [installCommand, setInstallCommand] = useState("");
-  const [installServiceName, setInstallServiceName] = useState("flvx_agent");
+  const [installServiceName, setInstallServiceName] = useState("flox_agent");
   const [currentNodeName, setCurrentNodeName] = useState("");
   const [installSelectorOpen, setInstallSelectorOpen] = useState(false);
   const [installTargetNode, setInstallTargetNode] = useState<Node | null>(null);
@@ -1242,7 +1242,7 @@ export default function NodePage() {
 
       if (res.code === 0 && res.data) {
         const data = res.data as OfflineDeployPayload;
-        const command = `unzip -d /tmp/flvx_agent -o offline.zip && bash /tmp/flvx_agent/offline.sh -a ${data.panelAddr} -s ${data.secret}`;
+        const command = `unzip -d /tmp/flox_agent -o offline.zip && bash /tmp/flox_agent/offline.sh -a ${data.panelAddr} -s ${data.secret}`;
 
         setOfflineCommand(command);
         setOfflineDeployData(data);
@@ -1359,11 +1359,11 @@ export default function NodePage() {
 
     // 检测是否为 GitHub 代理（不包含 github.com 的都需要拼接完整 GitHub URL）
     if (!ghfastURL.includes("github.com")) {
-      return `${ghfastURL}/https://github.com/abai569/flvx/releases/download/${releaseType}/gost-{ARCH}`;
+      return `${ghfastURL}/https://github.com/abai569/flox/releases/download/${releaseType}/gost-{ARCH}`;
     }
 
     // 直连 GitHub（如 https://github.com）
-    return `${ghfastURL}/abai569/flvx/releases/download/${releaseType}/gost-{ARCH}`;
+    return `${ghfastURL}/abai569/flox/releases/download/${releaseType}/gost-{ARCH}`;
   };
   // 获取地址前缀文本（升级地址/回退地址）
   const getAddressPrefix = (): string => {
@@ -3414,7 +3414,7 @@ export default function NodePage() {
                   </label>
                   <Input
                     className="flex-1"
-                    placeholder="flvx_agent"
+                    placeholder="flox_agent"
                     size="sm"
                     value={installServiceName}
                     variant="bordered"

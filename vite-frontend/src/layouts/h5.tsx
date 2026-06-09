@@ -564,7 +564,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
                 </span>
                 <a
                   className="text-blue-600 dark:text-blue-400 flex-shrink-0 underline whitespace-nowrap"
-                  href="https://t.me/erflvx"
+                  href="https://t.me/erFLOX"
                   rel="noopener noreferrer"
                   target="_blank"
                 >
