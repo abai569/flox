@@ -12,7 +12,106 @@ import (
 	kill "github.com/go-gost/x/internal/util/port"
 	"github.com/go-gost/x/registry"
 	xservice "github.com/go-gost/x/service"
+
+	"github.com/go-gost/x/adapter"
+	flvxcfg "github.com/go-gost/x/flvx-core/config"
 )
+
+// kernelName returns the kernel name from service config metadata.
+// Returns "gost" if not set.
+func kernelName(cfg *config.ServiceConfig) string {
+	if cfg.Metadata == nil {
+		return "gost"
+	}
+	if v, ok := cfg.Metadata["kernel"]; ok {
+		if s, ok := v.(string); ok && s == "flvxcore" {
+			return "flvxcore"
+		}
+	}
+	return "gost"
+}
+
+// toFlvxConfig converts a GOST ServiceConfig to FlvxCore ServiceConfig.
+func toFlvxConfig(cfg *config.ServiceConfig) *flvxcfg.ServiceConfig {
+	fwd := &flvxcfg.ForwarderConfig{}
+	if cfg.Forwarder != nil {
+		fwd.Selector = flvxcfg.SelectorConfig{
+			Strategy:    "round",
+			MaxFails:    0,
+			FailTimeout: 0,
+		}
+		if cfg.Forwarder.Selector != nil {
+			fwd.Selector.Strategy = cfg.Forwarder.Selector.Strategy
+			fwd.Selector.MaxFails = cfg.Forwarder.Selector.MaxFails
+			fwd.Selector.FailTimeout = flvxcfg.Duration(cfg.Forwarder.Selector.FailTimeout)
+		}
+		for _, n := range cfg.Forwarder.Nodes {
+			addr := n.Addr
+			if addr == "" {
+				addr = n.Name
+			}
+			fwd.Nodes = append(fwd.Nodes, flvxcfg.NodeConfig{
+				Name: n.Name,
+				Addr: addr,
+			})
+		}
+	}
+
+	handlerType := "tcp"
+	if cfg.Handler != nil {
+		handlerType = cfg.Handler.Type
+	}
+
+	chainName := ""
+	if cfg.Handler != nil && cfg.Handler.Chain != "" {
+		chainName = cfg.Handler.Chain
+	}
+
+	limiterName := ""
+	if cfg.Limiter != "" {
+		limiterName = cfg.Limiter
+	}
+	if cfg.Handler != nil && cfg.Handler.Limiter != "" {
+		limiterName = cfg.Handler.Limiter
+	}
+
+	transportType := ""
+	if cfg.Listener != nil {
+		transportType = cfg.Listener.Type
+	}
+
+	return &flvxcfg.ServiceConfig{
+		Name:      cfg.Name,
+		Addr:      cfg.Addr,
+		Transport: transportType,
+		Handler: flvxcfg.HandlerConfig{
+			Type:     handlerType,
+			Metadata: cfg.Metadata,
+		},
+		Forwarder: fwd,
+		Chain:     chainName,
+		Limiter:   limiterName,
+		Metadata:  cfg.Metadata,
+	}
+}
+
+// parseService routes to the appropriate kernel based on metadata.kernel.
+func parseService(cfg *config.ServiceConfig) (service.Service, error) {
+	if kernelName(cfg) == "flvxcore" {
+		switch cfg.Handler.Type {
+		case "tcp", "udp":
+			sfc := toFlvxConfig(cfg)
+			return adapter.NewForwardService(sfc)
+		case "relay":
+			sfc := toFlvxConfig(cfg)
+			return adapter.NewRelayService(sfc, "", "", nil)
+		default:
+			// fallback to GOST for unknown handler types
+			return parser.ParseService(cfg)
+		}
+	}
+	return parser.ParseService(cfg)
+}
 
 func createServices(req createServicesRequest) error {
 
@@ -37,7 +136,7 @@ func createServices(req createServicesRequest) error {
 			return errors.New("service " + name + " already exists")
 		}
 
-		svc, err := parser.ParseService(&serviceConfig)
+		svc, err := parseService(&serviceConfig)
 		if err != nil {
 			return errors.New("create service " + name + " failed: " + err.Error())
 		}
@@ -113,7 +212,7 @@ func updateServices(req updateServicesRequest) error {
 		}
 
 		// 4. 解析新服务配置
-		svc, err := parser.ParseService(serviceConfig)
+		svc, err := parseService(serviceConfig)
 		if err != nil {
 			return errors.New("create service " + name + " failed: " + err.Error())
 		}
@@ -407,7 +506,7 @@ func resumeServices(req resumeServicesRequest) error {
 		time.Sleep(500 * time.Millisecond)
 
 		// 重新解析并启动服务
-		svc, err := parser.ParseService(str.serviceConfig)
+		svc, err := parseService(str.serviceConfig)
 		if err != nil {
 			// 恢复失败，回滚已恢复的服务
 			rollbackResumedServices(resumedServices)
@@ -462,7 +561,7 @@ func rollbackPausedServices(pausedServices []struct {
 }) {
 	for _, pss := range pausedServices {
 		// 重新解析并启动服务
-		svc, err := parser.ParseService(pss.serviceConfig)
+		svc, err := parseService(pss.serviceConfig)
 		if err != nil {
 			continue // 回滚失败，记录日志但继续处理其他服务
 		}

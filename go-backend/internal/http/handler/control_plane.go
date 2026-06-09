@@ -1872,6 +1872,9 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 		if forward.MaxConnections > 0 {
 			meta["maxConnections"] = forward.MaxConnections
 		}
+		if strings.EqualFold(forward.Mode, "flvxcore") {
+			meta["kernel"] = "flvxcore"
+		}
 		if len(meta) > 0 {
 			service["metadata"] = meta
 		}

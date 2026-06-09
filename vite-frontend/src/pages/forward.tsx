@@ -133,7 +133,7 @@ interface Forward {
   speedLimit?: number;
   inSpeed?: number; // 新增：实时上行速度 (bytes/s)
   outSpeed?: number; // 新增：实时下行速度 (bytes/s)
-  mode?: "gost" | "nftables";
+  mode?: "gost" | "nftables" | "flvxcore";
 }
 interface Tunnel {
   id: number;
@@ -172,7 +172,7 @@ interface ForwardForm {
   expiryTime: number | null;
   speedLimitEnabled: boolean;
   speedLimit: number;
-  mode: "gost" | "nftables";
+  mode: "gost" | "nftables" | "flvxcore";
 }
 interface ForwardUserGroup {
   userId: number;
@@ -5454,12 +5454,13 @@ export default function ForwardPage() {
 
                         setForm((prev) => ({
                           ...prev,
-                          mode: selectedKey as "gost" | "nftables",
+                          mode: selectedKey as "gost" | "nftables" | "flvxcore",
                         }));
                       }}
                     >
                       <SelectItem key="gost">Gost 模式</SelectItem>
                       <SelectItem key="nftables">NFtables 模式</SelectItem>
+                      <SelectItem key="flvxcore">FlvxCore 模式</SelectItem>
                     </Select>
                   </div>
                   <div className="space-y-4 pb-4">
