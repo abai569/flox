@@ -480,5 +480,38 @@ jobs:
           gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber
           gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber
 
-          echo " ✅ GOST 二进制文件更新完成
+          echo " ✅ GOST 二进制文件更新完成"
+
+  sync-gost-mirror:
+    name: Sync GOST to Mirror
+    needs: [build-gost]
+    if: needs.check-version.outputs.should_build_gost == 'true'
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download GOST AMD64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: gost-binary-amd64
+
+      - name: Download GOST ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: gost-binary-arm64
+
+      - name: Sync to domestic mirror
+        env:
+          DOMESTIC_USER: ${{ secrets.DOMESTIC_USER }}
+          DOMESTIC_PASS: ${{ secrets.DOMESTIC_PASS }}
+          DOMESTIC_WEBDAV_URL: https://chfs.646321.xyz:8/webdav/flvx
+        run: |
+          echo "⬆️  Syncing to domestic mirror (parallel)..."
+          curl -s -u "${DOMESTIC_USER}:${DOMESTIC_PASS}" \
+            -T gost-amd64 \
+            "${DOMESTIC_WEBDAV_URL}/gost-amd64" &
+          curl -s -u "${DOMESTIC_USER}:${DOMESTIC_PASS}" \
+            -T gost-arm64 \
+            "${DOMESTIC_WEBDAV_URL}/gost-arm64" &
+          wait
+          echo "✅ Sync complete"
 
