@@ -25,6 +25,7 @@ jobs:
 
       - name: Merge mall source
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
 
       - name: Setup Node.js
@@ -54,8 +55,9 @@ jobs:
           path: mall
           token: ${{ secrets.MALL_REPO_PAT }}
 
-      - name: Merge mall source
+      - name: Merge mall source [backend]
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
 
       - name: Setup Go
@@ -100,8 +102,9 @@ jobs:
           path: mall
           token: ${{ secrets.MALL_REPO_PAT }}
 
-      - name: Merge mall source
+      - name: Merge mall source [contract]
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
 
       - name: Setup Go
