@@ -143,20 +143,6 @@ jobs:
           name: gost-checksum-arm64
           path: ./go-gost/gost-arm64.sha256
 
-      - name: Sync GOST to domestic mirror
-        env:
-          DOMESTIC_USER: ${{ secrets.DOMESTIC_USER }}
-          DOMESTIC_PASS: ${{ secrets.DOMESTIC_PASS }}
-          DOMESTIC_WEBDAV_URL: https://chfs.646321.xyz:8/webdav/flvx
-        run: |
-          echo "⬆️  Syncing to domestic mirror..."
-          curl -s -u "${DOMESTIC_USER}:${DOMESTIC_PASS}" \
-            -T ./go-gost/gost-amd64 \
-            "${DOMESTIC_WEBDAV_URL}/gost-amd64" && echo "✅ amd64 ok" || echo "⚠️  amd64 failed"
-          curl -s -u "${DOMESTIC_USER}:${DOMESTIC_PASS}" \
-            -T ./go-gost/gost-arm64 \
-            "${DOMESTIC_WEBDAV_URL}/gost-arm64" && echo "✅ arm64 ok" || echo "⚠️  arm64 failed"
-
   build-vite:
     name: Build & Push Vite Frontend
     needs: check-version
