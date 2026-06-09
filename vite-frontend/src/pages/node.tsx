@@ -3147,50 +3147,52 @@ export default function NodePage() {
                   aria-label="高级配置"
                   title="高级配置"
                 >
-                  <div className="space-y-4 pb-2 px-[12px]">
-                    <Input
-                      description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
-                      errorMessage={errors.interfaceName}
-                      isInvalid={!!errors.interfaceName}
-                      label="出口网卡名或IP"
-                      placeholder="请输入出口网卡名或IP"
-                      value={form.interfaceName}
-                      variant="bordered"
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          interfaceName: e.target.value,
-                        }))
-                      }
-                    />
-                    <Input
-                        description="多IP服务器可填写额外IP地址，逗号分隔"
-                        label="额外IP地址"
-                        placeholder="例如: 192.168.1.100, 10.0.0.5"
-                        value={form.extraIPs}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            extraIPs: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="该节点总流量配额，剩余低于100G/50G/20G时分别推送电报通知，0表示不限制"
-                        label="流量限额(GB)"
-                        placeholder="0 = 不限制"
-                        type="number"
-                        min={0}
-                        value={String(form.trafficLimit)}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            trafficLimit: parseInt(e.target.value) || 0,
-                          }))
-                        }
-                      />
+                    <div className="space-y-4 pb-2 px-[12px]">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Input
+                          description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
+                          errorMessage={errors.interfaceName}
+                          isInvalid={!!errors.interfaceName}
+                          label="出口网卡名或IP"
+                          placeholder="请输入出口网卡名或IP"
+                          value={form.interfaceName}
+                          variant="bordered"
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              interfaceName: e.target.value,
+                            }))
+                          }
+                        />
+                        <Input
+                          description="多IP服务器可填写额外IP地址，逗号分隔"
+                          label="额外IP地址"
+                          placeholder="例如: 192.168.1.100, 10.0.0.5"
+                          value={form.extraIPs}
+                          variant="bordered"
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              extraIPs: e.target.value,
+                            }))
+                          }
+                        />
+                        <Input
+                          description="该节点总流量配额，剩余低于100G/50G/20G时分别推送电报通知，0表示不限制"
+                          label="流量限额(GB)"
+                          placeholder="0 = 不限制"
+                          type="number"
+                          min={0}
+                          value={String(form.trafficLimit)}
+                          variant="bordered"
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              trafficLimit: parseInt(e.target.value) || 0,
+                            }))
+                          }
+                        />
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         errorMessage={errors.tcpListenAddr}
