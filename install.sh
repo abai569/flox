@@ -597,11 +597,6 @@ EOF
     echo "📁 配置目录：$INSTALL_DIR"
     echo "🔧 服务状态：$(systemctl is-active ${SERVICE_NAME})"
 
-    local install_count=$(curl -fsSL --max-time 3 "https://sq.abai.eu.org/api/stats/install" 2>/dev/null | grep -o '"total":[0-9]*' | grep -o '[0-9]*')
-    if [[ -n "$install_count" ]]; then
-      echo ""
-      echo "📊 累计安装次数：${install_count}"
-    fi
   else
     echo "❌ ${SERVICE_NAME} 服务启动失败，请执行以下命令查看状态："
     echo "systemctl status ${SERVICE_NAME} --no-pager"
@@ -718,12 +713,6 @@ update_service() {
   systemctl restart ${SERVICE_NAME}
   
   echo "✅ 更新完成，服务已重新启动。"
-
-  local install_count=$(curl -fsSL --max-time 3 "https://sq.abai.eu.org/api/stats/install" 2>/dev/null | grep -o '"total":[0-9]*' | grep -o '[0-9]*')
-  if [[ -n "$install_count" ]]; then
-    echo ""
-    echo "📊 累计安装次数：${install_count}"
-  fi
 }
 
 # 卸载功能
