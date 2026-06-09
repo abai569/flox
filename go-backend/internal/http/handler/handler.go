@@ -54,7 +54,8 @@ type Handler struct {
 	nftablesDomainMu    sync.Mutex
 	nftablesDomainCache map[int64]string
 
-	telegramBot *telegram.Bot
+	telegramBot      *telegram.Bot
+	nodeTrafficCache sync.Map // map[int64]*nodeTrafficCacheEntry
 }
 
 func (h *Handler) TelegramBot() *telegram.Bot {
@@ -62,6 +63,72 @@ func (h *Handler) TelegramBot() *telegram.Bot {
 		return nil
 	}
 	return h.telegramBot
+}
+
+type nodeTrafficCacheEntry struct {
+	limitGB int64
+	name    string
+	mask    int32
+}
+
+func (h *Handler) maybeCheckNodeTraffic(nodeID int64, periodRx, periodTx uint64) {
+	if h == nil || h.repo == nil {
+		return
+	}
+	raw, ok := h.nodeTrafficCache.Load(nodeID)
+	var entry *nodeTrafficCacheEntry
+	if !ok {
+		info, err := h.repo.GetNodeTrafficLimitInfo(nodeID)
+		if err != nil || info == nil || info.LimitGB <= 0 {
+			h.nodeTrafficCache.Store(nodeID, &nodeTrafficCacheEntry{limitGB: -1})
+			return
+		}
+		entry = &nodeTrafficCacheEntry{limitGB: info.LimitGB, name: info.Name, mask: int32(info.Mask)}
+		h.nodeTrafficCache.Store(nodeID, entry)
+	} else {
+		entry = raw.(*nodeTrafficCacheEntry)
+	}
+	if entry == nil || entry.limitGB <= 0 {
+		return
+	}
+
+	used := int64(periodRx + periodTx)
+	remainingGB := entry.limitGB - used/(1024*1024*1024)
+	if remainingGB < 0 {
+		remainingGB = 0
+	}
+	nodeName := entry.name
+
+	mask := entry.mask
+	changed := false
+
+	// 从高到低检查：100G → 50G → 20G
+	if remainingGB < 100 && (mask&1) == 0 {
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendNodeTrafficAlert(nodeName, remainingGB, 100)
+		})
+		mask |= 1
+		changed = true
+	}
+	if remainingGB < 50 && (mask&2) == 0 {
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendNodeTrafficAlert(nodeName, remainingGB, 50)
+		})
+		mask |= 2
+		changed = true
+	}
+	if remainingGB < 20 && (mask&4) == 0 {
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendNodeTrafficAlert(nodeName, remainingGB, 20)
+		})
+		mask |= 4
+		changed = true
+	}
+
+	if changed {
+		entry.mask = mask
+		_ = h.repo.UpdateNodeTrafficNotifiedMask(nodeID, int(mask))
+	}
 }
 
 // GetForwardConnections 获取指定转发的当前连接数
@@ -154,6 +221,7 @@ func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
 			NetOutSpeed:            info.NetOutSpeed,
 		}
 		h.metrics.RecordNodeMetric(nodeID, metricInfo)
+		h.maybeCheckNodeTraffic(nodeID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
 	})
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)

@@ -272,6 +272,9 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 			OutFlowBefore: node.PeriodRx,
 		})
 
+		_ = h.repo.UpdateNodeTrafficNotifiedMask(node.ID, 0)
+		h.nodeTrafficCache.Delete(node.ID)
+
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficReset(node.Name, "自动周期归零")
 		})

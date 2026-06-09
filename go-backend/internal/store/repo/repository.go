@@ -974,6 +974,7 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"secret":                  n.Secret,
 			"expiryReminderDismissed": n.ExpiryReminderDismissed,
 			"groupId":                 nullableInt64(n.GroupID),
+			"trafficLimit":            n.TrafficLimit,
 			"periodTraffic":           pt,
 		})
 	}

@@ -128,6 +128,8 @@ type Node struct {
 	ExpiryReminderDismissedUntil sql.NullInt64  `gorm:"column:expiry_reminder_dismissed_until"`
 	GroupID                      sql.NullInt64  `gorm:"column:group_id;index:idx_node_group_id"`
 	ServiceName                  sql.NullString `gorm:"column:service_name;type:varchar(100)"`
+	TrafficLimit                 int64          `gorm:"column:traffic_limit;default:0"`
+	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
 }
 
 func (Node) TableName() string { return "node" }

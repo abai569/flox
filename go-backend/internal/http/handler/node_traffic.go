@@ -167,6 +167,9 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 		result.NodeName = node.Name
 		results = append(results, result)
 
+		_ = h.repo.UpdateNodeTrafficNotifiedMask(nodeID, 0)
+		h.nodeTrafficCache.Delete(nodeID)
+
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficReset(node.Name, req.Reason)
 		})

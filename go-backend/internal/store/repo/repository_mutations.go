@@ -292,7 +292,7 @@ func (r *Repository) GetUserDefaultsForTunnel(userID int64) (flow int64, num int
 	return user.Flow, user.Num, user.ExpTime, user.FlowResetTime, nil
 }
 
-func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serverIPV6, port, interfaceName, version, remark, expiryTime, renewalCycle, groupID interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, now int64, status int, tcpAddr, udpAddr string, inx, isRemote int, remoteURL, remoteToken, remoteConfig, extraIPs interface{}) error {
+func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serverIPV6, port, interfaceName, version, remark, expiryTime, renewalCycle, groupID interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, now int64, status int, tcpAddr, udpAddr string, inx, isRemote int, remoteURL, remoteToken, remoteConfig, extraIPs interface{}, trafficLimit int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -324,6 +324,7 @@ func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serve
 		RemoteURL:     nullStringFromInterface(remoteURL),
 		RemoteToken:   nullStringFromInterface(remoteToken),
 		RemoteConfig:  nullStringFromInterface(remoteConfig),
+		TrafficLimit:  trafficLimit,
 	}
 	return r.db.Create(&node).Error
 }
@@ -367,7 +368,7 @@ func (r *Repository) UpdateNodePublicIPs(nodeID int64, ipv4, ipv6 string) error 
 		}).Error
 }
 
-func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, serverIPV6, intranetIP, port, interfaceName, extraIPs, remark, expiryTime, renewalCycle, groupID, secret interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, tcpAddr, udpAddr string, now int64) error {
+func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, serverIPV6, intranetIP, port, interfaceName, extraIPs, remark, expiryTime, renewalCycle, groupID, secret interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, tcpAddr, udpAddr string, now int64, trafficLimit int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -391,6 +392,7 @@ func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, ser
 		"udp_listen_addr":           udpAddr,
 		"updated_time":              sql.NullInt64{Int64: now, Valid: true},
 		"expiry_reminder_dismissed": 0,
+		"traffic_limit":             trafficLimit,
 	}
 	if groupID != nil {
 		updates["group_id"] = groupID
@@ -3335,4 +3337,72 @@ func (r *Repository) cleanupNodeTrafficResetLogs(nodeID int64) error {
 	}
 
 	return nil
+}
+
+type NodeTrafficLimitItem struct {
+	NodeID  int64
+	Name    string
+	LimitGB int64
+	Used    int64
+	Mask    int
+}
+
+func (r *Repository) ListNodesWithTrafficLimit() ([]NodeTrafficLimitItem, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var items []NodeTrafficLimitItem
+	err := r.db.Raw(`
+		SELECT n.id, n.name, n.traffic_limit,
+		       COALESCE(latest.period_rx,0) + COALESCE(latest.period_tx,0) AS used,
+		       n.traffic_notified_mask
+		FROM node n
+		LEFT JOIN (
+		    SELECT nm1.node_id, nm1.period_rx, nm1.period_tx
+		    FROM node_metric nm1
+		    INNER JOIN (
+		        SELECT node_id, MAX(timestamp) AS max_ts
+		        FROM node_metric GROUP BY node_id
+		    ) nm2 ON nm1.node_id = nm2.node_id AND nm1.timestamp = nm2.max_ts
+		) latest ON latest.node_id = n.id
+		WHERE n.traffic_limit > 0
+	`).Scan(&items).Error
+	return items, err
+}
+
+func (r *Repository) GetNodeTrafficLimitInfo(nodeID int64) (*NodeTrafficLimitItem, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var item NodeTrafficLimitItem
+	err := r.db.Raw(`
+		SELECT n.id, n.name, n.traffic_limit,
+		       COALESCE(latest.period_rx,0) + COALESCE(latest.period_tx,0) AS used,
+		       n.traffic_notified_mask
+		FROM node n
+		LEFT JOIN (
+		    SELECT nm1.node_id, nm1.period_rx, nm1.period_tx
+		    FROM node_metric nm1
+		    INNER JOIN (
+		        SELECT node_id, MAX(timestamp) AS max_ts
+		        FROM node_metric GROUP BY node_id
+		    ) nm2 ON nm1.node_id = nm2.node_id AND nm1.timestamp = nm2.max_ts
+		) latest ON latest.node_id = n.id
+		WHERE n.id = ?
+	`, nodeID).Scan(&item).Error
+	if err != nil {
+		return nil, err
+	}
+	if item.NodeID == 0 {
+		return nil, nil
+	}
+	return &item, nil
+}
+
+func (r *Repository) UpdateNodeTrafficNotifiedMask(nodeID int64, mask int) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
+		Update("traffic_notified_mask", mask).Error
 }

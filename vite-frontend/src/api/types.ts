@@ -374,6 +374,7 @@ export interface NodeMutationPayload {
   http?: number;
   tls?: number;
   socks?: number;
+  trafficLimit?: number;
 }
 
 export interface TunnelChainNodePayload {

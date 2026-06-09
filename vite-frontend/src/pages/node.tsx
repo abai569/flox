@@ -169,6 +169,7 @@ interface NodeForm {
   tls: number;
   socks: number;
   secret: string;
+  trafficLimit: number;
 }
 type NodeViewMode = "grid" | "list" | "grouped";
 const EXPIRING_SOON_DAYS = 7;
@@ -371,6 +372,7 @@ export default function NodePage() {
     http: 0,
     tls: 0,
     socks: 0,
+    trafficLimit: 0,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectMode, setSelectMode] = useState(false);
@@ -1033,6 +1035,7 @@ export default function NodePage() {
       http: typeof node.http === "number" ? node.http : 1,
       tls: typeof node.tls === "number" ? node.tls : 1,
       socks: typeof node.socks === "number" ? node.socks : 1,
+      trafficLimit: (node as any).trafficLimit || 0,
     });
     setDialogVisible(true);
   };
@@ -1563,6 +1566,7 @@ export default function NodePage() {
                     http: form.http,
                     tls: form.tls,
                     socks: form.socks,
+                    trafficLimit: form.trafficLimit,
                     expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
                     expiryReminderDismissedUntil:
                       n.expiryReminderDismissedUntil ?? null,
@@ -1602,6 +1606,7 @@ export default function NodePage() {
       http: 0,
       tls: 0,
       socks: 0,
+      trafficLimit: 0,
     });
     setErrors({});
   };
@@ -3159,19 +3164,34 @@ export default function NodePage() {
                       }
                     />
                     <Input
-                      description="多IP服务器可填写额外IP地址，逗号分隔"
-                      label="额外IP地址"
-                      placeholder="例如: 192.168.1.100, 10.0.0.5"
-                      value={form.extraIPs}
-                      variant="bordered"
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          extraIPs: e.target.value,
-                        }))
-                      }
-                    />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        description="多IP服务器可填写额外IP地址，逗号分隔"
+                        label="额外IP地址"
+                        placeholder="例如: 192.168.1.100, 10.0.0.5"
+                        value={form.extraIPs}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            extraIPs: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="该节点总流量配额，剩余低于100G/50G/20G时分别推送电报通知，0表示不限制"
+                        label="流量限额(GB)"
+                        placeholder="0 = 不限制"
+                        type="number"
+                        min={0}
+                        value={String(form.trafficLimit)}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            trafficLimit: parseInt(e.target.value) || 0,
+                          }))
+                        }
+                      />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         errorMessage={errors.tcpListenAddr}
                         isInvalid={!!errors.tcpListenAddr}

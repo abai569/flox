@@ -745,6 +745,7 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
 		nullableText(asString(req["remoteToken"])),
 		nullableText(asString(req["remoteConfig"])),
 		nullableText(asString(req["extraIPs"])),
+		asInt64(req["trafficLimit"], 0),
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -851,6 +852,7 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 		defaultString(asString(req["tcpListenAddr"]), "[::]"),
 		defaultString(asString(req["udpListenAddr"]), "[::]"),
 		now,
+		asInt64(req["trafficLimit"], 0),
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -859,6 +861,8 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 	if secret != nil && secret != "" && oldSecret != "" && secret.(string) != oldSecret {
 		h.wsServer.DisconnectNode(id)
 	}
+
+	h.nodeTrafficCache.Delete(id)
 
 	response.WriteJSON(w, response.OKEmpty())
 }
