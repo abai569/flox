@@ -211,19 +211,19 @@ func (h *Handler) nodeUpgrade(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 获取自定义全局加速地址
+	// Auto-detect network environment and build multi-source download URLs
+	domesticURL, _ := h.repo.GetViteConfigValue("domestic_download_url")
+	if domesticURL == "" {
+		domesticURL = chfsBaseURL
+	}
 	globalURL, _ := h.repo.GetViteConfigValue("global_download_url")
 	if globalURL == "" {
-		globalURL = "https://ghfast.top"
+		globalURL = ghFastURL
 	}
 
-	// 构建下载源（只使用全局加速地址）
-	downloadURLs := []string{
-		fmt.Sprintf("%s/https://github.com/%s/releases/download/%s/gost-{ARCH}", globalURL, githubRepo, version),
-	}
-	checksumURLs := []string{
-		fmt.Sprintf("%s/https://github.com/%s/releases/download/%s/gost-{ARCH}.sha256", globalURL, githubRepo, version),
-	}
+	networkEnv := detectNetworkEnvironment()
+	proxyURLs := resolveGitHubProxyURLs(h.repo)
+	downloadURLs, checksumURLs := buildUpgradeDownloadURLs(version, networkEnv, domesticURL, globalURL, proxyURLs)
 
 	result, err := h.wsServer.SendCommand(req.ID, "UpgradeAgent", map[string]interface{}{
 		"downloadUrls": downloadURLs,
@@ -280,19 +280,19 @@ func (h *Handler) nodeBatchUpgrade(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 获取自定义全局加速地址
+	// Auto-detect network environment and build multi-source download URLs
+	domesticURL, _ := h.repo.GetViteConfigValue("domestic_download_url")
+	if domesticURL == "" {
+		domesticURL = chfsBaseURL
+	}
 	globalURL, _ := h.repo.GetViteConfigValue("global_download_url")
 	if globalURL == "" {
-		globalURL = "https://ghfast.top"
+		globalURL = ghFastURL
 	}
 
-	// 构建下载源（只使用全局加速地址）
-	downloadURLs := []string{
-		fmt.Sprintf("%s/https://github.com/%s/releases/download/%s/gost-{ARCH}", globalURL, githubRepo, version),
-	}
-	checksumURLs := []string{
-		fmt.Sprintf("%s/https://github.com/%s/releases/download/%s/gost-{ARCH}.sha256", globalURL, githubRepo, version),
-	}
+	networkEnv := detectNetworkEnvironment()
+	proxyURLs := resolveGitHubProxyURLs(h.repo)
+	downloadURLs, checksumURLs := buildUpgradeDownloadURLs(version, networkEnv, domesticURL, globalURL, proxyURLs)
 
 	if len(downloadURLs) == 0 {
 		response.WriteJSON(w, response.ErrDefault("构建下载源失败"))
@@ -319,6 +319,7 @@ func (h *Handler) nodeBatchUpgrade(w http.ResponseWriter, r *http.Request) {
 			result, err := h.wsServer.SendCommand(nodeID, "UpgradeAgent", map[string]interface{}{
 				"downloadUrls": downloadURLs,
 				"checksumUrls": checksumURLs,
+				"version":      version,
 			}, upgradeTimeout)
 			if err != nil {
 				results[index] = upgradeResult{ID: nodeID, Success: false, Message: err.Error()}
