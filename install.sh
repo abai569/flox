@@ -225,9 +225,11 @@ build_download_url() {
 show_download_source() {
     local url="$1"
     if [[ "$url" == *"chfs.646321.xyz"* ]]; then
-        echo "🌏 正在通过国内镜像源下载 ${SERVICE_NAME} 中..."
+        echo "📦 正在通过 CHFS 镜像源下载 ${SERVICE_NAME} 中..."
+    elif [[ "$url" == *"ghfast.top"* ]] || [[ "$url" == *"gh-proxy"* ]] || [[ "$url" == *"git-proxy"* ]]; then
+        echo "🚀 正在通过 GitHub 加速代理下载 ${SERVICE_NAME} 中..."
     elif [[ "$url" == *"github.com"* ]]; then
-        echo "🌍 正在通过 GitHub 镜像源下载 ${SERVICE_NAME} 中..."
+        echo "🌍 正在通过 GitHub 下载 ${SERVICE_NAME} 中..."
     else
         echo "🌐 正在通过自定义镜像源下载 ${SERVICE_NAME} 中..."
     fi

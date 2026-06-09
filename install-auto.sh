@@ -208,8 +208,8 @@ for host in "${DOWNLOAD_HOSTS[@]}"; do
   fi
 done
 
-echo "❌ 所有下载源都失败，请检查网络连接"
+echo " 所有下载源都失败，请检查网络连接"
 echo "💡 提示：可以尝试手动指定下载源"
-echo "   国内用户：curl -L https://chfs.646321.xyz:8/chfs/shared/flvx/install.sh -o ./install.sh"
-echo "   海外用户：curl -L https://github.com/abai569/flvx/releases/latest/download/install.sh -o ./install.sh"
+echo "   推荐：curl -L https://chfs.646321.xyz:8/chfs/shared/flvx/install.sh -o ./install.sh"
+echo "   备用：curl -L https://github.com/abai569/flvx/releases/latest/download/install.sh -o ./install.sh"
 exit 1
