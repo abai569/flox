@@ -99,6 +99,17 @@ jobs:
           sudo mv upx-4.2.1-amd64_linux/upx /usr/local/bin/
           rm -rf upx-4.2.1-amd64_linux*
 
+      - name: Checkout closed repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flvx-closed
+          path: closed
+          token: ${{ secrets.CLOSED_REPO_PAT }}
+
+      - name: Merge closed source
+        shell: pwsh
+        run: ./closed/scripts/merge-closed.ps1 -RootDir ${{ github.workspace }}
+
       - name: Build GOST binary (AMD64)
         working-directory: ./go-gost
         run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ needs.check-version.outputs.version }}" -o gost-amd64
