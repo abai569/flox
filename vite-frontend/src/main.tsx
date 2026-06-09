@@ -6,7 +6,18 @@ import App from "./App.tsx";
 import { Provider } from "./provider.tsx";
 import "@/styles/globals.css";
 
-registerSW({ immediate: true });
+let refreshing = false;
+registerSW({
+  immediate: true,
+  onRegisteredSW(_swUrl: string, registration: ServiceWorkerRegistration | undefined) {
+    if (!registration) return;
+    registration.addEventListener("controllerchange", () => {
+      if (refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
+  },
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <BrowserRouter>

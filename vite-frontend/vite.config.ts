@@ -68,6 +68,11 @@ export default defineConfig({
     minify: false,
     rollupOptions: {
       treeshake: false,
+      output: {
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
     },
   },
 });
