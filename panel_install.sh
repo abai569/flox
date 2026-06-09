@@ -225,18 +225,43 @@ get_docker_compose_url() {
 check_docker() {
   if command -v docker-compose &> /dev/null; then
     DOCKER_CMD="docker-compose"
+    echo "检测到 Docker 命令：$DOCKER_CMD"
+    return 0
   elif command -v docker &> /dev/null; then
     if docker compose version &> /dev/null; then
       DOCKER_CMD="docker compose"
+      echo "检测到 Docker 命令：$DOCKER_CMD"
+      return 0
     else
-      echo "错误：检测到 docker，但不支持 'docker compose' 命令。请安装 docker-compose 或更新 docker 版本。"
-      exit 1
+      echo "⚠️  检测到 docker，但不支持 'docker compose' 命令，尝试安装 docker-compose 插件..."
+      install_docker_compose_plugin
+      DOCKER_CMD="docker compose"
+      echo "检测到 Docker 命令：$DOCKER_CMD"
+      return 0
     fi
-  else
-    echo "错误：未检测到 docker 或 docker-compose 命令。请先安装 Docker。"
-    exit 1
   fi
-  echo "检测到 Docker 命令：$DOCKER_CMD"
+
+  echo "🔧 未检测到 Docker，开始自动安装..."
+  install_docker
+  if command -v docker &> /dev/null && docker compose version &> /dev/null; then
+    DOCKER_CMD="docker compose"
+    echo "✅ Docker 安装成功"
+    echo "检测到 Docker 命令：$DOCKER_CMD"
+    return 0
+  fi
+
+  echo "❌ Docker 自动安装失败，请手动安装后重试"
+  exit 1
+}
+
+install_docker() {
+  curl -fsSL https://get.docker.com | bash -s docker --mirror Aliyun
+  ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
+  systemctl enable --now docker
+}
+
+install_docker_compose_plugin() {
+  ln -sf /usr/libexec/docker/cli-plugins/docker-compose /usr/local/bin/docker-compose
 }
 
 # 检测系统是否支持 IPv6
