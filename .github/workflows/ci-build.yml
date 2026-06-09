@@ -16,6 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout mall repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flvx-mall
+          path: mall
+          token: ${{ secrets.MALL_REPO_PAT }}
+
+      - name: Merge mall source
+        shell: pwsh
+        run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -35,6 +46,17 @@ jobs:
         working-directory: go-backend
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mall repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flvx-mall
+          path: mall
+          token: ${{ secrets.MALL_REPO_PAT }}
+
+      - name: Merge mall source
+        shell: pwsh
+        run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -70,6 +92,17 @@ jobs:
         working-directory: go-backend
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout mall repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flvx-mall
+          path: mall
+          token: ${{ secrets.MALL_REPO_PAT }}
+
+      - name: Merge mall source
+        shell: pwsh
+        run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
