@@ -292,9 +292,12 @@ func (r *Repository) GetUserDefaultsForTunnel(userID int64) (flow int64, num int
 	return user.Flow, user.Num, user.ExpTime, user.FlowResetTime, nil
 }
 
-func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serverIPV6, port, interfaceName, version, remark, expiryTime, renewalCycle, groupID interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, now int64, status int, tcpAddr, udpAddr string, inx, isRemote int, remoteURL, remoteToken, remoteConfig, extraIPs interface{}, trafficLimit int64) error {
+func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serverIPV6, port, interfaceName, version, remark, expiryTime, renewalCycle, groupID interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, now int64, status int, tcpAddr, udpAddr string, inx, isRemote int, remoteURL, remoteToken, remoteConfig, extraIPs interface{}, trafficLimit int64, flowResetTime int) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
+	}
+	if flowResetTime <= 0 {
+		flowResetTime = 1
 	}
 	node := model.Node{
 		Name:          name,
@@ -325,6 +328,7 @@ func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serve
 		RemoteToken:   nullStringFromInterface(remoteToken),
 		RemoteConfig:  nullStringFromInterface(remoteConfig),
 		TrafficLimit:  trafficLimit,
+		FlowResetTime: flowResetTime,
 	}
 	return r.db.Create(&node).Error
 }
@@ -368,7 +372,7 @@ func (r *Repository) UpdateNodePublicIPs(nodeID int64, ipv4, ipv6 string) error 
 		}).Error
 }
 
-func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, serverIPV6, intranetIP, port, interfaceName, extraIPs, remark, expiryTime, renewalCycle, groupID, secret interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, tcpAddr, udpAddr string, now int64, trafficLimit int64) error {
+func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, serverIPV6, intranetIP, port, interfaceName, extraIPs, remark, expiryTime, renewalCycle, groupID, secret interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, tcpAddr, udpAddr string, now int64, trafficLimit int64, flowResetTime int) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -393,6 +397,7 @@ func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, ser
 		"updated_time":              sql.NullInt64{Int64: now, Valid: true},
 		"expiry_reminder_dismissed": 0,
 		"traffic_limit":             trafficLimit,
+		"flow_reset_time":           flowResetTime,
 	}
 	if groupID != nil {
 		updates["group_id"] = groupID

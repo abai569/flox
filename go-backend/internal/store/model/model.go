@@ -130,6 +130,7 @@ type Node struct {
 	ServiceName                  sql.NullString `gorm:"column:service_name;type:varchar(100)"`
 	TrafficLimit                 int64          `gorm:"column:traffic_limit;default:0"`
 	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
+	FlowResetTime                int            `gorm:"column:flow_reset_time;not null;default:1"`
 }
 
 func (Node) TableName() string { return "node" }

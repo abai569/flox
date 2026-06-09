@@ -746,6 +746,7 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
 		nullableText(asString(req["remoteConfig"])),
 		nullableText(asString(req["extraIPs"])),
 		asInt64(req["trafficLimit"], 0),
+		asInt(req["flowResetTime"], 1),
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -853,6 +854,7 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 		defaultString(asString(req["udpListenAddr"]), "[::]"),
 		now,
 		asInt64(req["trafficLimit"], 0),
+		asInt(req["flowResetTime"], 1),
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return

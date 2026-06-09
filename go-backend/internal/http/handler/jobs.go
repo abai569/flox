@@ -234,7 +234,10 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 		return
 	}
 
-	nodes, err := h.repo.ListNodesWithTrafficResetDue(now)
+	currentDay := now.Day()
+	lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, now.Location()).Day()
+
+	nodes, err := h.repo.ListNodeMonthlyFlowResetDue(currentDay, lastDay)
 	if err != nil || len(nodes) == 0 {
 		return
 	}

@@ -975,6 +975,7 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"expiryReminderDismissed": n.ExpiryReminderDismissed,
 			"groupId":                 nullableInt64(n.GroupID),
 			"trafficLimit":            n.TrafficLimit,
+			"flowResetTime":           n.FlowResetTime,
 			"periodTraffic":           pt,
 		})
 	}
@@ -4397,13 +4398,10 @@ type NodeTrafficResetDue struct {
 	PeriodTx int64
 }
 
-func (r *Repository) ListNodesWithTrafficResetDue(now time.Time) ([]NodeTrafficResetDue, error) {
+func (r *Repository) ListNodeMonthlyFlowResetDue(currentDay int, lastDay int) ([]NodeTrafficResetDue, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
-
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).UnixMilli()
-	endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 999, now.Location()).UnixMilli()
 
 	nodes := make([]NodeTrafficResetDue, 0)
 
@@ -4422,17 +4420,18 @@ func (r *Repository) ListNodesWithTrafficResetDue(now time.Time) ([]NodeTrafficR
 		    ) nm2 ON nm1.node_id = nm2.node_id AND nm1.timestamp = nm2.max_ts
 		) latest ON latest.node_id = n.id
 		WHERE n.status = 1
-		  AND n.expiry_time >= ?
-		  AND n.expiry_time <= ?
-		  AND n.renewal_cycle IN ('month', 'quarter', 'halfyear', 'year')
+		  AND n.flow_reset_time != 0
 	`
 
-	err := r.db.Raw(query, startOfDay, endOfDay).Scan(&nodes).Error
-	if err != nil {
-		return nil, err
+	if currentDay == lastDay {
+		query += ` AND (n.flow_reset_time = ? OR n.flow_reset_time > ?)`
+		err := r.db.Raw(query, currentDay, lastDay).Scan(&nodes).Error
+		return nodes, err
 	}
 
-	return nodes, nil
+	query += ` AND n.flow_reset_time = ?`
+	err := r.db.Raw(query, currentDay).Scan(&nodes).Error
+	return nodes, err
 }
 
 func (r *Repository) getNodeExpiryTime(nodeID int64) int64 {

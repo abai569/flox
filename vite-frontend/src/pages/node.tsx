@@ -119,6 +119,7 @@ interface Node {
   remark?: string;
   expiryTime?: number;
   renewalCycle?: NodeRenewalCycle;
+  flowResetTime?: number;
   expiryReminderDismissed?: number;
   expiryReminderDismissedUntil: number | null;
   ip: string;
@@ -156,6 +157,7 @@ interface NodeForm {
   remark: string;
   expiryTime: number;
   renewalCycle: NodeRenewalCycle;
+  flowResetTime: number;
   groupId: number | null;
   intranetIp: string;
   serverIpV4: string;
@@ -373,6 +375,7 @@ export default function NodePage() {
     tls: 0,
     socks: 0,
     trafficLimit: 0,
+    flowResetTime: 1,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectMode, setSelectMode] = useState(false);
@@ -1036,6 +1039,7 @@ export default function NodePage() {
       tls: typeof node.tls === "number" ? node.tls : 1,
       socks: typeof node.socks === "number" ? node.socks : 1,
       trafficLimit: (node as any).trafficLimit || 0,
+      flowResetTime: node.flowResetTime || 1,
     });
     setDialogVisible(true);
   };
@@ -1567,6 +1571,7 @@ export default function NodePage() {
                     tls: form.tls,
                     socks: form.socks,
                     trafficLimit: form.trafficLimit,
+                    flowResetTime: form.flowResetTime,
                     expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
                     expiryReminderDismissedUntil:
                       n.expiryReminderDismissedUntil ?? null,
@@ -1607,6 +1612,7 @@ export default function NodePage() {
       tls: 0,
       socks: 0,
       trafficLimit: 0,
+      flowResetTime: 1,
     });
     setErrors({});
   };
@@ -3085,6 +3091,33 @@ export default function NodePage() {
                     }}
                   />
                 </DatePicker>
+                <Select
+                  description="每月几号自动归零周期流量（1-28，设为0则不归零）"
+                  label="流量归零日期"
+                  placeholder="选择归零日期"
+                  selectedKeys={
+                    form.flowResetTime > 0
+                      ? [String(form.flowResetTime)]
+                      : ["0"]
+                  }
+                  variant="bordered"
+                  onSelectionChange={(keys) => {
+                    const selected = Array.from(keys)[0] as string | undefined;
+                    setForm((prev) => ({
+                      ...prev,
+                      flowResetTime: selected ? parseInt(selected) : 1,
+                    }));
+                  }}
+                >
+                  <SelectItem key="0" textValue="不归零">
+                    不归零
+                  </SelectItem>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                    <SelectItem key={String(day)} textValue={`${day}号`}>
+                      每月{day}号
+                    </SelectItem>
+                  ))}
+                </Select>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input

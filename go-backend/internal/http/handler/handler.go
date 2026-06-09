@@ -2052,7 +2052,7 @@ func (h *Handler) nodeInfo(w http.ResponseWriter, r *http.Request) {
 		"id":           node.ID,
 		"name":         node.Name,
 		"secret":       secret,
-		"renewalCycle": node.RenewalCycle.String,
+		"renewalCycle": "month",
 		"expiryTime":   node.ExpiryTime.Int64,
 	}))
 }
