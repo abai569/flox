@@ -276,10 +276,10 @@ const SortableItem = ({
   const style: React.CSSProperties = {
     transform: transform
       ? CSS.Transform.toString({
-          ...transform,
-          x: Math.round(transform.x),
-          y: Math.round(transform.y),
-        })
+        ...transform,
+        x: Math.round(transform.x),
+        y: Math.round(transform.y),
+      })
       : undefined,
     transition: isDragging ? undefined : transition || undefined,
     opacity: isDragging ? 0.5 : 1,
@@ -534,7 +534,7 @@ export default function NodePage() {
 
         if (inFlow > 0 || outFlow > 0) {
           recordNodeOfflineLog(nodeId, inFlow, outFlow, "节点离线").catch(
-            () => {},
+            () => { },
           );
         }
 
@@ -777,7 +777,7 @@ export default function NodePage() {
             });
           }
         }
-      } catch {}
+      } catch { }
     } else if (type === "panel_upgrade_progress") {
       try {
         const progressData =
@@ -797,7 +797,7 @@ export default function NodePage() {
             }),
           );
         }
-      } catch {}
+      } catch { }
     } else if (type === "metric") {
       clearOfflineTimer(nodeId);
       const metric =
@@ -810,27 +810,27 @@ export default function NodePage() {
             ...prev[nodeId],
             uploadTraffic: Number(
               metric.netOutBytes ??
-                metric.bytes_transmitted ??
-                prev[nodeId]?.uploadTraffic ??
-                0,
+              metric.bytes_transmitted ??
+              prev[nodeId]?.uploadTraffic ??
+              0,
             ),
             downloadTraffic: Number(
               metric.netInBytes ??
-                metric.bytes_received ??
-                prev[nodeId]?.downloadTraffic ??
-                0,
+              metric.bytes_received ??
+              prev[nodeId]?.downloadTraffic ??
+              0,
             ),
             // 周期流量（新字段）
             periodTraffic:
               metric.period_bytes_received !== undefined ||
-              metric.period_bytes_transmitted !== undefined
+                metric.period_bytes_transmitted !== undefined
                 ? {
-                    rx: Number(metric.period_bytes_received ?? 0),
-                    tx: Number(metric.period_bytes_transmitted ?? 0),
-                    since: metric.baseline_recorded_at || 0,
-                    nextReset: metric.next_reset_at || 0,
-                    cycle: metric.renewal_cycle || "",
-                  }
+                  rx: Number(metric.period_bytes_received ?? 0),
+                  tx: Number(metric.period_bytes_transmitted ?? 0),
+                  since: metric.baseline_recorded_at || 0,
+                  nextReset: metric.next_reset_at || 0,
+                  cycle: metric.renewal_cycle || "",
+                }
                 : prev[nodeId]?.periodTraffic,
           },
         };
@@ -1553,29 +1553,29 @@ export default function NodePage() {
             prev.map((n) =>
               n.id === form.id
                 ? ({
-                    ...n,
-                    name: form.name,
-                    remark: form.remark.trim(),
-                    expiryTime: form.expiryTime,
-                    renewalCycle: form.renewalCycle,
-                    groupId: form.groupId,
-                    intranetIp: form.intranetIp?.trim(),
-                    serverIpV4: form.serverIpV4,
-                    serverIpV6: form.serverIpV6,
-                    port: form.port,
-                    tcpListenAddr: form.tcpListenAddr,
-                    udpListenAddr: form.udpListenAddr,
-                    interfaceName: form.interfaceName,
-                    secret: form.secret || n.secret,
-                    http: form.http,
-                    tls: form.tls,
-                    socks: form.socks,
-                    trafficLimit: form.trafficLimit,
-                    flowResetTime: form.flowResetTime,
-                    expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
-                    expiryReminderDismissedUntil:
-                      n.expiryReminderDismissedUntil ?? null,
-                  } as Node)
+                  ...n,
+                  name: form.name,
+                  remark: form.remark.trim(),
+                  expiryTime: form.expiryTime,
+                  renewalCycle: form.renewalCycle,
+                  groupId: form.groupId,
+                  intranetIp: form.intranetIp?.trim(),
+                  serverIpV4: form.serverIpV4,
+                  serverIpV6: form.serverIpV6,
+                  port: form.port,
+                  tcpListenAddr: form.tcpListenAddr,
+                  udpListenAddr: form.udpListenAddr,
+                  interfaceName: form.interfaceName,
+                  secret: form.secret || n.secret,
+                  http: form.http,
+                  tls: form.tls,
+                  socks: form.socks,
+                  trafficLimit: form.trafficLimit,
+                  flowResetTime: form.flowResetTime,
+                  expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
+                  expiryReminderDismissedUntil:
+                    n.expiryReminderDismissedUntil ?? null,
+                } as Node)
                 : n,
             ),
           );
@@ -1800,12 +1800,12 @@ export default function NodePage() {
     const groupFiltered =
       filterGroupId !== null
         ? keywordFiltered.filter((node) => {
-            if (filterGroupId === -1) {
-              return !node.groupId || node.groupId === 0;
-            }
+          if (filterGroupId === -1) {
+            return !node.groupId || node.groupId === 0;
+          }
 
-            return node.groupId === filterGroupId;
-          })
+          return node.groupId === filterGroupId;
+        })
         : keywordFiltered;
 
     if (nodeFilterMode === "all") {
@@ -1883,11 +1883,11 @@ export default function NodePage() {
     const hasRemark = Boolean(node.remark?.trim());
     const hasExpiryInfo = Boolean(
       node.expiryTime &&
-        node.expiryTime > 0 &&
-        node.renewalCycle &&
-        (node.expiryReminderDismissed !== 1 ||
-          (node.expiryReminderDismissedUntil &&
-            node.expiryReminderDismissedUntil * 1000 < Date.now())),
+      node.expiryTime > 0 &&
+      node.renewalCycle &&
+      (node.expiryReminderDismissed !== 1 ||
+        (node.expiryReminderDismissedUntil &&
+          node.expiryReminderDismissedUntil * 1000 < Date.now())),
     );
     const hasInfoTrigger = hasRemark || hasExpiryInfo;
     const infoPlacement = infoPopoverPlacement[node.id] ?? "left";
@@ -1895,9 +1895,8 @@ export default function NodePage() {
     return (
       <Card
         key={node.id}
-        className={`group relative overflow-visible shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 h-full flex flex-col ${
-          node.expiryReminderDismissed ? "" : expiryMeta.accentClassName
-        }`}
+        className={`group relative overflow-visible shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 h-full flex flex-col ${node.expiryReminderDismissed ? "" : expiryMeta.accentClassName
+          }`}
         data-node-card="true"
       >
         <CardHeader className="pb-3 md:pb-3">
@@ -2025,11 +2024,10 @@ export default function NodePage() {
             </div>
             <div className="flex items-center gap-2">
               <span
-                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                  connectionStatusMeta.color === "success"
+                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${connectionStatusMeta.color === "success"
                     ? "bg-emerald-500"
                     : "bg-rose-500"
-                }`}
+                  }`}
                 title={connectionStatusMeta.text}
               />
               {/* 这里加上 title 属性 */}
@@ -2231,98 +2229,98 @@ export default function NodePage() {
               <span className="font-medium text-sm text-danger-600 dark:text-danger-400">
                 {realtimeNodeMetrics[node.id]
                   ? formatTraffic(
-                      (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
-                        (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
-                    )
+                    (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
+                    (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
+                  )
                   : "-"}
               </span>
             </div>
             {realtimeNodeMetrics[node.id]?.periodTraffic && (
-                <div className="text-xs text-default-500 space-y-0.5 mt-1">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <span>↑ 上行</span>
-                      <span className="font-medium text-success-600 dark:text-success-400">
-                        {formatTraffic(
-                          realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0,
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span>↓ 下行</span>
-                      <span className="font-medium text-primary-600 dark:text-primary-400">
-                        {formatTraffic(
-                          realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0,
-                        )}
-                      </span>
-                    </div>
+              <div className="text-xs text-default-500 space-y-0.5 mt-1">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span>↑ 上行</span>
+                    <span className="font-medium text-success-600 dark:text-success-400">
+                      {formatTraffic(
+                        realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0,
+                      )}
+                    </span>
                   </div>
-                  {(() => {
-                    const pt = realtimeNodeMetrics[node.id]?.periodTraffic;
+                  <div className="flex items-center gap-2">
+                    <span>↓ 下行</span>
+                    <span className="font-medium text-primary-600 dark:text-primary-400">
+                      {formatTraffic(
+                        realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0,
+                      )}
+                    </span>
+                  </div>
+                </div>
+                {(() => {
+                  const pt = realtimeNodeMetrics[node.id]?.periodTraffic;
 
-                    if (!pt) return null;
+                  if (!pt) return null;
 
-                    // 智能解析后端时间
-                    const parseBackendTime = (ts: any) => {
-                      if (!ts) return 0;
-                      let num = Number(ts);
+                  // 智能解析后端时间
+                  const parseBackendTime = (ts: any) => {
+                    if (!ts) return 0;
+                    let num = Number(ts);
 
-                      if (isNaN(num)) return 0;
-                      if (Math.abs(num) < 100000000000) num *= 1000;
+                    if (isNaN(num)) return 0;
+                    if (Math.abs(num) < 100000000000) num *= 1000;
 
-                      return num > 0 && new Date(num).getFullYear() > 1970
-                        ? num
-                        : 0;
-                    };
+                    return num > 0 && new Date(num).getFullYear() > 1970
+                      ? num
+                      : 0;
+                  };
 
-                    const backendSince = parseBackendTime(pt.since);
-                    const backendNext = parseBackendTime(pt.nextReset);
-                    const displayNext =
-                      backendNext > 0 ? backendNext : expiryMeta?.nextDueTime;
+                  const backendSince = parseBackendTime(pt.since);
+                  const backendNext = parseBackendTime(pt.nextReset);
+                  const displayNext =
+                    backendNext > 0 ? backendNext : expiryMeta?.nextDueTime;
 
-                    // 核心修改：精准干掉时分秒，只保留年月日 (YYYY/M/D)
-                    const formatDateOnly = (ts: any) => {
-                      if (!ts) return "-";
-                      const d = new Date(ts);
-
-                      return (
-                        d.getFullYear() +
-                        "/" +
-                        (d.getMonth() + 1) +
-                        "/" +
-                        d.getDate()
-                      );
-                    };
-
-                    if (!backendSince && !displayNext) return null;
+                  // 核心修改：精准干掉时分秒，只保留年月日 (YYYY/M/D)
+                  const formatDateOnly = (ts: any) => {
+                    if (!ts) return "-";
+                    const d = new Date(ts);
 
                     return (
-                      <div className="flex justify-between items-center mt-1">
-                        {backendSince > 0 ? (
-                          <div className="flex items-center gap-1.5">
-                            <span>周期始于</span>
-                            <span className="font-medium text-foreground">
-                              {formatDateOnly(backendSince)}
-                            </span>
-                          </div>
-                        ) : (
-                          <div />
-                        )}
-                        {displayNext && displayNext > 0 ? (
-                          <div className="flex items-center gap-1.5">
-                            <span>下次归零</span>
-                            <span className="font-medium text-primary">
-                              {formatDateOnly(displayNext)}
-                            </span>
-                          </div>
-                        ) : (
-                          <div />
-                        )}
-                      </div>
+                      d.getFullYear() +
+                      "/" +
+                      (d.getMonth() + 1) +
+                      "/" +
+                      d.getDate()
                     );
-                  })()}
-                </div>
-              )}
+                  };
+
+                  if (!backendSince && !displayNext) return null;
+
+                  return (
+                    <div className="flex justify-between items-center mt-1">
+                      {backendSince > 0 ? (
+                        <div className="flex items-center gap-1.5">
+                          <span>周期始于</span>
+                          <span className="font-medium text-foreground">
+                            {formatDateOnly(backendSince)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div />
+                      )}
+                      {displayNext && displayNext > 0 ? (
+                        <div className="flex items-center gap-1.5">
+                          <span>下次归零</span>
+                          <span className="font-medium text-primary">
+                            {formatDateOnly(displayNext)}
+                          </span>
+                        </div>
+                      ) : (
+                        <div />
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
             {upgradeProgress[node.id] &&
               upgradeProgress[node.id].percent < 100 && (
                 <div className="mt-1">
@@ -2441,15 +2439,14 @@ export default function NodePage() {
               {hasExpiryInfo && (
                 <div className="flex items-center text-xs ml-auto flex-shrink-0">
                   <span
-                    className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${
-                      expiryMeta.tone === "danger"
+                    className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${expiryMeta.tone === "danger"
                         ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
                         : expiryMeta.tone === "warning"
                           ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
                           : expiryMeta.tone === "success"
                             ? "bg-success-500/10 text-success-600 dark:text-success-400"
                             : "bg-default-500/10 text-default-500"
-                    }`}
+                      }`}
                   >
                     {expiryMeta.label}
                   </span>
@@ -2586,19 +2583,19 @@ export default function NodePage() {
                 {(nodeFilterMode !== "all" ||
                   filterGroupId !== null ||
                   localSearchKeyword.trim()) && (
-                  <Button
-                    color="warning"
-                    size="sm"
-                    variant="flat"
-                    onPress={() => {
-                      resetNodeFilterMode();
-                      setFilterGroupId(null);
-                      setLocalSearchKeyword("");
-                    }}
-                  >
-                    重置
-                  </Button>
-                )}
+                    <Button
+                      color="warning"
+                      size="sm"
+                      variant="flat"
+                      onPress={() => {
+                        resetNodeFilterMode();
+                        setFilterGroupId(null);
+                        setLocalSearchKeyword("");
+                      }}
+                    >
+                      重置
+                    </Button>
+                  )}
               </>
             )}
           </div>
@@ -3092,7 +3089,7 @@ export default function NodePage() {
                   />
                 </DatePicker>
                 <Select
-                  description="每月几号自动归零周期流量（1-28，设为0则不归零）"
+                  description="每月几号自动归零周期流量"
                   label="流量归零日期"
                   placeholder="选择归零日期"
                   selectedKeys={
@@ -3118,6 +3115,21 @@ export default function NodePage() {
                     </SelectItem>
                   ))}
                 </Select>
+                <Input
+                  description="该节点总流量配额，0表示不限制"
+                  label="流量限额(GB)"
+                  placeholder="0 = 不限制"
+                  type="number"
+                  min={0}
+                  value={String(form.trafficLimit)}
+                  variant="bordered"
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      trafficLimit: parseInt(e.target.value) || 0,
+                    }))
+                  }
+                />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input
@@ -3136,7 +3148,7 @@ export default function NodePage() {
                   classNames={{
                     input: "font-medium",
                   }}
-                  description="支持单个端口 (80)、多个端口 (80,443) 或端口范围 (10000-65535)，多个可用逗号分隔"
+                  description="支持单个端口(80)、多个端口(80,443)或端口范围(10000-65535)，多个范围可用逗号分隔"
                   errorMessage={errors.port}
                   isInvalid={!!errors.port}
                   label="可用端口"
@@ -3180,53 +3192,38 @@ export default function NodePage() {
                   aria-label="高级配置"
                   title="高级配置"
                 >
-                    <div className="space-y-4 pb-2 px-[12px]">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Input
-                          description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
-                          errorMessage={errors.interfaceName}
-                          isInvalid={!!errors.interfaceName}
-                          label="出口网卡名或IP"
-                          placeholder="请输入出口网卡名或IP"
-                          value={form.interfaceName}
-                          variant="bordered"
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              interfaceName: e.target.value,
-                            }))
-                          }
-                        />
-                        <Input
-                          description="多IP服务器可填写额外IP地址，逗号分隔"
-                          label="额外IP地址"
-                          placeholder="例如: 192.168.1.100, 10.0.0.5"
-                          value={form.extraIPs}
-                          variant="bordered"
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              extraIPs: e.target.value,
-                            }))
-                          }
-                        />
-                        <Input
-                          description="该节点总流量配额，剩余低于100G/50G/20G时分别推送电报通知，0表示不限制"
-                          label="流量限额(GB)"
-                          placeholder="0 = 不限制"
-                          type="number"
-                          min={0}
-                          value={String(form.trafficLimit)}
-                          variant="bordered"
-                          onChange={(e) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              trafficLimit: parseInt(e.target.value) || 0,
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-4 pb-2 px-[12px]">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
+                        errorMessage={errors.interfaceName}
+                        isInvalid={!!errors.interfaceName}
+                        label="出口网卡名或IP"
+                        placeholder="请输入出口网卡名或IP"
+                        value={form.interfaceName}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            interfaceName: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="多IP服务器可填写额外IP地址，逗号分隔"
+                        label="额外IP地址"
+                        placeholder="例如: 192.168.1.100, 10.0.0.5"
+                        value={form.extraIPs}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            extraIPs: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         errorMessage={errors.tcpListenAddr}
                         isInvalid={!!errors.tcpListenAddr}
@@ -3739,7 +3736,7 @@ export default function NodePage() {
                                 总{" "}
                                 {formatTraffic(
                                   (log.inFlowBefore || 0) +
-                                    (log.outFlowBefore || 0),
+                                  (log.outFlowBefore || 0),
                                 )}
                               </span>
                             </div>
