@@ -266,8 +266,8 @@ commit.sh
 analysis/
 sql/
 
-# Private mall module — never committed
-mall/
+# Private closed-source module — never committed
+closed/
 scripts/
 
 !go-backend/internal/store/sqlite/sql/
@@ -284,3 +284,4 @@ go-backend/gost.db-wal
 docs/node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+plans/

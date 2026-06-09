@@ -16,17 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Checkout mall repo
+      - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-mall
-          path: mall
-          token: ${{ secrets.MALL_REPO_PAT }}
+          repository: abai569/flvx-closed
+          path: closed
+          token: ${{ secrets.CLOSED_REPO_PAT }}
 
-      - name: Merge mall source
+      - name: Merge closed source
         shell: pwsh
         working-directory: ${{ github.workspace }}
-        run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
+        run: ./closed/scripts/merge-closed.ps1 -RootDir ${{ github.workspace }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,17 +48,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Checkout mall repo
+      - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-mall
-          path: mall
-          token: ${{ secrets.MALL_REPO_PAT }}
+          repository: abai569/flvx-closed
+          path: closed
+          token: ${{ secrets.CLOSED_REPO_PAT }}
 
-      - name: Merge mall source [backend]
+      - name: Merge closed source [backend]
         shell: pwsh
         working-directory: ${{ github.workspace }}
-        run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
+        run: ./closed/scripts/merge-closed.ps1 -RootDir ${{ github.workspace }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -95,17 +95,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Checkout mall repo
+      - name: Checkout closed repo
         uses: actions/checkout@v4
         with:
-          repository: abai569/flvx-mall
-          path: mall
-          token: ${{ secrets.MALL_REPO_PAT }}
+          repository: abai569/flvx-closed
+          path: closed
+          token: ${{ secrets.CLOSED_REPO_PAT }}
 
-      - name: Merge mall source [contract]
+      - name: Merge closed source [contract]
         shell: pwsh
         working-directory: ${{ github.workspace }}
-        run: ./mall/scripts/merge-mall.ps1 -RootDir ${{ github.workspace }}
+        run: ./closed/scripts/merge-closed.ps1 -RootDir ${{ github.workspace }}
 
       - name: Setup Go
         uses: actions/setup-go@v5
