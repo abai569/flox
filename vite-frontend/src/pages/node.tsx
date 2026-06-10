@@ -411,6 +411,14 @@ export default function NodePage() {
   const [installSelectorOpen, setInstallSelectorOpen] = useState(false);
   const [installTargetNode, setInstallTargetNode] = useState<Node | null>(null);
   const [installChannel, setInstallChannel] = useState<ReleaseChannel>("dev");
+  // 国外机主线路版本选择相关状态
+  const [overseasModalOpen, setOverseasModalOpen] = useState(false);
+  const [overseasChannel, setOverseasChannel] = useState<ReleaseChannel>("stable");
+  const [overseasVersion, setOverseasVersion] = useState("");
+  const [overseasServiceName, setOverseasServiceName] = useState("flox_agent");
+  const [overseasCommand, setOverseasCommand] = useState("");
+  const [overseasNodeName, setOverseasNodeName] = useState("");
+  const [overseasNodeId, setOverseasNodeId] = useState(0);
   // 离线部署相关状态
   const [offlineModalOpen, setOfflineModalOpen] = useState(false);
   const [offlineCommand, setOfflineCommand] = useState("");
@@ -1199,21 +1207,15 @@ export default function NodePage() {
       toast.error("获取命令失败");
     }
   };
-  const handleCopyOverseasInstallCommand = async (node: Node) => {
-    try {
-      const res = await getNodeInstallCommandOverseas(node.id, "stable");
-
-      if (res.code === 0 && res.data) {
-        setInstallServiceName(installServiceName);
-        setInstallCommand(res.data);
-        setCurrentNodeName(node.name);
-        setInstallCommandModal(true);
-      } else {
-        toast.error(res.msg || "获取命令失败");
-      }
-    } catch {
-      toast.error("获取命令失败");
-    }
+  const handleCopyOverseasInstallCommand = (node: Node) => {
+    setOverseasNodeId(node.id);
+    setOverseasNodeName(node.name);
+    setOverseasChannel("stable");
+    setOverseasVersion("");
+    setOverseasServiceName("flox_agent");
+    setOverseasCommand("");
+    setOverseasModalOpen(true);
+    void loadReleasesByChannel("stable");
   };
   const handleCopyAutoInstallCommand = async (node: Node) => {
     try {
@@ -1255,6 +1257,22 @@ export default function NodePage() {
       toast.error("获取命令失败");
     }
   };
+  // 国外机主线路：自动生成命令（通道/版本变化时触发）
+  useEffect(() => {
+    if (!overseasModalOpen || !overseasNodeId) return;
+    setOverseasCommand("");
+    getNodeInstallCommandOverseas(
+      overseasNodeId,
+      overseasChannel,
+      overseasVersion || undefined,
+    )
+      .then((res) => {
+        if (res.code === 0 && res.data) {
+          setOverseasCommand(res.data);
+        }
+      })
+      .catch(() => {});
+  }, [overseasModalOpen, overseasNodeId, overseasChannel, overseasVersion]);
   const copyToClipboard = (text: string, label: string) => {
     try {
       if (navigator.clipboard && window.isSecureContext) {
@@ -3473,6 +3491,146 @@ export default function NodePage() {
               关闭
             </Button>
           </ModalFooter> */}
+        </ModalContent>
+      </Modal>
+      {/* 国外机主线路版本选择弹窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
+        }}
+        isOpen={overseasModalOpen}
+        placement="center"
+        size="2xl"
+        onOpenChange={setOverseasModalOpen}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            <h2 className="text-xl font-bold">
+              国外机主线路
+              {overseasNodeName ? ` - ${overseasNodeName}` : ""}
+            </h2>
+          </ModalHeader>
+          <ModalBody>
+            <div className="space-y-4">
+              <p className="text-sm text-default-600">
+                请复制以下安装命令到服务器上执行：
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Select
+                  label="版本通道"
+                  selectedKeys={[overseasChannel]}
+                  onSelectionChange={(keys) => {
+                    const selected = Array.from(keys)[0] as ReleaseChannel;
+                    setOverseasChannel(selected || "stable");
+                    setOverseasVersion("");
+                    void loadReleasesByChannel(selected);
+                  }}
+                >
+                  <SelectItem key="dev" textValue="测试版">
+                    测试版
+                  </SelectItem>
+                  <SelectItem key="stable" textValue="稳定版">
+                    稳定版
+                  </SelectItem>
+                </Select>
+                <Select
+                  label="选择版本"
+                  placeholder="留空则自动使用最新版本"
+                  selectedKeys={overseasVersion ? [overseasVersion] : []}
+                  onSelectionChange={(keys) => {
+                    const selected = Array.from(keys)[0] as string;
+                    setOverseasVersion(selected || "");
+                  }}
+                >
+                  {releases.map((r) => (
+                    <SelectItem key={r.version} textValue={r.version}>
+                      <div className="flex justify-between items-center">
+                        <span>{r.version}</span>
+                        <span className="text-xs text-default-400">
+                          {r.publishedAt
+                            ? new Date(r.publishedAt).toLocaleDateString()
+                            : ""}
+                          {r.channel === "dev" && (
+                            <Chip
+                              className="ml-1 shrink-0 whitespace-nowrap"
+                              color="warning"
+                              size="sm"
+                              variant="flat"
+                            >
+                              测试
+                            </Chip>
+                          )}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </Select>
+              </div>
+
+              {/* 服务名输入框 */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium whitespace-nowrap">
+                    服务名：
+                  </label>
+                  <Input
+                    className="flex-1"
+                    placeholder="flox_agent"
+                    size="sm"
+                    value={overseasServiceName}
+                    variant="bordered"
+                    onChange={(e) =>
+                      setOverseasServiceName(
+                        e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""),
+                      )
+                    }
+                  />
+                </div>
+                <p className="text-xs text-default-500">
+                  💡 提示：同一台节点机可以对接多个面板，使用不同的服务名区分
+                </p>
+              </div>
+
+              {overseasCommand ? (
+                <div className="relative">
+                  <Textarea
+                    readOnly
+                    className="font-medium text-sm"
+                    classNames={{
+                      input: "font-medium text-sm",
+                    }}
+                    maxRows={10}
+                    minRows={6}
+                    value={`${overseasCommand} -n ${overseasServiceName}`}
+                    variant="bordered"
+                  />
+                  <Button
+                    className="absolute bottom-2 right-2"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => {
+                      copyToClipboard(
+                        `${overseasCommand} -n ${overseasServiceName}`,
+                        "命令",
+                      );
+                      setOverseasModalOpen(false);
+                    }}
+                  >
+                    复制
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <Spinner size="lg" />
+                </div>
+              )}
+              <div className="text-xs text-default-500">
+                💡
+                提示：如果自动复制失败请3击或拖拽鼠标选择上方完整文本进行手动复制
+              </div>
+            </div>
+          </ModalBody>
         </ModalContent>
       </Modal>
       {/* 批量更新弹窗 */}

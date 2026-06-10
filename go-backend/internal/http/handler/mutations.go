@@ -973,6 +973,7 @@ func (h *Handler) nodeInstallOverseas(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ID      int64  `json:"id"`
 		Channel string `json:"channel"`
+		Version string `json:"version"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -999,11 +1000,17 @@ func (h *Handler) nodeInstallOverseas(w http.ResponseWriter, r *http.Request) {
 		globalURL = "https://ghfast.top"
 	}
 
-	channel := normalizeReleaseChannel(req.Channel)
-	version, err := resolveLatestReleaseByChannel(channel)
-	if err != nil {
-		response.WriteJSON(w, response.Err(-2, fmt.Sprintf("获取版本%s失败：%v", releaseChannelLabel(channel), err)))
-		return
+	var version string
+	if req.Version != "" {
+		version = req.Version
+	} else {
+		channel := normalizeReleaseChannel(req.Channel)
+		var err error
+		version, err = resolveLatestReleaseByChannel(channel)
+		if err != nil {
+			response.WriteJSON(w, response.Err(-2, fmt.Sprintf("获取版本%s失败：%v", releaseChannelLabel(channel), err)))
+			return
+		}
 	}
 
 	// 使用全局加速地址下载

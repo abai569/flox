@@ -150,10 +150,12 @@ export const getNodeInstallCommandDomestic = (
 export const getNodeInstallCommandOverseas = (
   id: number,
   channel?: ReleaseChannel,
+  version?: string,
 ) =>
   Network.post<string>("/node/install-overseas", {
     id,
     channel: channel || "",
+    version: version || "",
   });
 export const getNodeInstallCommandAlternative = (
   id: number,
