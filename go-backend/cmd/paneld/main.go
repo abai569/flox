@@ -68,22 +68,6 @@ func main() {
 			}
 		}
 	}
-			if cfg3 != nil && cfg3.Value != "" {
-				middleware.UpdateServerDomainFromConfig(cfg3.Value)
-			}
-			if cfg1 != nil && cfg1.Value != "" {
-				cfg.LicenseServerURL = cfg1.Value
-			} else if cfg.LicenseKey != "" {
-				// 如果只有 key 没有 url，使用默认值
-				cfg.LicenseServerURL = defaultLicenseServerURL
-				log.Println("ℹ️  数据库中未找到授权服务器地址，使用默认值")
-			}
-			if cfg.LicenseKey != "" {
-				log.Println("✅ 授权配置已从数据库恢复")
-			}
-		}
-	}
-
 	// 授权验证
 	if cfg.LicenseServerURL != "" && cfg.LicenseKey != "" {
 		log.Printf("🔐 开始验证授权...")
