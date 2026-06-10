@@ -84,6 +84,7 @@ services:
 
 volumes:
   sqlite_data:
+    name: sqlite_data
     driver: local
   postgres_data:
     name: postgres_data
@@ -91,4 +92,5 @@ volumes:
 
 networks:
   gost-network:
+    name: gost-network
     driver: bridge

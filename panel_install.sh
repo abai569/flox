@@ -672,9 +672,23 @@ update_panel() {
   LICENSE_SERVER_URL=https://sq.abai.eu.org
   
   CURRENT_DB_TYPE=$(get_current_db_type)
-  echo "🗄️ 当前数据库类型：$CURRENT_DB_TYPE"
+  echo "🗄️ 当前类型：$CURRENT_DB_TYPE"
 
-  # 备份数据库（统一使用手动备份标准）
+  # 强制数据保护：在任何破坏性操作前备份数据库到主机
+  if [[ "$CURRENT_DB_TYPE" == "sqlite" ]]; then
+    echo "💾 紧急备份 SQLite 数据库..."
+    mkdir -p /tmp/flox-db-backup
+    if docker cp flvx-svc-backend:/app/data/gost.db /tmp/flox-db-backup/gost.db 2>/dev/null; then
+      echo "  旧版数据已保存到 /tmp/flox-db-backup/gost.db"
+    elif docker cp flox-svc-backend:/app/data/gost.db /tmp/flox-db-backup/gost.db 2>/dev/null; then
+      echo "  新版数据已保存到 /tmp/flox-db-backup/gost.db"
+    else
+      echo "⚠️ 警告：无法复制数据文件（可能容器未运行）"
+    fi
+  fi
+  # PostgreSQL 用户的数据库是持久化的，只要 -v 不去掉数据卷就不会丢
+  
+  # 完整备份（包含配置、数据等）
   backup_panel_data || echo "⚠️ 自动备份失败，升级将继续进行"
   BACKUP_INFO_RECENT=$(ls -1d /root/floxbackup/flox_backup_* 2>/dev/null | sort -r | head -1)
 
@@ -715,8 +729,9 @@ update_panel() {
   echo "⏳ 等待数据同步..."
   sleep 5
   
-  # 然后再完全停止
-  $DOCKER_CMD down --remove-orphans -v 2>/dev/null || true
+  # 然后再完全停止（注意：绝对不能加 -v 参数，否则会删除数据卷）
+  echo "🛑 停止 docker compose 服务..."
+  $DOCKER_CMD down --remove-orphans 2>/dev/null || true
   
   # 强制清理残留容器（防止 compose 文件变更导致 down 漏删）
   echo "🧹 清理残留容器..."
@@ -755,6 +770,29 @@ update_panel() {
     return 1
   fi
 
+  # 数据完整性检查（针对 SQLite 用户）
+  if [[ "$CURRENT_DB_TYPE" == "sqlite" ]]; then
+    echo "🔍 检查 SQLite 数据完整性..."
+    sleep 3
+    if docker cp flox-svc-backend:/app/data/gost.db /tmp/gost.db.check 2>/dev/null && [[ -s "/tmp/gost.db.check" ]]; then
+      echo "✅ 数据文件正常"
+      rm -f /tmp/gost.db.check
+      # 清理备份
+      rm -rf /tmp/flox-db-backup 2>/dev/null || true
+    elif [[ -f "/tmp/flox-db-backup/gost.db" ]]; then
+      echo "⚠️ 容器内无数据！正在恢复备份..."
+      docker exec flox-svc-backend mkdir -p /app/data
+      docker cp /tmp/flox-db-backup/gost.db flox-svc-backend:/app/data/gost.db
+      docker exec flox-svc-backend chown 1000:1000 /app/data/gost.db 2>/dev/null || true
+      echo "✅ 数据已恢复！请重启容器..."
+      docker restart flox-svc-backend
+      sleep 3
+      rm -f /tmp/gost.db.check /tmp/flox-db-backup/gost.db 2>/dev/null || true
+    else
+      echo " 严重错误：数据丢失且无备份！如有本地备份请手动恢复"
+    fi
+  fi
+
   echo "⏳ 准备清理旧版本镜像..."
   sleep 10
   
@@ -782,6 +820,13 @@ update_panel() {
   fi
 
   echo "✅ 更新完成"
+  echo ""
+  
+  # 提示旧版本目录清理
+  if [[ -d "/opt/flvx-svc" ]]; then
+    echo "⚠️  注意：旧版本目录仍保留在 /opt/flvx-svc"
+    echo "   确认面板数据正常后，可手动删除旧目录：rm -rf /opt/flvx-svc"
+  fi
 }
 
 

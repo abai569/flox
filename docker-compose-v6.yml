@@ -84,13 +84,17 @@ services:
 
 volumes:
   sqlite_data:
+    name: sqlite_data
     driver: local
   postgres_data:
     name: postgres_data
     driver: local
 
-
 networks:
   gost-network:
+    name: gost-network
     driver: bridge
+    ipam:
+      config:
+        - subnet: fd00:4532::/64
     enable_ipv6: true
