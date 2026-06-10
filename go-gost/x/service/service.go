@@ -317,7 +317,7 @@ func (s *defaultService) Serve() error {
 			}
 
 			if needWrap {
-				conn = wrapConnPDetection(conn)
+				conn = WrapConnPDetection(conn)
 			}
 
 			if err := s.handler.Handle(ctx, conn); err != nil {
@@ -469,7 +469,9 @@ func (ServiceEvent) Type() observer.EventType {
 	return observer.EventStatus
 }
 
-func wrapConnPDetection(conn net.Conn) net.Conn {
+func NeedWrap() bool { return needWrap }
+
+func WrapConnPDetection(conn net.Conn) net.Conn {
 	return &detectConn{
 		Conn:   conn,
 		reader: bufio.NewReader(conn),
