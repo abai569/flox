@@ -131,6 +131,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout closed repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flox-closed
+          path: closed
+          token: ${{ secrets.CLOSED_REPO_PAT }}
+
+      - name: Merge closed source
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: ./closed/scripts/merge-closed.ps1 -RootDir ${{ github.workspace }}
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
