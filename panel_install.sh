@@ -267,24 +267,28 @@ EOF
   echo "🚀 启动 docker 服务..."
   $DOCKER_CMD up -d backend frontend
 
-  # 等待服务启动
-  echo "⏳ 等待服务启动..."
+  # 先打印登录信息（无论健康检查结果如何）
+  echo "🎉 部署完成"
+  echo ""
+  echo "📋 登录信息："
+  local public_ip=$(get_public_ipv4)
+  public_ip=${public_ip:-"服务器 IP"}
+  echo "   访问地址：http://${public_ip}:63666"
+  echo "   用户名：admin"
+  echo "   密码：$init_admin_password"
+  echo "⚠️ 安全起见，首次登录后请修改默认密码！"
+  echo ""
+  echo "🔑 授权购买：https://sq.abai.eu.org/renew/"
+  echo "📚 文档地址：https://abai569.github.io/flox/"
+
+  # 等待服务启动（仅作提示，不阻塞后续输出）
+  echo ""
+  echo "⏳ 等待后端服务就绪..."
   if wait_for_backend_healthy; then
-    echo "🎉 部署完成"
-    echo ""
-    echo "📋 登录信息："
-    local public_ip=$(get_public_ipv4)
-    public_ip=${public_ip:-"服务器 IP"}
-    echo "   访问地址：http://${public_ip}:63666"
-    echo "   用户名：admin"
-    echo "   密码：$init_admin_password"
-    echo "⚠️ 安全起见，首次登录后请修改默认密码！"
-    echo ""
-    echo "🔑 授权购买：https://sq.abai.eu.org/renew/"
-    echo "📚 文档地址：https://abai569.github.io/flox/"
+    echo "✅ 后端服务健康检查通过"
   else
-    echo "❌ 后端服务启动超时，请检查容器日志"
-    return 1
+    echo "⚠️ 后端服务健康检查未通过，面板可能仍正常运行"
+    echo "   排查命令：docker logs flvx-svc-backend && docker logs flox-svc-backend"
   fi
 }
 
@@ -616,11 +620,20 @@ wait_for_postgres_healthy() {
 
 wait_for_backend_healthy() {
   local backend_health
+  local backend_name=""
 
   echo "🔍 检查后端服务状态..."
   for i in {1..90}; do
-    if docker ps --format "{{.Names}}" | grep -q "^flox-svc-backend$"; then
-      backend_health=$(docker inspect -f '{{.State.Health.Status}}' flox-svc-backend 2>/dev/null || echo "unknown")
+    # 兼容旧版 flvx-svc-backend 和新版 flox-svc-backend
+    backend_name=""
+    if docker ps --format "{{.Names}}" | grep -q "^flvx-svc-backend$"; then
+      backend_name="flvx-svc-backend"
+    elif docker ps --format "{{.Names}}" | grep -q "^flox-svc-backend$"; then
+      backend_name="flox-svc-backend"
+    fi
+
+    if [[ -n "$backend_name" ]]; then
+      backend_health=$(docker inspect -f '{{.State.Health.Status}}' "$backend_name" 2>/dev/null || echo "unknown")
       if [[ "$backend_health" == "healthy" ]]; then
         echo "✅ 后端服务健康检查通过"
         return 0
@@ -633,7 +646,7 @@ wait_for_backend_healthy() {
 
     if [ $i -eq 90 ]; then
       echo "❌ 后端服务启动超时（90秒）"
-      echo "🔍 当前状态：$(docker inspect -f '{{.State.Health.Status}}' flox-svc-backend 2>/dev/null || echo '容器不存在')"
+      echo "🔍 当前状态：$backend_health"
       return 1
     fi
 
