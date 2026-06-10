@@ -136,6 +136,158 @@ resolve_latest_release_tag() {
   return 1
 }
 
+# 语义化版本比较
+# 返回：0=v1==v2  1=v1>v2  2=v1<v2
+vercomp() {
+  local v1="${1#v}" v2="${2#v}"
+
+  if [[ "$v1" == "$v2" ]]; then
+    echo "0"
+    return 0
+  fi
+
+  local IFS=.
+  local i parts1=($v1) parts2=($v2)
+  # 补齐长度
+  local len=${#parts1[@]}
+  [[ ${#parts2[@]} -gt $len ]] && len=${#parts2[@]}
+
+  for ((i = 0; i < len; i++)); do
+    local p1=${parts1[i]:-0}
+    local p2=${parts2[i]:-0}
+    # 只取数字部分
+    p1=$(echo "$p1" | grep -oE '^[0-9]+' || echo "0")
+    p2=$(echo "$p2" | grep -oE '^[0-9]+' || echo "0")
+    if ((p1 > p2)); then
+      echo "1"
+      return 0
+    elif ((p1 < p2)); then
+      echo "2"
+      return 0
+    fi
+  done
+
+  echo "0"
+  return 0
+}
+
+# 非交互式指定版本全新安装
+install_fresh_version() {
+  local version="$1"
+  echo "🚀 开始指定版本全新安装（版本：$version）..."
+
+  # 检测是否需要 sudo
+  if [[ $EUID -ne 0 ]]; then
+    SUDO_CMD="sudo"
+  else
+    SUDO_CMD=""
+  fi
+
+  check_docker
+
+  INSTALL_DIR="/opt/flox-svc"
+
+  # 备份并清理现有安装（如果有）
+  if [[ -d "$INSTALL_DIR" ]] || [[ -d "/opt/flvx-svc" ]]; then
+    echo "💾 备份现有数据..."
+    mkdir -p /root/floxbackup
+    local backup_file="/root/floxbackup/flox_backup_$(date +%Y%m%d_%H%M%S)"
+
+    # 备份现有目录
+    if [[ -d "/opt/flvx-svc" ]]; then
+      cp -a /opt/flvx-svc "$backup_file" 2>/dev/null || true
+    elif [[ -d "$INSTALL_DIR" ]]; then
+      cp -a "$INSTALL_DIR" "$backup_file" 2>/dev/null || true
+    fi
+
+    # 停止并清理
+    cd "$INSTALL_DIR" 2>/dev/null || cd /opt/flvx-svc 2>/dev/null || true
+    $DOCKER_CMD down --volumes --remove-orphans 2>/dev/null || true
+
+    cd / && $SUDO_CMD rm -rf "$INSTALL_DIR" /opt/flvx-svc 2>/dev/null || true
+
+    if [[ -n "$backup_file" ]] && [[ -n "$(ls -A "$backup_file" 2>/dev/null)" ]]; then
+      local backup_size
+      backup_size=$(du -sh "$backup_file" 2>/dev/null | cut -f1)
+      echo "✅ 旧数据已备份到 $backup_file (大小: $backup_size)"
+    else
+      echo "⚠️ 旧数据备份为空或失败"
+    fi
+  fi
+
+  # 创建安装目录
+  echo "📁 创建安装目录：$INSTALL_DIR"
+  $SUDO_CMD mkdir -p "$INSTALL_DIR"
+  cd "$INSTALL_DIR"
+
+  # 设置版本相关变量
+  set_compose_urls_by_version "$version"
+
+  # 启用 IPv6（如果支持）
+  if check_ipv6_support; then
+    echo "🚀 系统支持 IPv6，自动启用 IPv6 配置..."
+    configure_docker_ipv6
+  fi
+
+  # 生成默认配置
+  local jwt_secret=$(generate_random)
+  local init_admin_password=$(generate_admin_password)
+
+  echo "🔽 下载指定版本配置文件..."
+  local docker_compose_url
+  docker_compose_url=$(get_docker_compose_url)
+  if download_compose_file "$docker_compose_url" docker-compose.yml; then
+    echo "✅ 配置文件下载完成"
+  else
+    echo "❌ 配置文件下载失败，请检查版本号是否正确"
+    return 1
+  fi
+
+  cat > .env <<EOF
+JWT_SECRET=$jwt_secret
+FRONTEND_PORT=63666
+BACKEND_PORT=63665
+FLUX_VERSION=$version
+INIT_ADMIN_PASSWORD=$init_admin_password
+
+DB_TYPE=sqlite
+DATABASE_URL=
+
+POSTGRES_DB=flox_svc
+POSTGRES_USER=flox_svc
+POSTGRES_PASSWORD=$(generate_random)
+
+# 授权服务配置
+LICENSE_SERVER_URL=https://sq.abai.eu.org
+LICENSE_KEY=
+SERVER_DOMAIN=
+HMAC_SECRET_KEY=flox_455f08ea-ce13-46d4-8574-ebd2a9d0e853
+EOF
+
+  echo "🚀 启动 docker 服务..."
+  $DOCKER_CMD up -d backend frontend
+
+  # 等待服务启动
+  echo "⏳ 等待服务启动..."
+  if wait_for_backend_healthy; then
+    echo "🎉 部署完成"
+    echo ""
+    echo "📋 登录信息："
+    local public_ip=$(get_public_ipv4)
+    public_ip=${public_ip:-"服务器 IP"}
+    echo "   访问地址：http://${public_ip}:63666"
+    echo "   用户名：admin"
+    echo "   密码：$init_admin_password"
+    echo "⚠️ 安全起见，首次登录后请修改默认密码！"
+    echo ""
+    echo "🔑 授权购买：https://sq.abai.eu.org/renew/"
+    echo "📚 文档地址：https://abai569.github.io/flox/"
+  else
+    echo "❌ 后端服务启动超时，请检查容器日志"
+    return 1
+  fi
+}
+
 resolve_version() {
   if [[ -n "${VERSION:-}" ]]; then
     echo "$VERSION"
@@ -1206,6 +1358,14 @@ uninstall_panel() {
   $DOCKER_CMD down --rmi all --volumes --remove-orphans
   echo "🧹 删除配置文件..."
   rm -f docker-compose.yml .env
+
+  # 清理残留的 Docker 网络
+  echo "🌐 清理残留的 Docker 网络..."
+  docker network ls --format "{{.Name}}" | grep -E "flox-svc|flvx-svc" | while read -r net; do
+    echo "  删除网络：$net"
+    docker network rm "$net" 2>/dev/null || true
+  done
+
   echo "✅ 卸载完成"
 }
 
@@ -1317,15 +1477,30 @@ main() {
     exit $?
   fi
 
-  # 指定版本时直接升级（无交互）
+  # 指定版本时：根据与最新版的比较结果决定走更新还是全新安装
   if [[ -n "$ARG_VERSION" ]]; then
-    echo "🔄 指定版本：$ARG_VERSION，直接进入更新流程..."
-    # 兼容旧版 flvx-svc 目录检测
-    if [[ ! -d "/opt/flox-svc" ]] && [[ ! -d "/opt/flvx-svc" ]]; then
-      echo "❌ 未检测到面板安装，请先执行安装操作"
+    echo "🔍 获取最新版本号..."
+    LATEST_VERSION=$(resolve_latest_release_tag) || {
+      echo "❌ 无法获取最新版本号，终止操作"
       exit 1
+    }
+    echo "🆕 最新版本：$LATEST_VERSION，指定版本：$ARG_VERSION"
+
+    local cmp_result
+    cmp_result=$(vercomp "$ARG_VERSION" "$LATEST_VERSION")
+    if [[ "$cmp_result" == "0" ]] || [[ "$cmp_result" == "1" ]]; then
+      # ARG_VERSION == LATEST 或 ARG_VERSION > LATEST → 更新/升级
+      echo "🔄 版本不低于最新版，直接进入更新流程..."
+      if [[ ! -d "/opt/flox-svc" ]] && [[ ! -d "/opt/flvx-svc" ]]; then
+        echo "❌ 未检测到面板安装，请先执行安装操作"
+        exit 1
+      fi
+      update_panel
+    else
+      # ARG_VERSION < LATEST → 全新安装（降级/旧版本）
+      echo "🔄 版本低于最新版，备份旧数据后执行全新安装..."
+      install_fresh_version "$ARG_VERSION"
     fi
-    update_panel
     exit $?
   fi
 
