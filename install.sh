@@ -10,6 +10,7 @@ PINNED_VERSION="2.2.6-beta1"
 SERVICE_NAME="flox_agent"
 SERVER_ADDR=""
 SECRET=""
+MIGRATED_CONFIG=0
 
 # 检查并安装必要的下载工具
 install_download_tools() {
@@ -381,80 +382,117 @@ get_config_params() {
   fi
 }
 
-# 从旧 flux_agent 迁移配置到新目录
-migrate_legacy_config() {
-  local old_dir="/etc/flux_agent"
-  local old_service="flux_agent"
-
-  # 新目录就是旧目录，无需迁移
-  [[ "$INSTALL_DIR" == "$old_dir" ]] && return 0
-
-  # 旧目录不存在，无需迁移
-  [[ ! -d "$old_dir" ]] && return 0
-  [[ ! -f "$old_dir/config.json" ]] && return 0
-
-  echo "📦 检测到旧的 flux_agent 配置目录：$old_dir"
-  echo "📂 新目录：$INSTALL_DIR"
-
-  # 新目录已有配置，询问是否覆盖
-  if [[ -f "$INSTALL_DIR/config.json" ]]; then
-    echo "⚠️  新目录已存在配置，跳过迁移。"
-    return 0
-  fi
-
-  echo "是否将旧配置迁移到新目录？"
-  read -p "迁移后将停止并禁用旧 flux_agent 服务 [Y/n]: " confirm
-  if [[ "$confirm" == "n" || "$confirm" == "N" ]]; then
-    echo "⏭️   跳过迁移，将继续在新的空目录安装。"
-    return 0
-  fi
-
-  echo "🔁  正在迁移配置..."
-
-  # 创建新目录并复制配置
-  mkdir -p "$INSTALL_DIR"
-  cp "$old_dir/config.json" "$INSTALL_DIR/config.json"
-  [[ -f "$old_dir/gost.json" ]] && cp "$old_dir/gost.json" "$INSTALL_DIR/gost.json"
-
-  # 更新 config.json 中的 service_name
-  sed -i "s|\"service_name\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"service_name\": \"${SERVICE_NAME}\"|" "$INSTALL_DIR/config.json"
-  # 同步 node_id（如果旧配置有）
-  local old_node_id
-  old_node_id=$(grep -o '"node_id"[[:space:]]*:[[:space:]]*[0-9]*' "$old_dir/config.json" | grep -o '[0-9]*')
-  if [[ -n "$old_node_id" ]]; then
-    # 如果新配置没有 node_id，从旧配置补上
-    if ! grep -q '"node_id"' "$INSTALL_DIR/config.json" 2>/dev/null; then
-      sed -i "s|^\}$|  \"node_id\": ${old_node_id}\n}|" "$INSTALL_DIR/config.json"
-    fi
-  fi
-
-  chmod 600 "$INSTALL_DIR"/*.json
-
-  # 停止旧 flux_agent 服务
-  if systemctl list-units --full -all | grep -Fq "${old_service}.service"; then
-    echo "🛑  停止旧 ${old_service} 服务..."
-    systemctl stop ${old_service} 2>/dev/null
-    systemctl disable ${old_service} 2>/dev/null
-  fi
-
-  # 删除旧 service 文件
-  if [[ -f "/etc/systemd/system/${old_service}.service" ]]; then
-    rm -f "/etc/systemd/system/${old_service}.service"
-    echo "🧹 已删除旧服务文件"
-  fi
-
-  # 询问是否删除旧配置目录
-  echo "是否删除旧的配置目录（$old_dir）？"
-  read -p "建议确认新服务正常运行后再删除 [y/N]: " del_old
-  if [[ "$del_old" == "y" || "$del_old" == "Y" ]]; then
-    rm -rf "$old_dir"
-    echo "🧹 已删除旧配置目录"
+# 将旧服务名映射到新 flox_agent 名称，保留数字后缀
+legacy_target_service_name() {
+  local name="$1"
+  if [[ "$name" == flux_agent* ]]; then
+    echo "flox_agent${name#flux_agent}"
+  elif [[ "$name" == flvx_agent* ]]; then
+    echo "flox_agent${name#flvx_agent}"
   else
-    echo "⏭️  保留旧配置目录，如需手动删除请执行：rm -rf $old_dir"
+    echo "$name"
+  fi
+}
+
+is_legacy_agent_service() {
+  local name="$1"
+  [[ "$name" == flux_agent* || "$name" == flvx_agent* ]]
+}
+
+rewrite_agent_service_file() {
+  local old_name="$1"
+  local new_name="$2"
+  local old_dir="/etc/${old_name}"
+  local new_dir="/etc/${new_name}"
+  local new_service_file="/etc/systemd/system/${new_name}.service"
+
+  if [[ -f "/etc/systemd/system/${old_name}.service" ]]; then
+    cp "/etc/systemd/system/${old_name}.service" "$new_service_file"
+    sed -i "s|${old_dir}|${new_dir}|g" "$new_service_file"
+    sed -i "s|${old_name}|${new_name}|g" "$new_service_file"
+  else
+    cat > "$new_service_file" <<EOF
+[Unit]
+Description=${new_name} Proxy Service
+After=network.target
+
+[Service]
+WorkingDirectory=${new_dir}
+ExecStart=${new_dir}/${new_name} -C ${new_dir}/config.json
+Restart=on-failure
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  fi
+}
+
+migrate_agent_instance() {
+  local old_name="$1"
+  local new_name="$2"
+  local old_dir="/etc/${old_name}"
+  local new_dir="/etc/${new_name}"
+
+  [[ "$old_name" == "$new_name" ]] && return 1
+  [[ ! -d "$old_dir" ]] && return 1
+  [[ ! -f "$old_dir/config.json" ]] && return 1
+
+  echo "📦 检测到旧服务 ${old_name}，正在迁移到 ${new_name}..."
+
+  if [[ -f "$new_dir/config.json" ]]; then
+    echo "⚠️  目标目录已存在配置：$new_dir/config.json，跳过迁移以避免覆盖"
+    return 1
   fi
 
+  systemctl stop "$old_name" 2>/dev/null || true
+  systemctl disable "$old_name" 2>/dev/null || true
+
+  mkdir -p "$new_dir"
+  cp -a "$old_dir/." "$new_dir/"
+
+  if [[ -f "$new_dir/${old_name}" && "$old_name" != "$new_name" ]]; then
+    mv "$new_dir/${old_name}" "$new_dir/${new_name}"
+  fi
+
+  if grep -q '"service_name"' "$new_dir/config.json" 2>/dev/null; then
+    sed -i "s|\"service_name\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"service_name\": \"${new_name}\"|" "$new_dir/config.json"
+  else
+    sed -i "s|^\}$|,\n  \"service_name\": \"${new_name}\"\n}|" "$new_dir/config.json"
+  fi
+  chmod 600 "$new_dir"/*.json 2>/dev/null || true
+
+  rewrite_agent_service_file "$old_name" "$new_name"
+  rm -f "/etc/systemd/system/${old_name}.service"
   systemctl daemon-reload
-  echo "✅ 配置迁移完成"
+
+  SERVICE_NAME="$new_name"
+  INSTALL_DIR="$new_dir"
+  MIGRATED_CONFIG=1
+
+  echo "✅ 已迁移到 ${new_name}，旧目录保留：${old_dir}"
+  return 0
+}
+
+# 安装默认 flox_agent 时，提示迁移旧 flux_agent/flvx_agent 配置
+migrate_legacy_config() {
+  local candidate target
+
+  for candidate in flux_agent flvx_agent; do
+    target=$(legacy_target_service_name "$candidate")
+    [[ "$SERVICE_NAME" != "$target" ]] && continue
+    [[ ! -f "/etc/${candidate}/config.json" ]] && continue
+
+    echo "📦 检测到旧配置目录：/etc/${candidate}"
+    read -p "是否迁移到 /etc/${SERVICE_NAME}？迁移后将停止旧服务 [Y/n]: " confirm
+    if [[ "$confirm" == "n" || "$confirm" == "N" ]]; then
+      echo "⏭️  跳过迁移"
+      return 0
+    fi
+    migrate_agent_instance "$candidate" "$SERVICE_NAME" || true
+    return 0
+  done
 }
 
 # 安装功能
@@ -464,7 +502,7 @@ install_service() {
 
   check_and_install_tcpkill
 
-  # 如果是新默认名称且检测到旧 flux_agent，执行迁移
+  # 如果是新默认名称且检测到旧 flux_agent/flvx_agent，执行迁移
   migrate_legacy_config
   
   mkdir -p "$INSTALL_DIR"
@@ -507,14 +545,25 @@ install_service() {
   echo "🔎 ${SERVICE_NAME} 版本：$($INSTALL_DIR/${SERVICE_NAME} -V)"
 
   CONFIG_FILE="$INSTALL_DIR/config.json"
-  echo "📄 创建新配置：config.json"
-  cat > "$CONFIG_FILE" <<EOF
+  if [[ "$MIGRATED_CONFIG" == "1" && -f "$CONFIG_FILE" ]]; then
+    echo "⏭️ 保留迁移后的配置文件: config.json"
+  else
+    echo "📄 创建新配置：config.json"
+    cat > "$CONFIG_FILE" <<EOF
 {
   "addr": "$SERVER_ADDR",
   "secret": "$SECRET",
   "service_name": "$SERVICE_NAME"
 }
 EOF
+  fi
+
+  if [[ -z "$SERVER_ADDR" && -f "$CONFIG_FILE" ]]; then
+    SERVER_ADDR=$(grep -o '"addr"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" | head -1 | sed -E 's/.*"addr"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')
+  fi
+  if [[ -z "$SECRET" && -f "$CONFIG_FILE" ]]; then
+    SECRET=$(grep -o '"secret"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" | head -1 | sed -E 's/.*"secret"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')
+  fi
 
   GOST_CONFIG="$INSTALL_DIR/gost.json"
   if [[ -f "$GOST_CONFIG" ]]; then
@@ -610,38 +659,16 @@ update_service() {
     return 1
   fi
 
-  # 从旧的 flux_agent 自动迁移到 flox_agent
-  if [[ "$SERVICE_NAME" == "flux_agent" ]]; then
-    echo "📦 检测到旧服务名称: flux_agent，正在迁移到 flox_agent..."
-    local old_dir="/etc/flux_agent"
-    local new_name="flox_agent"
-    local new_dir="/etc/${new_name}"
-
-    # 停止旧服务
-    systemctl stop flux_agent 2>/dev/null
-    systemctl disable flux_agent 2>/dev/null
-
-    # 创建新目录并复制配置
-    mkdir -p "$new_dir"
-    [[ -f "$old_dir/config.json" ]] && cp "$old_dir/config.json" "$new_dir/config.json"
-    [[ -f "$old_dir/gost.json" ]] && cp "$old_dir/gost.json" "$new_dir/gost.json"
-
-    # 更新 config.json 中的 service_name
-    sed -i "s|\"service_name\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"service_name\": \"${new_name}\"|" "$new_dir/config.json"
-    chmod 600 "$new_dir"/*.json
-
-    # 复制现成的 service 文件并改名
-    if [[ -f "/etc/systemd/system/flux_agent.service" ]]; then
-      cp "/etc/systemd/system/flux_agent.service" "/etc/systemd/system/${new_name}.service"
-      sed -i "s/flux_agent/${new_name}/g" "/etc/systemd/system/${new_name}.service"
-      sed -i "s|/etc/flux_agent|${new_dir}|g" "/etc/systemd/system/${new_name}.service"
-      rm -f "/etc/systemd/system/flux_agent.service"
+  # 从旧的 flux_agent*/flvx_agent* 自动迁移到 flox_agent*
+  if is_legacy_agent_service "$SERVICE_NAME"; then
+    local old_name="$SERVICE_NAME"
+    local new_name
+    new_name=$(legacy_target_service_name "$old_name")
+    if migrate_agent_instance "$old_name" "$new_name"; then
+      echo "✅ 服务名称已迁移到: ${SERVICE_NAME}"
+    else
+      echo "⚠️ 旧服务迁移失败或已跳过，继续更新当前实例：${SERVICE_NAME}"
     fi
-
-    systemctl daemon-reload
-    SERVICE_NAME="$new_name"
-    INSTALL_DIR="$new_dir"
-    echo "✅ 服务名称已迁移到: ${SERVICE_NAME}"
   fi
 
   echo "🔄 开始更新 ${SERVICE_NAME}..."
