@@ -11,6 +11,7 @@ SERVICE_NAME="flox_agent"
 SERVER_ADDR=""
 SECRET=""
 MIGRATED_CONFIG=0
+MIGRATED_FROM_SERVICE=""
 
 # 检查并安装必要的下载工具
 install_download_tools() {
@@ -446,9 +447,6 @@ migrate_agent_instance() {
     return 1
   fi
 
-  systemctl stop "$old_name" 2>/dev/null || true
-  systemctl disable "$old_name" 2>/dev/null || true
-
   mkdir -p "$new_dir"
   cp -a "$old_dir/." "$new_dir/"
 
@@ -464,15 +462,53 @@ migrate_agent_instance() {
   chmod 600 "$new_dir"/*.json 2>/dev/null || true
 
   rewrite_agent_service_file "$old_name" "$new_name"
-  rm -f "/etc/systemd/system/${old_name}.service"
   systemctl daemon-reload
 
   SERVICE_NAME="$new_name"
   INSTALL_DIR="$new_dir"
   MIGRATED_CONFIG=1
+  MIGRATED_FROM_SERVICE="$old_name"
 
-  echo "✅ 已迁移到 ${new_name}，旧目录保留：${old_dir}"
+  echo "✅ 已准备迁移到 ${new_name}，旧服务暂未停止：${old_name}"
   return 0
+}
+
+start_service_with_rollback() {
+  local action="${1:-start}"
+  local old_name="$MIGRATED_FROM_SERVICE"
+
+  systemctl daemon-reload
+
+  if [[ "$MIGRATED_CONFIG" == "1" && -n "$old_name" ]]; then
+    echo "🛑 停止旧服务 ${old_name}..."
+    systemctl stop "$old_name" 2>/dev/null || true
+    systemctl disable "$old_name" 2>/dev/null || true
+  fi
+
+  systemctl enable "$SERVICE_NAME"
+  if [[ "$action" == "restart" ]]; then
+    systemctl restart "$SERVICE_NAME"
+  else
+    systemctl start "$SERVICE_NAME"
+  fi
+
+  if systemctl is-active --quiet "$SERVICE_NAME"; then
+    if [[ "$MIGRATED_CONFIG" == "1" && -n "$old_name" ]]; then
+      rm -f "/etc/systemd/system/${old_name}.service"
+      systemctl daemon-reload
+      echo "✅ 新服务 ${SERVICE_NAME} 已启动，旧服务 ${old_name} 已禁用"
+      echo "⏭️ 旧目录保留，如确认无误可手动删除：/etc/${old_name}"
+    fi
+    return 0
+  fi
+
+  if [[ "$MIGRATED_CONFIG" == "1" && -n "$old_name" ]]; then
+    echo "❌ 新服务 ${SERVICE_NAME} 启动失败，正在恢复旧服务 ${old_name}..."
+    systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+    systemctl enable "$old_name" 2>/dev/null || true
+    systemctl start "$old_name" 2>/dev/null || true
+  fi
+  return 1
 }
 
 # 安装默认 flox_agent 时，提示迁移旧 flux_agent/flvx_agent 配置
@@ -594,9 +630,7 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-  systemctl daemon-reload
-  systemctl enable ${SERVICE_NAME}
-  systemctl start ${SERVICE_NAME}
+  start_service_with_rollback start
 
   echo "🔄 检查服务状态..."
   if systemctl is-active --quiet ${SERVICE_NAME}; then
@@ -737,8 +771,12 @@ update_service() {
   echo "🔎 新版本：$($INSTALL_DIR/${SERVICE_NAME} -V)"
 
   echo "🔄 重启服务..."
-  systemctl restart ${SERVICE_NAME}
-  
+  if ! start_service_with_rollback restart; then
+    echo "❌ ${SERVICE_NAME} 服务启动失败，请执行以下命令查看状态："
+    echo "systemctl status ${SERVICE_NAME} --no-pager"
+    return 1
+  fi
+
   echo "✅ 更新完成，服务已重新启动。"
 }
 
