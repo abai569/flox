@@ -97,11 +97,13 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 		log.Printf("⚠️ sync config license_server_url failed: %v", err)
 	}
 
-	// 保存 HMAC 密钥（允许清空），并立即生效
-	if err := h.repo.UpsertConfig("hmac_key", req.HmacKey, now); err != nil {
-		log.Printf("⚠️ sync config hmac_key failed: %v", err)
+	// 修改 HMAC 密钥（非空才保存），并立即生效
+	if req.HmacKey != "" {
+		if err := h.repo.UpsertConfig("hmac_key", req.HmacKey, now); err != nil {
+			log.Printf("⚠️ sync config hmac_key failed: %v", err)
+		}
+		os.Setenv("HMAC_SECRET_KEY", req.HmacKey)
 	}
-	os.Setenv("HMAC_SECRET_KEY", req.HmacKey)
 
 	middleware.UpdateCheckParams(url, actualLicenseKey, req.Domain, req.ActualDomain, req.ActualProtocol)
 	go middleware.TriggerAsyncCheck()

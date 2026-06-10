@@ -49,11 +49,11 @@ func UpdateEnvFile(licenseKey, domain, serverURL, hmacKey string) error {
 				foundServerURL = true
 				continue
 			case "HMAC_SECRET_KEY":
+				foundHmacKey = true
 				if hmacKey != "" {
 					result = append(result, "HMAC_SECRET_KEY="+hmacKey)
+					continue
 				}
-				foundHmacKey = true
-				continue
 			}
 		}
 		result = append(result, line)
