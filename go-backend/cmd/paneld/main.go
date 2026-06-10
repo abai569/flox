@@ -25,10 +25,10 @@ func main() {
 		log.Println("warning: JWT_SECRET is empty")
 	}
 
-	// 容错逻辑：如果环境变量未配置授权，尝试从数据库回退读取
+	// 容错逻辑 1：如果环境变量未配置授权，尝试从数据库回退读取
 	// 这解决了升级或重启后 .env 丢失但数据库仍有配置的问题
 	if cfg.LicenseKey == "" {
-		log.Println("🔍 环境变量未配置授权，尝试从数据库恢复...")
+		log.Println(" 环境变量未配置授权，尝试从数据库恢复...")
 		tempRepo, err := getTempRepository(cfg)
 		if err == nil && tempRepo != nil {
 			cfg1, _ := tempRepo.GetConfigByName("license_server_url")
@@ -39,6 +39,35 @@ func main() {
 			if cfg2 != nil && cfg2.Value != "" {
 				cfg.LicenseKey = cfg2.Value
 			}
+			if cfg3 != nil && cfg3.Value != "" {
+				middleware.UpdateServerDomainFromConfig(cfg3.Value)
+			}
+			if cfg1 != nil && cfg1.Value != "" {
+				cfg.LicenseServerURL = cfg1.Value
+			} else if cfg.LicenseKey != "" {
+				// 如果只有 key 没有 url，使用默认值
+				cfg.LicenseServerURL = defaultLicenseServerURL
+				log.Println("ℹ️  数据库中未找到授权服务器地址，使用默认值")
+			}
+			if cfg.LicenseKey != "" {
+				log.Println("✅ 授权配置已从数据库恢复")
+			}
+		}
+	}
+
+	// 容错逻辑 2：如果环境变量未配置域名，尝试从数据库回退
+	// 防止 Docker 容器 hostname 导致域名不匹配
+	if cfg.ServerDomain == "" {
+		dbRepo, err := getTempRepository(cfg)
+		if err == nil && dbRepo != nil {
+			cfg3, _ := dbRepo.GetConfigByName("server_domain")
+			dbRepo.Close()
+			if cfg3 != nil && cfg3.Value != "" {
+				middleware.UpdateServerDomainFromConfig(cfg3.Value)
+				log.Printf(" 环境变量未配置域名，从数据库恢复: %s", cfg3.Value)
+			}
+		}
+	}
 			if cfg3 != nil && cfg3.Value != "" {
 				middleware.UpdateServerDomainFromConfig(cfg3.Value)
 			}

@@ -11,8 +11,8 @@ import (
 // TierFree and TierPremium flow through to handler-level enforcement.
 func LicenseGuard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Whitelist license check endpoints so the panel can refresh status
-		if r.URL.Path == "/api/v1/license/info" || r.URL.Path == "/api/v1/license/config" {
+		// Whitelist: license endpoints + WebSocket for agent/panel connectivity
+		if r.URL.Path == "/api/v1/license/info" || r.URL.Path == "/api/v1/license/config" || r.URL.Path == "/system-info" {
 			next.ServeHTTP(w, r)
 			return
 		}
