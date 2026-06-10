@@ -25,6 +25,7 @@ const (
 	flvxDefaultPanelBackendName       = "flvx-svc-backend"
 	defaultPanelDeployDir             = "/opt/flox-svc"
 	defaultPanelBackendName           = "flox-svc-backend"
+	defaultImageRegistry              = "ghcr.io/abai569"
 	dockerSocketPath                  = "/var/run/docker.sock"
 	maxSystemUpgradeComposeAssetBytes = 1 << 20
 	systemUpgradeMessage              = "升级 helper 已启动，面板服务将短暂重启"
@@ -38,6 +39,7 @@ var systemUpgradeReleaseBaseURL = githubHTMLBase
 type systemUpgradeExecutor struct {
 	deployDir        string
 	backendContainer string
+	imageRegistry    string
 }
 
 type systemUpgradeCapabilityData struct {
@@ -200,30 +202,34 @@ func (e *systemUpgradeExecutor) selectComposeAsset(current []byte) string {
 }
 
 func (e *systemUpgradeExecutor) helperScript() string {
+	registry := e.imageRegistry
+	if registry == "" {
+		registry = defaultImageRegistry
+	}
+	cleanupLoop := fmt.Sprintf(
+		`for img in $(docker images | grep '%s' | awk '{if ($1 ~ /:/) print $1; else print $1":"$2}'); do`,
+		registry,
+	)
 	return strings.Join([]string{
 		"set -eu",
 		`FLOX_DIR="/opt/flox-svc"`,
 		`FLVX_DIR="/opt/flvx-svc"`,
-		// 检测并迁移旧版 flvx-svc 到 flox-svc
 		`if [ -d "$FLVX_DIR" ] && [ ! -d "$FLOX_DIR" ]; then`,
 		`  echo "  检测到旧版 flvx-svc，正在迁移到 flox-svc..."`,
 		`  mkdir -p "$FLOX_DIR"`,
 		`  cp -a "$FLVX_DIR/." "$FLOX_DIR/" 2>/dev/null`,
-		`  # 更新 .env 中的路径引用`,
 		`  if [ -f "$FLOX_DIR/.env" ]; then`,
 		`    sed -i "s|/opt/flvx-svc|/opt/flox-svc|g" "$FLOX_DIR/.env"`,
 		`    sed -i "s|flvx-svc-backend|flox-svc-backend|g" "$FLOX_DIR/.env"`,
 		`    sed -i "s|flvx-svc-frontend|flox-svc-frontend|g" "$FLOX_DIR/.env"`,
 		`    sed -i "s|flvx-svc-postgres|flox-svc-postgres|g" "$FLOX_DIR/.env"`,
 		`  fi`,
-		`  # 更新 docker-compose.yml 中的容器名`,
 		`  if [ -f "$FLOX_DIR/docker-compose.yml" ]; then`,
 		`    sed -i "s|flvx-svc-backend|flox-svc-backend|g" "$FLOX_DIR/docker-compose.yml"`,
 		`    sed -i "s|flvx-svc-frontend|flox-svc-frontend|g" "$FLOX_DIR/docker-compose.yml"`,
 		`    sed -i "s|flvx-svc-postgres|flox-svc-postgres|g" "$FLOX_DIR/docker-compose.yml"`,
 		`    sed -i "s|/opt/flvx-svc|/opt/flox-svc|g" "$FLOX_DIR/docker-compose.yml"`,
 		`  fi`,
-		`  # 停用并删除旧版容器`,
 		`  docker stop flvx-svc-backend flvx-svc-frontend flvx-svc-postgres 2>/dev/null || true`,
 		`  docker rm -f flvx-svc-backend flvx-svc-frontend flvx-svc-postgres 2>/dev/null || true`,
 		`  echo "  迁移完成，继续使用 flox-svc"`,
@@ -232,20 +238,15 @@ func (e *systemUpgradeExecutor) helperScript() string {
 		"docker compose pull backend frontend",
 		"docker compose up -d backend frontend",
 		"sleep 10",
-		"set +e", // 确保 rmi 失败时不中断脚本
-
-		// 提取当前版本号作为白名单
+		"set +e",
 		`NEW_VER=$(grep '^FLUX_VERSION=' .env | cut -d= -f2 | tr -d '\r' | tr -d '"' | tr -d "'" || true)`,
-
-		// 兼容 Nerdctl 和标准 Docker 的智能提取逻辑
-		`for img in $(docker images | grep 'ghcr.io/abai569' | awk '{if ($1 ~ /:/) print $1; else print $1":"$2}'); do`,
+		cleanupLoop,
 		`  TAG=$(echo "$img" | awk -F: '{print $NF}')`,
 		`  if [ -n "$NEW_VER" ] && [ "$TAG" = "$NEW_VER" ]; then`,
 		`    continue`,
 		`  fi`,
-		`  docker rmi -f "$img" 2>/dev/null || true`, // 👈 必须加 -f，否则残留占用会导致清理静默失败
+		`  docker rmi -f "$img" 2>/dev/null || true`,
 		`done`,
-
 		"docker image prune -f",
 	}, "\n")
 }
@@ -381,6 +382,25 @@ func (e *systemUpgradeExecutor) currentBackendImage(ctx context.Context) (string
 		return "", fmt.Errorf("backend image id is empty")
 	}
 	return imageID, nil
+}
+
+func extractImageRegistry(imageID string) string {
+	// Parse registry from image reference like "ghcr.io/abai569/flox-svc-backend:tag"
+	// Strip digest pinning: "image@sha256:abc" → "image"
+	if idx := strings.Index(imageID, "@"); idx >= 0 {
+		imageID = imageID[:idx]
+	}
+	// Strip tag: "ghcr.io/abai569/flox-svc-backend:tag" → "ghcr.io/abai569/flox-svc-backend"
+	tagSep := strings.LastIndex(imageID, ":")
+	slashSep := strings.LastIndex(imageID, "/")
+	if tagSep > slashSep {
+		imageID = imageID[:tagSep]
+	}
+	// Remove repo name, keep registry+owner: "ghcr.io/abai569/flox-svc-backend" → "ghcr.io/abai569"
+	if idx := strings.LastIndex(imageID, "/"); idx >= 0 {
+		return imageID[:idx]
+	}
+	return defaultImageRegistry
 }
 
 func (e *systemUpgradeExecutor) startHelper(ctx context.Context, imageID, helperName string) (string, error) {
@@ -578,6 +598,7 @@ func (h *Handler) systemUpgrade(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	exec.imageRegistry = extractImageRegistry(imageID)
 
 	composePath := exec.composePath()
 	envPath := exec.envPath()
