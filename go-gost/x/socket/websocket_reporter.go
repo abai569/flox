@@ -1066,16 +1066,8 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		return
 	}
 
-	// 注入流量统计
-	for _, d := range deltas {
-		inHalf := d.delta / 2
-		outHalf := d.delta - inHalf
-		stats.AddForwardTraffic(d.forwardID, d.userID, 0, "", 0, d.port, true, inHalf)
-		stats.AddForwardTraffic(d.forwardID, d.userID, 0, "", 0, d.port, false, outHalf)
-
-		serviceName := fmt.Sprintf("%d_%d_%d_%s", d.forwardID, d.userID, d.userTunnelID, d.protocol)
-		service.GetGlobalTrafficManager().AddTraffic(serviceName, int64(inHalf), int64(outHalf))
-	}
+	// 流量统计由连接包装器路径（service.Stats + forwarder pStats）提供，更准确且无噪声
+	// 禁用 nftables 注入，避免双倍计数和端口扫描噪声
 }
 
 // collectForwardMetrics 收集所有转发规则的实时指标
