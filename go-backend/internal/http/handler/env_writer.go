@@ -24,48 +24,56 @@ func UpdateEnvFile(licenseKey, domain, serverURL, hmacKey string) error {
 		lines = append(lines, scanner.Text())
 	}
 
-	// 更新或追加的标记
+	// 重建环境变量
+	var result []string
 	foundLicenseKey := false
 	foundDomain := false
 	foundServerURL := false
 	foundHmacKey := false
 
-	for i, line := range lines {
+	for _, line := range lines {
 		kv := strings.SplitN(line, "=", 2)
 		if len(kv) == 2 {
 			k := strings.TrimSpace(kv[0])
 			switch k {
 			case "LICENSE_KEY":
-				lines[i] = "LICENSE_KEY=" + licenseKey
+				result = append(result, "LICENSE_KEY="+licenseKey)
 				foundLicenseKey = true
+				continue
 			case "SERVER_DOMAIN":
-				lines[i] = "SERVER_DOMAIN=" + domain
+				result = append(result, "SERVER_DOMAIN="+domain)
 				foundDomain = true
+				continue
 			case "LICENSE_SERVER_URL":
-				lines[i] = "LICENSE_SERVER_URL=" + serverURL
+				result = append(result, "LICENSE_SERVER_URL="+serverURL)
 				foundServerURL = true
+				continue
 			case "HMAC_SECRET_KEY":
 				if hmacKey != "" {
-					lines[i] = "HMAC_SECRET_KEY=" + hmacKey
-					foundHmacKey = true
+					result = append(result, "HMAC_SECRET_KEY="+hmacKey)
 				}
+				foundHmacKey = true
+				continue
 			}
 		}
+		result = append(result, line)
 	}
 
 	// 追加不存在的
 	if !foundLicenseKey && licenseKey != "" {
-		lines = append(lines, "LICENSE_KEY="+licenseKey)
+		result = append(result, "LICENSE_KEY="+licenseKey)
 	}
 	if !foundDomain && domain != "" {
-		lines = append(lines, "SERVER_DOMAIN="+domain)
+		result = append(result, "SERVER_DOMAIN="+domain)
 	}
 	if !foundServerURL && serverURL != "" {
-		lines = append(lines, "LICENSE_SERVER_URL="+serverURL)
+		result = append(result, "LICENSE_SERVER_URL="+serverURL)
 	}
 	if !foundHmacKey && hmacKey != "" {
-		lines = append(lines, "HMAC_SECRET_KEY="+hmacKey)
+		result = append(result, "HMAC_SECRET_KEY="+hmacKey)
 	}
+
+	lines = result
 
 	content := strings.Join(lines, "\n") + "\n"
 	return osWrite(envPath, []byte(content), 0644)

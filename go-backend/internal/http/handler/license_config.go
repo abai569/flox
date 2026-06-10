@@ -1,4 +1,4 @@
-﻿package handler
+package handler
 
 import (
 	"bytes"
@@ -36,16 +36,15 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 校验：必须通过 HTTPS 访问
-	if req.ActualProtocol != "https:" {
-		response.WriteJSON(w, response.ErrDefault("必须通过 HTTPS 域名访问面板"))
-		return
-	}
-
-	// 校验：实际访问域名必须与填写域名一致
+	// 校验：实际访问域名必须与填写域名一致（无论 HTTP/HTTPS）
 	if req.ActualDomain != req.Domain {
 		response.WriteJSON(w, response.ErrDefault("实际访问域名与填写域名不一致"))
 		return
+	}
+
+	// 非 HTTPS 访问记录警告，但不阻断（域名校验已确保访问域名与填写的域名一致）
+	if req.ActualProtocol != "https:" {
+		log.Println("⚠️ 授权配置通过 HTTP 保存，建议配置 HTTPS 访问面板")
 	}
 
 	const defaultLicenseServerURL = "https://sq.abai.eu.org"
@@ -98,10 +97,9 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 		log.Printf("⚠️ sync config license_server_url failed: %v", err)
 	}
 
-	if req.HmacKey != "" {
-		if err := h.repo.UpsertConfig("hmac_key", req.HmacKey, now); err != nil {
-			log.Printf("⚠️ sync config hmac_key failed: %v", err)
-		}
+	// 保存 HMAC 密钥（允许清空）
+	if err := h.repo.UpsertConfig("hmac_key", req.HmacKey, now); err != nil {
+		log.Printf("⚠️ sync config hmac_key failed: %v", err)
 	}
 
 	middleware.UpdateCheckParams(url, actualLicenseKey, req.Domain, req.ActualDomain, req.ActualProtocol)
