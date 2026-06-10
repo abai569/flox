@@ -3032,8 +3032,8 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 	speedLimitEnabled := asBool(req["speedLimitEnabled"], false)
 	speedLimit := asInt(req["speedLimit"], 0)
 	mode := defaultString(asString(req["mode"]), "gost")
-	if mode != "gost" && mode != "nftables" {
-		response.WriteJSON(w, response.ErrDefault("转发模式无效，仅支持 gost 或 nftables"))
+	if mode != "gost" && mode != "nftables" && mode != "floxcore" {
+		response.WriteJSON(w, response.ErrDefault("转发模式无效，仅支持 gost、nftables 或 floxcore"))
 		return
 	}
 	forwardID, err := h.repo.CreateForwardTx(userID, userName, name, tunnelID, remoteAddr, defaultString(asString(req["strategy"]), "fifo"), now, inx, entryNodes, port, inIp, nullableInt(speedID), asInt(req["maxConnections"], 0), trafficLimit, expiryTime, speedLimitEnabled, speedLimit, mode)
@@ -3228,8 +3228,8 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 				warnings = append(warnings, fmt.Sprintf("nftables规则清理失败: %v", err))
 			}
 		}
-		// 从 gost 切换到 nftables：清理 gost 服务
-		if !strings.EqualFold(forward.Mode, "nftables") && strings.EqualFold(mode, "nftables") {
+		// 从 gost 或 floxcore 切换到 nftables：清理 gost/FloxCore 服务
+		if (strings.EqualFold(forward.Mode, "gost") || strings.EqualFold(forward.Mode, "floxcore")) && strings.EqualFold(mode, "nftables") {
 			for _, fp := range ports {
 				node, nodeErr := h.getNodeRecord(fp.NodeID)
 				if nodeErr != nil {
@@ -3237,6 +3237,10 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 				}
 				_ = h.deleteForwardServicesOnNode(&forwardRecord{ID: id}, node.ID)
 			}
+		}
+		// floxcore 切换到非 floxcore：清理 FloxCore 规则
+		if strings.EqualFold(forward.Mode, "floxcore") && !strings.EqualFold(mode, "floxcore") {
+			// FloxCore 服务清理由 deleteForwardServicesOnNode 完成
 		}
 	}
 	if hasInIP {
