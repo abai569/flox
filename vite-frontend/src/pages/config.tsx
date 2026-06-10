@@ -333,14 +333,15 @@ export default function ConfigPage() {
       );
 
       if (res.code === 0) {
-        if (res.data?.valid) {
+        const d = res.data as { valid?: boolean; reason?: string };
+        if (d?.valid) {
           toast.success("授权配置验证通过");
           setTimeout(async () => {
             await loadLicenseInfo();
             setTimeout(() => window.location.reload(), 500);
           }, 500);
         } else {
-          toast.error("授权验证失败：" + (res.data?.reason || "未知错误"));
+          toast.error("授权验证失败：" + (d?.reason || "未知错误"));
           setLicenseSaving(false);
         }
 
