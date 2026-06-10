@@ -634,34 +634,43 @@ EOF
 update_panel() {
   echo "🔄 开始更新面板..."
   
+  # 检测是否需要 sudo
+  if [[ $EUID -ne 0 ]]; then
+    SUDO_CMD="sudo"
+  else
+    SUDO_CMD=""
+  fi
+  
   # 切换到安装目录
   INSTALL_DIR="/opt/flox-svc"
   
-  # 检查是否有旧版本 flvx-svc 数据需要迁移到 flox-svc
+  # 检测旧版本 flvx-svc 安装并自动迁移
   OLD_INSTALL_DIR="/opt/flvx-svc"
-  if [[ -d "$OLD_INSTALL_DIR" ]] && [[ ! -d "$INSTALL_DIR" ]]; then
-    echo "📦 检测到旧版本目录 $OLD_INSTALL_DIR，正在迁移到 $INSTALL_DIR..."
-    $SUDO_CMD cp -a "$OLD_INSTALL_DIR" "$INSTALL_DIR"
-    $SUDO_CMD chown -R root:root "$INSTALL_DIR" 2>/dev/null || true
-    echo "✅ 数据迁移完成，继续更新流程"
-    # 尝试重命名旧容器，避免后续冲突
-    docker rename flvx-svc-backend flox-svc-backend 2>/dev/null || true
-    docker rename flvx-svc-frontend flox-svc-frontend 2>/dev/null || true
-    docker rename flvx-svc-postgres flox-svc-postgres 2>/dev/null || true
-  elif [[ ! -d "$INSTALL_DIR" ]]; then
-    echo "📁 升级目录不存在，正在创建：$INSTALL_DIR"
+  if [[ -d "$OLD_INSTALL_DIR" ]]; then
+    echo "📦 检测到旧版本安装 $OLD_INSTALL_DIR，正在迁移到 $INSTALL_DIR..."
     $SUDO_CMD mkdir -p "$INSTALL_DIR"
+    $SUDO_CMD cp -a "$OLD_INSTALL_DIR/." "$INSTALL_DIR/" 2>/dev/null
+    echo "✅ 数据迁移完成"
+  fi
+  
+  # 检查目标目录是否存在
+  if [[ ! -d "$INSTALL_DIR" ]]; then
+    echo "❌ 未检测到面板安装，请先执行安装操作"
+    return 1
   fi
   
   cd "$INSTALL_DIR"
   
-  check_docker
-
+  # 检查配置文件完整性（迁移后或已有安装）
   if [[ ! -f ".env" ]]; then
     echo "❌ 配置文件 .env 缺失，无法执行更新。"
-    echo "   如果是全新升级，请重新运行 1. 安装面板。"
+    echo "   请检查安装目录 $INSTALL_DIR 是否完整。"
     return 1
   fi
+  
+  check_docker
+  LICENSE_SERVER_URL=https://sq.abai.eu.org
+  
   CURRENT_DB_TYPE=$(get_current_db_type)
   echo "🗄️ 当前数据库类型：$CURRENT_DB_TYPE"
 
@@ -714,6 +723,10 @@ update_panel() {
   docker rm -f flox-svc-backend 2>/dev/null || true
   docker rm -f flox-svc-frontend 2>/dev/null || true
   docker rm -f flox-svc-postgres 2>/dev/null || true
+  # 清理旧版 flvx-svc 容器（升级迁移场景）
+  docker rm -f flvx-svc-backend 2>/dev/null || true
+  docker rm -f flvx-svc-frontend 2>/dev/null || true
+  docker rm -f flvx-svc-postgres 2>/dev/null || true
   
   # 释放端口缓冲
   sleep 2
