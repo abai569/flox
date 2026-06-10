@@ -1271,7 +1271,7 @@ export default function NodePage() {
           setOverseasCommand(res.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [overseasModalOpen, overseasNodeId, overseasChannel, overseasVersion]);
   const copyToClipboard = (text: string, label: string) => {
     try {
@@ -2043,8 +2043,8 @@ export default function NodePage() {
             <div className="flex items-center gap-2">
               <span
                 className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${connectionStatusMeta.color === "success"
-                    ? "bg-emerald-500"
-                    : "bg-rose-500"
+                  ? "bg-emerald-500"
+                  : "bg-rose-500"
                   }`}
                 title={connectionStatusMeta.text}
               />
@@ -2458,12 +2458,12 @@ export default function NodePage() {
                 <div className="flex items-center text-xs ml-auto flex-shrink-0">
                   <span
                     className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${expiryMeta.tone === "danger"
-                        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                        : expiryMeta.tone === "warning"
-                          ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-                          : expiryMeta.tone === "success"
-                            ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                            : "bg-default-500/10 text-default-500"
+                      ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                      : expiryMeta.tone === "warning"
+                        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                        : expiryMeta.tone === "success"
+                          ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                          : "bg-default-500/10 text-default-500"
                       }`}
                   >
                     {expiryMeta.label}
@@ -3496,9 +3496,7 @@ export default function NodePage() {
       {/* 国外机主线路版本选择弹窗 */}
       <Modal
         backdrop="blur"
-        classNames={{
-          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
-        }}
+        classNames={{ base: '!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden' }}
         isOpen={overseasModalOpen}
         placement="center"
         size="2xl"
@@ -3507,8 +3505,7 @@ export default function NodePage() {
         <ModalContent>
           <ModalHeader className="flex flex-col gap-1">
             <h2 className="text-xl font-bold">
-              国外机主线路
-              {overseasNodeName ? ` - ${overseasNodeName}` : ""}
+              国外机主线路{overseasNodeName ? ` - ${overseasNodeName}` : ''}
             </h2>
           </ModalHeader>
           <ModalBody>
@@ -3516,90 +3513,85 @@ export default function NodePage() {
               <p className="text-sm text-default-600">
                 请复制以下安装命令到服务器上执行：
               </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Select
-                  label="版本通道"
-                  selectedKeys={[overseasChannel]}
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys)[0] as ReleaseChannel;
-                    setOverseasChannel(selected || "stable");
-                    setOverseasVersion("");
-                    void loadReleasesByChannel(selected);
-                  }}
-                >
-                  <SelectItem key="dev" textValue="测试版">
-                    测试版
-                  </SelectItem>
-                  <SelectItem key="stable" textValue="稳定版">
-                    稳定版
-                  </SelectItem>
-                </Select>
-                <Select
-                  label="选择版本"
-                  placeholder="留空则自动使用最新版本"
-                  selectedKeys={overseasVersion ? [overseasVersion] : []}
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys)[0] as string;
-                    setOverseasVersion(selected || "");
-                  }}
-                >
-                  {releases.map((r) => (
-                    <SelectItem key={r.version} textValue={r.version}>
-                      <div className="flex justify-between items-center">
-                        <span>{r.version}</span>
-                        <span className="text-xs text-default-400">
-                          {r.publishedAt
-                            ? new Date(r.publishedAt).toLocaleDateString()
-                            : ""}
-                          {r.channel === "dev" && (
-                            <Chip
-                              className="ml-1 shrink-0 whitespace-nowrap"
-                              color="warning"
-                              size="sm"
-                              variant="flat"
-                            >
-                              测试
-                            </Chip>
-                          )}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </Select>
-              </div>
 
-              {/* 服务名输入框 */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium whitespace-nowrap">
-                    服务名：
-                  </label>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <Select
+                    label="版本通道"
+                    size="md"
+                    selectedKeys={[overseasChannel]}
+                    onSelectionChange={(keys) => {
+                      const selected = Array.from(keys)[0] as ReleaseChannel;
+                      setOverseasChannel(selected || 'stable');
+                      setOverseasVersion('');
+                      void loadReleasesByChannel(selected);
+                    }}
+                  >
+                    <SelectItem key="dev" textValue="测试版">测试版</SelectItem>
+                    <SelectItem key="stable" textValue="稳定版">稳定版</SelectItem>
+                  </Select>
+                </div>
+                <div className="flex-1">
+                  <Select
+                    label="选择版本"
+                    placeholder="留空自动使用最新版本"
+                    size="md"
+                    selectedKeys={overseasVersion ? [overseasVersion] : []}
+                    onSelectionChange={(keys) => {
+                      const selected = Array.from(keys)[0] as string;
+                      setOverseasVersion(selected || '');
+                    }}
+                  >
+                    {releases
+                      .filter((r) => r.channel === overseasChannel)
+                      .map((r) => (
+                        <SelectItem key={r.version} textValue={r.version}>
+                          <div className="flex justify-between items-center">
+                            <span>{r.version}</span>
+                            <span className="text-xs text-default-400">
+                              {r.publishedAt
+                                ? new Date(r.publishedAt).toLocaleDateString()
+                                : ''}
+                              {r.channel === 'dev' && (
+                                <Chip
+                                  className="ml-1 shrink-0 whitespace-nowrap"
+                                  color="warning"
+                                  size="sm"
+                                  variant="flat"
+                                >
+                                  测试
+                                </Chip>
+                              )}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                  </Select>
+                </div>
+                <div className="flex-1">
                   <Input
-                    className="flex-1"
-                    placeholder="flox_agent"
-                    size="sm"
+                    label="服务名"
+                    placeholder="留空使用默认"
+                    size="md"
                     value={overseasServiceName}
                     variant="bordered"
                     onChange={(e) =>
-                      setOverseasServiceName(
-                        e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""),
-                      )
+                      setOverseasServiceName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))
                     }
                   />
                 </div>
-                <p className="text-xs text-default-500">
-                  💡 提示：同一台节点机可以对接多个面板，使用不同的服务名区分
-                </p>
               </div>
+
+              <p className="text-xs text-default-500 -mt-2">
+                提示：同一台节点机可以对接多个面板，使用不同的服务名区分
+              </p>
 
               {overseasCommand ? (
                 <div className="relative">
                   <Textarea
                     readOnly
                     className="font-medium text-sm"
-                    classNames={{
-                      input: "font-medium text-sm",
-                    }}
+                    classNames={{ input: 'font-medium text-sm' }}
                     maxRows={10}
                     minRows={6}
                     value={`${overseasCommand} -n ${overseasServiceName}`}
@@ -3610,10 +3602,7 @@ export default function NodePage() {
                     size="sm"
                     variant="flat"
                     onPress={() => {
-                      copyToClipboard(
-                        `${overseasCommand} -n ${overseasServiceName}`,
-                        "命令",
-                      );
+                      copyToClipboard(`${overseasCommand} -n ${overseasServiceName}`, '命令');
                       setOverseasModalOpen(false);
                     }}
                   >
@@ -3626,8 +3615,7 @@ export default function NodePage() {
                 </div>
               )}
               <div className="text-xs text-default-500">
-                💡
-                提示：如果自动复制失败请3击或拖拽鼠标选择上方完整文本进行手动复制
+                💡 提示：如果自动复制失败请3击或拖拽鼠标选择上方完整文本进行手动复制
               </div>
             </div>
           </ModalBody>
@@ -3686,7 +3674,7 @@ export default function NodePage() {
                       </Select>
                       <Select
                         label="选择版本"
-                        placeholder="留空则使用当前通道最新版本"
+                        placeholder="留空使用最新版本"
                         selectedKeys={selectedVersion ? [selectedVersion] : []}
                         onSelectionChange={(keys) => {
                           const selected = Array.from(keys)[0] as string;
