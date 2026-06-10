@@ -939,20 +939,38 @@ update_panel() {
   if [[ "$CURRENT_DB_TYPE" == "sqlite" ]]; then
     echo "🔍 检查 SQLite 数据完整性..."
     sleep 3
-    if docker cp flox-svc-backend:/app/data/gost.db /tmp/gost.db.check 2>/dev/null && [[ -s "/tmp/gost.db.check" ]]; then
+    local target_backend=""
+    if docker ps --format "{{.Names}}" | grep -q "^flox-svc-backend$"; then
+      target_backend="flox-svc-backend"
+    elif docker ps --format "{{.Names}}" | grep -q "^flvx-svc-backend$"; then
+      target_backend="flvx-svc-backend"
+    fi
+
+    if [[ -s "/tmp/flox-db-backup/gost.db" && -n "$target_backend" ]]; then
+      echo "⚠️ 检测到升级前 SQLite 备份，正在恢复到新容器..."
+      docker exec "$target_backend" mkdir -p /app/data
+      docker stop -t 30 "$target_backend" 2>/dev/null || true
+      docker cp /tmp/flox-db-backup/gost.db "$target_backend":/app/data/gost.db
+      echo "✅ 数据已恢复，正在启动后端容器..."
+      docker start "$target_backend"
+      docker exec "$target_backend" chown 1000:1000 /app/data/gost.db 2>/dev/null || true
+      sleep 3
+      rm -rf /tmp/flox-db-backup 2>/dev/null || true
+    elif [[ -n "$target_backend" ]] && docker cp "$target_backend":/app/data/gost.db /tmp/gost.db.check 2>/dev/null && [[ -s "/tmp/gost.db.check" ]]; then
       echo "✅ 数据文件正常"
       rm -f /tmp/gost.db.check
       # 清理备份
       rm -rf /tmp/flox-db-backup 2>/dev/null || true
-    elif [[ -f "/tmp/flox-db-backup/gost.db" ]]; then
+    elif [[ -f "/tmp/flox-db-backup/gost.db" ]] && [[ -n "$target_backend" ]]; then
       echo "⚠️ 容器内无数据！正在恢复备份..."
-      docker exec flox-svc-backend mkdir -p /app/data
-      docker cp /tmp/flox-db-backup/gost.db flox-svc-backend:/app/data/gost.db
-      docker exec flox-svc-backend chown 1000:1000 /app/data/gost.db 2>/dev/null || true
-      echo "✅ 数据已恢复！请重启容器..."
-      docker restart flox-svc-backend
+      docker exec "$target_backend" mkdir -p /app/data
+      docker stop -t 30 "$target_backend" 2>/dev/null || true
+      docker cp /tmp/flox-db-backup/gost.db "$target_backend":/app/data/gost.db
+      echo "✅ 数据已恢复，正在启动后端容器..."
+      docker start "$target_backend"
+      docker exec "$target_backend" chown 1000:1000 /app/data/gost.db 2>/dev/null || true
       sleep 3
-      rm -f /tmp/gost.db.check /tmp/flox-db-backup/gost.db 2>/dev/null || true
+      rm -rf /tmp/gost.db.check /tmp/flox-db-backup 2>/dev/null || true
     else
       echo " 严重错误：数据丢失且无备份！如有本地备份请手动恢复"
     fi
@@ -1112,6 +1130,8 @@ backup_panel_data() {
   if [[ "$current_db_type" == "sqlite" ]]; then
     echo "📦 备份 SQLite 数据库（在线热备）..."
     if docker cp flox-svc-backend:/app/data/gost.db "$backup_dir/gost.db" 2>/dev/null; then
+      echo "  gost.db → 已备份"
+    elif docker cp flvx-svc-backend:/app/data/gost.db "$backup_dir/gost.db" 2>/dev/null; then
       echo "  gost.db → 已备份"
     else
       echo "❌ SQLite 数据库备份失败，请检查容器是否运行"
