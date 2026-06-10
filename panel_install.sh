@@ -1262,7 +1262,8 @@ main() {
   # 无参数 update 直接升级到最新版
   if [[ "$1" == "update" ]]; then
     echo "🔄 直接进入更新流程（最新版）..."
-    if [[ ! -d "/opt/flox-svc" ]]; then
+    # 兼容旧版 flvx-svc 目录检测
+    if [[ ! -d "/opt/flox-svc" ]] && [[ ! -d "/opt/flvx-svc" ]]; then
       echo "❌ 未检测到面板安装，请先执行安装操作"
       exit 1
     fi
@@ -1274,7 +1275,8 @@ main() {
   # 指定版本时直接升级（无交互）
   if [[ -n "$ARG_VERSION" ]]; then
     echo "🔄 指定版本：$ARG_VERSION，直接进入更新流程..."
-    if [[ ! -d "/opt/flox-svc" ]]; then
+    # 兼容旧版 flvx-svc 目录检测
+    if [[ ! -d "/opt/flox-svc" ]] && [[ ! -d "/opt/flvx-svc" ]]; then
       echo "❌ 未检测到面板安装，请先执行安装操作"
       exit 1
     fi
