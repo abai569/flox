@@ -21,6 +21,8 @@ import (
 const (
 	panelDeployDirEnv                 = "PANEL_DEPLOY_DIR"
 	panelBackendContainerEnv          = "PANEL_BACKEND_CONTAINER"
+	flvxDefaultPanelDeployDir         = "/opt/flvx-svc"
+	flvxDefaultPanelBackendName       = "flvx-svc-backend"
 	defaultPanelDeployDir             = "/opt/flox-svc"
 	defaultPanelBackendName           = "flox-svc-backend"
 	dockerSocketPath                  = "/var/run/docker.sock"
@@ -90,9 +92,26 @@ func newSystemUpgradeExecutor() *systemUpgradeExecutor {
 	if deployDir == "" {
 		deployDir = defaultPanelDeployDir
 	}
+	// 兼容旧版安装路径：如果没有新的 flox-svc 目录，检查旧版 flvx-svc 目录
+	if _, err := os.Stat(deployDir); err != nil {
+		oldDir := flvxDefaultPanelDeployDir
+		if _, err2 := os.Stat(oldDir); err2 == nil {
+			deployDir = oldDir
+		}
+	}
 	backendContainer := strings.TrimSpace(os.Getenv(panelBackendContainerEnv))
 	if backendContainer == "" {
 		backendContainer = defaultPanelBackendName
+		// 兼容旧版容器名：如果新容器不存在，尝试旧容器名
+		ctx := context.Background()
+		checkCmd := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.Name}}", backendContainer)
+		if checkCmd.Run() != nil {
+			oldContainer := flvxDefaultPanelBackendName
+			checkOld := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.Name}}", oldContainer)
+			if checkOld.Run() == nil {
+				backendContainer = oldContainer
+			}
+		}
 	}
 	return &systemUpgradeExecutor{deployDir: deployDir, backendContainer: backendContainer}
 }
@@ -183,7 +202,33 @@ func (e *systemUpgradeExecutor) selectComposeAsset(current []byte) string {
 func (e *systemUpgradeExecutor) helperScript() string {
 	return strings.Join([]string{
 		"set -eu",
-		`cd "$PANEL_DEPLOY_DIR"`,
+		`FLOX_DIR="/opt/flox-svc"`,
+		`FLVX_DIR="/opt/flvx-svc"`,
+		// 检测并迁移旧版 flvx-svc 到 flox-svc
+		`if [ -d "$FLVX_DIR" ] && [ ! -d "$FLOX_DIR" ]; then`,
+		`  echo "  检测到旧版 flvx-svc，正在迁移到 flox-svc..."`,
+		`  mkdir -p "$FLOX_DIR"`,
+		`  cp -a "$FLVX_DIR/." "$FLOX_DIR/" 2>/dev/null`,
+		`  # 更新 .env 中的路径引用`,
+		`  if [ -f "$FLOX_DIR/.env" ]; then`,
+		`    sed -i "s|/opt/flvx-svc|/opt/flox-svc|g" "$FLOX_DIR/.env"`,
+		`    sed -i "s|flvx-svc-backend|flox-svc-backend|g" "$FLOX_DIR/.env"`,
+		`    sed -i "s|flvx-svc-frontend|flox-svc-frontend|g" "$FLOX_DIR/.env"`,
+		`    sed -i "s|flvx-svc-postgres|flox-svc-postgres|g" "$FLOX_DIR/.env"`,
+		`  fi`,
+		`  # 更新 docker-compose.yml 中的容器名`,
+		`  if [ -f "$FLOX_DIR/docker-compose.yml" ]; then`,
+		`    sed -i "s|flvx-svc-backend|flox-svc-backend|g" "$FLOX_DIR/docker-compose.yml"`,
+		`    sed -i "s|flvx-svc-frontend|flox-svc-frontend|g" "$FLOX_DIR/docker-compose.yml"`,
+		`    sed -i "s|flvx-svc-postgres|flox-svc-postgres|g" "$FLOX_DIR/docker-compose.yml"`,
+		`    sed -i "s|/opt/flvx-svc|/opt/flox-svc|g" "$FLOX_DIR/docker-compose.yml"`,
+		`  fi`,
+		`  # 停用并删除旧版容器`,
+		`  docker stop flvx-svc-backend flvx-svc-frontend flvx-svc-postgres 2>/dev/null || true`,
+		`  docker rm -f flvx-svc-backend flvx-svc-frontend flvx-svc-postgres 2>/dev/null || true`,
+		`  echo "  迁移完成，继续使用 flox-svc"`,
+		`fi`,
+		`cd "$FLOX_DIR"`,
 		"docker compose pull backend frontend",
 		"docker compose up -d backend frontend",
 		"sleep 10",
