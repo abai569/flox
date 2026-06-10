@@ -339,10 +339,11 @@ jobs:
 
       - name: Create Release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
           OWNER="${{ needs.check-version.outputs.image_owner }}"
+          REPO="${{ github.repository }}"
 
           # 判断是否为预发布版本（含 dev/beta/alpha/rc 后缀）
           IS_PRERELEASE=false
@@ -393,29 +394,29 @@ jobs:
           \`\`\`bash
           bash <(curl -L https://raw.githubusercontent.com/${{ github.repository }}/main/panel_install.sh)
           \`\`\`" \
-            --repo ${{ github.repository }}
+            --repo "${REPO}"
 
           # 上传所有文件到 release
           echo "📤 上传 GOST 二进制文件..."
-          gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber
-          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber
+          gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber --repo "${REPO}"
 
           echo "📤 上传 GOST 校验文件..."
-          gh release upload "${VERSION}" ./artifacts/gost-amd64.sha256 --clobber
-          gh release upload "${VERSION}" ./artifacts/gost-arm64.sha256 --clobber
+          gh release upload "${VERSION}" ./artifacts/gost-amd64.sha256 --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/gost-arm64.sha256 --clobber --repo "${REPO}"
 
           echo "📤 上传 Docker Compose 配置文件..."
-          gh release upload "${VERSION}" ./artifacts/docker-compose-v4.yml --clobber
-          gh release upload "${VERSION}" ./artifacts/docker-compose-v6.yml --clobber
+          gh release upload "${VERSION}" ./artifacts/docker-compose-v4.yml --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/docker-compose-v6.yml --clobber --repo "${REPO}"
 
           echo "📤 上传离线包..."
-          gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber
-          gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber
+          gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber --repo "${REPO}"
 
           # 正式版设为 latest，预发布版不覆盖 latest
           if [ "$IS_PRERELEASE" = false ]; then
-            RELEASE_ID=$(gh release view "${VERSION}" --json databaseId --jq '.databaseId')
-            gh api -X PATCH repos/${{ github.repository }}/releases/${RELEASE_ID} -f make_latest="true"
+            RELEASE_ID=$(gh release view "${VERSION}" --repo "${REPO}" --json databaseId --jq '.databaseId')
+            gh api -X PATCH "repos/${REPO}/releases/${RELEASE_ID}" -f make_latest="true"
           fi
           echo "✅ Release ${VERSION} 创建完成"
 
@@ -474,22 +475,23 @@ jobs:
 
       - name: Update GOST binaries in Release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
+          REPO="${{ github.repository }}"
 
           echo "🔄 更新 Release ${VERSION} 中的 GOST 二进制文件..."
 
-          gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber
-          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber
+          gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber --repo "${REPO}"
 
           echo "📤 上传 GOST 校验文件..."
-          gh release upload "${VERSION}" ./artifacts/gost-amd64.sha256 --clobber
-          gh release upload "${VERSION}" ./artifacts/gost-arm64.sha256 --clobber
+          gh release upload "${VERSION}" ./artifacts/gost-amd64.sha256 --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/gost-arm64.sha256 --clobber --repo "${REPO}"
 
           echo " 📤 上传离线包..."
-          gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber
-          gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber
+          gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber --repo "${REPO}"
 
           echo " ✅ GOST 二进制文件更新完成"
 
