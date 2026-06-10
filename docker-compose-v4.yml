@@ -1,6 +1,6 @@
 services:
   backend:
-    image: ghcr.io/abai569/flox-svc-backend:${FLUX_VERSION:-latest}
+    image: ghcr.io/abai569/flox-svc-backend:${FLOX_VERSION:-latest}
     container_name: flox-svc-backend
     restart: unless-stopped
     logging:
@@ -15,7 +15,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       SERVER_ADDR: :6365
       TZ: Asia/Shanghai
-      FLUX_VERSION: ${FLUX_VERSION:-dev}
+      FLOX_VERSION: ${FLOX_VERSION:-dev}
       PANEL_DEPLOY_DIR: /opt/flox-svc
       PANEL_BACKEND_CONTAINER: flox-svc-backend
       LICENSE_SERVER_URL: ${LICENSE_SERVER_URL}
@@ -65,7 +65,7 @@ services:
       start_period: 20s
 
   frontend:
-    image: ghcr.io/abai569/flox-svc-frontend:${FLUX_VERSION:-latest}
+    image: ghcr.io/abai569/flox-svc-frontend:${FLOX_VERSION:-latest}
     container_name: flox-svc-frontend
     restart: unless-stopped
     logging:

@@ -248,7 +248,7 @@ install_fresh_version() {
 JWT_SECRET=$jwt_secret
 FRONTEND_PORT=63666
 BACKEND_PORT=63665
-FLUX_VERSION=$version
+FLOX_VERSION=$version
 INIT_ADMIN_PASSWORD=$init_admin_password
 
 DB_TYPE=sqlite
@@ -302,6 +302,11 @@ resolve_version() {
     echo "$ARG_VERSION"
     return 0
   fi
+  if [[ -n "${FLOX_VERSION:-}" ]]; then
+    echo "$FLOX_VERSION"
+    return 0
+  fi
+  # 兼容旧环境变量名
   if [[ -n "${FLUX_VERSION:-}" ]]; then
     echo "$FLUX_VERSION"
     return 0
@@ -842,7 +847,7 @@ install_panel() {
 JWT_SECRET=$JWT_SECRET
 FRONTEND_PORT=$FRONTEND_PORT
 BACKEND_PORT=$BACKEND_PORT
-FLUX_VERSION=$CURRENT_VERSION
+FLOX_VERSION=$CURRENT_VERSION
 INIT_ADMIN_PASSWORD=$INIT_ADMIN_PASSWORD
 
 DB_TYPE=$DB_TYPE
@@ -986,7 +991,7 @@ update_panel() {
     echo "❌ 配置文件下载失败，请检查版本号是否正确"
     return 1
   fi
-  upsert_env_var ".env" "FLUX_VERSION" "$CURRENT_VERSION"
+  upsert_env_var ".env" "FLOX_VERSION" "$CURRENT_VERSION"
 
   # 自动检测并配置 IPv6 支持
   if check_ipv6_support; then

@@ -34,7 +34,7 @@ type Handler struct {
 	metrics     *metrics.IngestionService
 	healthCheck *health.Checker
 	bestExit    *bestExitManager
-	fluxVersion string
+	floxVersion string
 
 	captchaMu     sync.Mutex
 	captchaTokens map[string]int64
@@ -46,9 +46,9 @@ type Handler struct {
 
 	systemUpgradeMu sync.Mutex
 
-	qualityProber *tunnelQualityProber
-	nodeGroupHandler *NodeGroupHandler
-	nodeTagHandler   *NodeTagHandler
+	qualityProber       *tunnelQualityProber
+	nodeGroupHandler    *NodeGroupHandler
+	nodeTagHandler      *NodeTagHandler
 	packageGroupHandler *PackageGroupHandler
 
 	nftablesDomainMu    sync.Mutex
@@ -139,9 +139,9 @@ func (h *Handler) GetForwardConnections(nodeID int64, forwardID int64) int {
 	return h.wsServer.GetForwardCurrentConnections(nodeID, forwardID)
 }
 
-// GetFluxVersion 获取当前面板版本
-func (h *Handler) GetFluxVersion() string {
-	return h.fluxVersion
+// GetFloxVersion 获取当前面板版本
+func (h *Handler) GetFloxVersion() string {
+	return h.floxVersion
 }
 
 type loginRequest struct {
@@ -182,21 +182,21 @@ const (
 	maxBrandAssetDataURLBytes = 1024 * 1024
 )
 
-func New(repo *repo.Repository, jwtSecret string, fluxVersion ...string) *Handler {
+func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handler {
 	version := ""
-	if len(fluxVersion) > 0 {
-		version = fluxVersion[0]
+	if len(floxVersion) > 0 {
+		version = floxVersion[0]
 	}
 	h := &Handler{
-		repo:                   repo,
-		jwtSecret:              jwtSecret,
-		wsServer:               ws.NewServer(repo, jwtSecret),
-		metrics:                metrics.NewIngestionService(repo),
-		healthCheck:            nil,
-		bestExit:               newBestExitManager(),
-		fluxVersion:            version,
-		captchaTokens:        make(map[string]int64),
-		nftablesDomainCache:  make(map[int64]string),
+		repo:                repo,
+		jwtSecret:           jwtSecret,
+		wsServer:            ws.NewServer(repo, jwtSecret),
+		metrics:             metrics.NewIngestionService(repo),
+		healthCheck:         nil,
+		bestExit:            newBestExitManager(),
+		floxVersion:         version,
+		captchaTokens:       make(map[string]int64),
+		nftablesDomainCache: make(map[int64]string),
 	}
 	h.healthCheck = health.NewChecker(repo, h.wsServer)
 	h.healthCheck.SetOnResult(h.onServiceMonitorResult)
@@ -401,7 +401,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/license/config", h.licenseConfig)
 	mux.HandleFunc("/api/v1/license/transfer", h.licenseTransfer)
 	mux.HandleFunc("/api/v1/telegram/test", h.telegramTest)
-
 
 	mux.HandleFunc("/api/v1/monitor/access", h.monitorAccessHandler)
 	mux.HandleFunc("/api/v1/monitor/public/nodes", h.monitorPublicNodeListHandler)
@@ -1349,28 +1348,28 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 
 	payload := map[string]interface{}{
 		"userInfo": map[string]interface{}{
-			"id":            user.ID,
-			"name":          user.User,
-			"user":          user.User,
-			"status":        user.Status,
-			"flow":          user.Flow,
-			"inFlow":        user.InFlow,
-			"outFlow":       user.OutFlow,
-			"num":           user.Num,
-			"expTime":       user.ExpTime,
-			"flowResetTime": user.FlowResetTime,
-			"createdTime":   user.CreatedTime,
-			"updatedTime":   nullableNullInt64(user.UpdatedTime),
-			"renewalAmount":    user.RenewalAmount,
-			"balance":          user.Balance,
-			"autoRenew":        user.AutoRenew,
-			"autoBuyTraffic":   user.AutoBuyTraffic,
-			"buyTrafficAmount": user.BuyTrafficAmount,
-			"buyTrafficPrice":  user.BuyTrafficPrice,
+			"id":                      user.ID,
+			"name":                    user.User,
+			"user":                    user.User,
+			"status":                  user.Status,
+			"flow":                    user.Flow,
+			"inFlow":                  user.InFlow,
+			"outFlow":                 user.OutFlow,
+			"num":                     user.Num,
+			"expTime":                 user.ExpTime,
+			"flowResetTime":           user.FlowResetTime,
+			"createdTime":             user.CreatedTime,
+			"updatedTime":             nullableNullInt64(user.UpdatedTime),
+			"renewalAmount":           user.RenewalAmount,
+			"balance":                 user.Balance,
+			"autoRenew":               user.AutoRenew,
+			"autoBuyTraffic":          user.AutoBuyTraffic,
+			"buyTrafficAmount":        user.BuyTrafficAmount,
+			"buyTrafficPrice":         user.BuyTrafficPrice,
 			"autoBuyTrafficPackageId": user.AutoBuyTrafficPackageID,
 			"autoBuyTrafficThreshold": user.AutoBuyTrafficThreshold,
-			"baseFlow":         user.BaseFlow,
-			"trafficFlow":      user.TrafficFlow,
+			"baseFlow":                user.BaseFlow,
+			"trafficFlow":             user.TrafficFlow,
 		},
 		"tunnelPermissions": tunnelOut,
 		"forwards":          forwardOut,

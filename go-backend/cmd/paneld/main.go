@@ -73,7 +73,7 @@ func main() {
 		log.Println("⚠️  未配置授权服务，将进入体验模式")
 	}
 
-	log.Printf("starting go-backend on %s (db=%s, version=%s)", cfg.Addr, cfg.DBPath, cfg.FluxVersion)
+	log.Printf("starting go-backend on %s (db=%s, version=%s)", cfg.Addr, cfg.DBPath, cfg.FloxVersion)
 
 	a, err := app.New(cfg)
 	if err != nil {

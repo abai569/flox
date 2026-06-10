@@ -34,6 +34,8 @@ const (
 
 var safeBackendContainerPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 var enableIPv6ComposePattern = regexp.MustCompile(`(?im)^\s*enable_ipv6\s*:\s*['"]?true['"]?\s*(?:#.*)?$`)
+var composeBackendImagePattern = regexp.MustCompile(`(?m)^(\s*image:\s*)(\S*/)(?:flox|flvx)-svc-backend:[^\s]+\s*$`)
+var composeFrontendImagePattern = regexp.MustCompile(`(?m)^(\s*image:\s*)(\S*/)(?:flox|flvx)-svc-frontend:[^\s]+\s*$`)
 var systemUpgradeReleaseBaseURL = githubHTMLBase
 
 type systemUpgradeExecutor struct {
@@ -119,7 +121,10 @@ func newSystemUpgradeExecutor() *systemUpgradeExecutor {
 }
 
 func currentPanelVersion() string {
-	version := strings.TrimSpace(os.Getenv("FLUX_VERSION"))
+	version := strings.TrimSpace(os.Getenv("FLOX_VERSION"))
+	if version == "" {
+		version = strings.TrimSpace(os.Getenv("FLUX_VERSION"))
+	}
 	if version == "" {
 		return "dev"
 	}
@@ -239,7 +244,8 @@ func (e *systemUpgradeExecutor) helperScript() string {
 		"docker compose up -d backend frontend",
 		"sleep 10",
 		"set +e",
-		`NEW_VER=$(grep '^FLUX_VERSION=' .env | cut -d= -f2 | tr -d '\r' | tr -d '"' | tr -d "'" || true)`,
+		`NEW_VER=$(grep '^FLOX_VERSION=' .env | cut -d= -f2 | tr -d '\r' | tr -d '"' | tr -d "'" || true)`,
+		`if [ -z "$NEW_VER" ]; then NEW_VER=$(grep '^FLUX_VERSION=' .env | cut -d= -f2 | tr -d '\r' | tr -d '"' | tr -d "'" || true); fi`,
 		cleanupLoop,
 		`  TAG=$(echo "$img" | awk -F: '{print $NF}')`,
 		`  if [ -n "$NEW_VER" ] && [ "$TAG" = "$NEW_VER" ]; then`,
@@ -280,22 +286,56 @@ func (e *systemUpgradeExecutor) updateEnvVersion(envPath, version string) error 
 	lines := strings.Split(string(data), "\n")
 	replaced := false
 	for i, line := range lines {
-		if strings.HasPrefix(line, "FLUX_VERSION=") {
-			lines[i] = "FLUX_VERSION=" + version
+		if strings.HasPrefix(line, "FLOX_VERSION=") {
+			lines[i] = "FLOX_VERSION=" + version
+			replaced = true
+		} else if strings.HasPrefix(line, "FLUX_VERSION=") {
+			lines[i] = "FLOX_VERSION=" + version
 			replaced = true
 		}
 	}
 	if !replaced {
 		trimmed := strings.TrimRight(strings.Join(lines, "\n"), "\n")
 		if trimmed == "" {
-			trimmed = "FLUX_VERSION=" + version
+			trimmed = "FLOX_VERSION=" + version
 		} else {
-			trimmed += "\nFLUX_VERSION=" + version
+			trimmed += "\nFLOX_VERSION=" + version
 		}
 		return writeFileWithMode(envPath, []byte(trimmed+"\n"), mode)
 	}
 	content := strings.TrimRight(strings.Join(lines, "\n"), "\n") + "\n"
 	return writeFileWithMode(envPath, []byte(content), mode)
+}
+
+func normalizeSystemUpgradeCompose(data []byte) []byte {
+	text := string(data)
+	text = strings.ReplaceAll(text, "${FLUX_VERSION:-latest}", "${FLOX_VERSION:-latest}")
+	text = strings.ReplaceAll(text, "${FLUX_VERSION:-dev}", "${FLOX_VERSION:-dev}")
+	text = strings.ReplaceAll(text, "FLUX_VERSION:", "FLOX_VERSION:")
+	text = regexp.MustCompile(`(?m)^\s*name:\s*sqlite_data\s*$`).ReplaceAllString(text, "    name: flox-svc_sqlite_data")
+	text = regexp.MustCompile(`(?m)^\s*name:\s*postgres_data\s*$`).ReplaceAllString(text, "    name: flox-svc_postgres_data")
+	return []byte(text)
+}
+
+func composeWithTargetVersion(data []byte, version string) ([]byte, error) {
+	if err := validateUpgradeVersion(version); err != nil {
+		return nil, err
+	}
+	text := string(normalizeSystemUpgradeCompose(data))
+	backendReplaced := false
+	frontendReplaced := false
+	text = composeBackendImagePattern.ReplaceAllStringFunc(text, func(line string) string {
+		backendReplaced = true
+		return composeBackendImagePattern.ReplaceAllString(line, `${1}${2}flox-svc-backend:`+version)
+	})
+	text = composeFrontendImagePattern.ReplaceAllStringFunc(text, func(line string) string {
+		frontendReplaced = true
+		return composeFrontendImagePattern.ReplaceAllString(line, `${1}${2}flox-svc-frontend:`+version)
+	})
+	if !backendReplaced || !frontendReplaced {
+		return nil, fmt.Errorf("compose image tag replacement failed")
+	}
+	return []byte(text), nil
 }
 
 func (e *systemUpgradeExecutor) backupFile(path string) (string, error) {
@@ -348,7 +388,7 @@ func (e *systemUpgradeExecutor) replaceCompose(path string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	return writeFileWithMode(path, data, mode)
+	return writeFileWithMode(path, normalizeSystemUpgradeCompose(data), mode)
 }
 
 func fileModeOrDefault(path string, fallback os.FileMode) (os.FileMode, error) {
@@ -610,8 +650,13 @@ func (h *Handler) systemUpgrade(w http.ResponseWriter, r *http.Request) {
 	composeAsset := exec.selectComposeAsset(composeData)
 	newCompose, err := h.downloadReleaseAsset(version, composeAsset)
 	if err != nil {
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
+		fallbackCompose, fallbackErr := composeWithTargetVersion(composeData, version)
+		if fallbackErr != nil {
+			response.WriteJSON(w, response.Err(-2, fmt.Sprintf("%v；复用当前 compose 失败：%v", err, fallbackErr)))
+			return
+		}
+		newCompose = fallbackCompose
+		composeAsset = composeAsset + " (fallback-current-compose)"
 	}
 	if _, err := exec.backupFile(composePath); err != nil {
 		response.WriteJSON(w, response.Err(-2, "备份 compose 失败："+err.Error()))

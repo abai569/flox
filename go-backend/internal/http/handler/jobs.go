@@ -44,7 +44,7 @@ func (h *Handler) StartBackgroundJobs() {
 	if tier != middleware.TierFree {
 		bot := h.TelegramBot()
 		if bot != nil && bot.Enabled() {
-			bot.SendSystemStartup(h.fluxVersion)
+			bot.SendSystemStartup(h.floxVersion)
 		}
 	}
 }

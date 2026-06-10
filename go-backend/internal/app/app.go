@@ -41,7 +41,7 @@ func New(cfg config.Config) (*App, error) {
 		return nil, fmt.Errorf("unsupported DB_TYPE %q", cfg.DBType)
 	}
 
-	h := handler.New(r, cfg.JWTSecret, cfg.FluxVersion)
+	h := handler.New(r, cfg.JWTSecret, cfg.FloxVersion)
 	router := httpserver.NewRouter(h, cfg.JWTSecret, r)
 
 	s := &http.Server{

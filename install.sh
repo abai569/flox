@@ -174,6 +174,11 @@ resolve_version() {
     echo "$VERSION"
     return 0
   fi
+  if [[ -n "${FLOX_VERSION:-}" ]]; then
+    echo "$FLOX_VERSION"
+    return 0
+  fi
+  # 兼容旧环境变量名
   if [[ -n "${FLUX_VERSION:-}" ]]; then
     echo "$FLUX_VERSION"
     return 0
@@ -212,7 +217,7 @@ build_download_url() {
     # GitHub 或其他源需要版本号
     local actual_version="$RESOLVED_VERSION"
     # 只有当用户没有显式指定版本时，才从 GitHub API 获取最新版本号
-    if [[ "$DOWNLOAD_HOST" == *"/latest"* ]] && [[ -z "${VERSION:-}" ]] && [[ -z "${FLUX_VERSION:-}" ]]; then
+    if [[ "$DOWNLOAD_HOST" == *"/latest"* ]] && [[ -z "${VERSION:-}" ]] && [[ -z "${FLOX_VERSION:-}" ]] && [[ -z "${FLUX_VERSION:-}" ]]; then
         # 从 GitHub API 获取最新版本号
         actual_version=$(curl -fsSL --max-time 10 "https://api.github.com/repos/abai569/flox/releases/latest" 2>/dev/null | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || echo "")
         if [ -n "$actual_version" ]; then
