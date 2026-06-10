@@ -637,8 +637,18 @@ update_panel() {
   # 切换到安装目录
   INSTALL_DIR="/opt/flox-svc"
   
-  # 检测目录是否存在，不存在则先创建
-  if [[ ! -d "$INSTALL_DIR" ]]; then
+  # 检查是否有旧版本 flvx-svc 数据需要迁移到 flox-svc
+  OLD_INSTALL_DIR="/opt/flvx-svc"
+  if [[ -d "$OLD_INSTALL_DIR" ]] && [[ ! -d "$INSTALL_DIR" ]]; then
+    echo "📦 检测到旧版本目录 $OLD_INSTALL_DIR，正在迁移到 $INSTALL_DIR..."
+    $SUDO_CMD cp -a "$OLD_INSTALL_DIR" "$INSTALL_DIR"
+    $SUDO_CMD chown -R root:root "$INSTALL_DIR" 2>/dev/null || true
+    echo "✅ 数据迁移完成，继续更新流程"
+    # 尝试重命名旧容器，避免后续冲突
+    docker rename flvx-svc-backend flox-svc-backend 2>/dev/null || true
+    docker rename flvx-svc-frontend flox-svc-frontend 2>/dev/null || true
+    docker rename flvx-svc-postgres flox-svc-postgres 2>/dev/null || true
+  elif [[ ! -d "$INSTALL_DIR" ]]; then
     echo "📁 升级目录不存在，正在创建：$INSTALL_DIR"
     $SUDO_CMD mkdir -p "$INSTALL_DIR"
   fi
@@ -647,10 +657,10 @@ update_panel() {
   
   check_docker
 
-  LICENSE_SERVER_URL=https://sq.abai.eu.org
-
   if [[ ! -f ".env" ]]; then
-    echo "⚠️ 未找到 .env，默认按 SQLite 模式更新"
+    echo "❌ 配置文件 .env 缺失，无法执行更新。"
+    echo "   如果是全新升级，请重新运行 1. 安装面板。"
+    return 1
   fi
   CURRENT_DB_TYPE=$(get_current_db_type)
   echo "🗄️ 当前数据库类型：$CURRENT_DB_TYPE"
@@ -697,7 +707,13 @@ update_panel() {
   sleep 5
   
   # 然后再完全停止
-  $DOCKER_CMD down
+  $DOCKER_CMD down --remove-orphans -v 2>/dev/null || true
+  
+  # 强制清理残留容器（防止 compose 文件变更导致 down 漏删）
+  echo "🧹 清理残留容器..."
+  docker rm -f flox-svc-backend 2>/dev/null || true
+  docker rm -f flox-svc-frontend 2>/dev/null || true
+  docker rm -f flox-svc-postgres 2>/dev/null || true
   
   # 释放端口缓冲
   sleep 2
