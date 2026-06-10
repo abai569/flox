@@ -48,3 +48,12 @@ func mustQueryInt64Int64Int(t *testing.T, r *repo.Repository, query string, args
 	}
 	return a, b, c
 }
+
+func mustQueryInt64(t *testing.T, r *repo.Repository, query string, args ...interface{}) int64 {
+	t.Helper()
+	var v int64
+	if err := r.DB().Raw(query, args...).Row().Scan(&v); err != nil {
+		t.Fatalf("query int64 failed: %v (query=%q)", err, query)
+	}
+	return v
+}

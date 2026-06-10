@@ -180,3 +180,111 @@ func TestRunResetAndExpiryJobResetsUserQuotaAndUnblocksUser(t *testing.T) {
 		t.Fatalf("expected quota disabled flag cleared, got %d", quotaDisabled)
 	}
 }
+
+func TestHandleAutoBuyTrafficPackageDoesNotDeductStockWhenBalanceInsufficient(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "jobs-auto-buy-insufficient.db")
+	r, err := repo.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+
+	h := New(r, "secret")
+	now := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
+	nowMs := now.UnixMilli()
+
+	if err := r.DB().Exec(`
+		INSERT INTO user(id, user, pwd, role_id, exp_time, flow, in_flow, out_flow, flow_reset_time, num, created_time, updated_time, status, balance, auto_buy_traffic, auto_buy_traffic_package_id, auto_buy_traffic_threshold)
+		VALUES(2, 'auto_buy_user', 'x', 1, 0, 100, ?, 0, 1, 1, ?, ?, 1, 500, 1, 1, 10)
+	`, 95*int64(1024*1024*1024), nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	if err := r.DB().Exec(`
+		INSERT INTO subscription_package(id, type, name, price, traffic_limit, auto_buy_traffic_enabled, enabled, stock, created_at, updated_at)
+		VALUES(1, 'traffic', 'traffic-pack', 1000, 20, 1, 1, 5, ?, ?)
+	`, nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert package: %v", err)
+	}
+
+	h.handleAutoBuyTraffic(nowMs)
+
+	stock := mustQueryInt(t, r, `SELECT stock FROM subscription_package WHERE id = 1`)
+	if stock != 5 {
+		t.Fatalf("expected stock unchanged, got %d", stock)
+	}
+	balance := mustQueryInt(t, r, `SELECT balance FROM user WHERE id = 2`)
+	if balance != 500 {
+		t.Fatalf("expected balance unchanged, got %d", balance)
+	}
+	buyCount := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_traffic_buy_log WHERE user_id = 2`)
+	if buyCount != 0 {
+		t.Fatalf("expected no buy log, got %d", buyCount)
+	}
+}
+
+func TestRunResetAndExpiryJobAutoRenewsExpiredUser(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "jobs-auto-renew-success.db")
+	r, err := repo.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+
+	h := New(r, "secret")
+	now := time.Date(2026, 3, 15, 0, 0, 5, 0, time.UTC)
+	nowMs := now.UnixMilli()
+	oldExp := now.Add(-time.Hour).UnixMilli()
+
+	if err := r.DB().Exec(`
+		INSERT INTO user(id, user, pwd, role_id, exp_time, flow, in_flow, out_flow, flow_reset_time, num, created_time, updated_time, status, renewal_amount, balance, auto_renew)
+		VALUES(2, 'renew-user', 'x', 1, ?, 100, 1000, 2000, 15, 1, ?, ?, 1, 500, 1000, 1)
+	`, oldExp, nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	if err := r.DB().Exec(`
+		INSERT INTO user_quota(user_id, daily_limit_gb, monthly_limit_gb, daily_used_bytes, monthly_used_bytes, day_key, month_key, disabled_by_quota, disabled_at, paused_forward_ids, created_time, updated_time)
+		VALUES(2, 0, 0, 0, ?, 20260315, 202603, 0, 0, '', ?, ?)
+	`, 3*int64(1024*1024*1024), nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert user quota: %v", err)
+	}
+
+	if err := r.DB().Exec(`
+		INSERT INTO tunnel(id, name, traffic_ratio, type, protocol, flow, created_time, updated_time, status, in_ip, inx)
+		VALUES(1, 't1', 1.0, 1, 'tls', 1, ?, ?, 1, NULL, 0)
+	`, nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert tunnel: %v", err)
+	}
+
+	if err := r.DB().Exec(`
+		INSERT INTO user_tunnel(id, user_id, tunnel_id, speed_id, num, flow, in_flow, out_flow, flow_reset_time, exp_time, status)
+		VALUES(10, 2, 1, NULL, 1, 1, 300, 400, 15, ?, 1)
+	`, oldExp).Error; err != nil {
+		t.Fatalf("insert user_tunnel: %v", err)
+	}
+
+	h.runResetAndExpiryJob(now)
+
+	newExp := mustQueryInt64(t, r, `SELECT exp_time FROM user WHERE id = 2`)
+	expectedExp := now.AddDate(0, 1, 0).UnixMilli()
+	if newExp != expectedExp {
+		t.Fatalf("expected exp_time %d, got %d", expectedExp, newExp)
+	}
+	balance := mustQueryInt(t, r, `SELECT balance FROM user WHERE id = 2`)
+	if balance != 500 {
+		t.Fatalf("expected balance deducted to 500, got %d", balance)
+	}
+	userIn, userOut, userStatus := mustQueryInt64Int64Int(t, r, `SELECT in_flow, out_flow, status FROM user WHERE id = 2`)
+	if userIn != 0 || userOut != 0 || userStatus != 1 {
+		t.Fatalf("expected user reset and enabled, got in=%d out=%d status=%d", userIn, userOut, userStatus)
+	}
+	utExp := mustQueryInt64(t, r, `SELECT exp_time FROM user_tunnel WHERE id = 10`)
+	if utExp != expectedExp {
+		t.Fatalf("expected user_tunnel exp_time %d, got %d", expectedExp, utExp)
+	}
+	renewCount := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_renewal_log WHERE user_id = 2`)
+	if renewCount != 1 {
+		t.Fatalf("expected one renewal log, got %d", renewCount)
+	}
+}

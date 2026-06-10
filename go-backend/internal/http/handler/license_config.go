@@ -3,7 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -160,7 +160,7 @@ func requestTrialLicense(serverURL, domain string) (string, error) {
 		return "", err
 	}
 	if result.Error != "" {
-		return "", fmt.Errorf(result.Error)
+		return "", errors.New(result.Error)
 	}
 	return result.LicenseKey, nil
 }

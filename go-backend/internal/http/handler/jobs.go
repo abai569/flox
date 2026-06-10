@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"go-backend/internal/middleware"
-	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 	"go-backend/internal/telegram"
 )
@@ -313,15 +312,7 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 				if renewErr := h.repo.RenewUserWithBalance(userID, user.RenewalAmount, newExpTime, nowMs); renewErr == nil {
 					log.Printf("用户 %d 自动续费成功：扣款 %d 分，新到期时间 %v",
 						userID, user.RenewalAmount, time.UnixMilli(newExpTime))
-					// 续费成功后重置流量配额为初始值
-					h.repo.ResetUserFlowByUser(userID, nowMs)
-					// 同步 UserTunnel 到期时间、流量归零、状态启用到 newExpTime
-					_ = h.repo.DB().Model(&model.UserTunnel{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
-						"exp_time": newExpTime,
-						"in_flow":  0,
-						"out_flow": 0,
-						"status":   1,
-					}).Error
+					_ = h.repo.MarkUserAutoRenewSuccess(userID, newExpTime, nowMs)
 					// 恢复 Forward 规则（状态更新 + 节点服务恢复）
 					_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
 					h.resumePausedForwardsByUser(userID, nowMs)
@@ -348,38 +339,7 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 			h.pauseForwardRecords(forwards, nowMs)
 		}
 
-		// 归零用户流量并记录日志
-		inFlowBefore := user.InFlow
-		outFlowBefore := user.OutFlow
-		totalBytes := inFlowBefore + outFlowBefore
-
-		_ = h.repo.DB().Model(&model.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
-			"in_flow":      0,
-			"out_flow":     0,
-			"updated_time": nowMs,
-		}).Error
-
-		history := &model.UserQuotaHistory{
-			UserID:        userID,
-			PeriodType:    "monthly",
-			PeriodKey:     int64(time.UnixMilli(nowMs).Year()*100 + int(time.UnixMilli(nowMs).Month())),
-			InFlowBefore:  inFlowBefore,
-			OutFlowBefore: outFlowBefore,
-			UsedBytes:     totalBytes,
-			ResetTime:     nowMs,
-			CreatedTime:   nowMs,
-			ResetReason:   resetReason,
-		}
-		_ = h.repo.DB().Create(history).Error
-
-		// 归零 UserTunnel 流量（不记录日志）
-		_ = h.repo.DB().Model(&model.UserTunnel{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
-			"in_flow":  0,
-			"out_flow": 0,
-		}).Error
-
-		// 禁用用户
-		_ = h.repo.DisableUser(userID)
+		_ = h.repo.MarkExpiredUserAutoRenewFailure(userID, nowMs, resetReason)
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendUserFlowReset(user.User)
@@ -473,21 +433,6 @@ func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
 			if err != nil || pkg.Type != "traffic" || pkg.AutoBuyTrafficEnabled != 1 || pkg.Enabled != 1 {
 				continue
 			}
-		// A1: Check and decrement stock
-			if err := h.repo.CheckAndDecrementStock(pkg.ID, 1); err != nil {
-				log.Printf("用户 %d 自动购流：套餐 %d %s", user.ID, pkg.ID, err.Error())
-				// A2: Disable user auto-buy on stock error
-				_ = h.repo.UpdateUserAutoBuyTraffic(user.ID, 0)
-				// A3: If package stock is now 0, disable all associated users
-				if err.Error() == "库存不足" {
-					pkgNow, _ := h.repo.GetPackageByID(pkg.ID)
-					if pkgNow != nil && pkgNow.Stock == 0 {
-						log.Printf("套餐 %d 已售罄，批量停用关联用户自动购流", pkg.ID)
-						_ = h.repo.DisableUsersForZeroStockPackage(pkg.ID)
-					}
-				}
-				continue
-			}
 			price = pkg.Price
 			amount = pkg.TrafficLimit
 		} else {
@@ -504,8 +449,25 @@ func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
 		const maxRetries = 3
 		purchased := false
 		for attempt := 1; attempt <= maxRetries; attempt++ {
-			if err := h.repo.BuyTrafficWithBalance(user.ID, price, amount, user.Flow, nowMs); err != nil {
+			var err error
+			if user.AutoBuyTrafficPackageID > 0 {
+				err = h.repo.BuyTrafficPackageWithBalance(user.ID, user.AutoBuyTrafficPackageID, nowMs)
+			} else {
+				err = h.repo.BuyTrafficWithBalance(user.ID, price, amount, user.Flow, nowMs)
+			}
+			if err != nil {
 				log.Printf("用户 %d 自动购流失败（第%d/%d次）：%v", user.ID, attempt, maxRetries, err)
+				if user.AutoBuyTrafficPackageID > 0 && (err.Error() == "库存不足" || err.Error() == "自动购流套餐不可用") {
+					_ = h.repo.UpdateUserAutoBuyTraffic(user.ID, 0)
+					if err.Error() == "库存不足" {
+						pkgNow, _ := h.repo.GetPackageByID(user.AutoBuyTrafficPackageID)
+						if pkgNow != nil && pkgNow.Stock == 0 {
+							log.Printf("套餐 %d 已售罄，批量停用关联用户自动购流", pkgNow.ID)
+							_ = h.repo.DisableUsersForZeroStockPackage(pkgNow.ID)
+						}
+					}
+					break
+				}
 				if attempt < maxRetries {
 					time.Sleep(1 * time.Second)
 					continue
@@ -747,7 +709,6 @@ func (h *Handler) expirePackageSubscriptions() {
 
 	log.Printf("[packages] 已过期 %d 个套餐订阅", len(expired))
 }
-
 
 // checkNodeExpiryNotifications checks nodes expiring within 3 days and sends Telegram notifications.
 // Only notifies once per 24h per node to avoid spam.

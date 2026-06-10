@@ -96,19 +96,24 @@ export default function DashboardPage() {
 
   const handleToggleAutoBuyTraffic = async (enabled: boolean) => {
     if (!userInfo.id || autoBuySwitchLoading) return;
+
+    if (enabled) {
+      setDraftThreshold(userInfo.autoBuyTrafficThreshold ?? 10);
+      setDraftPackageId(userInfo.autoBuyTrafficPackageId ?? 0);
+      setAutoBuySettingsModalOpen(true);
+
+      return;
+    }
+
     setAutoBuySwitchLoading(true);
     try {
-      const newValue = enabled ? 1 : 0;
-      const res = await toggleUserAutoBuyTraffic(userInfo.id, newValue);
+      const res = await toggleUserAutoBuyTraffic(userInfo.id, 0);
 
       if (res.code === 0) {
-        toast.success(enabled ? "自动购流已启用" : "自动购流已禁用");
-        setAutoBuyOverride(newValue);
-        if (enabled) {
-          setAutoBuySettingsModalOpen(true);
-        } else {
-          setAutoBuyPackageIdOverride(null);
-        }
+        toast.success("自动购流已禁用");
+        setAutoBuyOverride(0);
+        setAutoBuyPackageIdOverride(null);
+        setAutoBuyThresholdOverride(null);
       } else {
         toast.error(res.msg || "操作失败");
       }
@@ -151,9 +156,9 @@ export default function DashboardPage() {
 
       if (res.code === 0) {
         toast.success("自动购流设置已保存");
-        setAutoBuyPackageIdOverride(null);
-        setAutoBuyThresholdOverride(null);
-        setAutoBuyOverride(null);
+        setAutoBuyPackageIdOverride(draftPackageId);
+        setAutoBuyThresholdOverride(draftThreshold);
+        setAutoBuyOverride(1);
         setAutoBuySettingsModalOpen(false);
         localStorage.setItem("autoBuyConfigUpdated", Date.now().toString());
         void refresh();
@@ -940,7 +945,7 @@ export default function DashboardPage() {
                     : userInfo.autoBuyTraffic === 1
                       ? (userInfo.autoBuyTrafficPackageId ?? 0) > 0
                         ? "套餐自动购买"
-                        : `${userInfo.buyTrafficAmount ?? 0}G/${userInfo.buyTrafficPrice ?? 0}元`
+                        : `${userInfo.buyTrafficAmount ?? 0}G/${((userInfo.buyTrafficPrice ?? 0) / 100).toFixed(2)}元`
                       : "禁用"
                 }
               />

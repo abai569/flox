@@ -33,6 +33,19 @@ import (
 
 const tunnelServiceBindRetryDelay = 150 * time.Millisecond
 
+func validateAutoBuyTrafficConfig(repo *repo.Repository, autoBuyTraffic int, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold int64) error {
+	if autoBuyTraffic != 0 && autoBuyTraffic != 1 {
+		return errors.New("自动购买流量参数错误")
+	}
+	if autoBuyTrafficThreshold < 0 {
+		return errors.New("自动购流触发阈值错误")
+	}
+	if repo == nil {
+		return errors.New("repository not initialized")
+	}
+	return repo.ValidateAutoBuyTrafficConfig(autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID)
+}
+
 func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))
@@ -88,6 +101,21 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 	renewalAmount := asInt64(req["renewalAmount"], 0)
 	balance := asInt64(req["balance"], 0)
 	autoRenew := asInt(req["autoRenew"], 0)
+	autoBuyTraffic, hasAutoBuyTraffic := 0, false
+	buyTrafficAmount, buyTrafficPrice := int64(0), int64(0)
+	autoBuyTrafficPackageID, autoBuyTrafficThreshold := int64(0), int64(0)
+	if _, ok := req["autoBuyTraffic"]; ok {
+		hasAutoBuyTraffic = true
+		autoBuyTraffic = asInt(req["autoBuyTraffic"], 0)
+		buyTrafficAmount = asInt64(req["buyTrafficAmount"], 0)
+		buyTrafficPrice = asInt64(req["buyTrafficPrice"], 0)
+		autoBuyTrafficPackageID = asInt64(req["autoBuyTrafficPackageId"], 0)
+		autoBuyTrafficThreshold = asInt64(req["autoBuyTrafficThreshold"], 0)
+		if err := validateAutoBuyTrafficConfig(h.repo, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+	}
 	if renewalAmount < 0 || balance < 0 {
 		response.WriteJSON(w, response.ErrDefault("续费金额和余额不能小于 0"))
 		return
@@ -126,13 +154,11 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if _, ok := req["autoBuyTraffic"]; ok {
-		autoBuyTraffic := asInt(req["autoBuyTraffic"], 0)
-		buyTrafficAmount := asInt64(req["buyTrafficAmount"], 0)
-		buyTrafficPrice := asInt64(req["buyTrafficPrice"], 0)
-		autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
-		autoBuyTrafficThreshold := asInt64(req["autoBuyTrafficThreshold"], 0)
-		_ = h.repo.UpdateUserBuyTrafficConfig(userID, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold)
+	if hasAutoBuyTraffic {
+		if err := h.repo.UpdateUserBuyTrafficConfig(userID, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 
 	if balance > 0 {
@@ -204,6 +230,21 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	renewalAmount := asInt64(req["renewalAmount"], 0)
 	balance := asInt64(req["balance"], 0)
 	autoRenew := asInt(req["autoRenew"], 0)
+	autoBuyTraffic, hasAutoBuyTraffic := 0, false
+	buyTrafficAmount, buyTrafficPrice := int64(0), int64(0)
+	autoBuyTrafficPackageID, autoBuyTrafficThreshold := int64(0), int64(0)
+	if _, ok := req["autoBuyTraffic"]; ok {
+		hasAutoBuyTraffic = true
+		autoBuyTraffic = asInt(req["autoBuyTraffic"], 0)
+		buyTrafficAmount = asInt64(req["buyTrafficAmount"], 0)
+		buyTrafficPrice = asInt64(req["buyTrafficPrice"], 0)
+		autoBuyTrafficPackageID = asInt64(req["autoBuyTrafficPackageId"], 0)
+		autoBuyTrafficThreshold = asInt64(req["autoBuyTrafficThreshold"], 0)
+		if err := validateAutoBuyTrafficConfig(h.repo, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+	}
 	if renewalAmount < 0 || balance < 0 {
 		response.WriteJSON(w, response.ErrDefault("续费金额和余额不能小于 0"))
 		return
@@ -275,13 +316,11 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if _, ok := req["autoBuyTraffic"]; ok {
-		autoBuyTraffic := asInt(req["autoBuyTraffic"], 0)
-		buyTrafficAmount := asInt64(req["buyTrafficAmount"], 0)
-		buyTrafficPrice := asInt64(req["buyTrafficPrice"], 0)
-		autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
-		autoBuyTrafficThreshold := asInt64(req["autoBuyTrafficThreshold"], 0)
-		_ = h.repo.UpdateUserBuyTrafficConfig(id, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold)
+	if hasAutoBuyTraffic {
+		if err := h.repo.UpdateUserBuyTrafficConfig(id, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 
 	if oldUser != nil && oldUser.Balance != balance {
@@ -370,14 +409,11 @@ func (h *Handler) userToggleAutoBuyTraffic(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	autoBuyTraffic := asInt(req["autoBuyTraffic"], 0)
-	if autoBuyTraffic != 0 && autoBuyTraffic != 1 {
-		response.WriteJSON(w, response.ErrDefault("自动购买流量参数错误"))
-		return
-	}
 	autoBuyTrafficPackageID := asInt64(req["autoBuyTrafficPackageId"], 0)
 	autoBuyTrafficThreshold := asInt64(req["autoBuyTrafficThreshold"], 0)
-	if autoBuyTrafficThreshold < 0 {
-		autoBuyTrafficThreshold = 0
+	if err := validateAutoBuyTrafficConfig(h.repo, autoBuyTraffic, 0, 0, autoBuyTrafficPackageID, autoBuyTrafficThreshold); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
 	}
 	if autoBuyTraffic == 0 {
 		if err := h.repo.UpdateUserBuyTrafficConfig(id, 0, 0, 0, 0, autoBuyTrafficThreshold); err != nil {

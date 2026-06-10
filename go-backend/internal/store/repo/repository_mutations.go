@@ -1,4 +1,4 @@
-﻿package repo
+package repo
 
 import (
 	"crypto/rand"
@@ -16,6 +16,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+var errAutoBuyTrafficPackageInvalid = errors.New("自动购流套餐不可用")
 
 func (r *Repository) UserExists(username string) (bool, error) {
 	if r == nil || r.db == nil {
@@ -54,10 +56,10 @@ func (r *Repository) CreateUser(username, pwdHash string, roleID int, expTime, f
 		CreatedTime:   now,
 		UpdatedTime:   sql.NullInt64{Int64: now, Valid: true},
 		Status:        status,
-		RenewalAmount:   renewalAmount,
-		Balance:         balance,
-		AutoRenew:       int(autoRenew),
-		BaseFlow:        flow,
+		RenewalAmount: renewalAmount,
+		Balance:       balance,
+		AutoRenew:     int(autoRenew),
+		BaseFlow:      flow,
 	}
 	if err := r.db.Create(&user).Error; err != nil {
 		return 0, err
@@ -86,18 +88,18 @@ func (r *Repository) UpdateUserWithPassword(id int64, username, pwdHash, name st
 		Where("id = ?", id).
 		Select("user", "name", "pwd", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew").
 		Updates(map[string]interface{}{
-			"user":             username,
-			"name":             name,
-			"pwd":              pwdHash,
-			"flow":             flow,
-			"num":              num,
-			"exp_time":         expTime,
-			"flow_reset_time":  flowResetTime,
-			"status":           status,
-			"updated_time":     sql.NullInt64{Int64: now, Valid: true},
-			"renewal_amount":   renewalAmount,
-			"balance":          balance,
-			"auto_renew":       autoRenew,
+			"user":            username,
+			"name":            name,
+			"pwd":             pwdHash,
+			"flow":            flow,
+			"num":             num,
+			"exp_time":        expTime,
+			"flow_reset_time": flowResetTime,
+			"status":          status,
+			"updated_time":    sql.NullInt64{Int64: now, Valid: true},
+			"renewal_amount":  renewalAmount,
+			"balance":         balance,
+			"auto_renew":      autoRenew,
 		}).Error
 }
 
@@ -110,17 +112,17 @@ func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, 
 		Where("id = ?", id).
 		Select("user", "name", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew").
 		Updates(map[string]interface{}{
-			"user":             username,
-			"name":             name,
-			"flow":             flow,
-			"num":              num,
-			"exp_time":         expTime,
-			"flow_reset_time":  flowResetTime,
-			"status":           status,
-			"updated_time":     sql.NullInt64{Int64: now, Valid: true},
-			"renewal_amount":   renewalAmount,
-			"balance":          balance,
-			"auto_renew":       autoRenew,
+			"user":            username,
+			"name":            name,
+			"flow":            flow,
+			"num":             num,
+			"exp_time":        expTime,
+			"flow_reset_time": flowResetTime,
+			"status":          status,
+			"updated_time":    sql.NullInt64{Int64: now, Valid: true},
+			"renewal_amount":  renewalAmount,
+			"balance":         balance,
+			"auto_renew":      autoRenew,
 		}).Error
 }
 
@@ -248,7 +250,7 @@ func (r *Repository) ResetUserFlowByUserTunnel(userTunnelID int64) {
 		var user model.User
 		var tunnel model.Tunnel
 		r.db.Model(&model.User{}).Select("user", "name").Where("id = ?", utFlow.UserID).First(&user)
-		
+
 		var userTunnel model.UserTunnel
 		r.db.Model(&model.UserTunnel{}).Select("tunnel_id").Where("id = ?", userTunnelID).First(&userTunnel)
 		r.db.Model(&model.Tunnel{}).Select("name").Where("id = ?", userTunnel.TunnelID).First(&tunnel)
@@ -546,10 +548,10 @@ func (r *Repository) BuyTrafficWithBalance(userID, buyPrice, buyAmount, flowBefo
 	err = tx.Model(&model.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{
-			"balance":       user.Balance - buyPrice,
-			"flow":          newFlow,
-			"traffic_flow":  gorm.Expr("traffic_flow + ?", buyAmount),
-			"updated_time":  sql.NullInt64{Int64: now, Valid: true},
+			"balance":      user.Balance - buyPrice,
+			"flow":         newFlow,
+			"traffic_flow": gorm.Expr("traffic_flow + ?", buyAmount),
+			"updated_time": sql.NullInt64{Int64: now, Valid: true},
 		}).Error
 	if err != nil {
 		return err
@@ -588,6 +590,82 @@ func (r *Repository) BuyTrafficWithBalance(userID, buyPrice, buyAmount, flowBefo
 	}
 
 	return tx.Commit().Error
+}
+
+func (r *Repository) BuyTrafficPackageWithBalance(userID, packageID, now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+
+		var pkg model.SubscriptionPackage
+		if err := tx.Where("id = ?", packageID).First(&pkg).Error; err != nil {
+			return errAutoBuyTrafficPackageInvalid
+		}
+		if pkg.Type != "traffic" || pkg.AutoBuyTrafficEnabled != 1 || pkg.Enabled != 1 || pkg.TrafficLimit <= 0 || pkg.Price <= 0 {
+			return errAutoBuyTrafficPackageInvalid
+		}
+		if user.Balance < pkg.Price {
+			return errors.New("insufficient balance")
+		}
+
+		if pkg.Stock != -1 {
+			result := tx.Model(&model.SubscriptionPackage{}).
+				Where("id = ? AND stock >= ?", pkg.ID, 1).
+				Update("stock", gorm.Expr("stock - ?", 1))
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				return errors.New("库存不足")
+			}
+		}
+
+		newFlow := user.Flow + pkg.TrafficLimit
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Updates(map[string]interface{}{
+				"balance":      user.Balance - pkg.Price,
+				"flow":         newFlow,
+				"traffic_flow": gorm.Expr("traffic_flow + ?", pkg.TrafficLimit),
+				"updated_time": sql.NullInt64{Int64: now, Valid: true},
+			}).Error; err != nil {
+			return err
+		}
+
+		buyLog := &model.UserTrafficBuyLog{
+			UserID:        userID,
+			UserName:      user.User,
+			BuyAmount:     pkg.TrafficLimit,
+			BuyPrice:      pkg.Price,
+			BalanceBefore: user.Balance,
+			BalanceAfter:  user.Balance - pkg.Price,
+			FlowBefore:    user.Flow,
+			FlowAfter:     newFlow,
+			BuyTime:       now,
+			Reason:        "自动购买流量",
+		}
+		if err := tx.Create(buyLog).Error; err != nil {
+			return err
+		}
+
+		balanceLog := &model.BalanceLog{
+			UserID:        userID,
+			UserName:      user.User,
+			Amount:        -pkg.Price,
+			BalanceBefore: user.Balance,
+			BalanceAfter:  user.Balance - pkg.Price,
+			Reason:        "自动购买流量",
+			CreatedTime:   now,
+			Signature:     SignBalanceLog(userID, -pkg.Price, user.Balance, user.Balance-pkg.Price, now, "自动购买流量"),
+		}
+		return tx.Create(balanceLog).Error
+	})
 }
 
 // CreateBalanceLog inserts a signed balance log entry.
@@ -672,10 +750,10 @@ func (r *Repository) VerifyAllBalances() ([]interface{}, error) {
 		}
 		if u.Balance != logSum {
 			mismatches = append(mismatches, map[string]int64{
-				"user_id":     u.ID,
-				"db_balance":  u.Balance,
-				"log_sum":     logSum,
-				"diff":        u.Balance - logSum,
+				"user_id":    u.ID,
+				"db_balance": u.Balance,
+				"log_sum":    logSum,
+				"diff":       u.Balance - logSum,
 			})
 		}
 	}
@@ -688,12 +766,35 @@ func (r *Repository) UpdateUserBuyTrafficConfig(userID int64, autoBuyTraffic int
 	}
 	return r.db.Model(&model.User{}).Where("id = ?", userID).
 		Updates(map[string]interface{}{
-			"auto_buy_traffic":             autoBuyTraffic,
-			"buy_traffic_amount":           buyTrafficAmount,
-			"buy_traffic_price":            buyTrafficPrice,
-			"auto_buy_traffic_package_id":  autoBuyTrafficPackageID,
-			"auto_buy_traffic_threshold":   autoBuyTrafficThreshold,
+			"auto_buy_traffic":            autoBuyTraffic,
+			"buy_traffic_amount":          buyTrafficAmount,
+			"buy_traffic_price":           buyTrafficPrice,
+			"auto_buy_traffic_package_id": autoBuyTrafficPackageID,
+			"auto_buy_traffic_threshold":  autoBuyTrafficThreshold,
 		}).Error
+}
+
+func (r *Repository) ValidateAutoBuyTrafficConfig(autoBuyTraffic int, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if autoBuyTraffic == 0 {
+		return nil
+	}
+	if autoBuyTrafficPackageID > 0 {
+		pkg, err := r.GetPackageByID(autoBuyTrafficPackageID)
+		if err != nil {
+			return errAutoBuyTrafficPackageInvalid
+		}
+		if pkg.Type != "traffic" || pkg.AutoBuyTrafficEnabled != 1 || pkg.Enabled != 1 {
+			return errAutoBuyTrafficPackageInvalid
+		}
+		return nil
+	}
+	if buyTrafficAmount <= 0 || buyTrafficPrice <= 0 {
+		return errors.New("自动购流自定义配置无效")
+	}
+	return nil
 }
 
 func (r *Repository) ResetUserFlowToBase(userID, baseFlow, now int64) error {
@@ -715,7 +816,7 @@ func (r *Repository) ListAutoBuyTrafficCandidates(nowMs int64) ([]model.User, er
 		return nil, errors.New("repository not initialized")
 	}
 	var users []model.User
-	err := r.db.Where("status = 1 AND exp_time > ? AND auto_buy_traffic = 1 AND ((auto_buy_traffic_package_id > 0) OR (buy_traffic_amount > 0 AND buy_traffic_price > 0))", nowMs).
+	err := r.db.Where("status = 1 AND (exp_time = 0 OR exp_time > ?) AND auto_buy_traffic = 1 AND ((auto_buy_traffic_package_id > 0) OR (buy_traffic_amount > 0 AND buy_traffic_price > 0))", nowMs).
 		Find(&users).Error
 	return users, err
 }
@@ -768,8 +869,8 @@ func (r *Repository) RefreshNodeExpiryReminder(nodeID int64) error {
 	}
 
 	var node struct {
-		RenewalCycle string          `gorm:"column:renewal_cycle"`
-		ExpiryTime   sql.NullInt64   `gorm:"column:expiry_time"`
+		RenewalCycle string        `gorm:"column:renewal_cycle"`
+		ExpiryTime   sql.NullInt64 `gorm:"column:expiry_time"`
 	}
 	if err := r.db.Model(&model.Node{}).Where("id = ?", nodeID).Select("renewal_cycle, expiry_time").Find(&node).Error; err != nil {
 		return err
@@ -810,9 +911,9 @@ func (r *Repository) RefreshNodeExpiryReminder(nodeID int64) error {
 	nextExpiry = nextExpiry.AddDate(0, intervalMonths, 0)
 
 	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
-		"expiry_time":                       strconv.FormatInt(nextExpiry.UnixMilli(), 10),
-		"expiry_reminder_dismissed":         0,
-		"expiry_reminder_dismissed_until":   0,
+		"expiry_time":                     strconv.FormatInt(nextExpiry.UnixMilli(), 10),
+		"expiry_reminder_dismissed":       0,
+		"expiry_reminder_dismissed_until": 0,
 	}).Error
 }
 
@@ -824,7 +925,6 @@ func (r *Repository) UpdateNodeExpiryReminderDismissed(nodeID int64, dismissed i
 		Where("id = ?", nodeID).
 		Update("expiry_reminder_dismissed", dismissed).Error
 }
-
 
 // ListNodesExpiringWithin returns nodes whose expiry_time is within (now, now + days*24h]
 // and either never reminded or last reminded > 24h ago.
@@ -1433,10 +1533,10 @@ func (r *Repository) UpdatePackage(pkg *model.SubscriptionPackage, tunnelGroupID
 		"auto_renew": pkg.AutoRenew, "sort_order": pkg.SortOrder,
 		"enabled": pkg.Enabled, "shop_visible": pkg.ShopVisible,
 		"auto_buy_traffic_enabled": pkg.AutoBuyTrafficEnabled,
-		"stock": pkg.Stock,
-		"recommended": pkg.Recommended,
-		"group_id":    groupIDVal,
-		"updated_at":  pkg.UpdatedAt,
+		"stock":                    pkg.Stock,
+		"recommended":              pkg.Recommended,
+		"group_id":                 groupIDVal,
+		"updated_at":               pkg.UpdatedAt,
 	}).Error; err != nil {
 		return err
 	}
@@ -1573,7 +1673,7 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 		}
 		// 3. Update order status to paid
 		if err := tx.Model(&model.Order{}).Where("id = ?", order.ID).Updates(map[string]interface{}{
-			"status":  1,
+			"status":   1,
 			"pay_time": time.Now().Unix(),
 		}).Error; err != nil {
 			return err
@@ -1589,7 +1689,7 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 					"traffic_flow":       gorm.Expr("traffic_flow + ?", trafficGB),
 					"buy_traffic_price":  pkg.Price,
 					"buy_traffic_amount": trafficGB,
-					"updated_time":      now,
+					"updated_time":       now,
 				}).Error; err != nil {
 				return err
 			}
@@ -1603,83 +1703,83 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 				}).Error; err != nil {
 				return err
 			}
-		// 4b. Create new subscription
-		var expireAt int64
-		if pkg.ValidityDays == 0 {
-			expireAt = 2727251700000 // 永久：2056-08-28
-		} else {
-			// 按日历月计算，避免日期漂移（30 天≠1 个月）
-			months := 0
-			switch pkg.ValidityDays {
-			case 7:
-				expireAt = time.Now().AddDate(0, 0, 7).UnixMilli()
-			case 30:
-				months = 1
-			case 90:
-				months = 3
-			case 180:
-				months = 6
-			case 365:
-				months = 12
-			case 730:
-				months = 24
-			default:
-				expireAt = time.Now().AddDate(0, 0, pkg.ValidityDays).UnixMilli()
+			// 4b. Create new subscription
+			var expireAt int64
+			if pkg.ValidityDays == 0 {
+				expireAt = 2727251700000 // 永久：2056-08-28
+			} else {
+				// 按日历月计算，避免日期漂移（30 天≠1 个月）
+				months := 0
+				switch pkg.ValidityDays {
+				case 7:
+					expireAt = time.Now().AddDate(0, 0, 7).UnixMilli()
+				case 30:
+					months = 1
+				case 90:
+					months = 3
+				case 180:
+					months = 6
+				case 365:
+					months = 12
+				case 730:
+					months = 24
+				default:
+					expireAt = time.Now().AddDate(0, 0, pkg.ValidityDays).UnixMilli()
+				}
+				if months > 0 {
+					expireAt = time.Now().AddDate(0, months, 0).UnixMilli()
+				}
 			}
-			if months > 0 {
-				expireAt = time.Now().AddDate(0, months, 0).UnixMilli()
+			sub := &model.PackageSubscription{
+				UserID:    userID,
+				PackageID: pkg.ID,
+				StartAt:   time.Now().UnixMilli(),
+				ExpireAt:  expireAt,
+				AutoRenew: pkg.AutoRenew,
+				Status:    1,
+				OrderID:   order.ID,
+				CreatedAt: now,
+				UpdatedAt: now,
 			}
-		}
-		sub := &model.PackageSubscription{
-			UserID:    userID,
-			PackageID: pkg.ID,
-			StartAt:   time.Now().UnixMilli(),
-			ExpireAt:  expireAt,
-			AutoRenew: pkg.AutoRenew,
-			Status:    1,
-			OrderID:   order.ID,
-			CreatedAt: now,
-			UpdatedAt: now,
-		}
-		if err := tx.Create(sub).Error; err != nil {
-			return err
-		}
-		// 4c. Update user quotas (flow = replace directly; other quotas keep larger values)
-		var existingUser model.User
-		if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
-			return err
-		}
-		newFlow := int64(pkg.TrafficLimit)
-		newExpTime := expireAt
-		newNum := pkg.MaxRules
-		newSpeedLimit := pkg.SpeedLimit
-		if existingUser.SpeedLimit > newSpeedLimit {
-			newSpeedLimit = existingUser.SpeedLimit
-		}
-		newMaxConns := pkg.MaxConnections
-		if existingUser.MaxConnections > newMaxConns {
-			newMaxConns = existingUser.MaxConnections
-		}
-		newMaxIP := pkg.MaxIPAccess
-		if existingUser.MaxIPAccess > newMaxIP {
-			newMaxIP = existingUser.MaxIPAccess
-		}
-		updates := map[string]interface{}{
-			"flow":            newFlow,
-			"num":             newNum,
-			"exp_time":        newExpTime,
-			"flow_reset_time": time.UnixMilli(expireAt).Day(),
-			"renewal_amount":  pkg.Price,
-			"speed_limit":     newSpeedLimit,
-			"max_connections": newMaxConns,
-			"max_ip_access":   newMaxIP,
-			"updated_time":    now,
-		}
-		if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
-			return err
-		}
-		// 4d. Grant tunnel permissions
-		for _, tunnelID := range tunnelIDs {
+			if err := tx.Create(sub).Error; err != nil {
+				return err
+			}
+			// 4c. Update user quotas (flow = replace directly; other quotas keep larger values)
+			var existingUser model.User
+			if err := tx.Where("id = ?", userID).First(&existingUser).Error; err != nil {
+				return err
+			}
+			newFlow := int64(pkg.TrafficLimit)
+			newExpTime := expireAt
+			newNum := pkg.MaxRules
+			newSpeedLimit := pkg.SpeedLimit
+			if existingUser.SpeedLimit > newSpeedLimit {
+				newSpeedLimit = existingUser.SpeedLimit
+			}
+			newMaxConns := pkg.MaxConnections
+			if existingUser.MaxConnections > newMaxConns {
+				newMaxConns = existingUser.MaxConnections
+			}
+			newMaxIP := pkg.MaxIPAccess
+			if existingUser.MaxIPAccess > newMaxIP {
+				newMaxIP = existingUser.MaxIPAccess
+			}
+			updates := map[string]interface{}{
+				"flow":            newFlow,
+				"num":             newNum,
+				"exp_time":        newExpTime,
+				"flow_reset_time": time.UnixMilli(expireAt).Day(),
+				"renewal_amount":  pkg.Price,
+				"speed_limit":     newSpeedLimit,
+				"max_connections": newMaxConns,
+				"max_ip_access":   newMaxIP,
+				"updated_time":    now,
+			}
+			if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+				return err
+			}
+			// 4d. Grant tunnel permissions
+			for _, tunnelID := range tunnelIDs {
 				var existing model.UserTunnel
 				err := tx.Select("id").Where("user_id = ? AND tunnel_id = ?", userID, tunnelID).First(&existing).Error
 				if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1860,11 +1960,11 @@ func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, 
 	return r.db.Model(&model.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{
-			"flow":              gorm.Expr("flow + ?", totalGB),
-			"traffic_flow":      gorm.Expr("traffic_flow + ?", totalGB),
+			"flow":               gorm.Expr("flow + ?", totalGB),
+			"traffic_flow":       gorm.Expr("traffic_flow + ?", totalGB),
 			"buy_traffic_price":  price,
 			"buy_traffic_amount": totalGB,
-			"updated_time":      time.Now().UnixMilli(),
+			"updated_time":       time.Now().UnixMilli(),
 		}).Error
 }
 
@@ -2002,17 +2102,17 @@ func (r *Repository) RenewUserWithBalance(userID, renewalAmount, newExpTime, now
 	}
 
 	log := &model.UserRenewalLog{
-		UserID:          userID,
-		UserName:        user.User,
-		RenewalAmount:   renewalAmount,
-		BalanceBefore:   user.Balance,
-		BalanceAfter:    user.Balance - renewalAmount,
-		ExpTimeBefore:   user.ExpTime,
-		ExpTimeAfter:    newExpTime,
-		RenewalTime:     now,
-		OperatorID:      sql.NullInt64{Int64: 0, Valid: true},
-		OperatorName:    sql.NullString{String: "系统", Valid: true},
-		Reason:          "自动续费",
+		UserID:        userID,
+		UserName:      user.User,
+		RenewalAmount: renewalAmount,
+		BalanceBefore: user.Balance,
+		BalanceAfter:  user.Balance - renewalAmount,
+		ExpTimeBefore: user.ExpTime,
+		ExpTimeAfter:  newExpTime,
+		RenewalTime:   now,
+		OperatorID:    sql.NullInt64{Int64: 0, Valid: true},
+		OperatorName:  sql.NullString{String: "系统", Valid: true},
+		Reason:        "自动续费",
 	}
 	err = tx.Create(log).Error
 	if err != nil {
@@ -2035,6 +2135,124 @@ func (r *Repository) RenewUserWithBalance(userID, renewalAmount, newExpTime, now
 	}
 
 	return tx.Commit().Error
+}
+
+func (r *Repository) MarkUserAutoRenewSuccess(userID, newExpTime, now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+
+		var quota model.UserQuota
+		_ = tx.Where("user_id = ?", userID).First(&quota).Error
+
+		inFlowBefore := user.InFlow
+		outFlowBefore := user.OutFlow
+		totalBytes := inFlowBefore + outFlowBefore
+
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Updates(map[string]interface{}{
+				"status":       1,
+				"in_flow":      0,
+				"out_flow":     0,
+				"updated_time": sql.NullInt64{Int64: now, Valid: true},
+			}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&model.UserQuota{}).
+			Where("user_id = ?", userID).
+			Updates(map[string]interface{}{
+				"monthly_used_bytes": 0,
+				"updated_time":       now,
+				"disabled_by_quota":  0,
+				"disabled_at":        0,
+				"paused_forward_ids": "",
+			}).Error; err != nil {
+			return err
+		}
+
+		if inFlowBefore > 0 || outFlowBefore > 0 {
+			history := &model.UserQuotaHistory{
+				UserID:        userID,
+				PeriodType:    "monthly",
+				PeriodKey:     quota.MonthKey,
+				InFlowBefore:  inFlowBefore,
+				OutFlowBefore: outFlowBefore,
+				UsedBytes:     totalBytes,
+				ResetTime:     now,
+				CreatedTime:   now,
+				ResetReason:   "自动续费",
+			}
+			if err := tx.Create(history).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Model(&model.UserTunnel{}).
+			Where("user_id = ?", userID).
+			Updates(map[string]interface{}{
+				"exp_time": newExpTime,
+				"in_flow":  0,
+				"out_flow": 0,
+				"status":   1,
+			}).Error
+	})
+}
+
+func (r *Repository) MarkExpiredUserAutoRenewFailure(userID, now int64, resetReason string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+
+		inFlowBefore := user.InFlow
+		outFlowBefore := user.OutFlow
+		totalBytes := inFlowBefore + outFlowBefore
+
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Updates(map[string]interface{}{
+				"status":       0,
+				"in_flow":      0,
+				"out_flow":     0,
+				"updated_time": sql.NullInt64{Int64: now, Valid: true},
+			}).Error; err != nil {
+			return err
+		}
+
+		history := &model.UserQuotaHistory{
+			UserID:        userID,
+			PeriodType:    "monthly",
+			PeriodKey:     int64(time.UnixMilli(now).Year()*100 + int(time.UnixMilli(now).Month())),
+			InFlowBefore:  inFlowBefore,
+			OutFlowBefore: outFlowBefore,
+			UsedBytes:     totalBytes,
+			ResetTime:     now,
+			CreatedTime:   now,
+			ResetReason:   resetReason,
+		}
+		if err := tx.Create(history).Error; err != nil {
+			return err
+		}
+
+		return tx.Model(&model.UserTunnel{}).
+			Where("user_id = ?", userID).
+			Updates(map[string]interface{}{
+				"in_flow":  0,
+				"out_flow": 0,
+				"status":   0,
+			}).Error
+	})
 }
 
 type UserRenewalLogItem struct {
@@ -2067,17 +2285,17 @@ func (r *Repository) CreateUserRenewalLog(userID int64, renewalAmount, balanceBe
 		return
 	}
 	log := &model.UserRenewalLog{
-		UserID:          userID,
-		UserName:        user.User,
-		RenewalAmount:   renewalAmount,
-		BalanceBefore:   balanceBefore,
-		BalanceAfter:    balanceAfter,
-		ExpTimeBefore:   expTimeBefore,
-		ExpTimeAfter:    expTimeAfter,
-		RenewalTime:     now,
-		OperatorID:      sql.NullInt64{Int64: 1, Valid: true},
-		OperatorName:    sql.NullString{String: operatorName, Valid: true},
-		Reason:          reason,
+		UserID:        userID,
+		UserName:      user.User,
+		RenewalAmount: renewalAmount,
+		BalanceBefore: balanceBefore,
+		BalanceAfter:  balanceAfter,
+		ExpTimeBefore: expTimeBefore,
+		ExpTimeAfter:  expTimeAfter,
+		RenewalTime:   now,
+		OperatorID:    sql.NullInt64{Int64: 1, Valid: true},
+		OperatorName:  sql.NullString{String: operatorName, Valid: true},
+		Reason:        reason,
 	}
 	_ = r.db.Create(log).Error
 }
@@ -2113,7 +2331,7 @@ func (r *Repository) GetUserRenewalLogs(userID int64, limit int) ([]UserRenewalL
 			Reason:        log.Reason,
 		})
 	}
-		return items, nil
+	return items, nil
 }
 
 func (r *Repository) UpdateForwardPortBindIP(forwardID, nodeID int64, port int, inIP string) error {
@@ -2900,10 +3118,10 @@ func (r *Repository) ReplaceUserGroupsByUserID(userID int64, newGroupIDs []int64
 }
 
 type NodeRenewalResult struct {
-	NodeID        int64
-	NodeName      string
-	PeriodRx      int64
-	PeriodTx      int64
+	NodeID   int64
+	NodeName string
+	PeriodRx int64
+	PeriodTx int64
 }
 
 func (r *Repository) AdvanceNodeRenewalCycles(now int64) ([]NodeRenewalResult, error) {
@@ -3287,14 +3505,7 @@ func (r *Repository) TryAutoRenewForUser(userID int64) {
 		return
 	}
 
-	_ = r.db.Model(&model.User{}).Where("id = ?", user.ID).Update("status", 1).Error
-
-	_ = r.db.Model(&model.UserTunnel{}).Where("user_id = ?", user.ID).Updates(map[string]interface{}{
-		"exp_time": newExpTime,
-		"in_flow":  0,
-		"out_flow": 0,
-		"status":   1,
-	}).Error
+	_ = r.MarkUserAutoRenewSuccess(user.ID, newExpTime, now)
 }
 
 // IncreaseUserFlow increases a user's base flow by the given GB amount.

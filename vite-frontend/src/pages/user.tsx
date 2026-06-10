@@ -187,7 +187,7 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
     autoRenew: Number(item.autoRenew ?? 0),
     autoBuyTraffic: Number(item.autoBuyTraffic ?? 0),
     buyTrafficAmount: Number(item.buyTrafficAmount ?? 0),
-    buyTrafficPrice: Number(item.buyTrafficPrice ?? 0),
+    buyTrafficPrice: Number(((item.buyTrafficPrice ?? 0) / 100).toFixed(2)),
     autoBuyTrafficPackageId: Number(item.autoBuyTrafficPackageId ?? 0),
     autoBuyTrafficThreshold: Number(
       (item as any).autoBuyTrafficThreshold ?? 10,
@@ -1069,7 +1069,9 @@ export default function UserPage() {
       autoRenew: user.autoRenew ?? 0,
       autoBuyTraffic: user.autoBuyTraffic ?? 0,
       buyTrafficAmount: Number((user as any).buyTrafficAmount ?? 0),
-      buyTrafficPrice: Number((user as any).buyTrafficPrice ?? 0),
+      buyTrafficPrice: Number(
+        (((user as any).buyTrafficPrice ?? 0) / 100).toFixed(2),
+      ),
       autoBuyTrafficPackageId: Number(
         (user as any).autoBuyTrafficPackageId ?? 0,
       ),
@@ -1125,9 +1127,17 @@ export default function UserPage() {
         ...userForm,
         balance: Math.round(userForm.balance * 100),
         renewalAmount: Math.round(userForm.renewalAmount * 100),
+        buyTrafficPrice: Math.round(userForm.buyTrafficPrice * 100),
         expTime: userForm.expTime?.getTime() ?? 0,
         groupIds: userForm.groupIds ?? [],
       };
+
+      if (userForm.autoBuyTrafficPackageType === "package") {
+        submitData.buyTrafficAmount = 0;
+        submitData.buyTrafficPrice = 0;
+      } else {
+        submitData.autoBuyTrafficPackageId = 0;
+      }
 
       if (isEdit && !submitData.pwd) {
         delete submitData.pwd;

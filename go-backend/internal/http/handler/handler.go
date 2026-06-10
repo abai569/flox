@@ -182,7 +182,11 @@ const (
 	maxBrandAssetDataURLBytes = 1024 * 1024
 )
 
-func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
+func New(repo *repo.Repository, jwtSecret string, fluxVersion ...string) *Handler {
+	version := ""
+	if len(fluxVersion) > 0 {
+		version = fluxVersion[0]
+	}
 	h := &Handler{
 		repo:                   repo,
 		jwtSecret:              jwtSecret,
@@ -190,7 +194,7 @@ func New(repo *repo.Repository, jwtSecret string, fluxVersion string) *Handler {
 		metrics:                metrics.NewIngestionService(repo),
 		healthCheck:            nil,
 		bestExit:               newBestExitManager(),
-		fluxVersion:            fluxVersion,
+		fluxVersion:            version,
 		captchaTokens:        make(map[string]int64),
 		nftablesDomainCache:  make(map[int64]string),
 	}
