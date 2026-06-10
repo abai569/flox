@@ -80,6 +80,14 @@ func (s *Stats) Reset() {
 	s.totalErrs.Store(0)
 }
 
+func (s *Stats) SwapInputBytes() uint64 {
+	return s.inputBytes.Swap(0)
+}
+
+func (s *Stats) SwapOutputBytes() uint64 {
+	return s.outputBytes.Swap(0)
+}
+
 func (s *Stats) IsUpdated() bool {
 	return s.updated.Swap(false)
 }
