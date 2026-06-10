@@ -237,6 +237,7 @@ install_fresh_version() {
   local docker_compose_url
   docker_compose_url=$(get_docker_compose_url)
   if download_compose_file "$docker_compose_url" docker-compose.yml; then
+    normalize_compose_volume_names docker-compose.yml
     echo "✅ 配置文件下载完成"
   else
     echo "❌ 配置文件下载失败，请检查版本号是否正确"
@@ -285,7 +286,7 @@ EOF
   echo ""
   echo "⏳ 等待后端服务就绪..."
   if wait_for_backend_healthy; then
-    echo "✅ 后端服务健康检查通过"
+    true
   else
     echo "⚠️ 后端服务健康检查未通过，面板可能仍正常运行"
     echo "   排查命令：docker logs flvx-svc-backend && docker logs flox-svc-backend"
@@ -360,6 +361,21 @@ download_compose_file() {
   fi
 
   return 1
+}
+
+normalize_compose_volume_names() {
+  local file="${1:-docker-compose.yml}"
+
+  if [[ ! -f "$file" ]]; then
+    return 0
+  fi
+
+  # 已发布的 compose 可能显式固定 sqlite_data/postgres_data，
+  # 会绕过 Compose 项目前缀并导致旧安装升级后读取空新卷。
+  sed -i \
+    -e '/^[[:space:]]*name:[[:space:]]*sqlite_data[[:space:]]*$/d' \
+    -e '/^[[:space:]]*name:[[:space:]]*postgres_data[[:space:]]*$/d' \
+    "$file"
 }
 
 # 全局下载地址配置（默认获取最新版本；也可用 VERSION=... 覆盖）
@@ -588,6 +604,26 @@ get_current_db_type() {
   fi
 }
 
+get_sqlite_volume_name() {
+  local volume_name
+
+  for container in flox-svc-backend flvx-svc-backend; do
+    volume_name=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Name}}{{end}}{{end}}' "$container" 2>/dev/null || true)
+    if [[ -n "$volume_name" && "$volume_name" != "<no value>" ]]; then
+      echo "$volume_name"
+      return 0
+    fi
+  done
+
+  if docker volume inspect flox-svc_sqlite_data >/dev/null 2>&1; then
+    echo "flox-svc_sqlite_data"
+  elif docker volume inspect sqlite_data >/dev/null 2>&1; then
+    echo "sqlite_data"
+  else
+    echo "flox-svc_sqlite_data"
+  fi
+}
+
 wait_for_postgres_healthy() {
   local pg_health
 
@@ -730,6 +766,7 @@ install_panel() {
   echo "🔽 下载必要文件..."
   DOCKER_COMPOSE_URL=$(get_docker_compose_url)
   if download_compose_file "$DOCKER_COMPOSE_URL" docker-compose.yml; then
+    normalize_compose_volume_names docker-compose.yml
     echo "✅ 文件准备完成"
   else
     echo "❌ 配置文件下载失败，请检查版本号是否正确"
@@ -843,7 +880,11 @@ update_panel() {
   if [[ "$CURRENT_DB_TYPE" == "sqlite" ]]; then
     echo "💾 紧急备份 SQLite 数据库..."
     mkdir -p /tmp/flox-db-backup
-    if docker cp flvx-svc-backend:/app/data/gost.db /tmp/flox-db-backup/gost.db 2>/dev/null; then
+    CURRENT_SQLITE_VOLUME=$(get_sqlite_volume_name)
+    if [[ "$CURRENT_SQLITE_VOLUME" == "sqlite_data" ]] && docker volume inspect flox-svc_sqlite_data >/dev/null 2>&1; then
+      echo "  检测到旧版数据卷 flox-svc_sqlite_data，跳过当前 sqlite_data 备份以避免覆盖旧数据"
+      rm -rf /tmp/flox-db-backup 2>/dev/null || true
+    elif docker cp flvx-svc-backend:/app/data/gost.db /tmp/flox-db-backup/gost.db 2>/dev/null; then
       echo "  旧版数据已保存到 /tmp/flox-db-backup/gost.db"
     elif docker cp flox-svc-backend:/app/data/gost.db /tmp/flox-db-backup/gost.db 2>/dev/null; then
       echo "  新版数据已保存到 /tmp/flox-db-backup/gost.db"
@@ -873,6 +914,7 @@ update_panel() {
   echo "🔽 下载最新配置文件..."
   DOCKER_COMPOSE_URL=$(get_docker_compose_url)
   if download_compose_file "$DOCKER_COMPOSE_URL" docker-compose.yml; then
+    normalize_compose_volume_names docker-compose.yml
     echo "✅ 下载完成"
   else
     echo "❌ 配置文件下载失败，请检查版本号是否正确"
@@ -1029,6 +1071,7 @@ migrate_to_postgres() {
     DOCKER_COMPOSE_URL=$(get_docker_compose_url)
     echo "📡 选择配置文件：$(basename "$DOCKER_COMPOSE_URL")"
     curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
+    normalize_compose_volume_names docker-compose.yml
     echo "✅ docker-compose.yml 下载完成"
   fi
 
@@ -1050,6 +1093,9 @@ migrate_to_postgres() {
   upsert_env_var ".env" "POSTGRES_USER" "$postgres_user"
   upsert_env_var ".env" "POSTGRES_PASSWORD" "$postgres_password"
 
+  local sqlite_volume
+  sqlite_volume=$(get_sqlite_volume_name)
+
   echo "🛑 停止当前服务..."
   docker stop -t 30 flox-svc-backend 2>/dev/null || true
   docker stop -t 10 flox-svc-frontend 2>/dev/null || true
@@ -1058,7 +1104,7 @@ migrate_to_postgres() {
   $DOCKER_CMD down
 
   echo "💾 备份 SQLite 数据到当前目录..."
-  if ! docker run --rm -v sqlite_data:/data -v "$(pwd)":/backup alpine sh -c "cp /data/gost.db /backup/gost.db.bak"; then
+  if ! docker run --rm -v "${sqlite_volume}":/data -v "$(pwd)":/backup alpine sh -c "cp /data/gost.db /backup/gost.db.bak"; then
     echo "❌ SQLite 备份失败，迁移终止"
     return 1
   fi
@@ -1071,7 +1117,7 @@ migrate_to_postgres() {
   fi
 
   echo "🔄 执行 pgloader 迁移..."
-  if ! docker run --rm --network gost-network -v sqlite_data:/sqlite dimitri/pgloader:latest pgloader /sqlite/gost.db "postgresql://${postgres_user}:${postgres_password}@postgres:5432/${postgres_db}"; then
+  if ! docker run --rm --network gost-network -v "${sqlite_volume}":/sqlite dimitri/pgloader:latest pgloader /sqlite/gost.db "postgresql://${postgres_user}:${postgres_password}@postgres:5432/${postgres_db}"; then
     echo "❌ pgloader 迁移失败，迁移终止（如报 28P01，可执行 docker volume rm postgres_data 后重试）"
     return 1
   fi
@@ -1374,6 +1420,7 @@ uninstall_panel() {
     DOCKER_COMPOSE_URL=$(get_docker_compose_url)
     echo "📡 选择配置文件：$(basename "$DOCKER_COMPOSE_URL")"
     curl -L -o docker-compose.yml "$DOCKER_COMPOSE_URL"
+    normalize_compose_volume_names docker-compose.yml
     echo "✅ docker-compose.yml 下载完成"
   fi
 

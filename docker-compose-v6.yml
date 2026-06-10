@@ -84,10 +84,10 @@ services:
 
 volumes:
   sqlite_data:
-    name: sqlite_data
+    name: flox-svc_sqlite_data
     driver: local
   postgres_data:
-    name: postgres_data
+    name: flox-svc_postgres_data
     driver: local
 
 networks:
