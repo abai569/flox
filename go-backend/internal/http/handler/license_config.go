@@ -97,6 +97,8 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 		log.Printf("⚠️ sync config license_server_url failed: %v", err)
 	}
 
+	middleware.UpdateCheckParams(url, actualLicenseKey, req.Domain, req.ActualDomain, req.ActualProtocol)
+
 	// 修改 HMAC 密钥（非空才保存），并立即生效
 	if req.HmacKey != "" {
 		if err := h.repo.UpsertConfig("hmac_key", req.HmacKey, now); err != nil {
@@ -105,8 +107,9 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 		os.Setenv("HMAC_SECRET_KEY", req.HmacKey)
 	}
 
-	middleware.UpdateCheckParams(url, actualLicenseKey, req.Domain, req.ActualDomain, req.ActualProtocol)
-	go middleware.TriggerAsyncCheck()
+	// 同步验证授权，立即返回结果
+	middleware.ForceSyncCheck()
+	valid, _, reason, _ := middleware.GetLicenseState()
 
 	go func() {
 		if err := UpdateEnvFile(actualLicenseKey, req.Domain, url, req.HmacKey); err != nil {
@@ -115,7 +118,8 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	response.WriteJSON(w, response.OK(map[string]interface{}{
-		"triggered_check": true,
+		"valid":  valid,
+		"reason": reason,
 	}))
 }
 

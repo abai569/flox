@@ -333,21 +333,16 @@ export default function ConfigPage() {
       );
 
       if (res.code === 0) {
-        toast.success("授权配置已提交，正在后台验证...");
-
-        // 关键修复：保存成功后，延迟重新加载授权信息，获取最新的 license_key
-        setTimeout(async () => {
-          await loadLicenseInfo();
-          // 如果后端更新了授权码，同步更新输入框显示
-          if (
-            licenseStatus?.license_key &&
-            licenseStatus.license_key !== licenseKey.trim()
-          ) {
-            setLicenseKey(licenseStatus.license_key);
-          }
-          // 最后刷新页面
-          setTimeout(() => window.location.reload(), 800);
-        }, 1000);
+        if (res.data?.valid) {
+          toast.success("授权配置验证通过");
+          setTimeout(async () => {
+            await loadLicenseInfo();
+            setTimeout(() => window.location.reload(), 500);
+          }, 500);
+        } else {
+          toast.error("授权验证失败：" + (res.data?.reason || "未知错误"));
+          setLicenseSaving(false);
+        }
 
         return;
       } else {
@@ -1385,7 +1380,7 @@ export default function ConfigPage() {
                   onChange={(e) => setHmacKey(e.target.value)}
                 />
                 <p className="text-xs text-gray-400">
-                  管理员没主动要求就不用填，留空不会修改当前值
+                  必填，请联系管理员获取 Flox 密钥
                 </p>
               </div>
             </div>
