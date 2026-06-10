@@ -624,6 +624,65 @@ get_sqlite_volume_name() {
   fi
 }
 
+get_backend_container_name() {
+  if docker ps -a --format "{{.Names}}" | grep -q "^flox-svc-backend$"; then
+    echo "flox-svc-backend"
+  elif docker ps -a --format "{{.Names}}" | grep -q "^flvx-svc-backend$"; then
+    echo "flvx-svc-backend"
+  else
+    echo ""
+  fi
+}
+
+copy_sqlite_file_group_from_container() {
+  local container="$1"
+  local dest_dir="$2"
+
+  if [[ -z "$container" || -z "$dest_dir" ]]; then
+    return 1
+  fi
+
+  mkdir -p "$dest_dir"
+  rm -f "$dest_dir"/gost.db "$dest_dir"/gost.db-wal "$dest_dir"/gost.db-shm 2>/dev/null || true
+
+  if ! docker cp "$container":/app/data/gost.db "$dest_dir/gost.db" 2>/dev/null; then
+    return 1
+  fi
+  docker cp "$container":/app/data/gost.db-wal "$dest_dir/gost.db-wal" 2>/dev/null || true
+  docker cp "$container":/app/data/gost.db-shm "$dest_dir/gost.db-shm" 2>/dev/null || true
+  return 0
+}
+
+restore_sqlite_file_group_to_container() {
+  local src_dir="$1"
+  local container="$2"
+  local volume_name
+
+  if [[ -z "$src_dir" || -z "$container" || ! -s "$src_dir/gost.db" ]]; then
+    return 1
+  fi
+
+  volume_name=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/app/data"}}{{.Name}}{{end}}{{end}}' "$container" 2>/dev/null || true)
+  if [[ -z "$volume_name" || "$volume_name" == "<no value>" ]]; then
+    return 1
+  fi
+
+  docker stop -t 30 "$container" 2>/dev/null || true
+  docker run --rm -v "${volume_name}":/data -v "$src_dir":/backup:ro alpine sh -c '
+    set -e
+    rm -f /data/gost.db /data/gost.db-wal /data/gost.db-shm
+    cp /backup/gost.db /data/gost.db
+    [ -f /backup/gost.db-wal ] && cp /backup/gost.db-wal /data/gost.db-wal || true
+    [ -f /backup/gost.db-shm ] && cp /backup/gost.db-shm /data/gost.db-shm || true
+    chown 1000:1000 /data/gost.db /data/gost.db-wal /data/gost.db-shm 2>/dev/null || true
+  ' || {
+    docker start "$container" 2>/dev/null || true
+    return 1
+  }
+  docker start "$container"
+  return 0
+}
+
 wait_for_postgres_healthy() {
   local pg_health
 
@@ -877,19 +936,26 @@ update_panel() {
   echo "🗄️ 当前类型：$CURRENT_DB_TYPE"
 
   # 强制数据保护：在任何破坏性操作前备份数据库到主机
+  OLD_SQLITE_VOLUME=""
   if [[ "$CURRENT_DB_TYPE" == "sqlite" ]]; then
     echo "💾 紧急备份 SQLite 数据库..."
+    local source_backend
+    source_backend=$(get_backend_container_name)
+    OLD_SQLITE_VOLUME=$(get_sqlite_volume_name)
     mkdir -p /tmp/flox-db-backup
-    CURRENT_SQLITE_VOLUME=$(get_sqlite_volume_name)
-    if [[ "$CURRENT_SQLITE_VOLUME" == "sqlite_data" ]] && docker volume inspect flox-svc_sqlite_data >/dev/null 2>&1; then
+    if [[ "$OLD_SQLITE_VOLUME" == "sqlite_data" ]] && docker volume inspect flox-svc_sqlite_data >/dev/null 2>&1; then
       echo "  检测到旧版数据卷 flox-svc_sqlite_data，跳过当前 sqlite_data 备份以避免覆盖旧数据"
       rm -rf /tmp/flox-db-backup 2>/dev/null || true
-    elif docker cp flvx-svc-backend:/app/data/gost.db /tmp/flox-db-backup/gost.db 2>/dev/null; then
-      echo "  旧版数据已保存到 /tmp/flox-db-backup/gost.db"
-    elif docker cp flox-svc-backend:/app/data/gost.db /tmp/flox-db-backup/gost.db 2>/dev/null; then
-      echo "  新版数据已保存到 /tmp/flox-db-backup/gost.db"
+    elif [[ -n "$source_backend" ]]; then
+      echo "  停止后端并备份 SQLite 文件组（gost.db*）..."
+      docker stop -t 30 "$source_backend" 2>/dev/null || true
+      if copy_sqlite_file_group_from_container "$source_backend" /tmp/flox-db-backup; then
+        echo "  SQLite 文件组已保存到 /tmp/flox-db-backup"
+      else
+        echo "⚠️ 警告：无法复制 SQLite 文件组"
+      fi
     else
-      echo "⚠️ 警告：无法复制数据文件（可能容器未运行）"
+      echo "⚠️ 警告：未找到后端容器，无法复制 SQLite 文件组"
     fi
   fi
   # PostgreSQL 用户的数据库是持久化的，只要 -v 不去掉数据卷就不会丢
@@ -988,31 +1054,28 @@ update_panel() {
       target_backend="flvx-svc-backend"
     fi
 
-    if [[ -s "/tmp/flox-db-backup/gost.db" && -n "$target_backend" ]]; then
-      echo "⚠️ 检测到升级前 SQLite 备份，正在恢复到新容器..."
-      docker exec "$target_backend" mkdir -p /app/data
-      docker stop -t 30 "$target_backend" 2>/dev/null || true
-      docker cp /tmp/flox-db-backup/gost.db "$target_backend":/app/data/gost.db
-      echo "✅ 数据已恢复，正在启动后端容器..."
-      docker start "$target_backend"
-      docker exec "$target_backend" chown 1000:1000 /app/data/gost.db 2>/dev/null || true
+    local new_sqlite_volume
+    new_sqlite_volume=$(get_sqlite_volume_name)
+    echo "  SQLite 卷：升级前=${OLD_SQLITE_VOLUME:-unknown}，升级后=${new_sqlite_volume:-unknown}"
+
+    if [[ -s "/tmp/flox-db-backup/gost.db" && -n "$target_backend" && -n "$OLD_SQLITE_VOLUME" && "$OLD_SQLITE_VOLUME" != "$new_sqlite_volume" ]]; then
+      echo "⚠️ 检测到 SQLite 卷发生变化，正在恢复完整 SQLite 文件组..."
+      if restore_sqlite_file_group_to_container /tmp/flox-db-backup "$target_backend"; then
+        echo "✅ SQLite 文件组已恢复，后端容器已启动"
+      else
+        echo "❌ SQLite 文件组恢复失败"
+        return 1
+      fi
       sleep 3
+      rm -rf /tmp/flox-db-backup 2>/dev/null || true
+    elif [[ -s "/tmp/flox-db-backup/gost.db" && -n "$OLD_SQLITE_VOLUME" && "$OLD_SQLITE_VOLUME" == "$new_sqlite_volume" ]]; then
+      echo "✅ SQLite 卷未变化，跳过备份恢复，避免覆盖原数据库"
       rm -rf /tmp/flox-db-backup 2>/dev/null || true
     elif [[ -n "$target_backend" ]] && docker cp "$target_backend":/app/data/gost.db /tmp/gost.db.check 2>/dev/null && [[ -s "/tmp/gost.db.check" ]]; then
       echo "✅ 数据文件正常"
       rm -f /tmp/gost.db.check
       # 清理备份
       rm -rf /tmp/flox-db-backup 2>/dev/null || true
-    elif [[ -f "/tmp/flox-db-backup/gost.db" ]] && [[ -n "$target_backend" ]]; then
-      echo "⚠️ 容器内无数据！正在恢复备份..."
-      docker exec "$target_backend" mkdir -p /app/data
-      docker stop -t 30 "$target_backend" 2>/dev/null || true
-      docker cp /tmp/flox-db-backup/gost.db "$target_backend":/app/data/gost.db
-      echo "✅ 数据已恢复，正在启动后端容器..."
-      docker start "$target_backend"
-      docker exec "$target_backend" chown 1000:1000 /app/data/gost.db 2>/dev/null || true
-      sleep 3
-      rm -rf /tmp/gost.db.check /tmp/flox-db-backup 2>/dev/null || true
     else
       echo " 严重错误：数据丢失且无备份！如有本地备份请手动恢复"
     fi
@@ -1174,11 +1237,11 @@ backup_panel_data() {
   echo "🗄️ 当前数据库类型：$current_db_type"
 
   if [[ "$current_db_type" == "sqlite" ]]; then
-    echo "📦 备份 SQLite 数据库（在线热备）..."
-    if docker cp flox-svc-backend:/app/data/gost.db "$backup_dir/gost.db" 2>/dev/null; then
-      echo "  gost.db → 已备份"
-    elif docker cp flvx-svc-backend:/app/data/gost.db "$backup_dir/gost.db" 2>/dev/null; then
-      echo "  gost.db → 已备份"
+    echo "📦 备份 SQLite 数据库文件组（gost.db*）..."
+    local source_backend
+    source_backend=$(get_backend_container_name)
+    if copy_sqlite_file_group_from_container "$source_backend" "$backup_dir"; then
+      echo "  gost.db* → 已备份"
     else
       echo "❌ SQLite 数据库备份失败，请检查容器是否运行"
       return 1
@@ -1332,9 +1395,9 @@ restore_panel_data() {
 
   if [[ "$current_db_type" == "sqlite" ]]; then
     if [[ -f "$backup_dir/gost.db" ]]; then
-      echo "📦 恢复 SQLite 数据库..."
-      if docker cp "$backup_dir/gost.db" flox-svc-backend:/app/data/gost.db 2>/dev/null; then
-        echo "  gost.db → 已恢复"
+      echo "📦 恢复 SQLite 数据库文件组（gost.db*）..."
+      if restore_sqlite_file_group_to_container "$backup_dir" flox-svc-backend; then
+        echo "  gost.db* → 已恢复"
       else
         echo "❌ SQLite 数据库恢复失败"
         return 1
