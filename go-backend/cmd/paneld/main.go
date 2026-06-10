@@ -55,19 +55,6 @@ func main() {
 		}
 	}
 
-	// 容错逻辑 2：如果环境变量未配置域名，尝试从数据库回退
-	// 防止 Docker 容器 hostname 导致域名不匹配
-	if cfg.ServerDomain == "" {
-		dbRepo, err := getTempRepository(cfg)
-		if err == nil && dbRepo != nil {
-			cfg3, _ := dbRepo.GetConfigByName("server_domain")
-			dbRepo.Close()
-			if cfg3 != nil && cfg3.Value != "" {
-				middleware.UpdateServerDomainFromConfig(cfg3.Value)
-				log.Printf(" 环境变量未配置域名，从数据库恢复: %s", cfg3.Value)
-			}
-		}
-	}
 	// 授权验证
 	if cfg.LicenseServerURL != "" && cfg.LicenseKey != "" {
 		log.Printf("🔐 开始验证授权...")
