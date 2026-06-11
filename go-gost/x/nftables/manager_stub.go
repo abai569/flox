@@ -1,4 +1,4 @@
-﻿//go:build !linux
+//go:build !linux
 
 package nftables
 
@@ -16,6 +16,15 @@ type CounterResult struct {
 	Port         int    `json:"port"`
 	Packets      uint64 `json:"packets"`
 	Bytes        uint64 `json:"bytes"`
+}
+
+type RuleConnInfo struct {
+	ForwardID int64  `json:"forward_id"`
+	UserID    int64  `json:"user_id"`
+	TunnelID  int64  `json:"tunnel_id"`
+	Protocol  string `json:"protocol"`
+	Port      int    `json:"port"`
+	ConnCount int    `json:"conn_count"`
 }
 
 func NewManager() (*Manager, error) {
@@ -48,6 +57,10 @@ func (m *Manager) GetCounters() []CounterResult {
 
 func (m *Manager) RefreshCounters() []CounterResult {
 	return nil
+}
+
+func (m *Manager) CountConnectionsByRule() ([]RuleConnInfo, error) {
+	return nil, errors.New("nftables not supported on this platform")
 }
 
 func (m *Manager) ResetCounters() error {

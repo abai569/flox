@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-gost/x/config"
 	"github.com/go-gost/x/internal/util/crypto"
+	"github.com/go-gost/x/nftables"
 	"github.com/go-gost/x/registry"
 	"github.com/go-gost/x/service"
 	"github.com/go-gost/x/stats"
@@ -175,12 +176,12 @@ type ListServicesResult struct {
 
 // ServiceStatus 单个服务的运行时状态
 type ServiceStatus struct {
-	Name      string `json:"name"`
-	Addr      string `json:"addr"`
-	State     string `json:"state"`
-	Listener  string `json:"listener"`
-	Handler   string `json:"handler"`
-	Chain     string `json:"chain,omitempty"`
+	Name     string `json:"name"`
+	Addr     string `json:"addr"`
+	State    string `json:"state"`
+	Listener string `json:"listener"`
+	Handler  string `json:"handler"`
+	Chain    string `json:"chain,omitempty"`
 }
 
 const (
@@ -192,26 +193,27 @@ const (
 )
 
 type WebSocketReporter struct {
-	url               string
-	addr              string // 保存服务器地址
-	secret            string // 保存密钥
-	version           string // 保存版本号
-	nodeID            int64  // 节点 ID
-	preferredWSScheme string
-	conn              *websocket.Conn
-	curBackoff        time.Duration // 当前重连退避间隔
-	pingInterval      time.Duration
-	configInterval    time.Duration
-	ctx               context.Context
-	cancel            context.CancelFunc
-	connected         bool
-	connecting        bool              // 正在连接状态
-	connMutex         sync.Mutex        // 连接状态锁
-	aesCrypto         *crypto.AESCrypto // AES 加密器
-	publicIPReported  bool              // 是否已上报公网 IP
-	serviceName       string            // 服务名
+	url                  string
+	addr                 string // 保存服务器地址
+	secret               string // 保存密钥
+	version              string // 保存版本号
+	nodeID               int64  // 节点 ID
+	preferredWSScheme    string
+	conn                 *websocket.Conn
+	curBackoff           time.Duration // 当前重连退避间隔
+	pingInterval         time.Duration
+	configInterval       time.Duration
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	connected            bool
+	connecting           bool                     // 正在连接状态
+	connMutex            sync.Mutex               // 连接状态锁
+	aesCrypto            *crypto.AESCrypto        // AES 加密器
+	publicIPReported     bool                     // 是否已上报公网 IP
+	serviceName          string                   // 服务名
 	nftablesMgr          NftablesManagerInterface // nftables manager (platform-specific)
-	nftablesPrevCounters map[string]uint64          // "forwardID_protocol" → last total bytes
+	nftablesPrevCounters map[string]uint64        // "forwardID_protocol" → last total bytes
+	nftConnPrev          map[int64]nftables.RuleConnInfo
 	nftablesPrevMu       sync.Mutex
 }
 
@@ -233,16 +235,17 @@ func NewWebSocketReporter(serverURL string, secret string) *WebSocketReporter {
 	}
 
 	return &WebSocketReporter{
-		url:            serverURL,
-		curBackoff:     initialBackoff,   // 当前退避间隔
-		pingInterval:   1 * time.Second,  // 指标上报间隔（每秒采集）
-		configInterval: 10 * time.Minute, // 配置上报间隔
-		ctx:            ctx,
-		cancel:         cancel,
+		url:                  serverURL,
+		curBackoff:           initialBackoff,   // 当前退避间隔
+		pingInterval:         1 * time.Second,  // 指标上报间隔（每秒采集）
+		configInterval:       10 * time.Minute, // 配置上报间隔
+		ctx:                  ctx,
+		cancel:               cancel,
 		connected:            false,
 		connecting:           false,
 		aesCrypto:            aesCrypto,
 		nftablesPrevCounters: make(map[string]uint64),
+		nftConnPrev:          make(map[int64]nftables.RuleConnInfo),
 	}
 }
 
@@ -916,8 +919,9 @@ func (w *WebSocketReporter) handleConnection() {
 				return
 			}
 
-			// 轮询 nftables 内核计数器并注入流量统计
+			// 轮询 nftables 内核计数器和 conntrack 连接数
 			w.pollNftablesCounters()
+			w.pollNftablesConnections()
 
 			// 获取系统信息并发送
 			sysInfo := w.collectSystemInfo()
@@ -1068,6 +1072,61 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 
 	// 流量统计由连接包装器路径（service.Stats + forwarder pStats）提供，更准确且无噪声
 	// 禁用 nftables 注入，避免双倍计数和端口扫描噪声
+}
+
+func nftForwardMetricServiceName(info nftables.RuleConnInfo) string {
+	return fmt.Sprintf("%d_%d_%d_nft", info.ForwardID, info.UserID, info.TunnelID)
+}
+
+func (w *WebSocketReporter) pollNftablesConnections() {
+	if w.nftablesMgr == nil {
+		return
+	}
+
+	infos, err := w.nftablesMgr.CountConnectionsByRule()
+	if err != nil {
+		fmt.Printf("⚠️ [nftables] count connections failed: %v\n", err)
+		return
+	}
+
+	cur := make(map[int64]nftables.RuleConnInfo, len(infos))
+	for _, info := range infos {
+		cur[info.ForwardID] = info
+		prev := w.nftConnPrev[info.ForwardID]
+		delta := info.ConnCount - prev.ConnCount
+		if delta == 0 {
+			continue
+		}
+		stats.AddForwardConnection(
+			info.ForwardID,
+			info.UserID,
+			info.TunnelID,
+			nftForwardMetricServiceName(info),
+			0,
+			info.Port,
+			delta,
+		)
+	}
+
+	for forwardID, prev := range w.nftConnPrev {
+		if _, ok := cur[forwardID]; ok {
+			continue
+		}
+		if prev.ConnCount == 0 {
+			continue
+		}
+		stats.AddForwardConnection(
+			prev.ForwardID,
+			prev.UserID,
+			prev.TunnelID,
+			nftForwardMetricServiceName(prev),
+			0,
+			prev.Port,
+			-prev.ConnCount,
+		)
+	}
+
+	w.nftConnPrev = cur
 }
 
 // collectForwardMetrics 收集所有转发规则的实时指标
@@ -1414,7 +1473,7 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		response.Type = "RollbackAgentResponse"
 		// needSaveConfig = false (默认值)
 
-	// Nftables 
+	// Nftables
 	case "AddNftablesRules":
 		rawData, _ := json.Marshal(cmd.Data)
 		err = w.handleAddNftablesRules(rawData)

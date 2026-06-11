@@ -1,4 +1,4 @@
-﻿package socket
+package socket
 
 import (
 	"github.com/go-gost/x/nftables"
@@ -12,5 +12,6 @@ type NftablesManagerInterface interface {
 	DeleteRuleWithPort(forwardID int64, protocol string, port int) error
 	GetCounters() []nftables.CounterResult
 	RefreshCounters() []nftables.CounterResult
+	CountConnectionsByRule() ([]nftables.RuleConnInfo, error)
 	ResetCounters() error
 }

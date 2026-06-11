@@ -272,6 +272,10 @@ closed/
 # FloxCore merge target (copied from closed/ at build time)
 go-gost/x/adapter/
 go-gost/x/flox-core/
+
+# nftables conntrack closed files (merged from closed/ at build time)
+go-gost/x/nftables/conntrack.go
+go-gost/x/nftables/conntrack_stub.go
 scripts/
 
 !go-backend/internal/store/sqlite/sql/

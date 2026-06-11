@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	TableName      = "FLOX"
-	TableFamily    = nftables.TableFamilyINet
+	TableName        = "FLOX"
+	TableFamily      = nftables.TableFamilyINet
 	PreroutingChain  = "prerouting"
 	PostroutingChain = "postrouting"
 )
@@ -51,6 +51,15 @@ type CounterResult struct {
 	Port         int    `json:"port"`
 	Packets      uint64 `json:"packets"`
 	Bytes        uint64 `json:"bytes"`
+}
+
+type RuleConnInfo struct {
+	ForwardID int64  `json:"forward_id"`
+	UserID    int64  `json:"user_id"`
+	TunnelID  int64  `json:"tunnel_id"`
+	Protocol  string `json:"protocol"`
+	Port      int    `json:"port"`
+	ConnCount int    `json:"conn_count"`
 }
 
 func NewManager() (*Manager, error) {
@@ -173,8 +182,8 @@ func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protoco
 
 	// Get prerouting chain
 	preroutingChain := &nftables.Chain{
-		Name:   PreroutingChain,
-		Table:  m.table,
+		Name:  PreroutingChain,
+		Table: m.table,
 	}
 
 	// Build match expressions: match protocol and ingress port
@@ -741,6 +750,43 @@ func (m *Manager) ResetCounters() error {
 		}
 	}
 	return m.conn.Flush()
+}
+
+func (m *Manager) CountConnectionsByRule() ([]RuleConnInfo, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if len(m.rules) == 0 {
+		return nil, nil
+	}
+
+	snap, err := CountActiveConnections()
+	if err != nil {
+		return nil, err
+	}
+
+	aggregated := make(map[int64]RuleConnInfo)
+	for _, rs := range m.rules {
+		key := fmt.Sprintf("%s:%d", rs.Protocol, rs.Port)
+		info := aggregated[rs.ForwardID]
+		if info.ForwardID == 0 {
+			info = RuleConnInfo{
+				ForwardID: rs.ForwardID,
+				UserID:    rs.UserID,
+				TunnelID:  rs.UserTunnelID,
+				Protocol:  rs.Protocol,
+				Port:      rs.Port,
+			}
+		}
+		info.ConnCount += snap[key]
+		aggregated[rs.ForwardID] = info
+	}
+
+	results := make([]RuleConnInfo, 0, len(aggregated))
+	for _, info := range aggregated {
+		results = append(results, info)
+	}
+	return results, nil
 }
 
 func ruleKey(forwardID int64, protocol string) string {
