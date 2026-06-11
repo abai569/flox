@@ -171,6 +171,17 @@ func (s *Server) GetServiceConnections(nodeID int64) map[string]int {
 // GetForwardCurrentConnections 获取指定转发的当前连接数
 // 服务名格式为 "{forwardID}_{userID}_{userTunnelID}_tcp" 或 "{forwardID}_{userID}_{userTunnelID}_udp"
 func (s *Server) GetForwardCurrentConnections(nodeID int64, forwardID int64) int {
+	s.forwardMetricsMu.RLock()
+	if nodeMetrics, ok := s.forwardMetrics[forwardID]; ok && len(nodeMetrics) > 0 {
+		total := 0
+		for _, fm := range nodeMetrics {
+			total += fm.Connections
+		}
+		s.forwardMetricsMu.RUnlock()
+		return total
+	}
+	s.forwardMetricsMu.RUnlock()
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

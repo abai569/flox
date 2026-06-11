@@ -820,6 +820,11 @@ const SortableTableRow = ({
               nft
             </span>
           )}
+          {forward.mode === "floxcore" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800">
+              fc
+            </span>
+          )}
         </span>
       </TableCell>
       <TableCell className={rowBg}>
@@ -1143,6 +1148,11 @@ const SortableCompactTableRow = ({
           {forward.mode === "nftables" && (
             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
               nft
+            </span>
+          )}
+          {forward.mode === "floxcore" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800">
+              fc
             </span>
           )}
         </span>
