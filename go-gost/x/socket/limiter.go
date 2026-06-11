@@ -4,9 +4,21 @@ import (
 	"errors"
 	"github.com/go-gost/x/config"
 	parser "github.com/go-gost/x/config/parsing/limiter"
+	floxlimiter "github.com/go-gost/x/flox-core/limiter"
 	"github.com/go-gost/x/registry"
 	"strings"
 )
+
+func registerFloxLimiter(cfg *config.LimiterConfig) {
+	if cfg == nil {
+		return
+	}
+	spec := ""
+	if len(cfg.Limits) > 0 {
+		spec = cfg.Limits[0]
+	}
+	floxlimiter.Global().Add(floxlimiter.NewFromSpec(cfg.Name, spec))
+}
 
 func createLimiter(req createLimiterRequest) error {
 	name := strings.TrimSpace(req.Data.Name)
@@ -24,6 +36,7 @@ func createLimiter(req createLimiterRequest) error {
 	if err := registry.TrafficLimiterRegistry().Register(name, v); err != nil {
 		return errors.New("limiter " + name + " already exists")
 	}
+	registerFloxLimiter(&req.Data)
 
 	config.OnUpdate(func(c *config.Config) error {
 		c.Limiters = append(c.Limiters, &req.Data)
@@ -40,6 +53,7 @@ func updateLimiter(req updateLimiterRequest) error {
 	if registry.TrafficLimiterRegistry().IsRegistered(name) {
 		registry.TrafficLimiterRegistry().Unregister(name)
 	}
+	floxlimiter.Remove(name)
 
 	req.Data.Name = name
 
@@ -48,6 +62,7 @@ func updateLimiter(req updateLimiterRequest) error {
 	if err := registry.TrafficLimiterRegistry().Register(name, v); err != nil {
 		return errors.New("limiter " + name + " already exists")
 	}
+	registerFloxLimiter(&req.Data)
 
 	config.OnUpdate(func(c *config.Config) error {
 		found := false
@@ -74,6 +89,7 @@ func deleteLimiter(req deleteLimiterRequest) error {
 	if registry.TrafficLimiterRegistry().IsRegistered(name) {
 		registry.TrafficLimiterRegistry().Unregister(name)
 	}
+	floxlimiter.Remove(name)
 
 	config.OnUpdate(func(c *config.Config) error {
 		limiteres := c.Limiters

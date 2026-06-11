@@ -7,8 +7,55 @@ import (
 	"github.com/go-gost/core/logger"
 	"github.com/go-gost/x/config"
 	parser "github.com/go-gost/x/config/parsing/chain"
+	floxchain "github.com/go-gost/x/flox-core/chain"
+	floxcfg "github.com/go-gost/x/flox-core/config"
+	floxregistry "github.com/go-gost/x/flox-core/registry"
 	"github.com/go-gost/x/registry"
 )
+
+func registerFloxChain(cfg *config.ChainConfig) {
+	if cfg == nil {
+		return
+	}
+	fc := &floxcfg.ChainConfig{Name: cfg.Name}
+	for _, h := range cfg.Hops {
+		if h == nil {
+			continue
+		}
+		hop := floxcfg.HopConfig{Name: h.Name}
+		if h.Selector != nil {
+			hop.Selector = floxcfg.SelectorConfig{
+				Strategy:    h.Selector.Strategy,
+				MaxFails:    h.Selector.MaxFails,
+				FailTimeout: floxcfg.Duration(h.Selector.FailTimeout),
+			}
+		}
+		for _, n := range h.Nodes {
+			if n == nil {
+				continue
+			}
+			addr := n.Addr
+			if addr == "" {
+				addr = n.Name
+			}
+			transport := "tcp"
+			if n.Dialer != nil && strings.TrimSpace(n.Dialer.Type) != "" {
+				transport = strings.TrimSpace(n.Dialer.Type)
+			}
+			hop.Nodes = append(hop.Nodes, floxcfg.ChainNodeConfig{
+				Name:      n.Name,
+				Addr:      addr,
+				Transport: transport,
+			})
+		}
+		fc.Hops = append(fc.Hops, hop)
+	}
+	r := floxchain.NewRouter()
+	r.AddChain(fc)
+	if ch := r.GetChain(fc.Name); ch != nil {
+		floxregistry.GlobalChainRegistry().Add(fc.Name, ch)
+	}
+}
 
 func createChain(req createChainRequest) error {
 
@@ -30,6 +77,7 @@ func createChain(req createChainRequest) error {
 	if err := registry.ChainRegistry().Register(name, v); err != nil {
 		return errors.New("chain " + name + " already exists")
 	}
+	registerFloxChain(&req.Data)
 
 	config.OnUpdate(func(c *config.Config) error {
 		c.Chains = append(c.Chains, &req.Data)
@@ -46,6 +94,7 @@ func updateChain(req updateChainRequest) error {
 	if registry.ChainRegistry().IsRegistered(name) {
 		registry.ChainRegistry().Unregister(name)
 	}
+	floxregistry.GlobalChainRegistry().Remove(name)
 
 	req.Data.Name = name
 
@@ -57,6 +106,7 @@ func updateChain(req updateChainRequest) error {
 	if err := registry.ChainRegistry().Register(name, v); err != nil {
 		return errors.New("chain " + name + " already exists")
 	}
+	registerFloxChain(&req.Data)
 
 	config.OnUpdate(func(c *config.Config) error {
 		found := false
@@ -83,6 +133,7 @@ func deleteChain(req deleteChainRequest) error {
 	if registry.ChainRegistry().IsRegistered(name) {
 		registry.ChainRegistry().Unregister(name)
 	}
+	floxregistry.GlobalChainRegistry().Remove(name)
 
 	config.OnUpdate(func(c *config.Config) error {
 		chains := c.Chains
