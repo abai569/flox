@@ -1359,6 +1359,11 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	trafficRatio := asFloat(req["trafficRatio"], 1.0)
 	inIP := asString(req["inIp"])
 	ipPreference := asString(req["ipPreference"])
+	mode := defaultString(asString(req["mode"]), "gost")
+	if mode != "gost" && mode != "floxcore" {
+		response.WriteJSON(w, response.ErrDefault("隧道模式无效，仅支持 gost 或 floxcore"))
+		return
+	}
 	now := time.Now().UnixMilli()
 	inx := h.repo.NextIndex("tunnel")
 	localDomain := h.federationLocalDomain()
@@ -1474,6 +1479,7 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		TLS:           asInt(req["tls"], 0),
 		Socks:         asInt(req["socks"], 0),
 		BlockOther:    asInt(req["blockOther"], 0),
+		Mode:          mode,
 	}
 	if err := tx.Create(&tunnel).Error; err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -1593,6 +1599,7 @@ func (h *Handler) cleanupTunnelRuntime(tunnelID int64) {
 		}
 		if row.ChainType == 1 {
 			h.sendNodeCommandWithRetry(nodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true, 3, "清理入口节点 "+nodeName+" 链配置")
+			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, 3, "清理入口节点 "+nodeName+" 服务")
 		} else if row.ChainType == 2 {
 			h.sendNodeCommandWithRetry(nodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true, 3, "清理链节点 "+nodeName+" 链配置")
 			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, 3, "清理链节点 "+nodeName+" 服务")
@@ -1743,6 +1750,11 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UnixMilli()
 	typeVal := asInt(req["type"], 1)
 	ipPreference := asString(req["ipPreference"])
+	mode := defaultString(asString(req["mode"]), "gost")
+	if mode != "gost" && mode != "floxcore" {
+		response.WriteJSON(w, response.ErrDefault("隧道模式无效，仅支持 gost 或 floxcore"))
+		return
+	}
 	localDomain := h.federationLocalDomain()
 
 	// Handle tunnelGroupId the same way as node groupId
@@ -1806,6 +1818,7 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		asInt(req["tls"], 0),
 		asInt(req["socks"], 0),
 		asInt(req["blockOther"], 0),
+		mode,
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -4341,6 +4354,7 @@ type tunnelRuntimeNode struct {
 type tunnelCreateState struct {
 	TunnelID     int64
 	Type         int
+	Mode         string
 	IPPreference string // "" = auto, "v4" = prefer IPv4, "v6" = prefer IPv6
 	InNodes      []tunnelRuntimeNode
 	ChainHops    [][]tunnelRuntimeNode
@@ -4352,6 +4366,7 @@ type tunnelCreateState struct {
 func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface{}, tunnelType int, excludeTunnelID int64) (*tunnelCreateState, error) {
 	state := &tunnelCreateState{
 		Type:      tunnelType,
+		Mode:      defaultString(asString(req["mode"]), "gost"),
 		InNodes:   make([]tunnelRuntimeNode, 0),
 		ChainHops: make([][]tunnelRuntimeNode, 0),
 		OutNodes:  make([]tunnelRuntimeNode, 0),
@@ -4889,6 +4904,17 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 			return createdChains, createdServices, fmt.Errorf("入口节点 %s 下发转发链失败: %w", nodeDisplayName(state.Nodes[inNode.NodeID]), err)
 		}
 		createdChains = append(createdChains, inNode.NodeID)
+
+		if strings.EqualFold(state.Mode, "floxcore") {
+			if node != nil && node.IsRemote == 1 {
+				continue
+			}
+			entryServiceData := buildEntryRelayServiceConfig(state.TunnelID, inNode, state.Nodes[inNode.NodeID], state.ChainHops, state.OutNodes, state.Nodes)
+			if err := h.addTunnelServiceOnNode(inNode.NodeID, state.TunnelID, entryServiceData); err != nil {
+				return createdChains, createdServices, fmt.Errorf("入口节点 %s 下发入口服务失败: %w", nodeDisplayName(state.Nodes[inNode.NodeID]), err)
+			}
+			createdServices = append(createdServices, inNode.NodeID)
+		}
 	}
 
 	for i, hop := range state.ChainHops {
@@ -4909,7 +4935,7 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 			}
 			createdChains = append(createdChains, chainNode.NodeID)
 
-			serviceData := buildTunnelChainServiceConfig(state.TunnelID, chainNode, state.Nodes[chainNode.NodeID], len(nextTargets))
+			serviceData := buildTunnelChainServiceConfig(state.TunnelID, chainNode, state.Nodes[chainNode.NodeID], len(nextTargets), state.Mode)
 			if err := h.addTunnelServiceOnNode(chainNode.NodeID, state.TunnelID, serviceData); err != nil {
 				return createdChains, createdServices, fmt.Errorf("转发链节点 %s 下发服务失败: %w", nodeDisplayName(state.Nodes[chainNode.NodeID]), err)
 			}
@@ -4921,7 +4947,7 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 		if node := state.Nodes[outNode.NodeID]; node != nil && node.IsRemote == 1 {
 			continue
 		}
-		serviceData := buildTunnelChainServiceConfig(state.TunnelID, outNode, state.Nodes[outNode.NodeID], 1)
+		serviceData := buildTunnelChainServiceConfig(state.TunnelID, outNode, state.Nodes[outNode.NodeID], 1, state.Mode)
 		if err := h.addTunnelServiceOnNode(outNode.NodeID, state.TunnelID, serviceData); err != nil {
 			return createdChains, createdServices, fmt.Errorf("出口节点 %s 下发服务失败: %w", nodeDisplayName(state.Nodes[outNode.NodeID]), err)
 		}
@@ -5078,7 +5104,7 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 	}, nil
 }
 
-func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, node *nodeRecord, nextHopCandidateCount int) []map[string]interface{} {
+func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, node *nodeRecord, nextHopCandidateCount int, mode string) []map[string]interface{} {
 	if node == nil {
 		return nil
 	}
@@ -5095,6 +5121,12 @@ func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, 
 	if nextHopCandidateCount > 1 {
 		handlerCfg["retries"] = nextHopCandidateCount - 1
 	}
+	if strings.EqualFold(mode, "floxcore") {
+		if _, ok := handlerCfg["metadata"]; !ok {
+			handlerCfg["metadata"] = map[string]interface{}{}
+		}
+		handlerCfg["metadata"].(map[string]interface{})["kernel"] = "floxcore"
+	}
 	service := map[string]interface{}{
 		"name":    fmt.Sprintf("%d_tls", tunnelID),
 		"addr":    processServerAddress(fmt.Sprintf("%s:%d", node.TCPListenAddr, chainNode.Port)),
@@ -5108,6 +5140,58 @@ func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, 
 	}
 	if chainNode.ChainType == 3 && strings.TrimSpace(node.InterfaceName) != "" {
 		service["metadata"] = map[string]interface{}{"interface": node.InterfaceName}
+	}
+	return []map[string]interface{}{service}
+}
+
+func buildEntryRelayServiceConfig(tunnelID int64, inNode tunnelRuntimeNode, node *nodeRecord, chainHops [][]tunnelRuntimeNode, outNodes []tunnelRuntimeNode, nodes map[int64]*nodeRecord) []map[string]interface{} {
+	if node == nil {
+		return nil
+	}
+	protocol := defaultString(inNode.Protocol, "tls")
+	chainName := fmt.Sprintf("chains_%d", tunnelID)
+
+	nextChain := ""
+	target := ""
+	if len(chainHops) > 0 {
+		nextChain = chainName
+	} else if len(outNodes) > 0 {
+		out := outNodes[0]
+		if nodes != nil {
+			outNode := nodes[out.NodeID]
+			if outNode != nil {
+				host, _, _ := selectTunnelDialHost(node, outNode, "", out.ConnectIPType)
+				if host != "" {
+					target = processServerAddress(fmt.Sprintf("%s:%d", host, out.Port))
+				}
+			}
+		}
+	}
+
+	service := map[string]interface{}{
+		"name": fmt.Sprintf("%d_tls", tunnelID),
+		"addr": processServerAddress(fmt.Sprintf("%s:%d", node.TCPListenAddr, inNode.Port)),
+		"handler": map[string]interface{}{
+			"type": "relay",
+			"metadata": map[string]interface{}{
+				"kernel": "floxcore",
+				"role":   "entry",
+			},
+		},
+		"listener": map[string]interface{}{
+			"type": protocol,
+		},
+	}
+	handlerMeta := service["handler"].(map[string]interface{})["metadata"].(map[string]interface{})
+	if nextChain != "" {
+		handlerMeta["chain"] = nextChain
+		service["handler"].(map[string]interface{})["chain"] = chainName
+	}
+	if target != "" {
+		handlerMeta["target"] = target
+	}
+	if inNode.ChainType == 2 && strings.TrimSpace(node.InterfaceName) != "" {
+		handlerMeta["interface"] = node.InterfaceName
 	}
 	return []map[string]interface{}{service}
 }

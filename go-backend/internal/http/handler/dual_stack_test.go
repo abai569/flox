@@ -33,7 +33,7 @@ func TestSelectTunnelDialHost_ConnectIpPriority(t *testing.T) {
 func TestBuildTunnelChainServiceConfig_UsesConnectIPForListen(t *testing.T) {
 	node := &nodeRecord{TCPListenAddr: "[::]"}
 	chain := tunnelRuntimeNode{Protocol: "tls", Port: 21000}
-	services := buildTunnelChainServiceConfig(99, chain, node, 1)
+	services := buildTunnelChainServiceConfig(99, chain, node, 1, "gost")
 	if len(services) != 1 {
 		t.Fatalf("expected 1 service, got %d", len(services))
 	}
@@ -46,7 +46,7 @@ func TestBuildTunnelChainServiceConfig_UsesConnectIPForListen(t *testing.T) {
 func TestBuildTunnelChainServiceConfig_FallsBackToNodeListenAddr(t *testing.T) {
 	node := &nodeRecord{TCPListenAddr: "10.8.0.5"}
 	chain := tunnelRuntimeNode{Protocol: "tls", Port: 21002}
-	services := buildTunnelChainServiceConfig(99, chain, node, 1)
+	services := buildTunnelChainServiceConfig(99, chain, node, 1, "gost")
 	if len(services) != 1 {
 		t.Fatalf("expected 1 service, got %d", len(services))
 	}
@@ -59,7 +59,7 @@ func TestBuildTunnelChainServiceConfig_FallsBackToNodeListenAddr(t *testing.T) {
 func TestBuildTunnelChainServiceConfig_DefaultListenAddrWhenConnectIPEmpty(t *testing.T) {
 	node := &nodeRecord{TCPListenAddr: "[::]"}
 	chain := tunnelRuntimeNode{Protocol: "tls", Port: 21001}
-	services := buildTunnelChainServiceConfig(99, chain, node, 1)
+	services := buildTunnelChainServiceConfig(99, chain, node, 1, "gost")
 	if len(services) != 1 {
 		t.Fatalf("expected 1 service, got %d", len(services))
 	}
@@ -72,7 +72,7 @@ func TestBuildTunnelChainServiceConfig_DefaultListenAddrWhenConnectIPEmpty(t *te
 func TestBuildTunnelChainServiceConfig_SetsRetriesWhenMultipleCandidates(t *testing.T) {
 	node := &nodeRecord{TCPListenAddr: "[::]"}
 	chain := tunnelRuntimeNode{Protocol: "tls", Port: 21001}
-	services := buildTunnelChainServiceConfig(99, chain, node, 3)
+	services := buildTunnelChainServiceConfig(99, chain, node, 3, "gost")
 	if len(services) != 1 {
 		t.Fatalf("expected 1 service, got %d", len(services))
 	}
@@ -92,7 +92,7 @@ func TestBuildTunnelChainServiceConfig_SetsRetriesWhenMultipleCandidates(t *test
 func TestBuildTunnelChainServiceConfig_NoRetriesWhenSingleCandidate(t *testing.T) {
 	node := &nodeRecord{TCPListenAddr: "[::]"}
 	chain := tunnelRuntimeNode{Protocol: "tls", Port: 21001}
-	services := buildTunnelChainServiceConfig(99, chain, node, 1)
+	services := buildTunnelChainServiceConfig(99, chain, node, 1, "gost")
 	if len(services) != 1 {
 		t.Fatalf("expected 1 service, got %d", len(services))
 	}

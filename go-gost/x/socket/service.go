@@ -1,6 +1,7 @@
 package socket
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/go-gost/x/adapter"
 	floxcfg "github.com/go-gost/x/flox-core/config"
+	"github.com/go-gost/x/flox-core/relay"
+	floxchainregistry "github.com/go-gost/x/flox-core/registry"
 )
 
 // kernelName returns the kernel name from service config metadata.
@@ -103,6 +106,15 @@ func parseService(cfg *config.ServiceConfig) (service.Service, error) {
 			sfc := toFloxConfig(cfg)
 			return adapter.NewForwardService(sfc)
 		case "relay":
+			role := ""
+			if cfg.Metadata != nil {
+				if r, ok := cfg.Metadata["role"]; ok {
+					role, _ = r.(string)
+				}
+			}
+			if role == "entry" {
+				return parseEntryRelayService(cfg)
+			}
 			sfc := toFloxConfig(cfg)
 			return adapter.NewRelayService(sfc, "", "", nil)
 		default:
@@ -111,6 +123,37 @@ func parseService(cfg *config.ServiceConfig) (service.Service, error) {
 		}
 	}
 	return parser.ParseService(cfg)
+}
+
+func parseEntryRelayService(cfg *config.ServiceConfig) (service.Service, error) {
+	rt := adapter.LoadRelayRuntimeConfig()
+	secret := rt.Secret
+
+	nextChain := ""
+	if cfg.Handler != nil {
+		nextChain = cfg.Handler.Chain
+	}
+	target := ""
+	if cfg.Metadata != nil {
+		if t, ok := cfg.Metadata["target"]; ok {
+			target, _ = t.(string)
+		}
+	}
+
+	sfc := toFloxConfig(cfg)
+	return adapter.NewEntryRelayService(sfc, relay.EntryHandler(
+		secret,
+		nextChain,
+		target,
+		func(ctx context.Context, chainName string, secret string) (*relay.Session, error) {
+			ch := floxchainregistry.GlobalChainRegistry().Get(chainName)
+			if ch == nil {
+				return nil, fmt.Errorf("flox entry: chain %s not found", chainName)
+			}
+			return ch.DialSession(ctx, secret)
+		},
+		relay.DefaultTargetDialer(),
+	))
 }
 
 func createServices(req createServicesRequest) error {

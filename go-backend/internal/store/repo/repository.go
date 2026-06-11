@@ -1459,6 +1459,7 @@ func (r *Repository) ListTunnels() ([]map[string]interface{}, error) {
 			"tls":           t.TLS,
 			"socks":         t.Socks,
 			"blockOther":    t.BlockOther,
+			"mode":          t.Mode,
 		}
 		orderedIDs = append(orderedIDs, t.ID)
 	}

@@ -179,6 +179,7 @@ type Tunnel struct {
 	TLS           int            `gorm:"column:tls;not null;default:0"`
 	Socks         int            `gorm:"column:socks;not null;default:0"`
 	BlockOther    int            `gorm:"column:block_other;not null;default:0"`
+	Mode          string         `gorm:"type:varchar(20);not null;default:'gost'"`
 }
 
 func (Tunnel) TableName() string { return "tunnel" }
