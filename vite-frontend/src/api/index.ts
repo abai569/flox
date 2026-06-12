@@ -28,6 +28,7 @@ import type {
   UserPackageInfoApiData,
   UserQuotaHistoryItem,
   UserRenewalLogItem,
+  UserTrafficBuyLogItem,
   UserTunnelPermissionApiItem,
   TunnelApiItem,
   UserTunnelApiItem,
@@ -341,6 +342,11 @@ export const getUserRenewalLogs = (userId: number, limit: number = 50) =>
   Network.post<UserRenewalLogItem[]>("/user/renewal-logs", { userId, limit });
 export const deleteUserRenewalLog = (id: number) =>
   Network.post("/user/renewal-log/delete", { id });
+
+export const getUserTrafficBuyLogs = (userId: number, limit: number = 50) =>
+  Network.post<UserTrafficBuyLogItem[]>("/user/traffic-buy-logs", { userId, limit });
+export const deleteUserTrafficBuyLog = (id: number) =>
+  Network.post("/user/traffic-buy-log/delete", { id });
 
 export const getTrafficHistoryList = (userId?: number, limit: number = 50) =>
   Network.post<TrafficHistoryItem[]>("/traffic-history/list", {

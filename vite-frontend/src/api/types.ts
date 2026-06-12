@@ -690,6 +690,21 @@ export interface UserRenewalLogItem {
   reason: string;
 }
 
+// 购流记录
+export interface UserTrafficBuyLogItem {
+  id: number;
+  userId: number;
+  userName: string;
+  buyAmount: number;
+  buyPrice: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  flowBefore: number;
+  flowAfter: number;
+  buyTime: number;
+  reason: string;
+}
+
 export interface TrafficHistoryItem {
   id: number;
   userId: number;

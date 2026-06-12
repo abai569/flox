@@ -2141,6 +2141,61 @@ func (r *Repository) RenewUserWithBalance(userID, renewalAmount, newExpTime, now
 	return tx.Commit().Error
 }
 
+type UserTrafficBuyLogItem struct {
+	ID            int64  `json:"id"`
+	UserID        int64  `json:"userId"`
+	UserName      string `json:"userName"`
+	BuyAmount     int64  `json:"buyAmount"`
+	BuyPrice      int64  `json:"buyPrice"`
+	BalanceBefore int64  `json:"balanceBefore"`
+	BalanceAfter  int64  `json:"balanceAfter"`
+	FlowBefore    int64  `json:"flowBefore"`
+	FlowAfter     int64  `json:"flowAfter"`
+	BuyTime       int64  `json:"buyTime"`
+	Reason        string `json:"reason"`
+}
+
+func (r *Repository) GetUserTrafficBuyLogs(userID int64, limit int) ([]UserTrafficBuyLogItem, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+
+	var logs []model.UserTrafficBuyLog
+	err := r.db.
+		Where("user_id = ?", userID).
+		Order("buy_time DESC").
+		Limit(limit).
+		Find(&logs).Error
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]UserTrafficBuyLogItem, 0, len(logs))
+	for _, log := range logs {
+		items = append(items, UserTrafficBuyLogItem{
+			ID:            log.ID,
+			UserID:        log.UserID,
+			UserName:      log.UserName,
+			BuyAmount:     log.BuyAmount,
+			BuyPrice:      log.BuyPrice,
+			BalanceBefore: log.BalanceBefore,
+			BalanceAfter:  log.BalanceAfter,
+			FlowBefore:    log.FlowBefore,
+			FlowAfter:     log.FlowAfter,
+			BuyTime:       log.BuyTime,
+			Reason:        log.Reason,
+		})
+	}
+	return items, nil
+}
+
+func (r *Repository) DeleteUserTrafficBuyLog(id int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Delete(&model.UserTrafficBuyLog{}, id).Error
+}
+
 func (r *Repository) MarkUserAutoRenewSuccess(userID, newExpTime, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")

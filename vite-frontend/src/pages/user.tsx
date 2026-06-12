@@ -1,4 +1,4 @@
-import type { UserQuotaHistoryItem, UserRenewalLogItem } from "@/api/types";
+import type { UserQuotaHistoryItem, UserRenewalLogItem, UserTrafficBuyLogItem } from "@/api/types";
 
 import React, {
   useState,
@@ -97,6 +97,8 @@ import {
   deleteUserQuotaHistory,
   getUserRenewalLogs,
   deleteUserRenewalLog,
+  getUserTrafficBuyLogs,
+  deleteUserTrafficBuyLog,
   batchUpdateUserTunnelStatus,
   getConfigByName,
   updateConfig,
@@ -345,6 +347,10 @@ export default function UserPage() {
   const [renewalLogToDelete, setRenewalLogToDelete] = useState<number | null>(
     null,
   );
+  const [logModalTab, setLogModalTab] = useState<"renewal" | "traffic">("renewal");
+  const [trafficBuyLogs, setTrafficBuyLogs] = useState<UserTrafficBuyLogItem[]>([]);
+  const [trafficBuyLogLoading, setTrafficBuyLogLoading] = useState(false);
+  const [trafficBuyLogToDelete, setTrafficBuyLogToDelete] = useState<number | null>(null);
   const [regOpen, setRegOpen] = useState(true);
   const [regLoading, setRegLoading] = useState(false);
   // --- 监控权限相关状态 (来自 user 新) ---
@@ -1222,20 +1228,30 @@ export default function UserPage() {
   const handleOpenRenewalLogModal = async (user: User) => {
     setSelectedRenewalLogUser(user);
     setIsRenewalLogModalOpen(true);
+    setLogModalTab("renewal");
     setRenewalLogLoading(true);
     setRenewalLogs([]);
+    setTrafficBuyLogLoading(true);
+    setTrafficBuyLogs([]);
 
     try {
-      const res = await getUserRenewalLogs(user.id, 50);
+      const [renewalRes, trafficRes] = await Promise.all([
+        getUserRenewalLogs(user.id, 50),
+        getUserTrafficBuyLogs(user.id, 50),
+      ]);
 
-      if (res.code === 0) {
-        setRenewalLogs(res.data || []);
+      if (renewalRes.code === 0) {
+        setRenewalLogs(renewalRes.data || []);
+      }
+      if (trafficRes.code === 0) {
+        setTrafficBuyLogs(trafficRes.data || []);
       }
     } catch (error) {
-      console.error("获取续费日志失败:", error);
-      toast.error("获取续费日志失败");
+      console.error("获取日志失败:", error);
+      toast.error("获取日志失败");
     } finally {
       setRenewalLogLoading(false);
+      setTrafficBuyLogLoading(false);
     }
   };
 
@@ -1251,6 +1267,29 @@ export default function UserPage() {
 
             if (refreshRes.code === 0) {
               setRenewalLogs(refreshRes.data || []);
+            }
+          } catch { }
+        }
+      } else {
+        toast.error(res.msg || "删除失败");
+      }
+    } catch {
+      toast.error("删除失败");
+    }
+  };
+
+  const handleDeleteTrafficBuyLog = async (id: number) => {
+    try {
+      const res = await deleteUserTrafficBuyLog(id);
+
+      if (res.code === 0) {
+        toast.success("删除成功");
+        if (selectedRenewalLogUser) {
+          try {
+            const refreshRes = await getUserTrafficBuyLogs(selectedRenewalLogUser.id, 50);
+
+            if (refreshRes.code === 0) {
+              setTrafficBuyLogs(refreshRes.data || []);
             }
           } catch { }
         }
@@ -3043,7 +3082,7 @@ export default function UserPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-      {/* 续费记录日志弹窗 */}
+      {/* 续费/购流记录日志弹窗 */}
       <Modal
         backdrop="blur"
         classNames={{
@@ -3057,126 +3096,257 @@ export default function UserPage() {
       >
         <ModalContent>
           <ModalHeader>
-            用户 {selectedRenewalLogUser?.user} 的续费记录
+            <div className="flex items-center gap-4">
+              <span>用户 {selectedRenewalLogUser?.user} 的记录</span>
+              <div className="flex gap-1 bg-default-100 rounded-lg p-1">
+                <Button
+                  size="sm"
+                  variant={logModalTab === "renewal" ? "solid" : "light"}
+                  color={logModalTab === "renewal" ? "primary" : "default"}
+                  onPress={() => setLogModalTab("renewal")}
+                >
+                  续费记录
+                </Button>
+                <Button
+                  size="sm"
+                  variant={logModalTab === "traffic" ? "solid" : "light"}
+                  color={logModalTab === "traffic" ? "primary" : "default"}
+                  onPress={() => setLogModalTab("traffic")}
+                >
+                  购流记录
+                </Button>
+              </div>
+            </div>
           </ModalHeader>
           <ModalBody>
-            {renewalLogLoading ? (
-              <div className="flex justify-center py-12">
-                <Spinner />
-              </div>
-            ) : renewalLogs.length === 0 ? (
-              <div className="text-center py-12 text-default-500">
-                暂无续费记录
-              </div>
+            {logModalTab === "renewal" ? (
+              renewalLogLoading ? (
+                <div className="flex justify-center py-12">
+                  <Spinner />
+                </div>
+              ) : renewalLogs.length === 0 ? (
+                <div className="text-center py-12 text-default-500">
+                  暂无续费记录
+                </div>
+              ) : (
+                <div className="w-full overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
+                  <Table
+                    aria-label="续费记录"
+                    classNames={{
+                      th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
+                      td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
+                      tr: "hover:bg-default-50/50 transition-colors",
+                    }}
+                  >
+                    <TableHeader>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
+                        续费时间
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        扣款金额
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        续费前余额
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        续费后余额
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                        续费前到期
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                        续费后到期
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        原因
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
+                        操作
+                      </TableColumn>
+                    </TableHeader>
+                    <TableBody>
+                      {renewalLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="whitespace-nowrap">
+                            {log.renewalTime
+                              ? new Date(log.renewalTime)
+                                .toLocaleString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                                .replace(/\//g, "-")
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="text-success font-medium whitespace-nowrap">
+                            {(log.renewalAmount / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {(log.balanceBefore / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {(log.balanceAfter / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {log.expTimeBefore
+                              ? new Date(log.expTimeBefore)
+                                .toLocaleDateString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                })
+                                .replace(/\//g, "-")
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="text-primary font-medium whitespace-nowrap">
+                            {log.expTimeAfter
+                              ? new Date(log.expTimeAfter)
+                                .toLocaleDateString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                })
+                                .replace(/\//g, "-")
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动续费"
+                                ? "bg-success-500/10 text-success-600"
+                                : "bg-default-500/10 text-default-600"
+                                }`}
+                            >
+                              {log.reason}
+                            </span>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Button
+                              isIconOnly
+                              className="bg-danger-50 text-danger-600 hover:bg-danger-100 min-w-7 w-7 h-7"
+                              size="sm"
+                              variant="flat"
+                              onPress={() => setRenewalLogToDelete(log.id)}
+                            >
+                              <DeleteIcon className="w-3.5 h-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
             ) : (
-              <div className="w-full overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
-                <Table
-                  aria-label="续费记录"
-                  classNames={{
-                    th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
-                    td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
-                    tr: "hover:bg-default-50/50 transition-colors",
-                  }}
-                >
-                  <TableHeader>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
-                      续费时间
-                    </TableColumn>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      扣款金额
-                    </TableColumn>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      续费前余额
-                    </TableColumn>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      续费后余额
-                    </TableColumn>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
-                      续费前到期
-                    </TableColumn>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
-                      续费后到期
-                    </TableColumn>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      原因
-                    </TableColumn>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
-                      操作
-                    </TableColumn>
-                  </TableHeader>
-                  <TableBody>
-                    {renewalLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="whitespace-nowrap">
-                          {log.renewalTime
-                            ? new Date(log.renewalTime)
-                              .toLocaleString("zh-CN", {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                              .replace(/\//g, "-")
-                            : "-"}
-                        </TableCell>
-                        <TableCell className="text-success font-medium whitespace-nowrap">
-                          {(log.renewalAmount / 100).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {(log.balanceBefore / 100).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {(log.balanceAfter / 100).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {log.expTimeBefore
-                            ? new Date(log.expTimeBefore)
-                              .toLocaleDateString("zh-CN", {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                              })
-                              .replace(/\//g, "-")
-                            : "-"}
-                        </TableCell>
-                        <TableCell className="text-primary font-medium whitespace-nowrap">
-                          {log.expTimeAfter
-                            ? new Date(log.expTimeAfter)
-                              .toLocaleDateString("zh-CN", {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                              })
-                              .replace(/\//g, "-")
-                            : "-"}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动续费"
-                              ? "bg-success-500/10 text-success-600"
-                              : "bg-default-500/10 text-default-600"
-                              }`}
-                          >
-                            {log.reason}
-                          </span>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <Button
-                            isIconOnly
-                            className="bg-danger-50 text-danger-600 hover:bg-danger-100 min-w-7 w-7 h-7"
-                            size="sm"
-                            variant="flat"
-                            onPress={() => setRenewalLogToDelete(log.id)}
-                          >
-                            <DeleteIcon className="w-3.5 h-3.5" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              trafficBuyLogLoading ? (
+                <div className="flex justify-center py-12">
+                  <Spinner />
+                </div>
+              ) : trafficBuyLogs.length === 0 ? (
+                <div className="text-center py-12 text-default-500">
+                  暂无购流记录
+                </div>
+              ) : (
+                <div className="w-full overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
+                  <Table
+                    aria-label="购流记录"
+                    classNames={{
+                      th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
+                      td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
+                      tr: "hover:bg-default-50/50 transition-colors",
+                    }}
+                  >
+                    <TableHeader>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
+                        购买时间
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        购买金额
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        购买流量
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        购买前余额
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        购买后余额
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        购买前流量
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        购买后流量
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        原因
+                      </TableColumn>
+                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
+                        操作
+                      </TableColumn>
+                    </TableHeader>
+                    <TableBody>
+                      {trafficBuyLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="whitespace-nowrap">
+                            {log.buyTime
+                              ? new Date(log.buyTime)
+                                .toLocaleString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                                .replace(/\//g, "-")
+                              : "-"}
+                          </TableCell>
+                          <TableCell className="text-danger font-medium whitespace-nowrap">
+                            {(log.buyPrice / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-primary font-medium whitespace-nowrap">
+                            {log.buyAmount} GB
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {(log.balanceBefore / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {(log.balanceAfter / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {log.flowBefore} GB
+                          </TableCell>
+                          <TableCell className="text-primary font-medium whitespace-nowrap">
+                            {log.flowAfter} GB
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动购买流量"
+                                ? "bg-primary-500/10 text-primary-600"
+                                : "bg-default-500/10 text-default-600"
+                                }`}
+                            >
+                              {log.reason}
+                            </span>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <Button
+                              isIconOnly
+                              className="bg-danger-50 text-danger-600 hover:bg-danger-100 min-w-7 w-7 h-7"
+                              size="sm"
+                              variant="flat"
+                              onPress={() => setTrafficBuyLogToDelete(log.id)}
+                            >
+                              <DeleteIcon className="w-3.5 h-3.5" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
             )}
           </ModalBody>
           <ModalFooter>
@@ -3226,6 +3396,54 @@ export default function UserPage() {
                 if (renewalLogToDelete) {
                   handleDeleteRenewalLog(renewalLogToDelete);
                   setRenewalLogToDelete(null);
+                }
+              }}
+            >
+              确认
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* 购流记录删除确认弹窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl",
+        }}
+        isOpen={!!trafficBuyLogToDelete}
+        placement="center"
+        scrollBehavior="outside"
+        size="md"
+        onClose={() => setTrafficBuyLogToDelete(null)}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            确认删除购流记录
+          </ModalHeader>
+          <ModalBody>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center">
+                <DeleteIcon className="w-6 h-6 text-danger" />
+              </div>
+              <div className="flex-1">
+                <p className="text-foreground">确定要删除这条购流记录吗？</p>
+                <p className="text-small text-default-500 mt-1">
+                  此操作不可撤销。
+                </p>
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setTrafficBuyLogToDelete(null)}>
+              取消
+            </Button>
+            <Button
+              color="danger"
+              onPress={() => {
+                if (trafficBuyLogToDelete) {
+                  handleDeleteTrafficBuyLog(trafficBuyLogToDelete);
+                  setTrafficBuyLogToDelete(null);
                 }
               }}
             >
