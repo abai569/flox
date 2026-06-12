@@ -6,7 +6,6 @@ interface TunnelChainNode {
 interface TunnelFormInput {
   name: string;
   type: number;
-  mode: string;
   inNodeId: TunnelChainNode[];
   outNodeId?: TunnelChainNode[];
   chainNodes?: TunnelChainNode[][];
@@ -26,7 +25,6 @@ export const createTunnelFormDefaults = () => {
   return {
     name: "",
     type: 2,
-    mode: "gost",
     inNodeId: [],
     outNodeId: [],
     chainNodes: [],

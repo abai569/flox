@@ -116,7 +116,6 @@ interface Tunnel {
   inx?: number;
   name: string;
   type: number;
-  mode: string;
   inNodeId: ChainTunnel[];
   outNodeId?: ChainTunnel[];
   chainNodes?: ChainTunnel[][];
@@ -151,7 +150,6 @@ interface TunnelForm {
   id?: number;
   name: string;
   type: number;
-  mode: string;
   inNodeId: ChainTunnel[];
   outNodeId?: ChainTunnel[];
   chainNodes?: ChainTunnel[][];
@@ -279,7 +277,6 @@ const mapTunnelApiItems = (items: any[]): Tunnel[] => {
   return (items || []).map((tunnel) => ({
     ...tunnel,
     inx: tunnel.inx ?? 0,
-    mode: tunnel.mode || "gost",
     inNodeId: Array.isArray(tunnel.inNodeId)
       ? mapChainNodes(tunnel.inNodeId)
       : Array.isArray(tunnel.in_node_id)
@@ -695,7 +692,6 @@ export default function TunnelPage() {
       id: tunnel.id,
       name: tunnel.name,
       type: tunnel.type,
-      mode: tunnel.mode || "gost",
       inNodeId: tunnel.inNodeId || [],
       outNodeId: tunnel.outNodeId || [],
       chainNodes: tunnel.chainNodes || [],
@@ -3018,27 +3014,6 @@ export default function TunnelPage() {
                       <SelectItem key="1">端口转发</SelectItem>
                       <SelectItem key="2">隧道转发</SelectItem>
                     </Select>
-                    <Select
-                      description={
-                        form.type !== 2 ? "模式仅在隧道转发时生效" : undefined
-                      }
-                      label="隧道模式"
-                      selectedKeys={[form.mode]}
-                      variant="bordered"
-                      onSelectionChange={(keys) => {
-                        const selectedKey = Array.from(keys)[0] as string;
-
-                        if (selectedKey) {
-                          setForm((prev) => ({
-                            ...prev,
-                            mode: selectedKey,
-                          }));
-                        }
-                      }}
-                    >
-                      <SelectItem key="gost">GOST 模式</SelectItem>
-                      <SelectItem key="floxcore">FloxCore 模式</SelectItem>
-                    </Select>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
@@ -3985,9 +3960,9 @@ export default function TunnelPage() {
                                 }}
                               >
                                 <SelectItem key="fifo">主备</SelectItem>
-                                <SelectItem key="best">最优</SelectItem>
                                 <SelectItem key="round">轮询</SelectItem>
                                 <SelectItem key="rand">随机</SelectItem>
+                                <SelectItem key="best">最优</SelectItem>                               
                               </Select>
                             </div>
                             {/* 连接端口和连接 IP 类型 - 出口节点 */}

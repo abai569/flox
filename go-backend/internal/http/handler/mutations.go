@@ -1359,11 +1359,6 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	trafficRatio := asFloat(req["trafficRatio"], 1.0)
 	inIP := asString(req["inIp"])
 	ipPreference := asString(req["ipPreference"])
-	mode := defaultString(asString(req["mode"]), "gost")
-	if mode != "gost" && mode != "floxcore" {
-		response.WriteJSON(w, response.ErrDefault("隧道模式无效，仅支持 gost 或 floxcore"))
-		return
-	}
 	now := time.Now().UnixMilli()
 	inx := h.repo.NextIndex("tunnel")
 	localDomain := h.federationLocalDomain()
@@ -1479,7 +1474,7 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		TLS:           asInt(req["tls"], 0),
 		Socks:         asInt(req["socks"], 0),
 		BlockOther:    asInt(req["blockOther"], 0),
-		Mode:          mode,
+		Mode:          "gost",
 	}
 	if err := tx.Create(&tunnel).Error; err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -1514,6 +1509,13 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if typeVal == 2 {
+		relayMode, resolveErr := h.resolveTunnelRelayMode(tunnelID)
+		if resolveErr != nil {
+			_ = h.deleteTunnelByID(tunnelID)
+			response.WriteJSON(w, response.ErrDefault(resolveErr.Error()))
+			return
+		}
+		runtimeState.Mode = relayMode
 		createdChains, createdServices, applyErr := h.applyTunnelRuntime(runtimeState)
 		if applyErr != nil {
 			h.rollbackTunnelRuntime(createdChains, createdServices, tunnelID)
@@ -1750,11 +1752,6 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UnixMilli()
 	typeVal := asInt(req["type"], 1)
 	ipPreference := asString(req["ipPreference"])
-	mode := defaultString(asString(req["mode"]), "gost")
-	if mode != "gost" && mode != "floxcore" {
-		response.WriteJSON(w, response.ErrDefault("隧道模式无效，仅支持 gost 或 floxcore"))
-		return
-	}
 	localDomain := h.federationLocalDomain()
 
 	// Handle tunnelGroupId the same way as node groupId
@@ -1818,7 +1815,7 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		asInt(req["tls"], 0),
 		asInt(req["socks"], 0),
 		asInt(req["blockOther"], 0),
-		mode,
+		"gost",
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -1866,6 +1863,12 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if typeVal == 2 {
+		relayMode, resolveErr := h.resolveTunnelRelayMode(id)
+		if resolveErr != nil {
+			response.WriteJSON(w, response.ErrDefault(resolveErr.Error()))
+			return
+		}
+		runtimeState.Mode = relayMode
 		createdChains, createdServices, applyErr := h.applyTunnelRuntime(runtimeState)
 		if applyErr != nil {
 			h.rollbackTunnelRuntime(createdChains, createdServices, id)
@@ -2470,6 +2473,9 @@ func (h *Handler) reconstructTunnelState(tunnelID int64) (*tunnelCreateState, er
 		}
 		state.Nodes[id] = node
 	}
+
+	relayMode, _ := h.resolveTunnelRelayMode(tunnelID)
+	state.Mode = relayMode
 
 	return state, nil
 }
@@ -3092,6 +3098,10 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("转发模式无效，仅支持 gost、nftables 或 floxcore"))
 		return
 	}
+	if err := h.validateForwardModeConsistency(tunnelID, 0, mode); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
+	}
 	forwardID, err := h.repo.CreateForwardTx(userID, userName, name, tunnelID, remoteAddr, normalizeForwardStrategy(asString(req["strategy"])), now, inx, entryNodes, port, inIp, nullableInt(speedID), asInt(req["maxConnections"], 0), trafficLimit, expiryTime, speedLimitEnabled, speedLimit, mode)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -3269,6 +3279,14 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 	if mode == "" {
 		mode = forward.Mode
 	}
+	modeSwitched := mode != "" && mode != forward.Mode
+	if modeSwitched {
+		if err := h.validateForwardModeConsistency(tunnelID, id, mode); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+	}
+
 	if err := h.repo.UpdateForward(id, name, tunnelID, remoteAddr, strategy, now, newSpeedID, maxConnections, trafficLimit, newExpiryTime, speedLimitEnabled, speedLimit, mode); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -3277,7 +3295,6 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 	var warnings []string
 
 	// 检测转发模式切换，清理旧模式规则
-	modeSwitched := mode != "" && mode != forward.Mode
 	if modeSwitched {
 		ports, _ := h.listForwardPorts(id)
 		if strings.EqualFold(forward.Mode, "nftables") && !strings.EqualFold(mode, "nftables") {
@@ -4007,6 +4024,11 @@ func (h *Handler) forwardBatchChangeMode(w http.ResponseWriter, r *http.Request)
 			failures = appendBatchFailureReason(failures, id, forward.Name, "规则已是该模式")
 			continue
 		}
+		if err := h.validateForwardModeConsistency(forward.TunnelID, id, req.Mode); err != nil {
+			fail++
+			failures = appendBatchFailure(failures, id, forward.Name, err)
+			continue
+		}
 		if err := h.repo.BatchUpdateForwardMode([]int64{id}, req.Mode); err != nil {
 			fail++
 			failures = appendBatchFailure(failures, id, forward.Name, err)
@@ -4419,7 +4441,7 @@ type tunnelCreateState struct {
 func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface{}, tunnelType int, excludeTunnelID int64) (*tunnelCreateState, error) {
 	state := &tunnelCreateState{
 		Type:      tunnelType,
-		Mode:      defaultString(asString(req["mode"]), "gost"),
+		Mode:      "", // 不从请求读取，由调用方通过 resolveTunnelRelayMode 填充
 		InNodes:   make([]tunnelRuntimeNode, 0),
 		ChainHops: make([][]tunnelRuntimeNode, 0),
 		OutNodes:  make([]tunnelRuntimeNode, 0),
@@ -4928,6 +4950,52 @@ func (h *Handler) cleanupFederationRuntime(tunnelID int64) {
 		_ = fc.ReleaseRole(remoteURL, remoteToken, localDomain, req)
 	}
 	_ = h.repo.DeleteFederationTunnelBindingsByTunnel(tunnelID)
+}
+
+// resolveTunnelRelayMode 根据 tunnel 下所有 forward 的 mode 推导 relay 内核。
+// 约束：同一 tunnel 下所有 forward.mode 必须一致。
+// 返回值："gost" 或 "floxcore"（nftables 映射到 gost）。
+func (h *Handler) resolveTunnelRelayMode(tunnelID int64) (string, error) {
+	forwards, err := h.repo.ListActiveForwardsByTunnel(tunnelID)
+	if err != nil {
+		return "gost", err
+	}
+	if len(forwards) == 0 {
+		return "gost", nil
+	}
+	var mode string
+	for _, f := range forwards {
+		m := strings.ToLower(f.Mode)
+		if m == "" {
+			m = "gost"
+		}
+		if mode == "" {
+			mode = m
+		} else if mode != m {
+			return "", fmt.Errorf("隧道 %d 下转发规则模式不一致: 存在 %s 和 %s 模式混用", tunnelID, mode, m)
+		}
+	}
+	if mode == "nftables" {
+		mode = "gost"
+	}
+	return mode, nil
+}
+
+// validateForwardModeConsistency 校验同一 tunnel 下 forward mode 是否一致。
+func (h *Handler) validateForwardModeConsistency(tunnelID int64, excludeForwardID int64, newMode string) error {
+	existingForwards, err := h.repo.ListActiveForwardsByTunnel(tunnelID)
+	if err != nil {
+		return nil
+	}
+	for _, ef := range existingForwards {
+		if ef.ID == excludeForwardID {
+			continue
+		}
+		if !strings.EqualFold(ef.Mode, newMode) {
+			return fmt.Errorf("同一隧道下转发模式必须一致: 已有 %s 模式规则，不允许创建/切换到 %s 模式", ef.Mode, newMode)
+		}
+	}
+	return nil
 }
 
 func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64, error) {
