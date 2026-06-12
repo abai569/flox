@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { toast } from "react-hot-toast";
 
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
@@ -95,16 +96,19 @@ export default function PanelSharingPage() {
   const [editShareOpen, setEditShareOpen] = useState(false);
   const [importNodeOpen, setImportNodeOpen] = useState(false);
   // Forms
-  const [shareForm, setShareForm] = useState({
-    name: "",
-    nodeId: "",
-    maxBandwidth: 0,
-    expiryDays: 30,
-    portRangeStart: 10000,
-    portRangeEnd: 20000,
-    allowedDomains: "",
-    allowedIps: "",
-  });
+  const [shareForm, setShareForm, resetShareDraft] = useLocalStorageState(
+    "panel-sharing-create-draft",
+    {
+      name: "",
+      nodeId: "",
+      maxBandwidth: 0,
+      expiryDays: 30,
+      portRangeStart: 10000,
+      portRangeEnd: 20000,
+      allowedDomains: "",
+      allowedIps: "",
+    },
+  );
   const [importForm, setImportForm] = useState({
     remoteUrl: "",
     token: "",
@@ -234,6 +238,7 @@ export default function PanelSharingPage() {
 
       if (res.code === 0) {
         toast.success("创建成功");
+        resetShareDraft();
         setCreateShareOpen(false);
         loadShares();
       } else {

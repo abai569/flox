@@ -50,6 +50,11 @@ interface SpeedLimitForm {
   speed: number;
   status: number;
 }
+const createSpeedLimitFormDefaults = (): SpeedLimitForm => ({
+  name: "",
+  speed: 100,
+  status: 1,
+});
 export default function LimitPage() {
   const [loading, setLoading] = useState(true);
   const [rules, setRules] = useState<SpeedLimitRule[]>([]);
@@ -82,12 +87,11 @@ export default function LimitPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [ruleToDelete, setRuleToDelete] = useState<SpeedLimitRule | null>(null);
-  // 表单状态
-  const [form, setForm] = useState<SpeedLimitForm>({
-    name: "",
-    speed: 100,
-    status: 1,
-  });
+  // 表单状态（持久化草稿）
+  const [form, setForm, resetDraft] = useLocalStorageState<SpeedLimitForm>(
+    "limit-create-draft",
+    createSpeedLimitFormDefaults(),
+  );
   // 表单验证错误
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   // 加载所有数据
@@ -136,11 +140,6 @@ export default function LimitPage() {
   // 新增规则
   const handleAdd = () => {
     setIsEdit(false);
-    setForm({
-      name: "",
-      speed: 100,
-      status: 1,
-    });
     setErrors({});
     setModalOpen(true);
   };
@@ -207,6 +206,9 @@ export default function LimitPage() {
       }
       if (res.code === 0) {
         toast.success(isEdit ? "更新成功" : "创建成功");
+        if (!isEdit) {
+          resetDraft();
+        }
         setModalOpen(false);
         loadData(false);
       } else {

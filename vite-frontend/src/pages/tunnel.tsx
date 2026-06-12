@@ -399,8 +399,11 @@ export default function TunnelPage() {
     timedOut: false,
   });
   const diagnosisAbortRef = useRef<AbortController | null>(null);
-  // 表单状态
-  const [form, setForm] = useState<TunnelForm>(createTunnelFormDefaults());
+  // 表单状态（持久化草稿）
+  const [form, setForm, resetDraft] = useLocalStorageState<TunnelForm>(
+    "tunnel-create-draft",
+    createTunnelFormDefaults(),
+  );
   // 表单验证错误
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   // 👇 新增这行：用于暂存正在编辑中的文本框内容，防止逗号被吞
@@ -682,7 +685,6 @@ export default function TunnelPage() {
   // 新增隧道
   const handleAdd = () => {
     setIsEdit(false);
-    setForm(createTunnelFormDefaults());
     setErrors({});
     setModalOpen(true);
   };
@@ -1346,6 +1348,9 @@ export default function TunnelPage() {
 
       if (response.code === 0) {
         toast.success(isEdit ? "更新成功" : "创建成功");
+        if (!isEdit) {
+          resetDraft();
+        }
         setModalOpen(false);
         if (isEdit) {
           // 后端返回更新后的完整隧道数据，直接使用

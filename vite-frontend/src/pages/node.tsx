@@ -355,28 +355,31 @@ export default function NodePage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
-  const [form, setForm] = useState<NodeForm>({
-    id: null,
-    name: "",
-    remark: "",
-    expiryTime: 0,
-    renewalCycle: "",
-    groupId: null,
-    intranetIp: "",
-    serverIpV4: "",
-    serverIpV6: "",
-    port: "10000-65535",
-    tcpListenAddr: "[::]",
-    udpListenAddr: "[::]",
-    interfaceName: "",
-    extraIPs: "",
-    secret: "",
-    http: 0,
-    tls: 0,
-    socks: 0,
-    trafficLimit: 0,
-    flowResetTime: 1,
-  });
+  const [form, setForm, resetDraft] = useLocalStorageState<NodeForm>(
+    "node-create-draft",
+    {
+      id: null,
+      name: "",
+      remark: "",
+      expiryTime: 0,
+      renewalCycle: "",
+      groupId: null,
+      intranetIp: "",
+      serverIpV4: "",
+      serverIpV6: "",
+      port: "10000-65535",
+      tcpListenAddr: "[::]",
+      udpListenAddr: "[::]",
+      interfaceName: "",
+      extraIPs: "",
+      secret: "",
+      http: 0,
+      tls: 0,
+      socks: 0,
+      trafficLimit: 0,
+      flowResetTime: 1,
+    },
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -1022,7 +1025,7 @@ export default function NodePage() {
     setDialogTitle("新增节点");
     setIsEdit(false);
     setDialogVisible(true);
-    resetForm();
+    setErrors({});
   };
   const handleEdit = (node: Node) => {
     setDialogTitle("编辑节点");
@@ -1565,6 +1568,9 @@ export default function NodePage() {
 
       if (res.code === 0) {
         toast.success(isEdit ? "更新成功" : "创建成功");
+        if (!isEdit) {
+          resetDraft();
+        }
         setDialogVisible(false);
         if (isEdit) {
           setNodeList((prev) =>
@@ -1608,31 +1614,6 @@ export default function NodePage() {
     } finally {
       setSubmitLoading(false);
     }
-  };
-  const resetForm = () => {
-    setForm({
-      id: null,
-      name: "",
-      remark: "",
-      expiryTime: 0,
-      renewalCycle: "",
-      groupId: null,
-      intranetIp: "",
-      serverIpV4: "",
-      serverIpV6: "",
-      port: "10000-65535",
-      tcpListenAddr: "[::]",
-      udpListenAddr: "[::]",
-      interfaceName: "",
-      extraIPs: "",
-      secret: "",
-      http: 0,
-      tls: 0,
-      socks: 0,
-      trafficLimit: 0,
-      flowResetTime: 1,
-    });
-    setErrors({});
   };
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;

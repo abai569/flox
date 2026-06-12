@@ -249,50 +249,53 @@ export default function UserPage() {
     onClose: onUserModalClose,
   } = useDisclosure();
   const [isEdit, setIsEdit] = useState(false);
-  const [userForm, setUserForm] = useState<{
-    id?: number;
-    user: string;
-    name: string;
-    pwd: string;
-    status: number;
-    flow: number;
-    dailyQuotaGB: number;
-    monthlyQuotaGB: number;
-    num: number;
-    expTime: Date | null;
-    flowResetTime: number;
-    groupIds: number[];
-    renewalAmount: number;
-    balance: number;
-    autoRenew: number;
-    autoBuyTraffic: number;
-    buyTrafficAmount: number;
-    buyTrafficPrice: number;
-    autoBuyTrafficPackageId: number;
-    autoBuyTrafficThreshold: number;
-    autoBuyTrafficPackageType: "package" | "custom";
-  }>({
-    user: "",
-    name: "",
-    pwd: "",
-    status: 1,
-    flow: 0,
-    dailyQuotaGB: 0,
-    monthlyQuotaGB: 0,
-    num: 0,
-    expTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-    flowResetTime: 0,
-    groupIds: [],
-    renewalAmount: 0,
-    balance: 0,
-    autoRenew: 0,
-    autoBuyTraffic: 0,
-    buyTrafficAmount: 0,
-    buyTrafficPrice: 0,
-    autoBuyTrafficPackageId: 0,
-    autoBuyTrafficThreshold: 10,
-    autoBuyTrafficPackageType: "custom",
-  });
+  const [userForm, setUserForm, resetUserDraft] = useLocalStorageState(
+    "user-create-draft",
+    {
+      user: "",
+      name: "",
+      pwd: "",
+      status: 1,
+      flow: 0,
+      dailyQuotaGB: 0,
+      monthlyQuotaGB: 0,
+      num: 0,
+      expTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      flowResetTime: 0,
+      groupIds: [],
+      renewalAmount: 0,
+      balance: 0,
+      autoRenew: 0,
+      autoBuyTraffic: 0,
+      buyTrafficAmount: 0,
+      buyTrafficPrice: 0,
+      autoBuyTrafficPackageId: 0,
+      autoBuyTrafficThreshold: 10,
+      autoBuyTrafficPackageType: "custom",
+    } as {
+      id?: number;
+      user: string;
+      name: string;
+      pwd: string;
+      status: number;
+      flow: number;
+      dailyQuotaGB: number;
+      monthlyQuotaGB: number;
+      num: number;
+      expTime: Date | null;
+      flowResetTime: number;
+      groupIds: number[];
+      renewalAmount: number;
+      balance: number;
+      autoRenew: number;
+      autoBuyTraffic: number;
+      buyTrafficAmount: number;
+      buyTrafficPrice: number;
+      autoBuyTrafficPackageId: number;
+      autoBuyTrafficThreshold: number;
+      autoBuyTrafficPackageType: "package" | "custom";
+    },
+  );
   const [flowInput, setFlowInput] = useState("");
   const [numInput, setNumInput] = useState("");
   const [userFormLoading, setUserFormLoading] = useState(false);
@@ -940,28 +943,6 @@ export default function UserPage() {
     setIsEdit(false);
     setFlowInput("");
     setNumInput("");
-    setUserForm({
-      name: "",
-      user: "",
-      pwd: "",
-      status: 1,
-      flow: 0,
-      dailyQuotaGB: 0,
-      monthlyQuotaGB: 0,
-      num: 0,
-      expTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      flowResetTime: 0,
-      groupIds: [],
-      renewalAmount: 0,
-      balance: 0,
-      autoRenew: 0,
-      autoBuyTraffic: 0,
-      buyTrafficAmount: 0,
-      buyTrafficPrice: 0,
-      autoBuyTrafficPackageId: 0,
-      autoBuyTrafficThreshold: 10,
-      autoBuyTrafficPackageType: "custom",
-    });
     onUserModalOpen();
   };
 
@@ -1152,6 +1133,9 @@ export default function UserPage() {
 
       if (response.code === 0) {
         toast.success(isEdit ? "更新成功" : "创建成功");
+        if (!isEdit) {
+          resetUserDraft();
+        }
         onUserModalClose();
         const responseUser = normalizeUserItem((response as any).data || {});
 

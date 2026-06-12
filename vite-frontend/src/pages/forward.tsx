@@ -174,6 +174,22 @@ interface ForwardForm {
   speedLimit: number;
   mode: "gost" | "nftables" | "floxcore";
 }
+const createForwardFormDefaults = (): ForwardForm => ({
+  name: "",
+  tunnelId: null,
+  inPort: null,
+  inIp: "",
+  remoteAddr: "",
+  interfaceName: "",
+  strategy: "fifo",
+  speedId: null,
+  maxConnections: 0,
+  trafficLimit: 0,
+  expiryTime: null,
+  speedLimitEnabled: false,
+  speedLimit: 0,
+  mode: "gost",
+});
 interface ForwardUserGroup {
   userId: number;
   userName: string;
@@ -1530,23 +1546,11 @@ export default function ForwardPage() {
       forwardName?: string;
     }>
   >([]);
-  // 表单状态
-  const [form, setForm] = useState<ForwardForm>({
-    name: "",
-    tunnelId: null,
-    inPort: null,
-    inIp: "",
-    remoteAddr: "",
-    interfaceName: "",
-    strategy: "fifo",
-    speedId: null,
-    maxConnections: 0,
-    trafficLimit: 0,
-    expiryTime: null,
-    speedLimitEnabled: false,
-    speedLimit: 0,
-    mode: "gost",
-  });
+  // 表单状态（持久化草稿）
+  const [form, setForm, resetDraft] = useLocalStorageState<ForwardForm>(
+    "forward-create-draft",
+    createForwardFormDefaults(),
+  );
   const [inIpTouched, setInIpTouched] = useState(false);
   // 表单验证错误
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
@@ -2312,22 +2316,6 @@ export default function ForwardPage() {
     setIsEdit(false);
     setIsCopy(false);
     setInIpTouched(false);
-    setForm({
-      name: "",
-      tunnelId: null,
-      inPort: null,
-      inIp: "",
-      remoteAddr: "",
-      interfaceName: "",
-      strategy: "fifo",
-      speedId: null,
-      maxConnections: 0,
-      trafficLimit: 0,
-      expiryTime: null,
-      speedLimitEnabled: false,
-      speedLimit: 0,
-      mode: "gost",
-    });
     setErrors({});
     setModalOpen(true);
   };
@@ -2618,6 +2606,9 @@ export default function ForwardPage() {
           });
         }
         toast.success(isEdit ? "修改成功" : "创建成功");
+        if (!isEdit && !isCopy) {
+          resetDraft();
+        }
         setModalOpen(false);
         await refreshForwardList(false);
       } else {

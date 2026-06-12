@@ -42,6 +42,7 @@ import {
 } from "@/api";
 import { getAdminFlag } from "@/utils/session";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 interface TunnelItem {
   id: number;
   name: string;
@@ -132,8 +133,10 @@ export default function GroupPage() {
   const [editingUserGroup, setEditingUserGroup] = useState<UserGroup | null>(
     null,
   );
-  const [groupName, setGroupName] = useState("");
-  const [groupStatus, setGroupStatus] = useState("1");
+  const [groupForm, setGroupForm, resetGroupDraft] = useLocalStorageState(
+    "group-create-draft",
+    { name: "", status: "1" },
+  );
   const [savingGroup, setSavingGroup] = useState(false);
   const [assignTunnelGroup, setAssignTunnelGroup] =
     useState<TunnelGroup | null>(null);
@@ -238,43 +241,40 @@ export default function GroupPage() {
   usePullToRefresh(loadData);
   const openCreateTunnelGroup = () => {
     setEditingTunnelGroup(null);
-    setGroupName("");
-    setGroupStatus("1");
     onTunnelGroupModalOpen();
   };
   const openEditTunnelGroup = (group: TunnelGroup) => {
     setEditingTunnelGroup(group);
-    setGroupName(group.name);
-    setGroupStatus(String(group.status));
+    setGroupForm({ name: group.name, status: String(group.status) });
     onTunnelGroupModalOpen();
   };
   const openCreateUserGroup = () => {
     setEditingUserGroup(null);
-    setGroupName("");
-    setGroupStatus("1");
     onUserGroupModalOpen();
   };
   const openEditUserGroup = (group: UserGroup) => {
     setEditingUserGroup(group);
-    setGroupName(group.name);
-    setGroupStatus(String(group.status));
+    setGroupForm({ name: group.name, status: String(group.status) });
     onUserGroupModalOpen();
   };
   const saveTunnelGroup = async () => {
-    if (!groupName.trim()) {
+    if (!groupForm.name.trim()) {
       toast.error("请输入分组名称");
 
       return;
     }
     setSavingGroup(true);
     try {
-      const payload = { name: groupName.trim(), status: Number(groupStatus) };
+      const payload = { name: groupForm.name.trim(), status: Number(groupForm.status) };
       const res = editingTunnelGroup
         ? await updateTunnelGroup({ id: editingTunnelGroup.id, ...payload })
         : await createTunnelGroup(payload);
 
       if (res.code === 0) {
         toast.success(editingTunnelGroup ? "更新成功" : "创建成功");
+        if (!editingTunnelGroup) {
+          resetGroupDraft();
+        }
         onTunnelGroupModalClose();
         loadData();
       } else {
@@ -287,20 +287,23 @@ export default function GroupPage() {
     }
   };
   const saveUserGroup = async () => {
-    if (!groupName.trim()) {
+    if (!groupForm.name.trim()) {
       toast.error("请输入分组名称");
 
       return;
     }
     setSavingGroup(true);
     try {
-      const payload = { name: groupName.trim(), status: Number(groupStatus) };
+      const payload = { name: groupForm.name.trim(), status: Number(groupForm.status) };
       const res = editingUserGroup
         ? await updateUserGroup({ id: editingUserGroup.id, ...payload })
         : await createUserGroup(payload);
 
       if (res.code === 0) {
         toast.success(editingUserGroup ? "更新成功" : "创建成功");
+        if (!editingUserGroup) {
+          resetGroupDraft();
+        }
         onUserGroupModalClose();
         loadData();
       } else {
@@ -947,17 +950,17 @@ export default function GroupPage() {
           <ModalBody className="space-y-3">
             <Input
               label="分组名称"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
+              value={groupForm.name}
+              onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
             />
             <Select
               label="状态"
-              selectedKeys={[groupStatus]}
+              selectedKeys={[groupForm.status]}
               onSelectionChange={(keys) => {
                 const key = Array.from(keys as Set<React.Key>)[0];
 
                 if (key) {
-                  setGroupStatus(String(key));
+                  setGroupForm({ ...groupForm, status: String(key) });
                 }
               }}
             >
@@ -994,17 +997,17 @@ export default function GroupPage() {
           <ModalBody className="space-y-3">
             <Input
               label="分组名称"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
+              value={groupForm.name}
+              onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
             />
             <Select
               label="状态"
-              selectedKeys={[groupStatus]}
+              selectedKeys={[groupForm.status]}
               onSelectionChange={(keys) => {
                 const key = Array.from(keys as Set<React.Key>)[0];
 
                 if (key) {
-                  setGroupStatus(String(key));
+                  setGroupForm({ ...groupForm, status: String(key) });
                 }
               }}
             >

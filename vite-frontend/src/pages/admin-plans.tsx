@@ -10,6 +10,7 @@ import toast from "react-hot-toast";
 
 import { AnimatedPage } from "@/components/animated-page";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input } from "@/shadcn-bridge/heroui/input";
 import { Textarea } from "@/shadcn-bridge/heroui/input";
@@ -146,9 +147,10 @@ export default function AdminPlansPage() {
   const [pkgModalOpen, setPkgModalOpen] = useState(false);
   const [pkgDeleteModalOpen, setPkgDeleteModalOpen] = useState(false);
   const [isPkgEdit, setIsPkgEdit] = useState(false);
-  const [pkgForm, setPkgForm] = useState<PackageForm>({
-    ...defaultPackageForm,
-  });
+  const [pkgForm, setPkgForm, resetPkgDraft] = useLocalStorageState<PackageForm>(
+    "admin-plans-create-draft",
+    { ...defaultPackageForm },
+  );
   const [pkgToDelete, setPkgToDelete] =
     useState<SubscriptionPackageApiItem | null>(null);
   const [pkgSubmitLoading, setPkgSubmitLoading] = useState(false);
@@ -219,7 +221,6 @@ export default function AdminPlansPage() {
 
   // ── Package CRUD handlers ──
   const handlePkgAdd = () => {
-    setPkgForm({ ...defaultPackageForm, type: activeTab });
     setIsPkgEdit(false);
     setPkgModalOpen(true);
   };
@@ -303,6 +304,9 @@ export default function AdminPlansPage() {
 
       if (res.code === 0) {
         toast.success(isPkgEdit ? "更新成功" : "创建成功");
+        if (!isPkgEdit) {
+          resetPkgDraft();
+        }
         setPkgModalOpen(false);
         loadPackages();
       } else {
