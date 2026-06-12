@@ -3520,9 +3520,9 @@ export default function TunnelPage() {
                                     }}
                                   >
                                     <SelectItem key="fifo">主备</SelectItem>
-                                    <SelectItem key="best">最优</SelectItem>
                                     <SelectItem key="round">轮询</SelectItem>
                                     <SelectItem key="rand">随机</SelectItem>
+                                    <SelectItem key="best">最优</SelectItem>
                                   </Select>
                                 </div>
                                 {/* 连接 IP 和连接端口 - 转发链节点 */}

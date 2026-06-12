@@ -24,6 +24,7 @@ const (
 type bestExitOwnerKey struct {
 	TunnelID    int64
 	OwnerNodeID int64
+	HopIndex    int
 }
 
 type bestExitCandidateScore struct {
@@ -150,7 +151,7 @@ func evaluateBestExitOwner(owner chainNodeRecord, exits []chainNodeRecord, nodes
 			scores = append(scores, failedBestExitCandidate(owner.NodeID, exit, "exit node unavailable"))
 			continue
 		}
-		targetIP, targetPort, resolveErr := resolveBestExitProbeTarget(ownerNode, exitNode, exit.Port, ipPreference, exit.ConnectIP)
+		targetIP, targetPort, resolveErr := resolveBestExitProbeTarget(ownerNode, exitNode, exit.Port, ipPreference, exit.ConnectIPType)
 		if resolveErr != nil {
 			scores = append(scores, failedBestExitCandidate(owner.NodeID, exit, resolveErr.Error()))
 			continue
@@ -171,11 +172,49 @@ func evaluateBestExitOwner(owner chainNodeRecord, exits []chainNodeRecord, nodes
 	return scores
 }
 
-func resolveBestExitProbeTarget(fromNode, targetNode *nodeRecord, preferredPort int, ipPreference string, connectIP string) (string, int, error) {
+func evaluateBestChainHopOwner(owner chainNodeRecord, candidates []chainNodeRecord, nodes map[int64]*nodeRecord, ipPreference string, options diagnosisExecOptions, ping bestExitProbeFunc) []bestExitCandidateScore {
+	scores := make([]bestExitCandidateScore, 0, len(candidates))
+	if owner.NodeID <= 0 || len(candidates) == 0 || ping == nil {
+		return scores
+	}
+	ownerNode := nodes[owner.NodeID]
+	for _, cand := range candidates {
+		candNode := nodes[cand.NodeID]
+		if candNode == nil {
+			scores = append(scores, failedBestExitCandidate(owner.NodeID, cand, "candidate node unavailable"))
+			continue
+		}
+		targetIP, targetPort, resolveErr := resolveBestExitProbeTarget(ownerNode, candNode, cand.Port, ipPreference, cand.ConnectIPType)
+		if resolveErr != nil {
+			scores = append(scores, failedBestExitCandidate(owner.NodeID, cand, resolveErr.Error()))
+			continue
+		}
+		latency, loss, probeErr := ping(owner.NodeID, targetIP, targetPort, options)
+		if probeErr != nil {
+			scores = append(scores, failedBestExitCandidate(owner.NodeID, cand, probeErr.Error()))
+			continue
+		}
+		scores = append(scores, bestExitCandidateScore{
+			OwnerNodeID:        owner.NodeID,
+			ExitNodeID:         cand.NodeID,
+			ExitName:           cand.NodeName,
+			OwnerToExitLatency: latency,
+			OwnerToExitLoss:    loss,
+			TotalLatency:       latency,
+			TotalLoss:          loss,
+			Score:              latency + loss*bestExitLossPenaltyMsPerPercent,
+			Success:            true,
+		})
+	}
+	sortBestExitScores(scores)
+	return scores
+}
+
+func resolveBestExitProbeTarget(fromNode, targetNode *nodeRecord, preferredPort int, ipPreference string, connectIPType string) (string, int, error) {
 	if targetNode == nil {
 		return "", 0, errors.New("目标节点不存在")
 	}
-	host, _, err := selectTunnelDialHost(fromNode, targetNode, ipPreference, connectIP)
+	host, _, err := selectTunnelDialHost(fromNode, targetNode, ipPreference, connectIPType)
 	if err != nil {
 		return "", 0, err
 	}
@@ -214,6 +253,47 @@ func bestExitChainOwners(inNodes []chainNodeRecord, chainHops [][]chainNodeRecor
 	return chainHops[len(chainHops)-1]
 }
 
+func bestTunnelStrategyHops(inNodes []chainNodeRecord, chainHops [][]chainNodeRecord, outNodes []chainNodeRecord) []bestHopRef {
+	var hops []bestHopRef
+	if len(chainHops) == 0 {
+		if len(outNodes) > 1 && isBestTunnelStrategy(strategyOfChainRecords(outNodes)) {
+			hops = append(hops, bestHopRef{HopIndex: 0, Targets: outNodes, Owners: inNodes})
+		}
+		return hops
+	}
+	for i, hop := range chainHops {
+		if len(hop) <= 1 {
+			continue
+		}
+		if !isBestTunnelStrategy(strategyOfChainRecords(hop)) {
+			continue
+		}
+		var owners []chainNodeRecord
+		if i == 0 {
+			owners = inNodes
+		} else {
+			owners = chainHops[i-1]
+		}
+		hops = append(hops, bestHopRef{HopIndex: i + 1, Targets: hop, Owners: owners})
+	}
+	if len(outNodes) > 1 && isBestTunnelStrategy(strategyOfChainRecords(outNodes)) {
+		var owners []chainNodeRecord
+		if len(chainHops) > 0 {
+			owners = chainHops[len(chainHops)-1]
+		} else {
+			owners = inNodes
+		}
+		hops = append(hops, bestHopRef{HopIndex: 0, Targets: outNodes, Owners: owners})
+	}
+	return hops
+}
+
+type bestHopRef struct {
+	HopIndex int
+	Targets  []chainNodeRecord
+	Owners   []chainNodeRecord
+}
+
 func chainRecordsToRuntimeTargets(rows []chainNodeRecord) []tunnelRuntimeNode {
 	out := make([]tunnelRuntimeNode, 0, len(rows))
 	for _, row := range rows {
@@ -224,7 +304,7 @@ func chainRecordsToRuntimeTargets(rows []chainNodeRecord) []tunnelRuntimeNode {
 			Inx:           int(row.Inx),
 			ChainType:     row.ChainType,
 			Port:          row.Port,
-			ConnectIPType: row.ConnectIP,
+			ConnectIPType: row.ConnectIPType,
 		})
 	}
 	return out

@@ -2321,6 +2321,7 @@ export default function ForwardPage() {
     setIsEdit(false);
     setIsCopy(false);
     setInIpTouched(false);
+    resetDraft();
     setErrors({});
     setModalOpen(true);
   };
@@ -3250,6 +3251,8 @@ export default function ForwardPage() {
         return { color: "success", text: "轮询" };
       case "rand":
         return { color: "warning", text: "随机" };
+      case "hash":
+        return { color: "default", text: "哈希" };
       default:
         return { color: "default", text: "未知" };
     }

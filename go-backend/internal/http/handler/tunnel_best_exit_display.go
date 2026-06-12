@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"strings"
 )
@@ -37,6 +38,7 @@ type bestExitDisplayItem struct {
 	OwnerRole     string `json:"ownerRole"`
 	ExitNodeID    int64  `json:"exitNodeId,omitempty"`
 	ExitNodeName  string `json:"exitNodeName"`
+	HopIndex      int    `json:"hopIndex,omitempty"`
 	UpdatedAt     int64  `json:"updatedAt,omitempty"`
 	Reason        string `json:"reason,omitempty"`
 }
@@ -105,62 +107,114 @@ func buildBestExitDisplayState(tunnel map[string]interface{}, manager *bestExitM
 		return nil, false
 	}
 	tunnelID := asInt64(tunnel["id"], 0)
-	outNodes := bestExitDisplayMapSlice(tunnel["outNodeId"])
-	if tunnelID <= 0 || len(outNodes) <= 1 {
-		return nil, false
-	}
-	if !isBestTunnelStrategy(asString(outNodes[0]["strategy"])) {
+	if tunnelID <= 0 {
 		return nil, false
 	}
 
-	owners, ownerRole := bestExitDisplayOwners(tunnel)
+	chainGroups := bestExitDisplayChainGroups(tunnel["chainNodes"])
+	entryNodes := bestExitDisplayMapSlice(tunnel["inNodeId"])
+	outNodes := bestExitDisplayMapSlice(tunnel["outNodeId"])
+
+	type hopInfo struct {
+		hopIndex int
+		targets  []map[string]interface{}
+		owners   []map[string]interface{}
+		role     string
+	}
+	var bestHops []hopInfo
+
+	if len(chainGroups) == 0 {
+		if len(outNodes) <= 1 || !isBestTunnelStrategy(asString(outNodes[0]["strategy"])) {
+			return nil, false
+		}
+		bestHops = append(bestHops, hopInfo{hopIndex: 0, targets: outNodes, owners: entryNodes, role: "entry"})
+	} else {
+		for i, group := range chainGroups {
+			if len(group) <= 1 {
+				continue
+			}
+			if !isBestTunnelStrategy(asString(group[0]["strategy"])) {
+				continue
+			}
+			var owners []map[string]interface{}
+			if i == 0 {
+				owners = entryNodes
+			} else {
+				owners = chainGroups[i-1]
+			}
+			bestHops = append(bestHops, hopInfo{hopIndex: i + 1, targets: group, owners: owners, role: "chain"})
+		}
+		if len(outNodes) > 1 && isBestTunnelStrategy(asString(outNodes[0]["strategy"])) {
+			var owners []map[string]interface{}
+			if len(chainGroups) > 0 {
+				owners = chainGroups[len(chainGroups)-1]
+			} else {
+				owners = entryNodes
+			}
+			bestHops = append(bestHops, hopInfo{hopIndex: 0, targets: outNodes, owners: owners, role: "entry"})
+		}
+	}
+
+	if len(bestHops) == 0 {
+		return nil, false
+	}
+
 	state := &bestExitDisplayState{
 		Enabled: true,
 		Summary: bestExitDisplaySummaryWait,
 		Status:  bestExitDisplayStatusWaiting,
-		Items:   make([]bestExitDisplayItem, 0, len(owners)),
+		Items:   make([]bestExitDisplayItem, 0),
 	}
 
-	exitsByID := map[int64]map[string]interface{}{}
-	for _, exit := range outNodes {
-		if id := asInt64(exit["nodeId"], 0); id > 0 {
-			exitsByID[id] = exit
-		}
-	}
-	appliedExitIDs := map[int64]string{}
 	appliedCount := 0
 	latestUpdatedAt := int64(0)
 	latestReason := ""
-	for _, owner := range owners {
-		ownerNodeID := asInt64(owner["nodeId"], 0)
-		if ownerNodeID <= 0 {
-			continue
+	appliedNames := map[string]bool{}
+
+	for _, hop := range bestHops {
+		targetsByID := map[int64]map[string]interface{}{}
+		for _, t := range hop.targets {
+			if id := asInt64(t["nodeId"], 0); id > 0 {
+				targetsByID[id] = t
+			}
 		}
-		item := bestExitDisplayItem{
-			OwnerNodeID:   ownerNodeID,
-			OwnerNodeName: bestExitDisplayNodeName(owner, ownerNodeID, lookup, bestExitUnknownOwnerName(ownerRole)),
-			OwnerRole:     ownerRole,
-			ExitNodeName:  bestExitDisplaySummaryWait,
-			Reason:        bestExitDisplayStatusWaiting,
-		}
-		if snapshot, ok := manager.snapshot(bestExitOwnerKey{TunnelID: tunnelID, OwnerNodeID: ownerNodeID}); ok && snapshot.AppliedExitNodeID > 0 {
-			exit, ok := exitsByID[snapshot.AppliedExitNodeID]
-			if !ok {
-				state.Items = append(state.Items, item)
+		for _, owner := range hop.owners {
+			ownerNodeID := asInt64(owner["nodeId"], 0)
+			if ownerNodeID <= 0 {
 				continue
 			}
-			item.ExitNodeID = snapshot.AppliedExitNodeID
-			item.ExitNodeName = bestExitDisplayNodeName(exit, snapshot.AppliedExitNodeID, lookup, bestExitUnknownExitName)
-			item.UpdatedAt = snapshot.UpdatedAt
-			item.Reason = snapshot.Reason
-			appliedExitIDs[item.ExitNodeID] = item.ExitNodeName
-			appliedCount++
-			if snapshot.UpdatedAt > latestUpdatedAt {
-				latestUpdatedAt = snapshot.UpdatedAt
-				latestReason = snapshot.Reason
+			item := bestExitDisplayItem{
+				OwnerNodeID:   ownerNodeID,
+				OwnerNodeName: bestExitDisplayNodeName(owner, ownerNodeID, lookup, bestExitUnknownOwnerName(hop.role)),
+				OwnerRole:     hop.role,
+				HopIndex:      hop.hopIndex,
+				ExitNodeName:  bestExitDisplaySummaryWait,
+				Reason:        bestExitDisplayStatusWaiting,
 			}
+			key := bestExitOwnerKey{TunnelID: tunnelID, OwnerNodeID: ownerNodeID, HopIndex: hop.hopIndex}
+			if snapshot, ok := manager.snapshot(key); ok && snapshot.AppliedExitNodeID > 0 {
+				target, ok := targetsByID[snapshot.AppliedExitNodeID]
+				if !ok {
+					state.Items = append(state.Items, item)
+					continue
+				}
+				item.ExitNodeID = snapshot.AppliedExitNodeID
+				item.ExitNodeName = bestExitDisplayNodeName(target, snapshot.AppliedExitNodeID, lookup, bestExitUnknownExitName)
+				item.UpdatedAt = snapshot.UpdatedAt
+				item.Reason = snapshot.Reason
+				name := item.ExitNodeName
+				if hop.hopIndex > 0 {
+					name = fmt.Sprintf("第%d跳→%s", hop.hopIndex, name)
+				}
+				appliedNames[name] = true
+				appliedCount++
+				if snapshot.UpdatedAt > latestUpdatedAt {
+					latestUpdatedAt = snapshot.UpdatedAt
+					latestReason = snapshot.Reason
+				}
+			}
+			state.Items = append(state.Items, item)
 		}
-		state.Items = append(state.Items, item)
 	}
 
 	if appliedCount == 0 {
@@ -172,22 +226,14 @@ func buildBestExitDisplayState(tunnel map[string]interface{}, manager *bestExitM
 	state.Status = bestExitDisplayStatusApplied
 	state.UpdatedAt = latestUpdatedAt
 	state.Reason = latestReason
-	if len(appliedExitIDs) == 1 {
-		for _, name := range appliedExitIDs {
+	if len(appliedNames) == 1 {
+		for name := range appliedNames {
 			state.Summary = name
 		}
 	} else {
 		state.Summary = bestExitDisplaySummaryMulti
 	}
 	return state, true
-}
-
-func bestExitDisplayOwners(tunnel map[string]interface{}) ([]map[string]interface{}, string) {
-	chainGroups := bestExitDisplayChainGroups(tunnel["chainNodes"])
-	if len(chainGroups) > 0 {
-		return chainGroups[len(chainGroups)-1], "chain"
-	}
-	return bestExitDisplayMapSlice(tunnel["inNodeId"]), "entry"
 }
 
 func bestExitDisplayMapSlice(v interface{}) []map[string]interface{} {

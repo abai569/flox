@@ -3092,7 +3092,7 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("转发模式无效，仅支持 gost、nftables 或 floxcore"))
 		return
 	}
-	forwardID, err := h.repo.CreateForwardTx(userID, userName, name, tunnelID, remoteAddr, defaultString(asString(req["strategy"]), "fifo"), now, inx, entryNodes, port, inIp, nullableInt(speedID), asInt(req["maxConnections"], 0), trafficLimit, expiryTime, speedLimitEnabled, speedLimit, mode)
+	forwardID, err := h.repo.CreateForwardTx(userID, userName, name, tunnelID, remoteAddr, normalizeForwardStrategy(asString(req["strategy"])), now, inx, entryNodes, port, inIp, nullableInt(speedID), asInt(req["maxConnections"], 0), trafficLimit, expiryTime, speedLimitEnabled, speedLimit, mode)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -3174,6 +3174,7 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 	if strategy == "" {
 		strategy = forward.Strategy
 	}
+	strategy = normalizeForwardStrategy(strategy)
 	rawSpeedID, hasSpeedID := req["speedId"]
 	requestedSpeedID := asAnyToInt64Ptr(rawSpeedID)
 	if actorRole != 0 && hasSpeedID && requestedSpeedID != nil && !sameSpeedLimitSelection(forward.SpeedID, requestedSpeedID) {
@@ -4435,7 +4436,7 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		state.InNodes = append(state.InNodes, tunnelRuntimeNode{
 			NodeID:        nodeID,
 			Protocol:      defaultString(asString(item["protocol"]), "tls"),
-			Strategy:      defaultString(asString(item["strategy"]), "round"),
+			Strategy:      normalizeTunnelStrategy(asString(item["strategy"])),
 			ChainType:     1,
 			ConnectIPType: asString(item["connectIpType"]),
 		})
@@ -4474,7 +4475,7 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 			state.OutNodes = append(state.OutNodes, tunnelRuntimeNode{
 				NodeID:        nodeID,
 				Protocol:      defaultString(asString(item["protocol"]), "tls"),
-				Strategy:      defaultString(asString(item["strategy"]), "round"),
+				Strategy:      normalizeTunnelStrategy(asString(item["strategy"])),
 				ChainType:     3,
 				Port:          port,
 				ConnectIPType: asString(item["connectIpType"]),
@@ -4509,7 +4510,7 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 				hop = append(hop, tunnelRuntimeNode{
 					NodeID:        nodeID,
 					Protocol:      defaultString(asString(item["protocol"]), "tls"),
-					Strategy:      defaultString(asString(item["strategy"]), "round"),
+					Strategy:      normalizeTunnelStrategy(asString(item["strategy"])),
 					Inx:           hopIdx + 1,
 					ChainType:     2,
 					Port:          port,
@@ -4945,7 +4946,8 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 		if len(state.ChainHops) > 0 {
 			targets = state.ChainHops[0]
 		}
-		chainData, err := buildTunnelChainConfig(state.TunnelID, inNode.NodeID, targets, state.Nodes, state.IPPreference)
+		preparedTargets := h.prepareRuntimeTargetsForOwner(state.TunnelID, inNode.NodeID, targets, 0)
+		chainData, err := buildTunnelChainConfig(state.TunnelID, inNode.NodeID, preparedTargets, state.Nodes, state.IPPreference)
 		if err != nil {
 			return createdChains, createdServices, err
 		}
@@ -4978,7 +4980,8 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 			if node := state.Nodes[chainNode.NodeID]; node != nil && node.IsRemote == 1 {
 				continue
 			}
-			chainData, err := buildTunnelChainConfig(state.TunnelID, chainNode.NodeID, nextTargets, state.Nodes, state.IPPreference)
+			preparedTargets := h.prepareRuntimeTargetsForOwner(state.TunnelID, chainNode.NodeID, nextTargets, 0)
+			chainData, err := buildTunnelChainConfig(state.TunnelID, chainNode.NodeID, preparedTargets, state.Nodes, state.IPPreference)
 			if err != nil {
 				return createdChains, createdServices, err
 			}
@@ -5437,7 +5440,7 @@ func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[str
 			"1",
 			nodeID,
 			sql.NullInt64{},
-			defaultString(asString(n["strategy"]), "round"),
+			normalizeTunnelStrategy(asString(n["strategy"])),
 			i+1,
 			defaultString(asString(n["protocol"]), "tls"),
 			"",
@@ -5467,7 +5470,7 @@ func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[str
 			"3",
 			nodeID,
 			sql.NullInt64{Int64: int64(port), Valid: true},
-			defaultString(asString(n["strategy"]), "round"),
+			normalizeTunnelStrategy(asString(n["strategy"])),
 			i+1,
 			defaultString(asString(n["protocol"]), "tls"),
 			connectIp,
@@ -5499,7 +5502,7 @@ func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[str
 				"2",
 				nodeID,
 				sql.NullInt64{Int64: int64(port), Valid: true},
-				defaultString(asString(n["strategy"]), "round"),
+				normalizeTunnelStrategy(asString(n["strategy"])),
 				i+1,
 				defaultString(asString(n["protocol"]), "tls"),
 				connectIp,

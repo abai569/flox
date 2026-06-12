@@ -76,6 +76,7 @@ export interface ForwardApiItem {
   inIp?: string;
   inPort?: number;
   remoteAddr?: string;
+  strategy?: string;
   inFlow?: number;
   outFlow?: number;
   userId?: number;

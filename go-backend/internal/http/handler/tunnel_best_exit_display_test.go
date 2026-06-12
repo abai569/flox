@@ -14,7 +14,7 @@ import (
 
 func TestBestExitDecisionSnapshotIsDefensiveCopy(t *testing.T) {
 	m := newBestExitManager()
-	key := bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10}
+	key := bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10, HopIndex: 0}
 	now := time.Unix(100, 0)
 	score := scoreBestExitCandidate(10, chainNodeRecord{NodeID: 30, NodeName: "exit-a"}, 10, 0, 20, 0)
 
@@ -43,8 +43,8 @@ func TestBestExitDecisionSnapshotIsDefensiveCopy(t *testing.T) {
 func TestBuildBestExitDisplayStateForDirectMultiEntryOwners(t *testing.T) {
 	m := newBestExitManager()
 	now := time.Unix(100, 0)
-	m.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10}, 30, now)
-	m.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 11}, 31, now.Add(time.Second))
+	m.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10, HopIndex: 0}, 30, now)
+	m.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 11, HopIndex: 0}, 31, now.Add(time.Second))
 
 	tunnel := map[string]interface{}{
 		"id": int64(77),
@@ -84,8 +84,11 @@ func TestBuildBestExitDisplayStateForDirectMultiEntryOwners(t *testing.T) {
 func TestBuildBestExitDisplayStateForFinalChainHopOwners(t *testing.T) {
 	m := newBestExitManager()
 	now := time.Unix(200, 0)
-	m.setApplied(bestExitOwnerKey{TunnelID: 88, OwnerNodeID: 20}, 30, now)
-	m.setApplied(bestExitOwnerKey{TunnelID: 88, OwnerNodeID: 21}, 30, now.Add(time.Second))
+	m.setApplied(bestExitOwnerKey{TunnelID: 88, OwnerNodeID: 10, HopIndex: 1}, 15, now.Add(-time.Second))
+	m.setApplied(bestExitOwnerKey{TunnelID: 88, OwnerNodeID: 15, HopIndex: 2}, 20, now)
+	m.setApplied(bestExitOwnerKey{TunnelID: 88, OwnerNodeID: 16, HopIndex: 2}, 21, now)
+	m.setApplied(bestExitOwnerKey{TunnelID: 88, OwnerNodeID: 20, HopIndex: 0}, 30, now.Add(time.Second))
+	m.setApplied(bestExitOwnerKey{TunnelID: 88, OwnerNodeID: 21, HopIndex: 0}, 31, now.Add(2*time.Second))
 
 	tunnel := map[string]interface{}{
 		"id": int64(88),
@@ -97,27 +100,39 @@ func TestBuildBestExitDisplayStateForFinalChainHopOwners(t *testing.T) {
 			{"nodeId": int64(31), "strategy": tunnelStrategyBest},
 		},
 		"chainNodes": [][]map[string]interface{}{
-			{{"nodeId": int64(15), "inx": int64(0)}},
-			{{"nodeId": int64(20), "inx": int64(1)}, {"nodeId": int64(21), "inx": int64(1)}},
+			{{"nodeId": int64(15), "inx": int64(0), "strategy": tunnelStrategyBest}, {"nodeId": int64(16), "inx": int64(0), "strategy": tunnelStrategyBest}},
+			{{"nodeId": int64(20), "inx": int64(1), "strategy": tunnelStrategyBest}, {"nodeId": int64(21), "inx": int64(1), "strategy": tunnelStrategyBest}},
 		},
 	}
-	names := map[int64]string{20: "中转 M1", 21: "中转 M2", 30: "香港节点", 31: "日本节点"}
+	names := map[int64]string{10: "入口 A", 15: "中转 H1a", 16: "中转 H1b", 20: "中转 M1", 21: "中转 M2", 30: "香港节点", 31: "日本节点"}
 
 	state, ok := buildBestExitDisplayState(tunnel, m, testBestExitNameLookup(names))
 	if !ok {
 		t.Fatalf("expected best exit state")
 	}
-	if state.Summary != "香港节点" || state.Status != "applied" {
-		t.Fatalf("expected single-exit summary, got %+v", state)
+	if state.Status != "applied" {
+		t.Fatalf("expected applied status, got %+v", state)
 	}
-	if len(state.Items) != 2 {
-		t.Fatalf("expected two final-hop owner items, got %+v", state.Items)
+	if len(state.Items) != 5 {
+		t.Fatalf("expected 5 items (entry→hop1, hop1→hop2×2, hop2→exit×2), got %d: %+v", len(state.Items), state.Items)
 	}
-	if state.Items[0].OwnerRole != "chain" || state.Items[0].OwnerNodeName != "中转 M1" || state.Items[0].ExitNodeName != "香港节点" {
-		t.Fatalf("unexpected first chain owner item: %+v", state.Items[0])
+
+	exitHopApplied := 0
+	chainHopApplied := 0
+	for _, item := range state.Items {
+		if item.ExitNodeID > 0 {
+			if item.HopIndex == 0 {
+				exitHopApplied++
+			} else {
+				chainHopApplied++
+			}
+		}
 	}
-	if state.Items[1].OwnerRole != "chain" || state.Items[1].OwnerNodeName != "中转 M2" || state.Items[1].ExitNodeName != "香港节点" {
-		t.Fatalf("unexpected second chain owner item: %+v", state.Items[1])
+	if exitHopApplied != 2 {
+		t.Fatalf("expected 2 applied exit hop items, got %d", exitHopApplied)
+	}
+	if chainHopApplied != 3 {
+		t.Fatalf("expected 3 applied chain hop items, got %d", chainHopApplied)
 	}
 }
 
@@ -150,7 +165,7 @@ func TestBuildBestExitDisplayStateWaitingWhenNoAppliedDecisionExists(t *testing.
 func TestBuildBestExitDisplayStateKeepsTopLevelWaitingWhenSomeOwnersPending(t *testing.T) {
 	m := newBestExitManager()
 	now := time.Unix(400, 0)
-	m.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10}, 30, now)
+	m.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10, HopIndex: 0}, 30, now)
 
 	tunnel := map[string]interface{}{
 		"id": int64(77),
@@ -187,7 +202,7 @@ func TestBuildBestExitDisplayStateKeepsTopLevelWaitingWhenSomeOwnersPending(t *t
 func TestBuildBestExitDisplayStateIgnoresAppliedExitRemovedFromTunnel(t *testing.T) {
 	m := newBestExitManager()
 	now := time.Unix(500, 0)
-	m.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10}, 99, now)
+	m.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10, HopIndex: 0}, 99, now)
 
 	tunnel := map[string]interface{}{
 		"id": int64(77),
@@ -350,7 +365,7 @@ func setupBestExitTunnelHandler(t *testing.T) *Handler {
 	insertChain(79, "3", 31, "round", 1)
 	insertChain(79, "3", 32, "round", 2)
 
-	h.bestExit.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10}, 30, time.UnixMilli(now))
+	h.bestExit.setApplied(bestExitOwnerKey{TunnelID: 77, OwnerNodeID: 10, HopIndex: 0}, 30, time.UnixMilli(now))
 	return h
 }
 
