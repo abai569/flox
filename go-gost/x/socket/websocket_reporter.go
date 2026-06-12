@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -215,6 +216,7 @@ type WebSocketReporter struct {
 	nftablesPrevCounters map[string]uint64        // "forwardID_protocol" → last total bytes
 	nftConnPrev          map[int64]nftables.RuleConnInfo
 	nftablesPrevMu       sync.Mutex
+	nodeNetworkEnv       string // 节点网络环境永久缓存："domestic" | "overseas" | ""（未检测）
 }
 
 var wsDial = func(dialer *websocket.Dialer, rawURL string) (*websocket.Conn, *http.Response, error) {
@@ -1911,6 +1913,147 @@ func (w *WebSocketReporter) sendUpgradeProgress(stage string, percent int, messa
 	w.sendResponse(response)
 }
 
+// detectNodeNetworkEnvironment 检测节点网络环境（永久缓存）。
+// 使用 Apple 和 Cloudflare 两个探针并发检测，任一返回 CN 即判定为国内。
+func (w *WebSocketReporter) detectNodeNetworkEnvironment() string {
+	if w.nodeNetworkEnv != "" {
+		return w.nodeNetworkEnv
+	}
+
+	type probeResult struct {
+		domestic bool
+	}
+
+	done := make(chan probeResult, 2)
+
+	// 探针 1：Apple
+	go func() {
+		client := &http.Client{Timeout: 3 * time.Second}
+		resp, err := client.Head("http://www.apple.com/")
+		if err != nil {
+			done <- probeResult{false}
+			return
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		headers := resp.Header.Get("Location") + string(body)
+		done <- probeResult{domestic: strings.Contains(headers, "geo=cn")}
+	}()
+
+	// 探针 2：Cloudflare
+	go func() {
+		client := &http.Client{Timeout: 3 * time.Second}
+		resp, err := client.Get("https://www.cloudflare.com/cdn-cgi/trace")
+		if err != nil {
+			done <- probeResult{false}
+			return
+		}
+		defer resp.Body.Close()
+		body, _ := io.ReadAll(resp.Body)
+		done <- probeResult{domestic: strings.Contains(string(body), "loc=CN")}
+	}()
+
+	// 等待两个探针完成
+	isDomestic := false
+	for i := 0; i < 2; i++ {
+		r := <-done
+		if r.domestic {
+			isDomestic = true
+		}
+	}
+
+	if isDomestic {
+		w.nodeNetworkEnv = "domestic"
+		fmt.Printf("🌏 节点网络环境：国内 (永久缓存)\n")
+	} else {
+		w.nodeNetworkEnv = "overseas"
+		fmt.Printf("🌍 节点网络环境：海外 (永久缓存)\n")
+	}
+	return w.nodeNetworkEnv
+}
+
+// reorderDownloadURLs 根据节点网络环境重新排序下载源。
+// 国内节点：chfs → ghfast → gh-proxy → github
+// 海外节点：github → ghfast → gh-proxy → chfs
+func (w *WebSocketReporter) reorderDownloadURLs(downloadURLs, checksumURLs []string, nodeEnv string) ([]string, []string) {
+	if len(downloadURLs) == 0 {
+		return downloadURLs, checksumURLs
+	}
+
+	type sourceInfo struct {
+		downloadURL  string
+		checksumURL  string
+		isChfs       bool
+		isGhfast     bool
+		isGhProxy    bool
+		isGithub     bool
+	}
+
+	sources := make([]sourceInfo, 0, len(downloadURLs))
+	for i, dl := range downloadURLs {
+		s := sourceInfo{downloadURL: dl}
+		if i < len(checksumURLs) {
+			s.checksumURL = checksumURLs[i]
+		}
+		lower := strings.ToLower(dl)
+		switch {
+		case strings.Contains(lower, "chfs.646321.xyz"):
+			s.isChfs = true
+		case strings.Contains(lower, "ghfast.top"):
+			s.isGhfast = true
+		case strings.Contains(lower, "gh-proxy.com"):
+			s.isGhProxy = true
+		case strings.Contains(lower, "github.com"):
+			s.isGithub = true
+		}
+		sources = append(sources, s)
+	}
+
+	// 定义排序优先级
+	var priorityChfs, priorityGhfast, priorityGhProxy, priorityGithub int
+	if nodeEnv == "domestic" {
+		// 国内：chfs → ghfast → gh-proxy → github
+		priorityChfs = 0
+		priorityGhfast = 1
+		priorityGhProxy = 2
+		priorityGithub = 3
+	} else {
+		// 海外：github → ghfast → gh-proxy → chfs
+		priorityGithub = 0
+		priorityGhfast = 1
+		priorityGhProxy = 2
+		priorityChfs = 3
+	}
+
+	getPriority := func(s sourceInfo) int {
+		switch {
+		case s.isChfs:
+			return priorityChfs
+		case s.isGhfast:
+			return priorityGhfast
+		case s.isGhProxy:
+			return priorityGhProxy
+		case s.isGithub:
+			return priorityGithub
+		default:
+			return 99
+		}
+	}
+
+	sort.SliceStable(sources, func(i, j int) bool {
+		return getPriority(sources[i]) < getPriority(sources[j])
+	})
+
+	reorderedDL := make([]string, 0, len(sources))
+	reorderedCS := make([]string, 0, len(sources))
+	for _, s := range sources {
+		reorderedDL = append(reorderedDL, s.downloadURL)
+		reorderedCS = append(reorderedCS, s.checksumURL)
+	}
+
+	return reorderedDL, reorderedCS
+}
+
 func (w *WebSocketReporter) handleUpgradeAgent(data interface{}) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -1930,6 +2073,10 @@ func (w *WebSocketReporter) handleUpgradeAgent(data interface{}) error {
 	}
 
 	w.sendUpgradeProgress("downloading", 0, "开始下载升级包...")
+
+	// 检测节点网络环境并重排下载源优先级
+	nodeEnv := w.detectNodeNetworkEnvironment()
+	req.DownloadURLs, req.ChecksumURLs = w.reorderDownloadURLs(req.DownloadURLs, req.ChecksumURLs, nodeEnv)
 
 	// 尝试多个下载源
 	var downloadURL string
