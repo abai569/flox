@@ -748,7 +748,10 @@ export default function TunnelPage() {
 
     setToggleLoading(true);
     try {
-      const res = await toggleTunnelStatus({ id: tunnelToToggle.id, status: 0 });
+      const res = await toggleTunnelStatus({
+        id: tunnelToToggle.id,
+        status: 0,
+      });
 
       if (res.code === 0) {
         toast.success(`已禁用隧道 "${tunnelToToggle.name}"`);
@@ -1771,9 +1774,13 @@ export default function TunnelPage() {
 
       if (res.code === 0) {
         const result = res.data;
-        const skippedList = Array.isArray(result?.skipped) ? result.skipped : [];
+        const skippedList = Array.isArray(result?.skipped)
+          ? result.skipped
+          : [];
         const skippedCount =
-          typeof result?.skippedCount === "number" ? result.skippedCount : skippedList.length;
+          typeof result?.skippedCount === "number"
+            ? result.skippedCount
+            : skippedList.length;
 
         if (result.failCount === 0 && skippedCount === 0) {
           toast.success(`成功重新下发 ${result.successCount} 项`);
@@ -2213,13 +2220,13 @@ export default function TunnelPage() {
                       <th className="py-3 px-4 w-[56px] text-center align-middle">
                         排序
                       </th>
-                        <th className="py-3 px-4 w-[200px] align-middle">
-                          隧道名称
-                          <span className="text-xs text-primary-500 font-normal">
-                            ^{sortedTunnels.length}个
-                          </span>
-                        </th>
-                        {/* <th className="py-3 px-4 w-[120px] align-middle">分组名</th> */}
+                      <th className="py-3 px-4 w-[200px] align-middle">
+                        隧道名称
+                        <span className="text-xs text-primary-500 font-normal">
+                          ^{sortedTunnels.length}个
+                        </span>
+                      </th>
+                      {/* <th className="py-3 px-4 w-[120px] align-middle">分组名</th> */}
                       <th className="py-3 px-4 w-[140px] align-middle">
                         <Select
                           aria-label="按分组筛选"
@@ -2394,8 +2401,8 @@ export default function TunnelPage() {
                                     <span
                                       className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
                                         tunnel.status === 1
-                                      ? "bg-success"
-                                        : "bg-danger"
+                                          ? "bg-success"
+                                          : "bg-danger"
                                       }`}
                                     />
                                     <span
@@ -2403,7 +2410,10 @@ export default function TunnelPage() {
                                       title={tunnel.name}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        copyToClipboard(tunnel.name, "隧道名称");
+                                        copyToClipboard(
+                                          tunnel.name,
+                                          "隧道名称",
+                                        );
                                       }}
                                     >
                                       {tunnel.name}
@@ -2524,7 +2534,11 @@ export default function TunnelPage() {
                                     </Button>
                                     <Button
                                       className="min-h-7 px-2"
-                                      color={tunnel.status === 1 ? "warning" : "success"}
+                                      color={
+                                        tunnel.status === 1
+                                          ? "warning"
+                                          : "success"
+                                      }
                                       size="sm"
                                       variant="flat"
                                       onPress={() => handleToggleStatus(tunnel)}
@@ -2823,7 +2837,11 @@ export default function TunnelPage() {
                                     </Button>
                                     <Button
                                       className="flex-1 min-h-8"
-                                      color={tunnel.status === 1 ? "warning" : "success"}
+                                      color={
+                                        tunnel.status === 1
+                                          ? "warning"
+                                          : "success"
+                                      }
                                       size="sm"
                                       variant="flat"
                                       onPress={() => handleToggleStatus(tunnel)}
@@ -3001,12 +3019,15 @@ export default function TunnelPage() {
                       <SelectItem key="2">隧道转发</SelectItem>
                     </Select>
                     <Select
-                      description={form.type !== 2 ? "模式仅在隧道转发时生效" : undefined}
+                      description={
+                        form.type !== 2 ? "模式仅在隧道转发时生效" : undefined
+                      }
                       label="隧道模式"
                       selectedKeys={[form.mode]}
                       variant="bordered"
                       onSelectionChange={(keys) => {
                         const selectedKey = Array.from(keys)[0] as string;
+
                         if (selectedKey) {
                           setForm((prev) => ({
                             ...prev,

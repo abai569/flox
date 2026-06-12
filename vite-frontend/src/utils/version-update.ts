@@ -97,6 +97,7 @@ const parseVersionParts = (version: string): VersionParts => {
 
   if (preReleaseMatch) {
     const stage = preReleaseMatch[1];
+
     if (stage === "rc") {
       stageRank = 3;
     } else if (stage === "beta") {

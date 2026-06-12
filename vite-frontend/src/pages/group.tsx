@@ -265,7 +265,10 @@ export default function GroupPage() {
     }
     setSavingGroup(true);
     try {
-      const payload = { name: groupForm.name.trim(), status: Number(groupForm.status) };
+      const payload = {
+        name: groupForm.name.trim(),
+        status: Number(groupForm.status),
+      };
       const res = editingTunnelGroup
         ? await updateTunnelGroup({ id: editingTunnelGroup.id, ...payload })
         : await createTunnelGroup(payload);
@@ -294,7 +297,10 @@ export default function GroupPage() {
     }
     setSavingGroup(true);
     try {
-      const payload = { name: groupForm.name.trim(), status: Number(groupForm.status) };
+      const payload = {
+        name: groupForm.name.trim(),
+        status: Number(groupForm.status),
+      };
       const res = editingUserGroup
         ? await updateUserGroup({ id: editingUserGroup.id, ...payload })
         : await createUserGroup(payload);
@@ -951,7 +957,9 @@ export default function GroupPage() {
             <Input
               label="分组名称"
               value={groupForm.name}
-              onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
+              onChange={(e) =>
+                setGroupForm({ ...groupForm, name: e.target.value })
+              }
             />
             <Select
               label="状态"
@@ -998,7 +1006,9 @@ export default function GroupPage() {
             <Input
               label="分组名称"
               value={groupForm.name}
-              onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })}
+              onChange={(e) =>
+                setGroupForm({ ...groupForm, name: e.target.value })
+              }
             />
             <Select
               label="状态"

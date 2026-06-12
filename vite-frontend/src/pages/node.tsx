@@ -276,10 +276,10 @@ const SortableItem = ({
   const style: React.CSSProperties = {
     transform: transform
       ? CSS.Transform.toString({
-        ...transform,
-        x: Math.round(transform.x),
-        y: Math.round(transform.y),
-      })
+          ...transform,
+          x: Math.round(transform.x),
+          y: Math.round(transform.y),
+        })
       : undefined,
     transition: isDragging ? undefined : transition || undefined,
     opacity: isDragging ? 0.5 : 1,
@@ -416,7 +416,8 @@ export default function NodePage() {
   const [installChannel, setInstallChannel] = useState<ReleaseChannel>("dev");
   // 国外机主线路版本选择相关状态
   const [overseasModalOpen, setOverseasModalOpen] = useState(false);
-  const [overseasChannel, setOverseasChannel] = useState<ReleaseChannel>("stable");
+  const [overseasChannel, setOverseasChannel] =
+    useState<ReleaseChannel>("stable");
   const [overseasVersion, setOverseasVersion] = useState("");
   const [overseasServiceName, setOverseasServiceName] = useState("flox_agent");
   const [overseasCommand, setOverseasCommand] = useState("");
@@ -545,7 +546,7 @@ export default function NodePage() {
 
         if (inFlow > 0 || outFlow > 0) {
           recordNodeOfflineLog(nodeId, inFlow, outFlow, "节点离线").catch(
-            () => { },
+            () => {},
           );
         }
 
@@ -788,7 +789,7 @@ export default function NodePage() {
             });
           }
         }
-      } catch { }
+      } catch {}
     } else if (type === "panel_upgrade_progress") {
       try {
         const progressData =
@@ -808,7 +809,7 @@ export default function NodePage() {
             }),
           );
         }
-      } catch { }
+      } catch {}
     } else if (type === "metric") {
       clearOfflineTimer(nodeId);
       const metric =
@@ -821,27 +822,27 @@ export default function NodePage() {
             ...prev[nodeId],
             uploadTraffic: Number(
               metric.netOutBytes ??
-              metric.bytes_transmitted ??
-              prev[nodeId]?.uploadTraffic ??
-              0,
+                metric.bytes_transmitted ??
+                prev[nodeId]?.uploadTraffic ??
+                0,
             ),
             downloadTraffic: Number(
               metric.netInBytes ??
-              metric.bytes_received ??
-              prev[nodeId]?.downloadTraffic ??
-              0,
+                metric.bytes_received ??
+                prev[nodeId]?.downloadTraffic ??
+                0,
             ),
             // 周期流量（新字段）
             periodTraffic:
               metric.period_bytes_received !== undefined ||
-                metric.period_bytes_transmitted !== undefined
+              metric.period_bytes_transmitted !== undefined
                 ? {
-                  rx: Number(metric.period_bytes_received ?? 0),
-                  tx: Number(metric.period_bytes_transmitted ?? 0),
-                  since: metric.baseline_recorded_at || 0,
-                  nextReset: metric.next_reset_at || 0,
-                  cycle: metric.renewal_cycle || "",
-                }
+                    rx: Number(metric.period_bytes_received ?? 0),
+                    tx: Number(metric.period_bytes_transmitted ?? 0),
+                    since: metric.baseline_recorded_at || 0,
+                    nextReset: metric.next_reset_at || 0,
+                    cycle: metric.renewal_cycle || "",
+                  }
                 : prev[nodeId]?.periodTraffic,
           },
         };
@@ -1056,10 +1057,12 @@ export default function NodePage() {
   };
   const handleRegenerateSecret = () => {
     const bytes = new Uint8Array(16);
+
     crypto.getRandomValues(bytes);
-    const newSecret = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
-      "",
-    );
+    const newSecret = Array.from(bytes, (b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
+
     setForm((prev) => ({ ...prev, secret: newSecret }));
   };
   const handleDelete = (node: Node) => {
@@ -1260,6 +1263,7 @@ export default function NodePage() {
       toast.error("获取命令失败");
     }
   };
+
   // 国外机主线路：自动生成命令（通道/版本变化时触发）
   useEffect(() => {
     if (!overseasModalOpen || !overseasNodeId) return;
@@ -1274,7 +1278,7 @@ export default function NodePage() {
           setOverseasCommand(res.data);
         }
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [overseasModalOpen, overseasNodeId, overseasChannel, overseasVersion]);
   const copyToClipboard = (text: string, label: string) => {
     try {
@@ -1577,29 +1581,29 @@ export default function NodePage() {
             prev.map((n) =>
               n.id === form.id
                 ? ({
-                  ...n,
-                  name: form.name,
-                  remark: form.remark.trim(),
-                  expiryTime: form.expiryTime,
-                  renewalCycle: form.renewalCycle,
-                  groupId: form.groupId,
-                  intranetIp: form.intranetIp?.trim(),
-                  serverIpV4: form.serverIpV4,
-                  serverIpV6: form.serverIpV6,
-                  port: form.port,
-                  tcpListenAddr: form.tcpListenAddr,
-                  udpListenAddr: form.udpListenAddr,
-                  interfaceName: form.interfaceName,
-                  secret: form.secret || n.secret,
-                  http: form.http,
-                  tls: form.tls,
-                  socks: form.socks,
-                  trafficLimit: form.trafficLimit,
-                  flowResetTime: form.flowResetTime,
-                  expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
-                  expiryReminderDismissedUntil:
-                    n.expiryReminderDismissedUntil ?? null,
-                } as Node)
+                    ...n,
+                    name: form.name,
+                    remark: form.remark.trim(),
+                    expiryTime: form.expiryTime,
+                    renewalCycle: form.renewalCycle,
+                    groupId: form.groupId,
+                    intranetIp: form.intranetIp?.trim(),
+                    serverIpV4: form.serverIpV4,
+                    serverIpV6: form.serverIpV6,
+                    port: form.port,
+                    tcpListenAddr: form.tcpListenAddr,
+                    udpListenAddr: form.udpListenAddr,
+                    interfaceName: form.interfaceName,
+                    secret: form.secret || n.secret,
+                    http: form.http,
+                    tls: form.tls,
+                    socks: form.socks,
+                    trafficLimit: form.trafficLimit,
+                    flowResetTime: form.flowResetTime,
+                    expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
+                    expiryReminderDismissedUntil:
+                      n.expiryReminderDismissedUntil ?? null,
+                  } as Node)
                 : n,
             ),
           );
@@ -1799,12 +1803,12 @@ export default function NodePage() {
     const groupFiltered =
       filterGroupId !== null
         ? keywordFiltered.filter((node) => {
-          if (filterGroupId === -1) {
-            return !node.groupId || node.groupId === 0;
-          }
+            if (filterGroupId === -1) {
+              return !node.groupId || node.groupId === 0;
+            }
 
-          return node.groupId === filterGroupId;
-        })
+            return node.groupId === filterGroupId;
+          })
         : keywordFiltered;
 
     if (nodeFilterMode === "all") {
@@ -1882,11 +1886,11 @@ export default function NodePage() {
     const hasRemark = Boolean(node.remark?.trim());
     const hasExpiryInfo = Boolean(
       node.expiryTime &&
-      node.expiryTime > 0 &&
-      node.renewalCycle &&
-      (node.expiryReminderDismissed !== 1 ||
-        (node.expiryReminderDismissedUntil &&
-          node.expiryReminderDismissedUntil * 1000 < Date.now())),
+        node.expiryTime > 0 &&
+        node.renewalCycle &&
+        (node.expiryReminderDismissed !== 1 ||
+          (node.expiryReminderDismissedUntil &&
+            node.expiryReminderDismissedUntil * 1000 < Date.now())),
     );
     const hasInfoTrigger = hasRemark || hasExpiryInfo;
     const infoPlacement = infoPopoverPlacement[node.id] ?? "left";
@@ -1894,8 +1898,9 @@ export default function NodePage() {
     return (
       <Card
         key={node.id}
-        className={`group relative overflow-visible shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 h-full flex flex-col ${node.expiryReminderDismissed ? "" : expiryMeta.accentClassName
-          }`}
+        className={`group relative overflow-visible shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 h-full flex flex-col ${
+          node.expiryReminderDismissed ? "" : expiryMeta.accentClassName
+        }`}
         data-node-card="true"
       >
         <CardHeader className="pb-3 md:pb-3">
@@ -2023,10 +2028,11 @@ export default function NodePage() {
             </div>
             <div className="flex items-center gap-2">
               <span
-                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${connectionStatusMeta.color === "success"
-                  ? "bg-emerald-500"
-                  : "bg-rose-500"
-                  }`}
+                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
+                  connectionStatusMeta.color === "success"
+                    ? "bg-emerald-500"
+                    : "bg-rose-500"
+                }`}
                 title={connectionStatusMeta.text}
               />
               {/* 这里加上 title 属性 */}
@@ -2228,9 +2234,9 @@ export default function NodePage() {
               <span className="font-medium text-sm text-danger-600 dark:text-danger-400">
                 {realtimeNodeMetrics[node.id]
                   ? formatTraffic(
-                    (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
-                    (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
-                  )
+                      (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
+                        (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
+                    )
                   : "-"}
               </span>
             </div>
@@ -2438,14 +2444,15 @@ export default function NodePage() {
               {hasExpiryInfo && (
                 <div className="flex items-center text-xs ml-auto flex-shrink-0">
                   <span
-                    className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${expiryMeta.tone === "danger"
-                      ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                      : expiryMeta.tone === "warning"
-                        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-                        : expiryMeta.tone === "success"
-                          ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                          : "bg-default-500/10 text-default-500"
-                      }`}
+                    className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${
+                      expiryMeta.tone === "danger"
+                        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                        : expiryMeta.tone === "warning"
+                          ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                          : expiryMeta.tone === "success"
+                            ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                            : "bg-default-500/10 text-default-500"
+                    }`}
                   >
                     {expiryMeta.label}
                   </span>
@@ -2582,19 +2589,19 @@ export default function NodePage() {
                 {(nodeFilterMode !== "all" ||
                   filterGroupId !== null ||
                   localSearchKeyword.trim()) && (
-                    <Button
-                      color="warning"
-                      size="sm"
-                      variant="flat"
-                      onPress={() => {
-                        resetNodeFilterMode();
-                        setFilterGroupId(null);
-                        setLocalSearchKeyword("");
-                      }}
-                    >
-                      重置
-                    </Button>
-                  )}
+                  <Button
+                    color="warning"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => {
+                      resetNodeFilterMode();
+                      setFilterGroupId(null);
+                      setLocalSearchKeyword("");
+                    }}
+                  >
+                    重置
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -2970,7 +2977,9 @@ export default function NodePage() {
                   label="分组"
                   placeholder="选择分组"
                   selectedKeys={
-                    form.groupId && form.groupId > 0 ? [String(form.groupId)] : []
+                    form.groupId && form.groupId > 0
+                      ? [String(form.groupId)]
+                      : []
                   }
                   variant="bordered"
                   onSelectionChange={(keys) => {
@@ -3002,8 +3011,8 @@ export default function NodePage() {
                   ))}
                 </Select>
                 <FieldContainer
-                  label="密钥"
                   description="节点密钥，用于 Agent 加密通信"
+                  label="密钥"
                 >
                   <div className="flex items-center gap-2">
                     <BaseInput
@@ -3099,6 +3108,7 @@ export default function NodePage() {
                   variant="bordered"
                   onSelectionChange={(keys) => {
                     const selected = Array.from(keys)[0] as string | undefined;
+
                     setForm((prev) => ({
                       ...prev,
                       flowResetTime: selected ? parseInt(selected) : 1,
@@ -3117,9 +3127,9 @@ export default function NodePage() {
                 <Input
                   description="该节点总流量配额，0表示不限制"
                   label="流量限额(GB)"
+                  min={0}
                   placeholder="0 = 不限制"
                   type="number"
-                  min={0}
                   value={String(form.trafficLimit)}
                   variant="bordered"
                   onChange={(e) =>
@@ -3477,7 +3487,9 @@ export default function NodePage() {
       {/* 国外机主线路版本选择弹窗 */}
       <Modal
         backdrop="blur"
-        classNames={{ base: '!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden' }}
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
+        }}
         isOpen={overseasModalOpen}
         placement="center"
         size="2xl"
@@ -3486,7 +3498,7 @@ export default function NodePage() {
         <ModalContent>
           <ModalHeader className="flex flex-col gap-1">
             <h2 className="text-xl font-bold">
-              国外机主线路{overseasNodeName ? ` - ${overseasNodeName}` : ''}
+              国外机主线路{overseasNodeName ? ` - ${overseasNodeName}` : ""}
             </h2>
           </ModalHeader>
           <ModalBody>
@@ -3499,28 +3511,34 @@ export default function NodePage() {
                 <div className="flex-1">
                   <Select
                     label="版本通道"
-                    size="md"
                     selectedKeys={[overseasChannel]}
+                    size="md"
                     onSelectionChange={(keys) => {
                       const selected = Array.from(keys)[0] as ReleaseChannel;
-                      setOverseasChannel(selected || 'stable');
-                      setOverseasVersion('');
+
+                      setOverseasChannel(selected || "stable");
+                      setOverseasVersion("");
                       void loadReleasesByChannel(selected);
                     }}
                   >
-                    <SelectItem key="dev" textValue="测试版">测试版</SelectItem>
-                    <SelectItem key="stable" textValue="稳定版">稳定版</SelectItem>
+                    <SelectItem key="dev" textValue="测试版">
+                      测试版
+                    </SelectItem>
+                    <SelectItem key="stable" textValue="稳定版">
+                      稳定版
+                    </SelectItem>
                   </Select>
                 </div>
                 <div className="flex-1">
                   <Select
                     label="选择版本"
                     placeholder="留空自动使用最新版本"
-                    size="md"
                     selectedKeys={overseasVersion ? [overseasVersion] : []}
+                    size="md"
                     onSelectionChange={(keys) => {
                       const selected = Array.from(keys)[0] as string;
-                      setOverseasVersion(selected || '');
+
+                      setOverseasVersion(selected || "");
                     }}
                   >
                     {releases
@@ -3532,8 +3550,8 @@ export default function NodePage() {
                             <span className="text-xs text-default-400">
                               {r.publishedAt
                                 ? new Date(r.publishedAt).toLocaleDateString()
-                                : ''}
-                              {r.channel === 'dev' && (
+                                : ""}
+                              {r.channel === "dev" && (
                                 <Chip
                                   className="ml-1 shrink-0 whitespace-nowrap"
                                   color="warning"
@@ -3557,7 +3575,9 @@ export default function NodePage() {
                     value={overseasServiceName}
                     variant="bordered"
                     onChange={(e) =>
-                      setOverseasServiceName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))
+                      setOverseasServiceName(
+                        e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""),
+                      )
                     }
                   />
                 </div>
@@ -3572,7 +3592,7 @@ export default function NodePage() {
                   <Textarea
                     readOnly
                     className="font-medium text-sm"
-                    classNames={{ input: 'font-medium text-sm' }}
+                    classNames={{ input: "font-medium text-sm" }}
                     maxRows={10}
                     minRows={6}
                     value={`${overseasCommand} -n ${overseasServiceName}`}
@@ -3583,7 +3603,10 @@ export default function NodePage() {
                     size="sm"
                     variant="flat"
                     onPress={() => {
-                      copyToClipboard(`${overseasCommand} -n ${overseasServiceName}`, '命令');
+                      copyToClipboard(
+                        `${overseasCommand} -n ${overseasServiceName}`,
+                        "命令",
+                      );
                       setOverseasModalOpen(false);
                     }}
                   >
@@ -3596,7 +3619,8 @@ export default function NodePage() {
                 </div>
               )}
               <div className="text-xs text-default-500">
-                💡 提示：如果自动复制失败请3击或拖拽鼠标选择上方完整文本进行手动复制
+                💡
+                提示：如果自动复制失败请3击或拖拽鼠标选择上方完整文本进行手动复制
               </div>
             </div>
           </ModalBody>
@@ -3863,7 +3887,7 @@ export default function NodePage() {
                                 总{" "}
                                 {formatTraffic(
                                   (log.inFlowBefore || 0) +
-                                  (log.outFlowBefore || 0),
+                                    (log.outFlowBefore || 0),
                                 )}
                               </span>
                             </div>

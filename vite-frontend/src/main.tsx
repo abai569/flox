@@ -7,9 +7,13 @@ import { Provider } from "./provider.tsx";
 import "@/styles/globals.css";
 
 let refreshing = false;
+
 registerSW({
   immediate: true,
-  onRegisteredSW(_swUrl: string, registration: ServiceWorkerRegistration | undefined) {
+  onRegisteredSW(
+    _swUrl: string,
+    registration: ServiceWorkerRegistration | undefined,
+  ) {
     if (!registration) return;
     registration.addEventListener("controllerchange", () => {
       if (refreshing) return;

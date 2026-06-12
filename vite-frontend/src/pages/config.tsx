@@ -334,6 +334,7 @@ export default function ConfigPage() {
 
       if (res.code === 0) {
         const d = res.data as { valid?: boolean; reason?: string };
+
         if (d?.valid) {
           toast.success("授权配置验证通过");
           setTimeout(async () => {
@@ -1130,8 +1131,16 @@ export default function ConfigPage() {
                   <div className="flex-shrink-0">
                     <Switch
                       color="primary"
-                      isDisabled={item.key === "payment_enabled" && licenseStatus?.tier === "free"}
-                      isSelected={item.key === "payment_enabled" && licenseStatus?.tier === "free" ? false : configs[item.key] === "true"}
+                      isDisabled={
+                        item.key === "payment_enabled" &&
+                        licenseStatus?.tier === "free"
+                      }
+                      isSelected={
+                        item.key === "payment_enabled" &&
+                        licenseStatus?.tier === "free"
+                          ? false
+                          : configs[item.key] === "true"
+                      }
                       size="sm"
                       onValueChange={(checked) =>
                         handleDirectSwitchChange(item.key, checked)

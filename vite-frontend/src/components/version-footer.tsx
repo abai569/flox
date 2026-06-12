@@ -1,3 +1,5 @@
+import type { SystemUpgradeReleaseApiItem } from "@/api/types";
+
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
@@ -21,7 +23,6 @@ import {
   setUpdateReleaseChannel,
 } from "@/utils/version-update";
 import { checkSystemUpgrade } from "@/api";
-import type { SystemUpgradeReleaseApiItem } from "@/api/types";
 import { runSystemUpgrade } from "@/api/index";
 
 const FALLBACK_GITHUB_REPO = "https://github.com/abai569/FLOX";

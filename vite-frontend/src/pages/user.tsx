@@ -1,4 +1,8 @@
-import type { UserQuotaHistoryItem, UserRenewalLogItem, UserTrafficBuyLogItem } from "@/api/types";
+import type {
+  UserQuotaHistoryItem,
+  UserRenewalLogItem,
+  UserTrafficBuyLogItem,
+} from "@/api/types";
 
 import React, {
   useState,
@@ -350,10 +354,16 @@ export default function UserPage() {
   const [renewalLogToDelete, setRenewalLogToDelete] = useState<number | null>(
     null,
   );
-  const [logModalTab, setLogModalTab] = useState<"renewal" | "traffic">("renewal");
-  const [trafficBuyLogs, setTrafficBuyLogs] = useState<UserTrafficBuyLogItem[]>([]);
+  const [logModalTab, setLogModalTab] = useState<"renewal" | "traffic">(
+    "renewal",
+  );
+  const [trafficBuyLogs, setTrafficBuyLogs] = useState<UserTrafficBuyLogItem[]>(
+    [],
+  );
   const [trafficBuyLogLoading, setTrafficBuyLogLoading] = useState(false);
-  const [trafficBuyLogToDelete, setTrafficBuyLogToDelete] = useState<number | null>(null);
+  const [trafficBuyLogToDelete, setTrafficBuyLogToDelete] = useState<
+    number | null
+  >(null);
   const [regOpen, setRegOpen] = useState(true);
   const [regLoading, setRegLoading] = useState(false);
   // --- 监控权限相关状态 (来自 user 新) ---
@@ -616,7 +626,7 @@ export default function UserPage() {
             "vite_config_registration_enabled",
             enabled ? "true" : "false",
           );
-        } catch { }
+        } catch {}
         window.dispatchEvent(new CustomEvent("configUpdated"));
         toast.success(enabled ? "注册已开启" : "注册已关闭");
       } else {
@@ -817,7 +827,7 @@ export default function UserPage() {
       if (response.code === 0) {
         setTunnels(Array.isArray(response.data) ? response.data : []);
       }
-    } catch { }
+    } catch {}
   }, []);
   const loadSpeedLimits = useCallback(async () => {
     try {
@@ -826,15 +836,15 @@ export default function UserPage() {
       if (response.code === 0) {
         const speedLimitList = Array.isArray(response.data)
           ? response.data.map((item) => ({
-            ...item,
-            uploadSpeed: item.uploadSpeed ?? item.speed ?? 0,
-            downloadSpeed: item.downloadSpeed ?? item.speed ?? 0,
-          }))
+              ...item,
+              uploadSpeed: item.uploadSpeed ?? item.speed ?? 0,
+              downloadSpeed: item.downloadSpeed ?? item.speed ?? 0,
+            }))
           : [];
 
         setSpeedLimits(speedLimitList);
       }
-    } catch { }
+    } catch {}
   }, []);
   const loadUserGroups = useCallback(async () => {
     try {
@@ -843,7 +853,7 @@ export default function UserPage() {
       if (response.code === 0) {
         setUserGroups(Array.isArray(response.data) ? response.data : []);
       }
-    } catch { }
+    } catch {}
   }, []);
   const loadUserTunnels = useCallback(async (userId: number) => {
     setTunnelListLoading(true);
@@ -887,7 +897,8 @@ export default function UserPage() {
     document.addEventListener("visibilitychange", handleVisible);
 
     const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") void loadUsers(undefined, false);
+      if (document.visibilityState === "visible")
+        void loadUsers(undefined, false);
     }, 10000);
 
     return () => {
@@ -906,7 +917,7 @@ export default function UserPage() {
             setRegOpen(v === "1" || v === "true");
           }
         })
-        .catch(() => { });
+        .catch(() => {});
     };
 
     loadReg();
@@ -1035,7 +1046,7 @@ export default function UserPage() {
       if (groupRes.code === 0) {
         currentGroupIds = groupRes.data || [];
       }
-    } catch { }
+    } catch {}
     setFlowInput(String(user.flow));
     setNumInput(String(user.num));
     setUserForm({
@@ -1247,12 +1258,15 @@ export default function UserPage() {
         toast.success("删除成功");
         if (selectedRenewalLogUser) {
           try {
-            const refreshRes = await getUserRenewalLogs(selectedRenewalLogUser.id, 50);
+            const refreshRes = await getUserRenewalLogs(
+              selectedRenewalLogUser.id,
+              50,
+            );
 
             if (refreshRes.code === 0) {
               setRenewalLogs(refreshRes.data || []);
             }
-          } catch { }
+          } catch {}
         }
       } else {
         toast.error(res.msg || "删除失败");
@@ -1270,12 +1284,15 @@ export default function UserPage() {
         toast.success("删除成功");
         if (selectedRenewalLogUser) {
           try {
-            const refreshRes = await getUserTrafficBuyLogs(selectedRenewalLogUser.id, 50);
+            const refreshRes = await getUserTrafficBuyLogs(
+              selectedRenewalLogUser.id,
+              50,
+            );
 
             if (refreshRes.code === 0) {
               setTrafficBuyLogs(refreshRes.data || []);
             }
-          } catch { }
+          } catch {}
         }
       } else {
         toast.error(res.msg || "删除失败");
@@ -1372,10 +1389,10 @@ export default function UserPage() {
             speedLimitName:
               normalizeSpeedId(editTunnelForm.speedId) !== null
                 ? speedLimits.find(
-                  (speedLimit) =>
-                    speedLimit.id ===
-                    normalizeSpeedId(editTunnelForm.speedId),
-                )?.name
+                    (speedLimit) =>
+                      speedLimit.id ===
+                      normalizeSpeedId(editTunnelForm.speedId),
+                  )?.name
                 : undefined,
           });
 
@@ -1554,7 +1571,7 @@ export default function UserPage() {
               });
             }
           }
-        } catch { }
+        } catch {}
 
         setUserToReset(null);
       } else {
@@ -1637,7 +1654,7 @@ export default function UserPage() {
               });
             }
           }
-        } catch { }
+        } catch {}
 
         setTunnelToReset(null);
       } else {
@@ -1771,12 +1788,13 @@ export default function UserPage() {
     return (
       <TableRow
         ref={setNodeRef}
-        className={`cursor-default transition-colors ${selectedUserIds.has(user.id)
-          ? "bg-primary-50 dark:bg-primary-900/30"
-          : selectedUserId === user.id
+        className={`cursor-default transition-colors ${
+          selectedUserIds.has(user.id)
             ? "bg-primary-50 dark:bg-primary-900/30"
-            : "hover:bg-default-50/50"
-          }`}
+            : selectedUserId === user.id
+              ? "bg-primary-50 dark:bg-primary-900/30"
+              : "hover:bg-default-50/50"
+        }`}
         style={style}
         onClick={() => {
           if (!batchMode) {
@@ -2121,14 +2139,14 @@ export default function UserPage() {
                               className="w-24 mt-1"
                               color={
                                 usedFlow / (user.flow * 1024 * 1024 * 1024) >
-                                  0.8
+                                0.8
                                   ? "danger"
                                   : "primary"
                               }
                               size="sm"
                               value={Math.min(
                                 (usedFlow / (user.flow * 1024 * 1024 * 1024)) *
-                                100,
+                                  100,
                                 100,
                               )}
                             />
@@ -2161,15 +2179,16 @@ export default function UserPage() {
                                 </span>
                               ) : (
                                 <div
-                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "") ===
+                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    ((expStatus?.color as string) || "") ===
                                     "success"
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : expStatus?.color === "warning"
-                                      ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-                                      : expStatus?.color === "danger"
-                                        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                        : "bg-default-500/10 text-default-500"
-                                    }`}
+                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                      : expStatus?.color === "warning"
+                                        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                                        : expStatus?.color === "danger"
+                                          ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                          : "bg-default-500/10 text-default-500"
+                                  }`}
                                 >
                                   {expStatus?.text || "未知"}
                                 </div>
@@ -2214,10 +2233,11 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span
-                            className={`text-sm font-medium ${user.balance && user.balance > 0
-                              ? "text-success"
-                              : "text-default-400"
-                              }`}
+                            className={`text-sm font-medium ${
+                              user.balance && user.balance > 0
+                                ? "text-success"
+                                : "text-default-400"
+                            }`}
                           >
                             {user.balance != null ? `${user.balance}元` : "-"}
                           </span>
@@ -2231,32 +2251,35 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
-                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                              }`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                              user.autoRenew === 1
+                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
                           >
                             {user.autoRenew === 1 ? "启用" : "禁用"}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
-                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                              }`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                              user.autoBuyTraffic === 1
+                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
                           >
                             {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionLevelMap.get(user.id) === 1
-                              ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                              : monitorPermissionLevelMap.has(user.id)
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                              }`}
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              monitorPermissionLevelMap.get(user.id) === 1
+                                ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                                : monitorPermissionLevelMap.has(user.id)
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
                           >
                             {monitorPermissionLevelMap.has(user.id) ? (
                               <>
@@ -2356,10 +2379,11 @@ export default function UserPage() {
                 return (
                   <StaggerItem key={user.id}>
                     <div
-                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${selectedUserIds.has(user.id)
-                        ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
-                        : ""
-                        }`}
+                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${
+                        selectedUserIds.has(user.id)
+                          ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
+                          : ""
+                      }`}
                     >
                       <Card className="shadow-none border-0">
                         <CardHeader className="pb-2 md:pb-2">
@@ -2450,7 +2474,7 @@ export default function UserPage() {
                                 {user.expTime && user.expTime > 0 ? (
                                   <>
                                     {expStatus &&
-                                      expStatus.color === "success" ? (
+                                    expStatus.color === "success" ? (
                                       <span className="text-xs">
                                         {new Date(user.expTime)
                                           .toLocaleDateString("zh-CN", {
@@ -2537,10 +2561,11 @@ export default function UserPage() {
                                 可用余额
                               </span>
                               <span
-                                className={`text-xs font-medium ${user.balance && user.balance > 0
-                                  ? "text-success"
-                                  : "text-default-400"
-                                  }`}
+                                className={`text-xs font-medium ${
+                                  user.balance && user.balance > 0
+                                    ? "text-success"
+                                    : "text-default-400"
+                                }`}
                               >
                                 {user.balance != null
                                   ? `${user.balance}元`
@@ -2552,10 +2577,11 @@ export default function UserPage() {
                                 自动续费
                               </span>
                               <div
-                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
-                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                  }`}
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  user.autoRenew === 1
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                }`}
                               >
                                 {user.autoRenew === 1 ? "启用" : "禁用"}
                               </div>
@@ -2565,10 +2591,11 @@ export default function UserPage() {
                                 自动购流
                               </span>
                               <div
-                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
-                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                  }`}
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  user.autoBuyTraffic === 1
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                }`}
                               >
                                 {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
                               </div>
@@ -2578,18 +2605,19 @@ export default function UserPage() {
                                 监控权限
                               </span>
                               <div
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionLevelMap.get(user.id) === 1
-                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                  : monitorPermissionLevelMap.has(user.id)
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                  }`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  monitorPermissionLevelMap.get(user.id) === 1
+                                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                    : monitorPermissionLevelMap.has(user.id)
+                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                }`}
                               >
                                 {monitorPermissionLevelMap.has(user.id) ? (
                                   <>
                                     <EyeIcon className="w-3 h-3" />
                                     {monitorPermissionLevelMap.get(user.id) ===
-                                      1
+                                    1
                                       ? "全开"
                                       : "同步"}
                                   </>
@@ -2677,8 +2705,7 @@ export default function UserPage() {
             </StaggerList>
           </div>
         </div>
-      )
-      }
+      )}
       {/* 用户表单弹窗 */}
       <Modal
         backdrop="blur"
@@ -3084,17 +3111,17 @@ export default function UserPage() {
               <span>用户 {selectedRenewalLogUser?.user} 的记录</span>
               <div className="flex gap-1 bg-default-100 rounded-lg p-1">
                 <Button
+                  color={logModalTab === "renewal" ? "primary" : "default"}
                   size="sm"
                   variant={logModalTab === "renewal" ? "solid" : "light"}
-                  color={logModalTab === "renewal" ? "primary" : "default"}
                   onPress={() => setLogModalTab("renewal")}
                 >
                   续费记录
                 </Button>
                 <Button
+                  color={logModalTab === "traffic" ? "primary" : "default"}
                   size="sm"
                   variant={logModalTab === "traffic" ? "solid" : "light"}
-                  color={logModalTab === "traffic" ? "primary" : "default"}
                   onPress={() => setLogModalTab("traffic")}
                 >
                   购流记录
@@ -3154,14 +3181,14 @@ export default function UserPage() {
                           <TableCell className="whitespace-nowrap">
                             {log.renewalTime
                               ? new Date(log.renewalTime)
-                                .toLocaleString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                                  .toLocaleString("zh-CN", {
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                  .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="text-success font-medium whitespace-nowrap">
@@ -3176,31 +3203,32 @@ export default function UserPage() {
                           <TableCell className="whitespace-nowrap">
                             {log.expTimeBefore
                               ? new Date(log.expTimeBefore)
-                                .toLocaleDateString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                                  .toLocaleDateString("zh-CN", {
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                  })
+                                  .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="text-primary font-medium whitespace-nowrap">
                             {log.expTimeAfter
                               ? new Date(log.expTimeAfter)
-                                .toLocaleDateString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                                  .toLocaleDateString("zh-CN", {
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                  })
+                                  .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             <span
-                              className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动续费"
-                                ? "bg-success-500/10 text-success-600"
-                                : "bg-default-500/10 text-default-600"
-                                }`}
+                              className={`text-xs px-2 py-0.5 rounded ${
+                                log.reason === "自动续费"
+                                  ? "bg-success-500/10 text-success-600"
+                                  : "bg-default-500/10 text-default-600"
+                              }`}
                             >
                               {log.reason}
                             </span>
@@ -3222,60 +3250,59 @@ export default function UserPage() {
                   </Table>
                 </div>
               )
+            ) : trafficBuyLogLoading ? (
+              <div className="flex justify-center py-12">
+                <Spinner />
+              </div>
+            ) : trafficBuyLogs.length === 0 ? (
+              <div className="text-center py-12 text-default-500">
+                暂无购流记录
+              </div>
             ) : (
-              trafficBuyLogLoading ? (
-                <div className="flex justify-center py-12">
-                  <Spinner />
-                </div>
-              ) : trafficBuyLogs.length === 0 ? (
-                <div className="text-center py-12 text-default-500">
-                  暂无购流记录
-                </div>
-              ) : (
-                <div className="w-full overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
-                  <Table
-                    aria-label="购流记录"
-                    classNames={{
-                      th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
-                      td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
-                      tr: "hover:bg-default-50/50 transition-colors",
-                    }}
-                  >
-                    <TableHeader>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
-                        购买时间
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        购买金额
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        购买流量
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        购买前余额
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        购买后余额
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        购买前流量
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        购买后流量
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        原因
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
-                        操作
-                      </TableColumn>
-                    </TableHeader>
-                    <TableBody>
-                      {trafficBuyLogs.map((log) => (
-                        <TableRow key={log.id}>
-                          <TableCell className="whitespace-nowrap">
-                            {log.buyTime
-                              ? new Date(log.buyTime)
+              <div className="w-full overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
+                <Table
+                  aria-label="购流记录"
+                  classNames={{
+                    th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
+                    td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
+                    tr: "hover:bg-default-50/50 transition-colors",
+                  }}
+                >
+                  <TableHeader>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
+                      购买时间
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      购买金额
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      购买流量
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      购买前余额
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      购买后余额
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      购买前流量
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      购买后流量
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                      原因
+                    </TableColumn>
+                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
+                      操作
+                    </TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {trafficBuyLogs.map((log) => (
+                      <TableRow key={log.id}>
+                        <TableCell className="whitespace-nowrap">
+                          {log.buyTime
+                            ? new Date(log.buyTime)
                                 .toLocaleString("zh-CN", {
                                   year: "numeric",
                                   month: "2-digit",
@@ -3284,53 +3311,53 @@ export default function UserPage() {
                                   minute: "2-digit",
                                 })
                                 .replace(/\//g, "-")
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="text-danger font-medium whitespace-nowrap">
-                            {(log.buyPrice / 100).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-primary font-medium whitespace-nowrap">
-                            {log.buyAmount} GB
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {(log.balanceBefore / 100).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {(log.balanceAfter / 100).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {log.flowBefore} GB
-                          </TableCell>
-                          <TableCell className="text-primary font-medium whitespace-nowrap">
-                            {log.flowAfter} GB
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动购买流量"
+                            : "-"}
+                        </TableCell>
+                        <TableCell className="text-danger font-medium whitespace-nowrap">
+                          {(log.buyPrice / 100).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-primary font-medium whitespace-nowrap">
+                          {log.buyAmount} GB
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {(log.balanceBefore / 100).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {(log.balanceAfter / 100).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {log.flowBefore} GB
+                        </TableCell>
+                        <TableCell className="text-primary font-medium whitespace-nowrap">
+                          {log.flowAfter} GB
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded ${
+                              log.reason === "自动购买流量"
                                 ? "bg-primary-500/10 text-primary-600"
                                 : "bg-default-500/10 text-default-600"
-                                }`}
-                            >
-                              {log.reason}
-                            </span>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            <Button
-                              isIconOnly
-                              className="bg-danger-50 text-danger-600 hover:bg-danger-100 min-w-7 w-7 h-7"
-                              size="sm"
-                              variant="flat"
-                              onPress={() => setTrafficBuyLogToDelete(log.id)}
-                            >
-                              <DeleteIcon className="w-3.5 h-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )
+                            }`}
+                          >
+                            {log.reason}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <Button
+                            isIconOnly
+                            className="bg-danger-50 text-danger-600 hover:bg-danger-100 min-w-7 w-7 h-7"
+                            size="sm"
+                            variant="flat"
+                            onPress={() => setTrafficBuyLogToDelete(log.id)}
+                          >
+                            <DeleteIcon className="w-3.5 h-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </ModalBody>
           <ModalFooter>
@@ -3419,7 +3446,10 @@ export default function UserPage() {
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button variant="flat" onPress={() => setTrafficBuyLogToDelete(null)}>
+            <Button
+              variant="flat"
+              onPress={() => setTrafficBuyLogToDelete(null)}
+            >
               取消
             </Button>
             <Button
@@ -3462,10 +3492,11 @@ export default function UserPage() {
                   {/* 👇 核心修复 2：分配按钮必须和选择框放在同一行！用 flex-1 min-w-0 压制选择框宽度 */}
                   <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
                     <div
-                      className={`group flex items-center px-3 sm:px-4 h-10 rounded-xl border-2 transition-all cursor-pointer shadow-sm overflow-hidden flex-1 min-w-0 ${isTunnelListExpanded
-                        ? "border-primary bg-primary-50/20 ring-4 ring-primary/10"
-                        : "border-default-200 bg-default-50 hover:border-primary-300"
-                        }`}
+                      className={`group flex items-center px-3 sm:px-4 h-10 rounded-xl border-2 transition-all cursor-pointer shadow-sm overflow-hidden flex-1 min-w-0 ${
+                        isTunnelListExpanded
+                          ? "border-primary bg-primary-50/20 ring-4 ring-primary/10"
+                          : "border-default-200 bg-default-50 hover:border-primary-300"
+                      }`}
                       onClick={() =>
                         setIsTunnelListExpanded(!isTunnelListExpanded)
                       }
@@ -3475,12 +3506,12 @@ export default function UserPage() {
                       >
                         {batchTunnelSelections.size > 0
                           ? `已选 ${batchTunnelSelections.size} 项：` +
-                          Array.from(batchTunnelSelections.keys())
-                            .map(
-                              (id) => tunnels.find((t) => t.id === id)?.name,
-                            )
-                            .filter(Boolean)
-                            .join("、")
+                            Array.from(batchTunnelSelections.keys())
+                              .map(
+                                (id) => tunnels.find((t) => t.id === id)?.name,
+                              )
+                              .filter(Boolean)
+                              .join("、")
                           : "请选择隧道（勾选后配置）"}
                       </span>
                       <svg
@@ -3519,9 +3550,9 @@ export default function UserPage() {
                                   tunnels.filter((t) => !isTunnelAssigned(t.id))
                                     .length > 0 &&
                                   batchTunnelSelections.size ===
-                                  tunnels.filter(
-                                    (t) => !isTunnelAssigned(t.id),
-                                  ).length
+                                    tunnels.filter(
+                                      (t) => !isTunnelAssigned(t.id),
+                                    ).length
                                 }
                                 size="sm"
                                 onValueChange={(isSelected) => {
@@ -3782,9 +3813,9 @@ export default function UserPage() {
                               <span className="text-xs sm:text-sm text-default-600 bg-default-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
                                 {userTunnel.speedLimitName
                                   ? userTunnel.speedLimitName.replace(
-                                    /^限速\s*/,
-                                    "",
-                                  )
+                                      /^限速\s*/,
+                                      "",
+                                    )
                                   : "不限速"}
                               </span>
                             </TableCell>
@@ -3984,9 +4015,9 @@ export default function UserPage() {
                     setEditTunnelForm((prev) =>
                       prev
                         ? {
-                          ...prev,
-                          speedId: selectedKey ? Number(selectedKey) : null,
-                        }
+                            ...prev,
+                            speedId: selectedKey ? Number(selectedKey) : null,
+                          }
                         : null,
                     );
                   }}
@@ -4375,10 +4406,11 @@ export default function UserPage() {
                     </span>
                   </div>
                   <div
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 1
-                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                      }`}
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                      user.status === 1
+                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                    }`}
                   >
                     {user.status === 1 ? "启用" : "禁用"}
                   </div>
@@ -4442,10 +4474,11 @@ export default function UserPage() {
                     </span>
                   </div>
                   <div
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 1
-                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                      }`}
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                      user.status === 1
+                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                    }`}
                   >
                     {user.status === 1 ? "启用" : "禁用"}
                   </div>
@@ -4514,8 +4547,8 @@ export default function UserPage() {
           </ModalHeader>
           <ModalBody className="py-6">
             {historyModalUser &&
-              historyModalUser.quotaHistory &&
-              historyModalUser.quotaHistory.length > 0 ? (
+            historyModalUser.quotaHistory &&
+            historyModalUser.quotaHistory.length > 0 ? (
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {historyModalUser.quotaHistory.map((item) => (
                   <div
@@ -4628,6 +4661,6 @@ export default function UserPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-    </AnimatedPage >
+    </AnimatedPage>
   );
 }

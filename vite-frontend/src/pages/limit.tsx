@@ -55,6 +55,7 @@ const createSpeedLimitFormDefaults = (): SpeedLimitForm => ({
   speed: 100,
   status: 1,
 });
+
 export default function LimitPage() {
   const [loading, setLoading] = useState(true);
   const [rules, setRules] = useState<SpeedLimitRule[]>([]);
