@@ -1069,9 +1069,7 @@ export default function UserPage() {
       autoRenew: user.autoRenew ?? 0,
       autoBuyTraffic: user.autoBuyTraffic ?? 0,
       buyTrafficAmount: Number((user as any).buyTrafficAmount ?? 0),
-      buyTrafficPrice: Number(
-        (((user as any).buyTrafficPrice ?? 0) / 100).toFixed(2),
-      ),
+      buyTrafficPrice: Number((user as any).buyTrafficPrice ?? 0),
       autoBuyTrafficPackageId: Number(
         (user as any).autoBuyTrafficPackageId ?? 0,
       ),
