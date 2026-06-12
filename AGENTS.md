@@ -124,3 +124,8 @@ docker compose -f docker-compose-v6.yml up -d
 
 如果文件路径出现在上面的闭源文件列表中，它就是闭源文件。
 不确定时，检查 `closed/scripts/merge-closed.ps1` 和 `closed/scripts/strip-closed.ps1`。
+
+## 工作流程要求
+
+- **任务管理**: 每次实施计划后，用 todowrite 工具把底部的任务取消掉
+- **提交推送**: 用中文提交修改的文件并推送，不要管其他会话修改的文件
