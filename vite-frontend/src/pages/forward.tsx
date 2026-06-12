@@ -7096,7 +7096,7 @@ export default function ForwardPage() {
                   isLoading={batchChangeModeLoading}
                   onPress={handleBatchChangeMode}
                 >
-                  确认切换模式
+                  确认
                 </Button>
               </ModalFooter>
             </>
