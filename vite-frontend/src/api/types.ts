@@ -87,6 +87,7 @@ export interface ForwardApiItem {
   trafficLimit?: number;
   expiryTime?: number | null;
   speedLimitEnabled?: boolean;
+  mode?: string;
   speedLimit?: number;
   inSpeed?: number; // 新增：实时上行速度 (bytes/s)
   outSpeed?: number; // 新增：实时下行速度 (bytes/s)

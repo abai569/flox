@@ -2945,6 +2945,14 @@ func (r *Repository) BatchUpdateForwardStatus(ids []int64, status int) (int, int
 	return s, f
 }
 
+func (r *Repository) BatchUpdateForwardMode(ids []int64, mode string) error {
+	if r == nil || r.db == nil {
+		return errors.New("数据库未初始化")
+	}
+	now := time.Now().UnixMilli()
+	return r.db.Model(&model.Forward{}).Where("id IN ?", ids).UpdateColumns(map[string]interface{}{"mode": mode, "updated_time": now}).Error
+}
+
 func (r *Repository) CreateTunnelTx(tx *gorm.DB, name string, trafficRatio float64, typeVal int, flow int64, now int64, status int, inIP interface{}, inx int, ipPreference string) (int64, error) {
 	inIPVal := nullStringFromInterface(inIP)
 	tunnel := model.Tunnel{

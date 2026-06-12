@@ -3964,6 +3964,58 @@ func (h *Handler) forwardBatchChangeTunnel(w http.ResponseWriter, r *http.Reques
 	response.WriteJSON(w, response.OK(batchOperationResult{SuccessCount: success, FailCount: fail, Failures: failures}))
 }
 
+func (h *Handler) forwardBatchChangeMode(w http.ResponseWriter, r *http.Request) {
+	tier, _ := middleware.GetLicenseTier()
+	if tier == middleware.TierBlocked {
+		response.WriteJSON(w, response.Err(403, "授权无效，无法操作"))
+		return
+	}
+
+	var req struct {
+		ForwardIDs []int64 `json:"forwardIds"`
+		Mode       string  `json:"mode"`
+	}
+	if err := decodeJSON(r.Body, &req); err != nil || req.Mode == "" {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+	if req.Mode != "gost" && req.Mode != "nftables" && req.Mode != "floxcore" {
+		response.WriteJSON(w, response.ErrDefault("无效的转发模式"))
+		return
+	}
+	actorUserID, actorRole, err := userRoleFromRequest(r)
+	if err != nil {
+		response.WriteJSON(w, response.Err(401, "无效的token或token已过期"))
+		return
+	}
+	success := 0
+	fail := 0
+	failures := make([]batchFailureDetail, 0)
+	for _, id := range req.ForwardIDs {
+		if id <= 0 {
+			continue
+		}
+		forward, accessErr := h.ensureForwardAccessByActor(actorUserID, actorRole, id)
+		if accessErr != nil {
+			fail++
+			failures = appendBatchFailure(failures, id, "", accessErr)
+			continue
+		}
+		if forward.Mode == req.Mode {
+			fail++
+			failures = appendBatchFailureReason(failures, id, forward.Name, "规则已是该模式")
+			continue
+		}
+		if err := h.repo.BatchUpdateForwardMode([]int64{id}, req.Mode); err != nil {
+			fail++
+			failures = appendBatchFailure(failures, id, forward.Name, err)
+			continue
+		}
+		success++
+	}
+	response.WriteJSON(w, response.OK(batchOperationResult{SuccessCount: success, FailCount: fail, Failures: failures}))
+}
+
 func (h *Handler) speedLimitCreate(w http.ResponseWriter, r *http.Request) {
 
 	tier, _ := middleware.GetLicenseTier()

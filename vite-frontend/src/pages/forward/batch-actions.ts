@@ -1,6 +1,7 @@
 import type { BatchOperationResult } from "@/api/types";
 
 import {
+  batchChangeModeForwards,
   batchChangeTunnel,
   batchDeleteForwards,
   batchPauseForwards,
@@ -17,6 +18,7 @@ export interface ForwardBatchActionOutcome {
   progressLabel?: string;
   closeDeleteModal?: boolean;
   closeChangeTunnelModal?: boolean;
+  closeChangeModeModal?: boolean;
   resetTargetTunnel?: boolean;
 }
 
@@ -182,6 +184,39 @@ export const executeForwardBatchChangeTunnel = async (
     return {
       toastVariant: "error",
       toastMessage: extractApiErrorMessage(error, "隧道失败"),
+      shouldRefresh: false,
+    };
+  }
+};
+
+export const executeForwardBatchChangeMode = async (
+  ids: number[],
+  mode: string,
+): Promise<ForwardBatchActionOutcome> => {
+  try {
+    const response = await batchChangeModeForwards(ids, mode);
+
+    if (response.code !== 0) {
+      return {
+        toastVariant: "error",
+        toastMessage: response.msg || "切换模式失败",
+        shouldRefresh: false,
+      };
+    }
+
+    const summary = normalizeBatchResult(response.data);
+
+    return {
+      ...buildBatchToast(summary, `成功切换模式 ${summary.successCount} 项`),
+      shouldRefresh: true,
+      progressPercent: 100,
+      progressLabel: `批量切换模式完成：成功 ${summary.successCount} 项`,
+      closeChangeModeModal: true,
+    };
+  } catch (error) {
+    return {
+      toastVariant: "error",
+      toastMessage: extractApiErrorMessage(error, "切换模式失败"),
       shouldRefresh: false,
     };
   }

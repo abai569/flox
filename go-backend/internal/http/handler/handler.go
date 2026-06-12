@@ -334,6 +334,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/forward/batch-resume", h.forwardBatchResume)
 	mux.HandleFunc("/api/v1/forward/batch-redeploy", h.forwardBatchRedeploy)
 	mux.HandleFunc("/api/v1/forward/batch-change-tunnel", h.forwardBatchChangeTunnel)
+	mux.HandleFunc("/api/v1/forward/batch-change-mode", h.forwardBatchChangeMode)
 	mux.HandleFunc("/api/v1/forward/batch-reset-traffic", h.forwardBatchResetTraffic)
 	mux.HandleFunc("/api/v1/forward/traffic-reset-logs", h.forwardTrafficResetLogs)
 	mux.HandleFunc("/api/v1/forward/traffic-reset-log/delete", h.deleteForwardTrafficResetLog)

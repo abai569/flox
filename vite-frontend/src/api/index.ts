@@ -344,7 +344,10 @@ export const deleteUserRenewalLog = (id: number) =>
   Network.post("/user/renewal-log/delete", { id });
 
 export const getUserTrafficBuyLogs = (userId: number, limit: number = 50) =>
-  Network.post<UserTrafficBuyLogItem[]>("/user/traffic-buy-logs", { userId, limit });
+  Network.post<UserTrafficBuyLogItem[]>("/user/traffic-buy-logs", {
+    userId,
+    limit,
+  });
 export const deleteUserTrafficBuyLog = (id: number) =>
   Network.post("/user/traffic-buy-log/delete", { id });
 
@@ -468,6 +471,11 @@ export const batchChangeTunnel = (data: {
   forwardIds: number[];
   targetTunnelId: number;
 }) => Network.post<BatchOperationResult>("/forward/batch-change-tunnel", data);
+export const batchChangeModeForwards = (forwardIds: number[], mode: string) =>
+  Network.post<BatchOperationResult>("/forward/batch-change-mode", {
+    forwardIds,
+    mode,
+  });
 
 // ─── Group & Permission Management ───────────────────────────────────
 
@@ -1128,10 +1136,15 @@ export const getTelegramConfig = async (): Promise<TelegramConfig> => {
     chat_id: res.data?.telegram_chat_id || "",
     enabled: res.data?.telegram_enabled === "true",
   };
+
   return cfg;
 };
 
-export const updateTelegramConfig = (token: string, chatId: string, enabled: boolean) =>
+export const updateTelegramConfig = (
+  token: string,
+  chatId: string,
+  enabled: boolean,
+) =>
   Network.post("/config/update", {
     telegram_bot_token: token,
     telegram_chat_id: chatId,
