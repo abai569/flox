@@ -1697,7 +1697,7 @@ export default function NodePage() {
 
       if (res.code === 0) {
         toast.success(
-          `SDWAN 组网完成：${res.data?.updatedCount || 0} 个节点，灯塔节点 ID ${res.data?.lighthouseNodeId || ids[0]}`,
+          `SDWAN 组网完成：${res.data?.updatedCount || 0} 个节点，中心节点 ID ${res.data?.lighthouseNodeId || ids[0]}`,
         );
         loadNodes();
       } else {
@@ -3544,8 +3544,8 @@ export default function NodePage() {
                         }
                       />
                       <Input
-                        description="灯塔节点的 Nebula VPN IP"
-                        label="SDWAN 灯塔 VPN IP"
+                        description="中心节点的 Nebula VPN IP"
+                        label="SDWAN 中心节点 VPN IP"
                         placeholder="例如: 192.168.100.1"
                         value={form.sdwanLighthouseVPNIP}
                         variant="bordered"
@@ -3625,8 +3625,8 @@ export default function NodePage() {
                         }
                       />
                       <Input
-                        description="灯塔节点的公网地址:端口"
-                        label="SDWAN 灯塔公网地址"
+                        description="中心节点的公网地址:端口"
+                        label="SDWAN 中心节点公网地址"
                         placeholder="例如: 1.2.3.4:4242"
                         value={form.sdwanLighthouseAddr}
                         variant="bordered"

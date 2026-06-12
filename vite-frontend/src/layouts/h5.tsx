@@ -140,7 +140,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
     },
     {
       path: "/sdwan",
-      label: "SDWAN",
+      label: "组网",
       adminOnly: true,
       premiumOnly: true,
       icon: (
