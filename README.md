@@ -15,7 +15,7 @@
 - 支持隧道修改配置、转发修改隧道
 - 🔐 **正式授权系统** - License 验证、域名绑定、过期控制
 
-## 部署流程
+## 面板部署流程
 ---
 ### Docker Compose部署
 
@@ -38,6 +38,23 @@ bash <(curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install
 ```bash
 bash <(curl -L https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh) uninstall
 ```
+
+## 节点卸载命令
+---
+### 国外节点卸载
+
+**卸载命令（交互式）：**
+```bash
+bash <(curl -L https://raw.githubusercontent.com/abai569/flox/main/install.sh) uninstall
+```
+
+### 国内节点卸载
+
+**卸载命令（交互式）：**
+```bash
+bash <(curl -L https://chfs.646321.xyz:8/chfs/shared/flox/install.sh) uninstall
+```
+
 
 > ⚠️ 升级时会自动检测并兼容带 `v` 或不带 `v` 的版本号格式。
 
