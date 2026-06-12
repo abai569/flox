@@ -246,6 +246,8 @@ gitee/
 
 # 其他
 Clean-Dev.bat
+AGENTS.md
+.gitignore
 
 # 压缩文件
 *.7z

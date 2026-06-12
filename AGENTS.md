@@ -121,3 +121,80 @@ docker compose -f docker-compose-v6.yml up -d
 - Use an incrementing numeric prefix and a short plan-summary name: `NNN-<plan-summary>.md` (for example, `001-auth-refactor.md`, `002-federation-api-cleanup.md`).
 - The numeric prefix must increase by 1 for each new plan.
 - In each plan document, keep a task checklist and mark each task as completed immediately after finishing it.
+
+## CLOSED-SOURCE WORKFLOW (CRITICAL)
+
+### 闭源文件列表
+
+以下文件属于闭源子项目 `flox-closed`，由脚本管理：
+
+**Go Backend:**
+- `go-backend/internal/store/model/{product,order,payment_config,billing}.go`
+- `go-backend/internal/store/repo/repository_{order,payment_config,package_groups,billing}.go`
+- `go-backend/internal/http/handler/{product,order,payment,package_group,billing,admin_telegram}.go`
+- `go-backend/internal/http/middleware/trial_guard.go`
+- `go-backend/internal/telegram/{bot,notifier}.go`
+- `go-backend/internal/payment/` (整个目录)
+
+**Frontend:**
+- `vite-frontend/src/pages/{admin-telegram,shop,admin-orders,admin-payment,admin-plans,myhome}.tsx`
+- `vite-frontend/src/pages/admin-plans/{package-grouped-view,package-group-manager}.tsx`
+
+**Go Gost (FloxCore):**
+- `go-gost/x/adapter/` (整个目录)
+- `go-gost/x/flox-core/` (整个目录)
+- `go-gost/x/nftables/conntrack.go`
+- `go-gost/x/nftables/conntrack_stub.go`
+
+### 日常开发流程
+
+```
+1. ./scripts/merge-closed.ps1
+   → 从 closed/ 恢复所有闭源文件到主仓库
+
+2. 直接在主仓库修改文件（包括闭源文件）
+   → 不要区分开源/闭源，正常改
+
+3. git add -A && git commit && git push
+   → 主仓库提交（闭源文件此时在主仓库中）
+```
+
+### 发布流程（CRITICAL）
+
+```
+1. ./scripts/strip-closed.ps1
+   → ① 自动把改过的闭源文件复制回 closed/ 目录
+   → ② 从主仓库删除所有闭源文件
+
+2. cd closed
+   git add -A && git commit -m "update closed"
+   git push origin main
+   → 闭源文件改动推送到私有仓库 abai569/flox-closed
+
+3. cd ..
+   git add -A && git commit -m "..."
+   git push origin main
+   → 主仓库提交（此时不含闭源文件）
+
+4. git tag <version>; git push origin <version>
+   → CI 发版，自动拉私有仓库 → 全功能镜像
+```
+
+### 继续开发
+
+```
+1. ./scripts/merge-closed.ps1
+   → 恢复最新闭源文件到主仓库
+```
+
+### 绝对禁止
+
+- ❌ 修改闭源文件后直接推主仓库，不跑 strip-closed.ps1
+-  手动复制闭源文件到 closed/（用脚本）
+- ❌ 在 main repo 提交闭源文件（发布前必须 strip）
+-  忘记同步 closed 仓库（发布时必须先推 closed）
+
+### 判断文件是否闭源
+
+如果文件路径出现在上面的闭源文件列表中，它就是闭源文件。
+不确定时，检查 `closed/scripts/merge-closed.ps1` 和 `closed/scripts/strip-closed.ps1`。
