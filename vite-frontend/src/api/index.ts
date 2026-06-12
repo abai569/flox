@@ -135,6 +135,75 @@ export const getDashboardNodeExpiryList = () =>
   Network.post<NodeApiItem[]>("/node/list", {});
 export const updateNode = (data: NodeMutationPayload) =>
   Network.post("/node/update", data);
+export const issueNodeSDWANCert = (id: number, vpnIp?: string) =>
+  Network.post<{
+    vpnIp: string;
+    caPem: string;
+    certPem: string;
+    keyPem: string;
+    isLighthouse: boolean;
+    lighthouseVPNIP: string;
+    lighthouseAddr: string;
+    remoteConfig: string;
+  }>("/node/sdwan/issue-cert", { id, vpnIp: vpnIp || "" });
+export const bootstrapNodeSDWAN = (nodeIds: number[], lighthouseNodeId?: number) =>
+  Network.post<{
+    updatedCount: number;
+    lighthouseNodeId: number;
+    lighthouseVPNIP: string;
+    lighthouseAddr: string;
+  }>("/node/sdwan/bootstrap", {
+    nodeIds,
+    lighthouseNodeId: lighthouseNodeId || 0,
+  });
+export const getSDWANStatus = () =>
+  Network.post<{
+    tier: string;
+    caReady: boolean;
+    lighthouseNodeId: number;
+    lighthouseName: string;
+    lighthouseVPNIP: string;
+    lighthouseAddr: string;
+    backupLighthouses: Array<{
+      id: number;
+      name: string;
+      vpnIp: string;
+      addr: string;
+    }>;
+    nodes: Array<{
+      id: number;
+      name: string;
+      status: number;
+      vpnIp: string;
+      isLighthouse: boolean;
+      role: string;
+      hasCert: boolean;
+      lighthouseAddr: string;
+    }>;
+  }>("/sdwan/status");
+export const getSDWANSettings = () =>
+  Network.post<{
+    networkCIDR: string;
+    autoReconcileEnabled: boolean;
+    reconcileIntervalSec: number;
+  }>("/sdwan/settings");
+export const saveSDWANSettings = (data: {
+  networkCIDR: string;
+  autoReconcileEnabled: boolean;
+  reconcileIntervalSec: number;
+}) => Network.post("/sdwan/settings/save", data);
+export const setSDWANLighthouse = (nodeId: number) =>
+  Network.post<{
+    lighthouseNodeId: number;
+    lighthouseVPNIP: string;
+    lighthouseAddr: string;
+  }>("/sdwan/set-lighthouse", { nodeId });
+export const reconcileSDWAN = () => Network.post("/sdwan/reconcile");
+export const toggleSDWANBackupLighthouse = (nodeId: number, enabled: boolean) =>
+  Network.post<{ backupNodeIds: number[] }>("/sdwan/toggle-backup-lighthouse", {
+    nodeId,
+    enabled,
+  });
 export const deleteNode = (id: number) => Network.post("/node/delete", { id });
 export const getNodeInstallCommand = (
   id: number,

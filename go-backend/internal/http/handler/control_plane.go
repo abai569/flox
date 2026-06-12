@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"go-backend/internal/http/client"
+	"go-backend/internal/middleware"
 	"go-backend/internal/store/model"
 	"go-backend/internal/ws"
 )
@@ -299,6 +300,9 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	if strings.EqualFold(forward.Mode, "nftables") {
 		fmt.Printf("[nft.debug] syncForwardServicesWithWarnings: nft mode branch, forwardID=%d\n", forward.ID)
 		return nil, h.syncNftablesRules(forward, tunnel, ports, userTunnelID, speed)
+	}
+	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
+		return nil, ensureForwardModeAllowedForTier(tier, forward.Mode)
 	}
 
 	// ✅ 动态限速器名称
@@ -1872,8 +1876,49 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 		if forward.MaxConnections > 0 {
 			meta["maxConnections"] = forward.MaxConnections
 		}
-		if strings.EqualFold(forward.Mode, "floxcore") {
-			meta["kernel"] = "floxcore"
+		if isPremiumForwardMode(forward.Mode) {
+			meta["kernel"] = normalizeForwardMode(forward.Mode)
+		}
+		if strings.EqualFold(forward.Mode, forwardModeSDWAN) {
+			if cfgYAML := parseSDWANConfigYAMLFromRemoteConfig(node.RemoteConfig); cfgYAML != "" {
+				meta["sdwanConfigYAML"] = cfgYAML
+			}
+			if cfgPath := parseSDWANConfigPathFromRemoteConfig(node.RemoteConfig); cfgPath != "" {
+				meta["sdwanConfigPath"] = cfgPath
+			}
+			if caPath := parseSDWANCAPathFromRemoteConfig(node.RemoteConfig); caPath != "" {
+				meta["sdwanCAPath"] = caPath
+			}
+			if caPEM := parseSDWANCAPEMFromRemoteConfig(node.RemoteConfig); caPEM != "" {
+				meta["sdwanCAPEM"] = caPEM
+			}
+			if certPath := parseSDWANCertPathFromRemoteConfig(node.RemoteConfig); certPath != "" {
+				meta["sdwanCertPath"] = certPath
+			}
+			if certPEM := parseSDWANCertPEMFromRemoteConfig(node.RemoteConfig); certPEM != "" {
+				meta["sdwanCertPEM"] = certPEM
+			}
+			if keyPath := parseSDWANKeyPathFromRemoteConfig(node.RemoteConfig); keyPath != "" {
+				meta["sdwanKeyPath"] = keyPath
+			}
+			if keyPEM := parseSDWANKeyPEMFromRemoteConfig(node.RemoteConfig); keyPEM != "" {
+				meta["sdwanKeyPEM"] = keyPEM
+			}
+			if lighthouseVPNIP := parseSDWANLighthouseVPNIPFromRemoteConfig(node.RemoteConfig); lighthouseVPNIP != "" {
+				meta["sdwanLighthouseVPNIP"] = lighthouseVPNIP
+			}
+			if lighthouseAddr := parseSDWANLighthouseAddrFromRemoteConfig(node.RemoteConfig); lighthouseAddr != "" {
+				meta["sdwanLighthouseAddr"] = lighthouseAddr
+			}
+			if listenHost := parseSDWANListenHostFromRemoteConfig(node.RemoteConfig); listenHost != "" {
+				meta["sdwanListenHost"] = listenHost
+			}
+			if listenPort := parseSDWANListenPortFromRemoteConfig(node.RemoteConfig); listenPort != "" {
+				meta["sdwanListenPort"] = listenPort
+			}
+			if isLighthouse := parseSDWANIsLighthouseFromRemoteConfig(node.RemoteConfig); isLighthouse != "" {
+				meta["sdwanIsLighthouse"] = isLighthouse
+			}
 		}
 		if len(meta) > 0 {
 			service["metadata"] = meta

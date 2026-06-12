@@ -24,7 +24,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(13)
+	h.jobsWG.Add(14)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -40,6 +40,7 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runExpirePackageSubscriptionsLoop(ctx)
 	go h.runNodeNotifyCooldownLoop(ctx)
 	go h.runTelegramBotLoop(ctx)
+	go h.runSDWANReconcileLoop(ctx)
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier != middleware.TierFree {
@@ -89,6 +90,29 @@ func (h *Handler) runTunnelQualityProber(ctx context.Context) {
 	defer h.jobsWG.Done()
 	if h.qualityProber != nil {
 		h.qualityProber.Start(ctx)
+	}
+}
+
+func (h *Handler) runSDWANReconcileLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	ticker := time.NewTicker(h.getSDWANReconcileInterval())
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !h.getSDWANAutoReconcileEnabled() {
+				continue
+			}
+			if h == nil || h.repo == nil {
+				continue
+			}
+			if tier, _ := middleware.GetLicenseTier(); tier != middleware.TierPremium {
+				continue
+			}
+			_ = h.reconcileSDWANLighthouses()
+		}
 	}
 }
 

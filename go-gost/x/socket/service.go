@@ -27,8 +27,11 @@ func kernelName(cfg *config.ServiceConfig) string {
 		return "gost"
 	}
 	if v, ok := cfg.Metadata["kernel"]; ok {
-		if s, ok := v.(string); ok && s == "floxcore" {
-			return "floxcore"
+		if s, ok := v.(string); ok {
+			s = strings.TrimSpace(strings.ToLower(s))
+			if s == "floxcore" || s == "sdwan" {
+				return s
+			}
 		}
 	}
 	return "gost"
@@ -100,7 +103,8 @@ func toFloxConfig(cfg *config.ServiceConfig) *floxcfg.ServiceConfig {
 
 // parseService routes to the appropriate kernel based on metadata.kernel.
 func parseService(cfg *config.ServiceConfig) (service.Service, error) {
-	if kernelName(cfg) == "floxcore" {
+	switch kernelName(cfg) {
+	case "floxcore":
 		switch cfg.Handler.Type {
 		case "tcp", "udp":
 			sfc := toFloxConfig(cfg)
@@ -120,6 +124,14 @@ func parseService(cfg *config.ServiceConfig) (service.Service, error) {
 		default:
 			// fallback to GOST for unknown handler types
 			return parser.ParseService(cfg)
+		}
+	case "sdwan":
+		switch cfg.Handler.Type {
+		case "tcp", "udp":
+			sfc := toFloxConfig(cfg)
+			return adapter.NewSDWANService(sfc)
+		default:
+			return nil, fmt.Errorf("sdwan kernel does not support handler type %s", cfg.Handler.Type)
 		}
 	}
 	return parser.ParseService(cfg)

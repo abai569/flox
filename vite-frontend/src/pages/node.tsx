@@ -65,6 +65,8 @@ import { NodeListView } from "@/pages/node/node-list-view";
 import {
   createNode,
   getNodeList,
+  bootstrapNodeSDWAN,
+  issueNodeSDWANCert,
   updateNode,
   deleteNode,
   getNodeInstallCommand,
@@ -131,6 +133,7 @@ interface Node {
   tcpListenAddr?: string;
   udpListenAddr?: string;
   extraIPs?: string;
+  remoteConfig?: string;
   version?: string;
   http?: number;
   tls?: number;
@@ -167,6 +170,20 @@ interface NodeForm {
   udpListenAddr: string;
   interfaceName: string;
   extraIPs: string;
+  remoteConfig: string;
+  sdwanConfigPath: string;
+  sdwanConfigYAML: string;
+  sdwanCAPath: string;
+  sdwanCAPEM: string;
+  sdwanCertPath: string;
+  sdwanCertPEM: string;
+  sdwanKeyPath: string;
+  sdwanKeyPEM: string;
+  sdwanNodeVPNIP: string;
+  sdwanLighthouseVPNIP: string;
+  sdwanLighthouseAddr: string;
+  sdwanListenHost: string;
+  sdwanListenPort: string;
   http: number;
   tls: number;
   socks: number;
@@ -175,6 +192,93 @@ interface NodeForm {
 }
 type NodeViewMode = "grid" | "list" | "grouped";
 const EXPIRING_SOON_DAYS = 7;
+
+const extractSDWANConfigPath = (raw?: string): string => {
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return "";
+    }
+
+    return typeof parsed.sdwanConfigPath === "string"
+      ? parsed.sdwanConfigPath
+      : "";
+  } catch {
+    return "";
+  }
+};
+
+const extractSDWANField = (raw: string | undefined, key: string): string => {
+  if (!raw) {
+    return "";
+  }
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return "";
+    }
+
+    return typeof parsed[key] === "string" ? (parsed[key] as string) : "";
+  } catch {
+    return "";
+  }
+};
+
+const extractSDWANConfigYAML = (raw?: string): string => {
+  return extractSDWANField(raw, "sdwanConfigYAML");
+};
+
+const mergeSDWANConfig = (
+  raw: string,
+  path: string,
+  yaml: string,
+  fields: Record<string, string>,
+): string => {
+  let parsed: Record<string, unknown> = {};
+
+  if (raw.trim()) {
+    try {
+      const next = JSON.parse(raw) as Record<string, unknown>;
+
+      if (next && typeof next === "object" && !Array.isArray(next)) {
+        parsed = next;
+      }
+    } catch {
+      parsed = {};
+    }
+  }
+
+  const trimmedPath = path.trim();
+
+  if (trimmedPath) {
+    parsed.sdwanConfigPath = trimmedPath;
+  } else {
+    delete parsed.sdwanConfigPath;
+  }
+
+  if (yaml.trim()) {
+    parsed.sdwanConfigYAML = yaml;
+  } else {
+    delete parsed.sdwanConfigYAML;
+  }
+
+  Object.entries(fields).forEach(([key, value]) => {
+    const trimmedValue = value.trim();
+
+    if (trimmedValue) {
+      parsed[key] = trimmedValue;
+    } else {
+      delete parsed[key];
+    }
+  });
+
+  return Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : "";
+};
 
 type NodeExpiryState = "permanent" | "healthy" | "expiringSoon" | "expired";
 type NodeFilterMode = "all" | "expiringSoon" | "expired" | "withExpiry";
@@ -372,6 +476,20 @@ export default function NodePage() {
       udpListenAddr: "[::]",
       interfaceName: "",
       extraIPs: "",
+      remoteConfig: "",
+      sdwanConfigPath: "",
+      sdwanConfigYAML: "",
+      sdwanCAPath: "",
+      sdwanCAPEM: "",
+      sdwanCertPath: "",
+      sdwanCertPEM: "",
+      sdwanKeyPath: "",
+      sdwanKeyPEM: "",
+      sdwanNodeVPNIP: "",
+      sdwanLighthouseVPNIP: "",
+      sdwanLighthouseAddr: "",
+      sdwanListenHost: "",
+      sdwanListenPort: "",
       secret: "",
       http: 0,
       tls: 0,
@@ -385,6 +503,7 @@ export default function NodePage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [batchSDWANLoading, setBatchSDWANLoading] = useState(false);
   const [viewMode, setViewMode] = useLocalStorageState<NodeViewMode>(
     "node-view-mode",
     "grid",
@@ -1046,6 +1165,26 @@ export default function NodePage() {
       udpListenAddr: node.udpListenAddr || "[::]",
       interfaceName: (node as any).interfaceName || "",
       extraIPs: node.extraIPs || "",
+      remoteConfig: node.remoteConfig || "",
+      sdwanConfigPath: extractSDWANConfigPath(node.remoteConfig),
+      sdwanConfigYAML: extractSDWANConfigYAML(node.remoteConfig),
+      sdwanCAPath: extractSDWANField(node.remoteConfig, "sdwanCAPath"),
+      sdwanCAPEM: extractSDWANField(node.remoteConfig, "sdwanCAPEM"),
+      sdwanCertPath: extractSDWANField(node.remoteConfig, "sdwanCertPath"),
+      sdwanCertPEM: extractSDWANField(node.remoteConfig, "sdwanCertPEM"),
+      sdwanKeyPath: extractSDWANField(node.remoteConfig, "sdwanKeyPath"),
+      sdwanKeyPEM: extractSDWANField(node.remoteConfig, "sdwanKeyPEM"),
+      sdwanNodeVPNIP: extractSDWANField(node.remoteConfig, "sdwanNodeVPNIP"),
+      sdwanLighthouseVPNIP: extractSDWANField(
+        node.remoteConfig,
+        "sdwanLighthouseVPNIP",
+      ),
+      sdwanLighthouseAddr: extractSDWANField(
+        node.remoteConfig,
+        "sdwanLighthouseAddr",
+      ),
+      sdwanListenHost: extractSDWANField(node.remoteConfig, "sdwanListenHost"),
+      sdwanListenPort: extractSDWANField(node.remoteConfig, "sdwanListenPort"),
       secret: node.secret || "",
       http: typeof node.http === "number" ? node.http : 1,
       tls: typeof node.tls === "number" ? node.tls : 1,
@@ -1549,12 +1688,71 @@ export default function NodePage() {
       setBatchResetTrafficLoading(false);
     }
   };
+  const handleBatchBootstrapSDWAN = async () => {
+    if (selectedIds.size === 0) return;
+    setBatchSDWANLoading(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await bootstrapNodeSDWAN(ids, ids[0]);
+
+      if (res.code === 0) {
+        toast.success(
+          `SDWAN 组网完成：${res.data?.updatedCount || 0} 个节点，灯塔节点 ID ${res.data?.lighthouseNodeId || ids[0]}`,
+        );
+        loadNodes();
+      } else {
+        toast.error(res.msg || "SDWAN 组网失败");
+      }
+    } catch {
+      toast.error("SDWAN 组网失败");
+    } finally {
+      setBatchSDWANLoading(false);
+    }
+  };
   const handleSubmit = async () => {
     if (!validateForm()) return;
     setSubmitLoading(true);
     try {
       const apiCall = isEdit ? updateNode : createNode;
-      const { intranetIp, serverIpV4, serverIpV6, secret, ...rest } = form;
+      const {
+        intranetIp,
+        serverIpV4,
+        serverIpV6,
+        secret,
+        remoteConfig,
+        sdwanConfigPath,
+        sdwanConfigYAML,
+        sdwanCAPath,
+        sdwanCAPEM,
+        sdwanCertPath,
+        sdwanCertPEM,
+        sdwanKeyPath,
+        sdwanKeyPEM,
+        sdwanNodeVPNIP,
+        sdwanLighthouseVPNIP,
+        sdwanLighthouseAddr,
+        sdwanListenHost,
+        sdwanListenPort,
+        ...rest
+      } = form;
+      const nextRemoteConfig = mergeSDWANConfig(
+        remoteConfig,
+        sdwanConfigPath,
+        sdwanConfigYAML,
+        {
+          sdwanCAPath,
+          sdwanCAPEM,
+          sdwanCertPath,
+          sdwanCertPEM,
+          sdwanKeyPath,
+          sdwanKeyPEM,
+          sdwanNodeVPNIP,
+          sdwanLighthouseVPNIP,
+          sdwanLighthouseAddr,
+          sdwanListenHost,
+          sdwanListenPort,
+        },
+      );
       const data = {
         ...rest,
         ...(secret && secret.trim() !== "" ? { secret: secret.trim() } : {}),
@@ -1563,6 +1761,7 @@ export default function NodePage() {
         renewalCycle: form.renewalCycle,
         groupId: form.groupId,
         extraIPs: form.extraIPs,
+        remoteConfig: nextRemoteConfig,
         // 分别传递三个字段给后端
         intranetIp: intranetIp?.trim(),
         serverIpV4: serverIpV4?.trim(),
@@ -1594,6 +1793,7 @@ export default function NodePage() {
                     tcpListenAddr: form.tcpListenAddr,
                     udpListenAddr: form.udpListenAddr,
                     interfaceName: form.interfaceName,
+                    remoteConfig: nextRemoteConfig,
                     secret: form.secret || n.secret,
                     http: form.http,
                     tls: form.tls,
@@ -1615,6 +1815,39 @@ export default function NodePage() {
       }
     } catch {
       toast.error("网络错误，请重试");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+  const handleIssueSDWANCert = async () => {
+    if (!form.id || form.id <= 0) {
+      toast.error("请先保存节点后再签发 SDWAN 证书");
+      return;
+    }
+    setSubmitLoading(true);
+    try {
+      const res = await issueNodeSDWANCert(form.id, form.sdwanNodeVPNIP);
+
+      if (res.code === 0 && res.data) {
+        toast.success("SDWAN 证书签发成功");
+        setForm((prev) => ({
+          ...prev,
+          remoteConfig: res.data?.remoteConfig || prev.remoteConfig,
+          sdwanNodeVPNIP: res.data?.vpnIp || prev.sdwanNodeVPNIP,
+          sdwanCAPEM: res.data?.caPem || prev.sdwanCAPEM,
+          sdwanCertPEM: res.data?.certPem || prev.sdwanCertPEM,
+          sdwanKeyPEM: res.data?.keyPem || prev.sdwanKeyPEM,
+          sdwanLighthouseVPNIP:
+            res.data?.lighthouseVPNIP || prev.sdwanLighthouseVPNIP,
+          sdwanLighthouseAddr:
+            res.data?.lighthouseAddr || prev.sdwanLighthouseAddr,
+        }));
+        loadNodes();
+      } else {
+        toast.error(res.msg || "SDWAN 证书签发失败");
+      }
+    } catch {
+      toast.error("SDWAN 证书签发失败");
     } finally {
       setSubmitLoading(false);
     }
@@ -2508,6 +2741,16 @@ export default function NodePage() {
                   清空
                 </Button>
                 <Button
+                  className="bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-300 dark:hover:bg-violet-900/45"
+                  isDisabled={selectedIds.size === 0}
+                  isLoading={batchSDWANLoading}
+                  size="sm"
+                  variant="flat"
+                  onPress={handleBatchBootstrapSDWAN}
+                >
+                  SDWAN组网
+                </Button>
+                <Button
                   color="warning"
                   isDisabled={selectedIds.size === 0}
                   isLoading={batchUpgradeLoading}
@@ -3228,6 +3471,195 @@ export default function NodePage() {
                           setForm((prev) => ({
                             ...prev,
                             extraIPs: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="SDWAN/Nebula 本机配置文件路径，留空走 agent 默认路径"
+                        label="SDWAN 配置路径"
+                        placeholder="例如: /etc/flox_agent/sdwan/config.yml"
+                        value={form.sdwanConfigPath}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanConfigPath: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <Textarea
+                      description="可直接粘贴该节点使用的 Nebula YAML；填写后优先于配置路径"
+                      label="SDWAN 配置 YAML"
+                      maxRows={8}
+                      minRows={4}
+                      placeholder="例如: pki:\n  ca: /etc/flox_agent/sdwan/ca.crt\n..."
+                      value={form.sdwanConfigYAML}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          sdwanConfigYAML: e.target.value,
+                        }))
+                      }
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input
+                        description="Nebula CA 证书路径"
+                        label="SDWAN CA 路径"
+                        placeholder="例如: /etc/flox_agent/sdwan/ca.crt"
+                        value={form.sdwanCAPath}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanCAPath: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="Nebula 主机证书路径"
+                        label="SDWAN Cert 路径"
+                        placeholder="例如: /etc/flox_agent/sdwan/host.crt"
+                        value={form.sdwanCertPath}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanCertPath: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="Nebula 主机私钥路径"
+                        label="SDWAN Key 路径"
+                        placeholder="例如: /etc/flox_agent/sdwan/host.key"
+                        value={form.sdwanKeyPath}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanKeyPath: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="灯塔节点的 Nebula VPN IP"
+                        label="SDWAN 灯塔 VPN IP"
+                        placeholder="例如: 192.168.100.1"
+                        value={form.sdwanLighthouseVPNIP}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanLighthouseVPNIP: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="当前节点在 SDWAN 中的 Nebula VPN IP；留空时签发证书会自动分配"
+                        label="SDWAN 节点 VPN IP"
+                        placeholder="例如: 192.168.100.10"
+                        value={form.sdwanNodeVPNIP}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanNodeVPNIP: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    {isEdit && (
+                      <div className="flex justify-end">
+                        <Button
+                          color="primary"
+                          variant="flat"
+                          onPress={handleIssueSDWANCert}
+                        >
+                          一键签发 SDWAN 证书
+                        </Button>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Textarea
+                        description="可直接粘贴 Nebula CA PEM，填写后优先于 CA 路径"
+                        label="SDWAN CA PEM"
+                        maxRows={6}
+                        minRows={3}
+                        value={form.sdwanCAPEM}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanCAPEM: e.target.value,
+                          }))
+                        }
+                      />
+                      <Textarea
+                        description="可直接粘贴 Nebula 主机证书 PEM，填写后优先于 Cert 路径"
+                        label="SDWAN Cert PEM"
+                        maxRows={6}
+                        minRows={3}
+                        value={form.sdwanCertPEM}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanCertPEM: e.target.value,
+                          }))
+                        }
+                      />
+                      <Textarea
+                        description="可直接粘贴 Nebula 主机私钥 PEM，填写后优先于 Key 路径"
+                        label="SDWAN Key PEM"
+                        maxRows={6}
+                        minRows={3}
+                        value={form.sdwanKeyPEM}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanKeyPEM: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="灯塔节点的公网地址:端口"
+                        label="SDWAN 灯塔公网地址"
+                        placeholder="例如: 1.2.3.4:4242"
+                        value={form.sdwanLighthouseAddr}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanLighthouseAddr: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="Nebula UDP 监听地址，默认 0.0.0.0"
+                        label="SDWAN 监听地址"
+                        placeholder="例如: 0.0.0.0"
+                        value={form.sdwanListenHost}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanListenHost: e.target.value,
+                          }))
+                        }
+                      />
+                      <Input
+                        description="Nebula UDP 监听端口，默认 4242"
+                        label="SDWAN 监听端口"
+                        placeholder="例如: 4242"
+                        value={form.sdwanListenPort}
+                        variant="bordered"
+                        onChange={(e) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            sdwanListenPort: e.target.value,
                           }))
                         }
                       />

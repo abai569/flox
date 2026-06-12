@@ -9,6 +9,7 @@ import TZPage from "@/pages/tz";
 import ForwardPage from "@/pages/forward";
 import TunnelPage from "@/pages/tunnel";
 import NodePage from "@/pages/node";
+import SDWANPage from "@/pages/sdwan";
 import UserPage from "@/pages/user";
 import GroupPage from "@/pages/group";
 import ProfilePage from "@/pages/profile";
@@ -170,6 +171,14 @@ function App() {
           </ProtectedRoute>
         }
         path="/node"
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <SDWANPage />
+          </ProtectedRoute>
+        }
+        path="/sdwan"
       />
       <Route
         element={

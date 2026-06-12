@@ -48,6 +48,7 @@ interface MenuItem {
   adminOnly?: boolean;
   userOnly?: boolean;
   restrictedAccessible?: boolean;
+  premiumOnly?: boolean;
 }
 
 interface PasswordForm {
@@ -197,6 +198,17 @@ export default function AdminLayout({
         </svg>
       ),
       adminOnly: true,
+    },
+    {
+      path: "/sdwan",
+      label: "SDWAN",
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M4 5a2 2 0 012-2h8a2 2 0 012 2v3h-2V5H6v10h4v2H6a2 2 0 01-2-2V5zm9.707 4.293a1 1 0 00-1.414 1.414L13.586 12H9a1 1 0 100 2h4.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414l-3-3z" />
+        </svg>
+      ),
+      adminOnly: true,
+      premiumOnly: true,
     },
     {
       path: "/monitor",
@@ -683,6 +695,7 @@ export default function AdminLayout({
     (item) =>
       !(item.adminOnly && !isAdmin) &&
       !(item.userOnly && isAdmin) &&
+      !(item.premiumOnly && licenseInfo?.tier === "free") &&
       !(item.path === "/monitor" && monitorAllowed !== true) &&
       !(item.path === "/shop" && !isAdmin && !storeEnabled) &&
       !(

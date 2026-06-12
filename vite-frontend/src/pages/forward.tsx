@@ -55,6 +55,7 @@ import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
 import {
   createForward,
   getForwardList,
+  getLicenseInfo,
   getSpeedLimitList,
   getPeerShareList,
   getPeerRemoteUsageList,
@@ -72,6 +73,7 @@ import {
   batchResetForward,
   getForwardTrafficResetLogs,
   deleteForwardTrafficResetLog,
+  type LicenseInfo,
 } from "@/api";
 import {
   type ForwardAddressItem,
@@ -134,7 +136,7 @@ interface Forward {
   speedLimit?: number;
   inSpeed?: number; // 新增：实时上行速度 (bytes/s)
   outSpeed?: number; // 新增：实时下行速度 (bytes/s)
-  mode?: "gost" | "nftables" | "floxcore";
+  mode?: "gost" | "nftables" | "floxcore" | "sdwan";
 }
 interface Tunnel {
   id: number;
@@ -173,7 +175,7 @@ interface ForwardForm {
   expiryTime: number | null;
   speedLimitEnabled: boolean;
   speedLimit: number;
-  mode: "gost" | "nftables" | "floxcore";
+  mode: "gost" | "nftables" | "floxcore" | "sdwan";
 }
 const createForwardFormDefaults = (): ForwardForm => ({
   name: "",
@@ -843,6 +845,11 @@ const SortableTableRow = ({
               fc
             </span>
           )}
+          {forward.mode === "sdwan" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-800">
+              sdw
+            </span>
+          )}
         </span>
       </TableCell>
       <TableCell className={rowBg}>
@@ -1172,6 +1179,11 @@ const SortableCompactTableRow = ({
               fc
             </span>
           )}
+          {forward.mode === "sdwan" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-800">
+              sdw
+            </span>
+          )}
         </span>
       </TableCell>
       <TableCell className={`whitespace-nowrap ${rowBg}`}>
@@ -1448,6 +1460,7 @@ export default function ForwardPage() {
   const [allTunnels, setAllTunnels] = useState<Tunnel[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
   const [speedLimits, setSpeedLimits] = useState<SpeedLimitApiItem[]>([]);
+  const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null);
   const [forwardPage, setForwardPage] = useState(1);
   const [forwardPageSize, setForwardPageSize] = useLocalStorageState(
     "forwardPageSize",
@@ -1563,6 +1576,7 @@ export default function ForwardPage() {
   const [batchTargetTunnelId, setBatchTargetTunnelId] = useState<number | null>(
     null,
   );
+  const isFreeTier = licenseInfo?.tier === "free";
   const [batchRedeployLoading, setBatchRedeployLoading] = useState(false);
   const [batchPauseLoading, setBatchPauseLoading] = useState(false);
   const [batchResumeLoading, setBatchResumeLoading] = useState(false);
@@ -2175,10 +2189,12 @@ export default function ForwardPage() {
       setLoading(lod);
       try {
         const params = {}; // 永远拉取全量数据
-        const [tunnelsRes, forwardsRes, speedLimitsRes] = await Promise.all([
+        const [tunnelsRes, forwardsRes, speedLimitsRes, licenseRes] =
+          await Promise.all([
           userTunnel(),
           getForwardList(params),
           getSpeedLimitList(),
+          getLicenseInfo(),
         ]);
 
         if (tunnelsRes.code === 0) {
@@ -2192,6 +2208,9 @@ export default function ForwardPage() {
         }
         if (speedLimitsRes.code === 0)
           setSpeedLimits(speedLimitsRes.data || []);
+        if (licenseRes.code === 0) {
+          setLicenseInfo(licenseRes.data || null);
+        }
         if (isAdmin) {
           const nodesRes = await getNodeList();
 
@@ -2209,6 +2228,22 @@ export default function ForwardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!isFreeTier) {
+      return;
+    }
+    if (form.mode === "floxcore" || form.mode === "sdwan") {
+      setForm((prev) => ({
+        ...prev,
+        mode: "gost",
+      }));
+    }
+    if (batchTargetMode === "floxcore" || batchTargetMode === "sdwan") {
+      setBatchTargetMode("gost");
+    }
+  }, [batchTargetMode, form.mode, isFreeTier, setForm]);
+
   usePullToRefresh(loadData);
   // 定时刷新连接数（每5秒）
   useEffect(() => {
@@ -4366,6 +4401,16 @@ export default function ForwardPage() {
                     nft
                   </span>
                 )}
+                {forward.mode === "floxcore" && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800 flex-shrink-0">
+                    fc
+                  </span>
+                )}
+                {forward.mode === "sdwan" && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-800 flex-shrink-0">
+                    sdw
+                  </span>
+                )}
               </div>
               <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 bg-danger-500/10 text-danger-600 dark:text-danger-400">
                 {formatExpiryTime(forward.expiryTime)}
@@ -5528,13 +5573,22 @@ export default function ForwardPage() {
 
                         setForm((prev) => ({
                           ...prev,
-                          mode: selectedKey as "gost" | "nftables" | "floxcore",
+                          mode: selectedKey as
+                            | "gost"
+                            | "nftables"
+                            | "floxcore"
+                            | "sdwan",
                         }));
                       }}
                     >
                       <SelectItem key="gost">Gost 模式</SelectItem>
                       <SelectItem key="nftables">NFtables 模式</SelectItem>
-                      <SelectItem key="floxcore">FloxCore 模式</SelectItem>
+                      {!isFreeTier && (
+                        <SelectItem key="floxcore">FloxCore 模式</SelectItem>
+                      )}
+                      {!isFreeTier && (
+                        <SelectItem key="sdwan">SDWAN 模式</SelectItem>
+                      )}
                     </Select>
                   </div>
                   <div className="space-y-4 pb-4">
@@ -7087,7 +7141,12 @@ export default function ForwardPage() {
                 >
                   <SelectItem key="gost">Gost 模式</SelectItem>
                   <SelectItem key="nftables">NFtables 模式</SelectItem>
-                  <SelectItem key="floxcore">FloxCore 模式</SelectItem>
+                  {!isFreeTier && (
+                    <SelectItem key="floxcore">FloxCore 模式</SelectItem>
+                  )}
+                  {!isFreeTier && (
+                    <SelectItem key="sdwan">SDWAN 模式</SelectItem>
+                  )}
                 </Select>
               </ModalBody>
               <ModalFooter>

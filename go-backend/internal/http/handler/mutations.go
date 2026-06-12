@@ -877,6 +877,7 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 		defaultString(asString(req["port"]), "1000-65535"),
 		nullableText(asString(req["interfaceName"])),
 		nullableText(asString(req["extraIPs"])),
+		nullableText(asString(req["remoteConfig"])),
 		nullableText(strings.TrimSpace(asString(req["remark"]))),
 		nullableUnixMilli(asInt64(req["expiryTime"], 0)),
 		nullableText(normalizeNodeRenewalCycle(asString(req["renewalCycle"]))),
@@ -2985,6 +2986,12 @@ func (h *Handler) userTunnelBatchUpdateStatus(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
+	tier, _ := middleware.GetLicenseTier()
+	if tier == middleware.TierBlocked {
+		response.WriteJSON(w, response.Err(403, "授权无效，无法操作"))
+		return
+	}
+
 	var req map[string]interface{}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -3093,9 +3100,17 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 	expiryTime := asAnyToInt64Ptr(req["expiryTime"])
 	speedLimitEnabled := asBool(req["speedLimitEnabled"], false)
 	speedLimit := asInt(req["speedLimit"], 0)
-	mode := defaultString(asString(req["mode"]), "gost")
-	if mode != "gost" && mode != "nftables" && mode != "floxcore" {
-		response.WriteJSON(w, response.ErrDefault("转发模式无效，仅支持 gost、nftables 或 floxcore"))
+	mode := normalizeForwardMode(asString(req["mode"]))
+	if !isValidForwardMode(mode) {
+		response.WriteJSON(w, response.ErrDefault("转发模式无效，仅支持 gost、nftables、floxcore 或 sdwan"))
+		return
+	}
+	if err := ensureForwardModeAllowedForTier(tier, mode); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
+		return
+	}
+	if err := ensureForwardModeCompatibleWithTunnel(mode, tunnel); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
 	if err := h.validateForwardModeConsistency(tunnelID, 0, mode); err != nil {
@@ -3275,9 +3290,21 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		speedLimit = forward.SpeedLimit
 	}
 
-	mode := asString(req["mode"])
-	if mode == "" {
-		mode = forward.Mode
+	mode := normalizeForwardMode(asString(req["mode"]))
+	if strings.TrimSpace(asString(req["mode"])) == "" {
+		mode = normalizeForwardMode(forward.Mode)
+	}
+	if !isValidForwardMode(mode) {
+		response.WriteJSON(w, response.ErrDefault("转发模式无效，仅支持 gost、nftables、floxcore 或 sdwan"))
+		return
+	}
+	if err := ensureForwardModeAllowedForTier(tier, mode); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
+		return
+	}
+	if err := ensureForwardModeCompatibleWithTunnel(mode, tunnel); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
 	}
 	modeSwitched := mode != "" && mode != forward.Mode
 	if modeSwitched {
@@ -3303,7 +3330,7 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		// 从 gost 或 floxcore 切换到 nftables：清理 gost/FloxCore 服务
-		if (strings.EqualFold(forward.Mode, "gost") || strings.EqualFold(forward.Mode, "floxcore")) && strings.EqualFold(mode, "nftables") {
+		if isServiceBackedForwardMode(forward.Mode) && strings.EqualFold(mode, forwardModeNftables) {
 			for _, fp := range ports {
 				node, nodeErr := h.getNodeRecord(fp.NodeID)
 				if nodeErr != nil {
@@ -3312,9 +3339,8 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 				_ = h.deleteForwardServicesOnNode(&forwardRecord{ID: id}, node.ID)
 			}
 		}
-		// floxcore 切换到非 floxcore：清理 FloxCore 规则
-		if strings.EqualFold(forward.Mode, "floxcore") && !strings.EqualFold(mode, "floxcore") {
-			// FloxCore 服务清理由 deleteForwardServicesOnNode 完成
+		if isPremiumForwardMode(forward.Mode) && !strings.EqualFold(mode, normalizeForwardMode(forward.Mode)) {
+			// 高级模式切换到其他模式时，服务清理由 deleteForwardServicesOnNode 完成。
 		}
 	}
 	if hasInIP {
@@ -3486,7 +3512,6 @@ func (h *Handler) forwardPause(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-
 	if strings.EqualFold(forward.Mode, "nftables") {
 		ports, _ := h.listForwardPorts(forward.ID)
 		if err := h.deleteNftablesRules(forward, ports); err != nil {
@@ -3531,6 +3556,10 @@ func (h *Handler) forwardResume(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if err := ensureForwardModeAllowedForTier(tier, forward.Mode); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
 		return
 	}
 	now := time.Now().UnixMilli()
@@ -3770,6 +3799,11 @@ func (h *Handler) forwardBatchResume(w http.ResponseWriter, r *http.Request) {
 			failures = appendBatchFailure(failures, id, forward.Name, err)
 			continue
 		}
+		if err := ensureForwardModeAllowedForTier(tier, forward.Mode); err != nil {
+			f++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
+			continue
+		}
 
 		// 先更新状态，避免 syncForwardServicesWithWarnings 末尾的暂停检查删除刚添加的规则
 		_ = h.repo.UpdateForwardStatus(id, 1, now)
@@ -3825,6 +3859,12 @@ func (h *Handler) forwardBatchRedeploy(w http.ResponseWriter, r *http.Request) {
 			failures = appendBatchFailure(failures, id, "", accessErr)
 			continue
 		}
+		if err := ensureForwardModeAllowedForTier(tier, forward.Mode); err != nil {
+			f++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
+			continue
+		}
+
 		if err := h.syncForwardServices(forward, "UpdateService", true); err != nil {
 			f++
 			failures = appendBatchFailure(failures, id, forward.Name, err)
@@ -3885,6 +3925,16 @@ func (h *Handler) forwardBatchChangeTunnel(w http.ResponseWriter, r *http.Reques
 		if forward.TunnelID == req.TargetTunnelID {
 			fail++
 			failures = appendBatchFailureReason(failures, id, forward.Name, "规则已在目标隧道中")
+			continue
+		}
+		if err := ensureForwardModeAllowedForTier(tier, forward.Mode); err != nil {
+			fail++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
+			continue
+		}
+		if err := ensureForwardModeCompatibleWithTunnel(forward.Mode, targetTunnel); err != nil {
+			fail++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
 		}
 		oldPorts, listPortsErr := h.listForwardPorts(id)
@@ -3997,8 +4047,13 @@ func (h *Handler) forwardBatchChangeMode(w http.ResponseWriter, r *http.Request)
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
 		return
 	}
-	if req.Mode != "gost" && req.Mode != "nftables" && req.Mode != "floxcore" {
+	req.Mode = normalizeForwardMode(req.Mode)
+	if !isValidForwardMode(req.Mode) {
 		response.WriteJSON(w, response.ErrDefault("无效的转发模式"))
+		return
+	}
+	if err := ensureForwardModeAllowedForTier(tier, req.Mode); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
 		return
 	}
 	actorUserID, actorRole, err := userRoleFromRequest(r)
@@ -4027,6 +4082,17 @@ func (h *Handler) forwardBatchChangeMode(w http.ResponseWriter, r *http.Request)
 		if err := h.validateForwardModeConsistency(forward.TunnelID, id, req.Mode); err != nil {
 			fail++
 			failures = appendBatchFailure(failures, id, forward.Name, err)
+			continue
+		}
+		tunnel, tunnelErr := h.getTunnelRecord(forward.TunnelID)
+		if tunnelErr != nil {
+			fail++
+			failures = appendBatchFailure(failures, id, forward.Name, tunnelErr)
+			continue
+		}
+		if err := ensureForwardModeCompatibleWithTunnel(req.Mode, tunnel); err != nil {
+			fail++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
 		}
 		if err := h.repo.BatchUpdateForwardMode([]int64{id}, req.Mode); err != nil {
@@ -4977,6 +5043,9 @@ func (h *Handler) resolveTunnelRelayMode(tunnelID int64) (string, error) {
 	}
 	if mode == "nftables" {
 		mode = "gost"
+	}
+	if mode == forwardModeSDWAN {
+		return "", fmt.Errorf("SDWAN 模式暂不支持链式隧道")
 	}
 	return mode, nil
 }
