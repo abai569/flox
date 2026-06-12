@@ -397,12 +397,6 @@ func (h *Handler) ensureUserTunnelForwardAllowed(userID int64, tunnelID int64, n
 		return errors.New("该隧道已过期")
 	}
 
-	utFlowLimit := policy.Flow * bytesPerGB
-	utCurrent := policy.InFlow + policy.OutFlow
-	if utCurrent >= utFlowLimit {
-		return errors.New("该隧道流量已超额，禁止开启转发")
-	}
-
 	return nil
 }
 
@@ -428,11 +422,6 @@ func shouldPauseUserTunnel(policy *userTunnelPolicy, now int64) bool {
 		return false
 	}
 
-	flowLimit := policy.Flow * bytesPerGB
-	current := policy.InFlow + policy.OutFlow
-	if current >= flowLimit {
-		return true
-	}
 	if policy.ExpTime > 0 && policy.ExpTime <= now {
 		return true
 	}
