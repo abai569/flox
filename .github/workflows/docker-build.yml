@@ -19,6 +19,7 @@ jobs:
       should_build: ${{ steps.version.outputs.should_build }}
       should_build_gost: ${{ steps.version.outputs.should_build_gost }}
       is_tag: ${{ steps.version.outputs.is_tag }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
       image_owner: ${{ steps.version.outputs.image_owner }}
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +69,14 @@ jobs:
               echo "should_build_gost=true" >> $GITHUB_OUTPUT
             fi
           fi
+
+          # 检查是否为预发布版本（含 dev/beta/alpha/rc 后缀）
+          IS_PRERELEASE=false
+          if [[ "$VERSION" =~ -(dev|beta|alpha|rc) ]]; then
+            IS_PRERELEASE=true
+            echo "⚠️ Pre-release version detected: $VERSION"
+          fi
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
 
   build-gost:
     name: Build & Compress GOST Binary
@@ -498,7 +507,7 @@ jobs:
   sync-gost-mirror:
     name: Sync GOST to Mirror
     needs: [build-gost]
-    if: needs.check-version.outputs.should_build_gost == 'true'
+    if: needs.check-version.outputs.should_build_gost == 'true' && needs.check-version.outputs.is_prerelease == 'false'
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
