@@ -4640,11 +4640,6 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		state.Nodes[nodeID] = node
 	}
 
-	for _, outNode := range state.OutNodes {
-		if err := validateRemoteNodePort(state.Nodes[outNode.NodeID], outNode.Port); err != nil {
-			return nil, err
-		}
-	}
 	for _, hop := range state.ChainHops {
 		for _, chainNode := range hop {
 			if err := validateRemoteNodePort(state.Nodes[chainNode.NodeID], chainNode.Port); err != nil {
