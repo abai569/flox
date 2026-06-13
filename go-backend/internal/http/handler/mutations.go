@@ -3240,14 +3240,14 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 	// When switching tunnels, entry nodes / service base may change. We must clean up old
 	// listeners on nodes that will be removed, otherwise the old ports keep listening.
 	tunnelChanged := tunnelID != forward.TunnelID
-	oldNodeIDs := forwardPortNodeIDs(oldPorts)
-	newNodeIDs := uniqueInt64s(fwdEntryNodes)
+	oldServiceNodeIDs := h.forwardServiceNodeIDsForTunnel(forward, oldPorts, forward.TunnelID)
+	newPorts := make([]forwardPortRecord, 0, len(fwdEntryNodes))
+	for _, nodeID := range fwdEntryNodes {
+		newPorts = append(newPorts, forwardPortRecord{NodeID: nodeID, Port: port, InIP: inIp})
+	}
+	var newServiceNodeIDs []int64
 	var removedNodeIDs []int64
 	var keptNodeIDs []int64
-	if tunnelChanged {
-		removedNodeIDs = diffInt64s(oldNodeIDs, newNodeIDs)
-		keptNodeIDs = diffInt64s(oldNodeIDs, removedNodeIDs)
-	}
 	for _, nodeID := range fwdEntryNodes {
 		node, nodeErr := h.getNodeRecord(nodeID)
 		if nodeErr != nil {
@@ -3306,6 +3306,11 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
+	newServiceNodeIDs = h.forwardServiceNodeIDsForTunnel(&forwardRecord{TunnelID: tunnelID, Mode: mode}, newPorts, tunnelID)
+	if tunnelChanged {
+		removedNodeIDs = diffInt64s(oldServiceNodeIDs, newServiceNodeIDs)
+		keptNodeIDs = diffInt64s(oldServiceNodeIDs, removedNodeIDs)
+	}
 	modeSwitched := mode != "" && mode != forward.Mode
 	if modeSwitched {
 		if err := h.validateForwardModeConsistency(tunnelID, id, mode); err != nil {
@@ -3329,18 +3334,15 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 				warnings = append(warnings, fmt.Sprintf("nftables规则清理失败: %v", err))
 			}
 		}
-		// 从 gost 或 floxcore 切换到 nftables：清理 gost/FloxCore 服务
 		if isServiceBackedForwardMode(forward.Mode) && strings.EqualFold(mode, forwardModeNftables) {
-			for _, fp := range ports {
-				node, nodeErr := h.getNodeRecord(fp.NodeID)
-				if nodeErr != nil {
-					continue
-				}
-				_ = h.deleteForwardServicesOnNode(&forwardRecord{ID: id}, node.ID)
+			for _, nodeID := range h.forwardServiceNodeIDs(forward, ports) {
+				_ = h.deleteForwardServicesOnNodeBatch(forward, nodeID)
 			}
 		}
 		if isPremiumForwardMode(forward.Mode) && !strings.EqualFold(mode, normalizeForwardMode(forward.Mode)) {
-			// 高级模式切换到其他模式时，服务清理由 deleteForwardServicesOnNode 完成。
+			for _, nodeID := range h.forwardServiceNodeIDs(forward, ports) {
+				_ = h.deleteForwardServicesOnNodeBatch(forward, nodeID)
+			}
 		}
 	}
 	if hasInIP {
@@ -3948,7 +3950,7 @@ func (h *Handler) forwardBatchChangeTunnel(w http.ResponseWriter, r *http.Reques
 			failures = appendBatchFailureReason(failures, id, forward.Name, "转发入口端口不存在")
 			continue
 		}
-		oldNodeIDs := forwardPortNodeIDs(oldPorts)
+		oldServiceNodeIDs := h.forwardServiceNodeIDsForTunnel(forward, oldPorts, forward.TunnelID)
 		port := h.repo.GetMinForwardPort(id)
 		if err := h.repo.UpdateForwardTunnel(id, req.TargetTunnelID, time.Now().UnixMilli()); err != nil {
 			fail++
@@ -3963,9 +3965,13 @@ func (h *Handler) forwardBatchChangeTunnel(w http.ResponseWriter, r *http.Reques
 			p = h.pickTunnelPort(req.TargetTunnelID)
 		}
 		bctEntryNodes, _ := h.tunnelEntryNodeIDs(req.TargetTunnelID)
-		newNodeIDs := uniqueInt64s(bctEntryNodes)
-		removedNodeIDs := diffInt64s(oldNodeIDs, newNodeIDs)
-		keptNodeIDs := diffInt64s(oldNodeIDs, removedNodeIDs)
+		newPorts := make([]forwardPortRecord, 0, len(bctEntryNodes))
+		for _, nid := range bctEntryNodes {
+			newPorts = append(newPorts, forwardPortRecord{NodeID: nid, Port: p})
+		}
+		newServiceNodeIDs := h.forwardServiceNodeIDsForTunnel(&forwardRecord{TunnelID: req.TargetTunnelID, Mode: forward.Mode}, newPorts, req.TargetTunnelID)
+		removedNodeIDs := diffInt64s(oldServiceNodeIDs, newServiceNodeIDs)
+		keptNodeIDs := diffInt64s(oldServiceNodeIDs, removedNodeIDs)
 		portRangeOk := true
 		var portRangeErr error
 		for _, nid := range bctEntryNodes {
@@ -5044,9 +5050,6 @@ func (h *Handler) resolveTunnelRelayMode(tunnelID int64) (string, error) {
 	if mode == "nftables" {
 		mode = "gost"
 	}
-	if mode == forwardModeSDWAN {
-		return "", fmt.Errorf("SDWAN 模式暂不支持链式隧道")
-	}
 	return mode, nil
 }
 
@@ -5074,6 +5077,9 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 	createdChains := make([]int64, 0)
 	createdServices := make([]int64, 0)
 	if state.Type != 2 {
+		return createdChains, createdServices, nil
+	}
+	if strings.EqualFold(state.Mode, forwardModeSDWAN) {
 		return createdChains, createdServices, nil
 	}
 

@@ -304,6 +304,9 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
 		return nil, ensureForwardModeAllowedForTier(tier, forward.Mode)
 	}
+	if strings.EqualFold(forward.Mode, forwardModeSDWAN) && tunnel != nil && tunnel.Type == 2 {
+		return h.syncSDWANChainForwardServicesWithWarnings(forward, tunnel, ports, userTunnelID)
+	}
 
 	// ✅ 动态限速器名称
 	var dynamicLimiterName string
@@ -545,13 +548,13 @@ func (h *Handler) controlForwardServices(forward *forwardRecord, commandType str
 	bases := buildForwardServiceBaseCandidates(forward.ID, forward.UserID, userTunnelID, candidateTunnelIDs)
 	seen := map[int64]struct{}{}
 	healed := false
-	for _, fp := range ports {
-		if _, ok := seen[fp.NodeID]; ok {
+	for _, nodeID := range h.forwardServiceNodeIDs(forward, ports) {
+		if _, ok := seen[nodeID]; ok {
 			continue
 		}
-		seen[fp.NodeID] = struct{}{}
+		seen[nodeID] = struct{}{}
 
-		nodeHandled, lastNotFoundErr, err := h.controlForwardServicesOnNode(fp.NodeID, bases, commandType)
+		nodeHandled, lastNotFoundErr, err := h.controlForwardServicesOnNode(nodeID, bases, commandType)
 		if err != nil {
 			return err
 		}
@@ -561,7 +564,7 @@ func (h *Handler) controlForwardServices(forward *forwardRecord, commandType str
 				return healErr
 			}
 			healed = true
-			nodeHandled, lastNotFoundErr, err = h.controlForwardServicesOnNode(fp.NodeID, bases, commandType)
+			nodeHandled, lastNotFoundErr, err = h.controlForwardServicesOnNode(nodeID, bases, commandType)
 			if err != nil {
 				return err
 			}
@@ -1555,6 +1558,43 @@ func firstPortFromRange(portRange string) int {
 
 func (h *Handler) listChainNodesForTunnel(tunnelID int64) ([]chainNodeRecord, error) {
 	return h.repo.ListChainNodesForTunnel(tunnelID)
+}
+
+func (h *Handler) forwardServiceNodeIDs(forward *forwardRecord, ports []forwardPortRecord) []int64 {
+	return h.forwardServiceNodeIDsForTunnel(forward, ports, forward.TunnelID)
+}
+
+func (h *Handler) forwardServiceNodeIDsForTunnel(forward *forwardRecord, ports []forwardPortRecord, tunnelID int64) []int64 {
+	seen := make(map[int64]struct{})
+	ids := make([]int64, 0, len(ports))
+	appendID := func(id int64) {
+		if id <= 0 {
+			return
+		}
+		if _, ok := seen[id]; ok {
+			return
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	for _, fp := range ports {
+		appendID(fp.NodeID)
+	}
+	if forward == nil || !strings.EqualFold(forward.Mode, forwardModeSDWAN) {
+		return ids
+	}
+	tunnel, err := h.getTunnelRecord(tunnelID)
+	if err != nil || tunnel == nil || tunnel.Type != 2 {
+		return ids
+	}
+	chainNodes, err := h.listChainNodesForTunnel(tunnelID)
+	if err != nil {
+		return ids
+	}
+	for _, cn := range chainNodes {
+		appendID(cn.NodeID)
+	}
+	return ids
 }
 
 // checkServiceStatusViaNode sends a ListServices command to the target node and
