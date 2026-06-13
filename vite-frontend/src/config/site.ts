@@ -1,4 +1,4 @@
-import { getConfigByName, getConfigs } from "@/api";
+import { getConfigByName, getConfigs, getSystemUpgradeVersion } from "@/api";
 
 export type SiteConfig = typeof siteConfig;
 
@@ -276,6 +276,17 @@ export const updateSiteConfig = async (configMap?: Record<string, string>) => {
     document.title = siteConfig.name;
   }
   updateDocumentFavicon(siteConfig.app_favicon);
+
+  // 从后端获取真实面板版本，覆盖编译时常量
+  try {
+    const versionRes = await getSystemUpgradeVersion();
+
+    if (versionRes.code === 0 && versionRes.data?.currentVersion) {
+      siteConfig.version = versionRes.data.currentVersion;
+    }
+  } catch {
+    // 忽略，使用编译时版本
+  }
 };
 
 // 清除配置缓存的工具函数（用于需要强制重拉配置的场景）
