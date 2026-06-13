@@ -2380,26 +2380,6 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		return syncErr
 	}
 
-	// Clean up stale nft rules on each node
-	for nodeID := range nodePorts {
-		go func(nid int64) {
-			node, err := h.getNodeRecord(nid)
-			if err != nil || node == nil {
-				return
-			}
-			activeIDs, err := h.repo.ListActiveForwardIDsByNode(nid)
-			if err != nil || len(activeIDs) == 0 {
-				return
-			}
-			cleanPayload := CleanStaleNftRulesRequest{ActiveForwardIDs: activeIDs}
-			if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
-				h.sendRemoteNftablesCommand(node, cleanPayload)
-			} else {
-				h.sendNodeCommand(node.ID, "CleanStaleNftRules", cleanPayload, true, false)
-			}
-		}(nodeID)
-	}
-
 	fmt.Printf("[nft.debug] syncNftablesRules completed successfully for forwardID=%d\n", forward.ID)
 	return nil
 }
