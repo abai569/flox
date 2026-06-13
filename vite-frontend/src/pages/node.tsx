@@ -2749,7 +2749,7 @@ export default function NodePage() {
                   variant="flat"
                   onPress={handleBatchBootstrapSDWAN}
                 >
-                  SDWAN组网
+                  组网
                 </Button>
                 <Button
                   color="warning"

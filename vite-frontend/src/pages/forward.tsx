@@ -842,7 +842,7 @@ const SortableTableRow = ({
           )}
           {forward.mode === "floxcore" && (
             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800">
-              fc
+              flc
             </span>
           )}
           {forward.mode === "sdwan" && (
@@ -6875,7 +6875,7 @@ export default function ForwardPage() {
                   isLoading={batchResetTrafficLoading}
                   onPress={handleBatchResetTraffic}
                 >
-                  确认归零
+                  确认
                 </Button>
               </ModalFooter>
             </>
