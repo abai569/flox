@@ -67,6 +67,10 @@ func (m *Manager) ResetCounters() error {
 	return errors.New("nftables not supported on this platform")
 }
 
+func (m *Manager) ClearStaleDNATRules(activeForwardIDs map[int64]bool) error {
+	return errors.New("nftables not supported on this platform")
+}
+
 func CheckNftablesSupport() (bool, error) {
 	return false, errors.New("nftables not supported on this platform")
 }

@@ -57,3 +57,11 @@ func (w *WebSocketReporter) handleGetNftablesCounters(data json.RawMessage) erro
 func (w *WebSocketReporter) handleResetNftablesCounters(data json.RawMessage) error {
 	return errors.New("nftables not supported on this platform")
 }
+
+type CleanStaleNftRulesRequest struct {
+	ActiveForwardIDs []int64 `json:"active_forward_ids"`
+}
+
+func (w *WebSocketReporter) handleCleanStaleNftRules(data json.RawMessage) error {
+	return errors.New("nftables not supported on this platform")
+}

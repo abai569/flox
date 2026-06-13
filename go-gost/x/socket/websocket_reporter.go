@@ -1496,6 +1496,10 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		rawData, _ := json.Marshal(cmd.Data)
 		err = w.handleResetNftablesCounters(rawData)
 		response.Type = "ResetNftablesCountersResponse"
+	case "CleanStaleNftRules":
+		rawData, _ := json.Marshal(cmd.Data)
+		err = w.handleCleanStaleNftRules(rawData)
+		response.Type = "CleanStaleNftRulesResponse"
 
 	default:
 		err = fmt.Errorf("未知命令类型: %s", cmd.Type)

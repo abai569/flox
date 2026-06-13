@@ -299,7 +299,20 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	// nftables mode branch
 	if strings.EqualFold(forward.Mode, "nftables") {
 		fmt.Printf("[nft.debug] syncForwardServicesWithWarnings: nft mode branch, forwardID=%d\n", forward.ID)
-		return nil, h.syncNftablesRules(forward, tunnel, ports, userTunnelID, speed)
+		if err := h.syncNftablesRules(forward, tunnel, ports, userTunnelID, speed); err != nil {
+			return nil, err
+		}
+		// type=2 chain tunnel: deploy relay services on chain/exit nodes
+		if tunnel != nil && tunnel.Type == 2 {
+			relayMode, _ := h.resolveTunnelRelayMode(forward.TunnelID)
+			state, stateErr := h.buildTunnelStateForNftRelay(forward.TunnelID, relayMode)
+			if stateErr != nil {
+				fmt.Printf("[nft.debug] buildTunnelStateForNftRelay failed: %v\n", stateErr)
+			} else if _, _, applyErr := h.applyTunnelRuntime(state); applyErr != nil {
+				fmt.Printf("[nft.debug] applyTunnelRuntime failed: %v\n", applyErr)
+			}
+		}
+		return nil, nil
 	}
 	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
 		return nil, ensureForwardModeAllowedForTier(tier, forward.Mode)
@@ -2228,6 +2241,11 @@ type DeleteNftablesRulesRequest struct {
 	Ports      []int    `json:"ports"`
 }
 
+// CleanStaleNftRulesRequest 清理残留 nft 规则请求
+type CleanStaleNftRulesRequest struct {
+	ActiveForwardIDs []int64 `json:"active_forward_ids"`
+}
+
 // syncNftablesRules sync nftables forwarding rules to nodes
 func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, userTunnelID int64, speedLimit *int) error {
 	if h == nil || forward == nil {
@@ -2361,6 +2379,27 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 	if syncErr != nil {
 		return syncErr
 	}
+
+	// Clean up stale nft rules on each node
+	for nodeID := range nodePorts {
+		go func(nid int64) {
+			node, err := h.getNodeRecord(nid)
+			if err != nil || node == nil {
+				return
+			}
+			activeIDs, err := h.repo.ListActiveForwardIDsByNode(nid)
+			if err != nil || len(activeIDs) == 0 {
+				return
+			}
+			cleanPayload := CleanStaleNftRulesRequest{ActiveForwardIDs: activeIDs}
+			if node.IsRemote == 1 && strings.TrimSpace(node.RemoteURL) != "" {
+				h.sendRemoteNftablesCommand(node, cleanPayload)
+			} else {
+				h.sendNodeCommand(node.ID, "CleanStaleNftRules", cleanPayload, true, false)
+			}
+		}(nodeID)
+	}
+
 	fmt.Printf("[nft.debug] syncNftablesRules completed successfully for forwardID=%d\n", forward.ID)
 	return nil
 }
@@ -2499,6 +2538,61 @@ func filterRulesByNodeID(rules []NftablesRulePayload, nodeID int64) []NftablesRu
 		}
 	}
 	return filtered
+}
+
+// buildTunnelStateForNftRelay builds a tunnelCreateState from existing chain data
+// so that applyTunnelRuntime can deploy relay services on chain/exit nodes for nft mode.
+func (h *Handler) buildTunnelStateForNftRelay(tunnelID int64, mode string) (*tunnelCreateState, error) {
+	chainNodes, err := h.listChainNodesForTunnel(tunnelID)
+	if err != nil {
+		return nil, err
+	}
+	if len(chainNodes) == 0 {
+		return nil, errors.New("chain nodes not found")
+	}
+
+	state := &tunnelCreateState{
+		TunnelID: tunnelID,
+		Type:     2,
+		Mode:     mode,
+	}
+
+	nodeIDs := make(map[int64]struct{})
+	for _, cn := range chainNodes {
+		nodeIDs[cn.NodeID] = struct{}{}
+		rn := tunnelRuntimeNode{
+			NodeID:        cn.NodeID,
+			Protocol:      defaultString(cn.Protocol, "tls"),
+			Strategy:      defaultString(cn.Strategy, "round"),
+			Inx:           int(cn.Inx),
+			ChainType:     cn.ChainType,
+			Port:          cn.Port,
+			ConnectIPType: cn.ConnectIPType,
+		}
+		switch cn.ChainType {
+		case 1:
+			state.InNodes = append(state.InNodes, rn)
+		case 2:
+			for len(state.ChainHops) < int(cn.Inx) {
+				state.ChainHops = append(state.ChainHops, []tunnelRuntimeNode{})
+			}
+			state.ChainHops[int(cn.Inx)-1] = append(state.ChainHops[int(cn.Inx)-1], rn)
+		case 3:
+			state.OutNodes = append(state.OutNodes, rn)
+		}
+	}
+
+	state.Nodes = make(map[int64]*nodeRecord)
+	for nodeID := range nodeIDs {
+		node, err := h.getNodeRecord(nodeID)
+		if err != nil || node == nil {
+			continue
+		}
+		state.Nodes[nodeID] = node
+	}
+
+	state.IPPreference = h.repo.GetTunnelIPPreference(tunnelID)
+	return state, nil
 }
 
 // deleteNftablesRules delete nftables forwarding rules
