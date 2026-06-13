@@ -22,7 +22,7 @@ import {
   hasVersionUpdate,
   setUpdateReleaseChannel,
 } from "@/utils/version-update";
-import { checkSystemUpgrade } from "@/api";
+import { checkSystemUpgrade, getSystemUpgradeVersion } from "@/api";
 import { runSystemUpgrade } from "@/api/index";
 
 const FALLBACK_GITHUB_REPO = "https://github.com/abai569/FLOX";
@@ -83,6 +83,18 @@ export function VersionFooter({
   const [panelLatestVersion, setPanelLatestVersion] = useState<string | null>(
     null,
   );
+
+  // 从后端 API 获取真实面板版本，覆盖编译时 prop
+  const [realVersion, setRealVersion] = useState<string | null>(null);
+  useEffect(() => {
+    getSystemUpgradeVersion()
+      .then((res) => {
+        if (res.code === 0 && res.data?.currentVersion) {
+          setRealVersion(res.data.currentVersion);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handleChannelChange = () => {
@@ -229,7 +241,7 @@ export function VersionFooter({
         ) : showUpdateInfo && updateAvailable && latestUpdateVersion ? (
           <div className="flex flex-col gap-0.5">
             <p className={versionClassName}>
-              <span className="text-gray-600 dark:text-white">{version}</span>
+              <span className="text-gray-600 dark:text-white">{realVersion || version}</span>
             </p>
             <p className={versionClassName}>
               <span className="text-blue-600 dark:text-white text-[10px]">
@@ -254,7 +266,7 @@ export function VersionFooter({
           </div>
         ) : (
           <p className={versionClassName}>
-            <span className="text-gray-600 dark:text-white">{version}</span>{" "}
+            <span className="text-gray-600 dark:text-white">{realVersion || version}</span>{" "}
             {showUpdateInfo && (
               <Button
                 className="inline-flex w-[24px] h-[16px] px-0 text-[9px] min-w-0 rounded-xs font-semibold [&>span]:text-[9px]"
@@ -332,7 +344,7 @@ export function VersionFooter({
                     <div className="text-default-500 text-left">
                       当前版本：
                       <span className="font-medium text-default-900 dark:text-white">
-                        {version}
+                        {realVersion || version}
                       </span>
                     </div>
                     <div className="text-default-500 text-left">
@@ -402,7 +414,7 @@ export function VersionFooter({
                       <div className="text-default-500 text-left">
                         当前版本：
                         <span className="font-medium text-default-900 dark:text-white">
-                          {version}
+                          {realVersion || version}
                         </span>
                       </div>
                       <div className="text-default-500 text-left">
