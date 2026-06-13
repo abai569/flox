@@ -122,7 +122,7 @@ func (r *Repository) ListForwardPortsTx(tx *gorm.DB, forwardID int64) ([]model.F
 		if p.InIP.Valid {
 			inIP = p.InIP.String
 		}
-		rows = append(rows, model.ForwardPortRecord{NodeID: p.NodeID, Port: p.Port, InIP: inIP})
+		rows = append(rows, model.ForwardPortRecord{NodeID: p.NodeID, Port: p.Port, InIP: inIP, ChainType: p.ChainType})
 	}
 	return rows, nil
 }

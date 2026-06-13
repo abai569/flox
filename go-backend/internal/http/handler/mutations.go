@@ -3122,6 +3122,14 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	// nftables 链式隧道：为中间跳和出口节点分配端口
+	if tunnel.Type == 2 && mode == "nftables" {
+		if err := h.createChainNodePorts(forwardID, tunnelID); err != nil {
+			_ = h.deleteForwardByID(forwardID)
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+	}
 	createdForward, err := h.getForwardRecord(forwardID)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -5755,6 +5763,61 @@ func (h *Handler) pickTunnelPort(tunnelID int64) int {
 	}
 
 	return 10000
+}
+
+// createChainNodePorts 为链式隧道的中间跳和出口节点分配端口，创建 ForwardPort 记录
+func (h *Handler) createChainNodePorts(forwardID int64, tunnelID int64) error {
+	chainNodes, err := h.listChainNodesForTunnel(tunnelID)
+	if err != nil || len(chainNodes) == 0 {
+		return nil // 非链式隧道，无需处理
+	}
+
+	for _, cn := range chainNodes {
+		if cn.ChainType == 1 {
+			continue // 入口节点已有端口，跳过
+		}
+		// 为中间跳(chainType=2)和出口节点(chainType=3)分配端口
+		port, err := h.pickChainNodePort(cn.NodeID)
+		if err != nil {
+			return fmt.Errorf("为链节点 %d 分配端口失败: %w", cn.NodeID, err)
+		}
+		if err := h.repo.CreateForwardPortTx(forwardID, cn.NodeID, port, "", cn.ChainType); err != nil {
+			return fmt.Errorf("创建链节点端口记录失败: %w", err)
+		}
+	}
+	return nil
+}
+
+// pickChainNodePort 从节点的端口范围中随机分配一个可用端口
+func (h *Handler) pickChainNodePort(nodeID int64) (int, error) {
+	portRange, err := h.repo.GetNodePortRange(nodeID)
+	if err != nil || portRange == "" {
+		portRange = "1000-65535"
+	}
+
+	nodePorts, err := parsePorts(portRange)
+	if err != nil {
+		return 0, err
+	}
+
+	used, err := h.getUsedPorts(nodeID)
+	if err != nil {
+		return 0, err
+	}
+
+	var available []int
+	for _, p := range nodePorts {
+		if !used[p] {
+			available = append(available, p)
+		}
+	}
+
+	if len(available) == 0 {
+		return 0, fmt.Errorf("节点 %d 端口已满", nodeID)
+	}
+
+	idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(available))))
+	return available[idx.Int64()], nil
 }
 
 func (h *Handler) getUsedPorts(nodeID int64) (map[int]bool, error) {

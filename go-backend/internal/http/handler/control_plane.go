@@ -2268,7 +2268,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 
 	chainNodes, _ := h.listChainNodesForTunnel(forward.TunnelID)
 
-	// 🛠 修复：为链节点填充缺失的 ConnectIP，避免 resolveChainNextHop 退化到 finalTarget
+	// 🛠 修复：为链节点填充缺失的 ConnectIP，确保 DNAT 目标可达
 	for i := range chainNodes {
 		if strings.TrimSpace(chainNodes[i].ConnectIP) != "" {
 			continue
@@ -2400,11 +2400,10 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 		spdLimit = *speedLimit
 	}
 
-	for _, fp := range ports {
-		for _, protocol := range protocols {
-			if tunnel.Type == 1 {
-				// nft DNAT 只能匹配 协议+dport，同一端口同一协议只能有一条规则。
-				// 如果 remoteAddr 有多个目标，只取第一个。
+	if tunnel.Type == 1 {
+		// 直连隧道：入口节点直接 DNAT 到落地机
+		for _, fp := range ports {
+			for _, protocol := range protocols {
 				if len(targets) == 0 {
 					continue
 				}
@@ -2419,9 +2418,90 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 					SpeedLimit:   spdLimit,
 					ChainType:    1,
 				})
-			} else if tunnel.Type == 2 {
-				for _, target := range targets {
-					rules = append(rules, buildChainNftablesRule(forward.ID, forward.UserID, userTunnelID, chainNodes, fp, protocol, target, spdLimit))
+			}
+		}
+	} else if tunnel.Type == 2 {
+		// 链式隧道：每个节点 DNAT 到下一跳
+		// 构建端口映射：nodeID → port
+		portMap := make(map[int64]int)
+		for _, fp := range ports {
+			portMap[fp.NodeID] = fp.Port
+		}
+
+		// 按节点类型分组
+		inNodes, chainHops, outNodes := splitChainNodeGroups(chainNodes)
+
+		for _, protocol := range protocols {
+			for _, target := range targets {
+				// 1. 入口节点规则：入口端口 → 第一跳
+				for _, inNode := range inNodes {
+					entryPort, ok := portMap[inNode.NodeID]
+					if !ok {
+						continue
+					}
+					nextNode, nextPort, nextIP := resolveNextHopForChain(chainNodes, portMap, inNode.NodeID, target)
+					if nextNode == nil {
+						continue
+					}
+					rules = append(rules, NftablesRulePayload{
+						ForwardID:    forward.ID,
+						NodeID:       inNode.NodeID,
+						UserID:       forward.UserID,
+						UserTunnelID: userTunnelID,
+						Protocol:     protocol,
+						Port:         entryPort,
+						Target:       net.JoinHostPort(nextIP, strconv.Itoa(nextPort)),
+						SpeedLimit:   spdLimit,
+						ChainType:    2,
+						NextHopIP:    nextIP,
+						NextHopPort:  nextPort,
+					})
+				}
+
+				// 2. 中间跳节点规则：当前跳端口 → 下一跳
+				for _, hop := range chainHops {
+					for _, hopNode := range hop {
+						hopPort, ok := portMap[hopNode.NodeID]
+						if !ok {
+							continue
+						}
+						nextNode, nextPort, nextIP := resolveNextHopForChain(chainNodes, portMap, hopNode.NodeID, target)
+						if nextNode == nil {
+							continue
+						}
+						rules = append(rules, NftablesRulePayload{
+							ForwardID:    forward.ID,
+							NodeID:       hopNode.NodeID,
+							UserID:       forward.UserID,
+							UserTunnelID: userTunnelID,
+							Protocol:     protocol,
+							Port:         hopPort,
+							Target:       net.JoinHostPort(nextIP, strconv.Itoa(nextPort)),
+							SpeedLimit:   spdLimit,
+							ChainType:    2,
+							NextHopIP:    nextIP,
+							NextHopPort:  nextPort,
+						})
+					}
+				}
+
+				// 3. 出口节点规则：出口端口 → 落地机
+				for _, outNode := range outNodes {
+					exitPort, ok := portMap[outNode.NodeID]
+					if !ok {
+						continue
+					}
+					rules = append(rules, NftablesRulePayload{
+						ForwardID:    forward.ID,
+						NodeID:       outNode.NodeID,
+						UserID:       forward.UserID,
+						UserTunnelID: userTunnelID,
+						Protocol:     protocol,
+						Port:         exitPort,
+						Target:       target,
+						SpeedLimit:   spdLimit,
+						ChainType:    3,
+					})
 				}
 			}
 		}
@@ -2429,84 +2509,75 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 	return rules
 }
 
-// buildChainNftablesRule build nftables rule for chained tunnel
-func buildChainNftablesRule(forwardID, userID, userTunnelID int64, chainNodes []chainNodeRecord, fp forwardPortRecord, protocol string, target string, speedLimit int) NftablesRulePayload {
-	nextHopIP, nextHopPort := resolveChainNextHop(chainNodes, fp.NodeID, target)
-	return NftablesRulePayload{
-		ForwardID:    forwardID,
-		NodeID:       fp.NodeID,
-		UserID:       userID,
-		UserTunnelID: userTunnelID,
-		Protocol:     protocol,
-		Port:         fp.Port,
-		Target:       net.JoinHostPort(nextHopIP, strconv.Itoa(nextHopPort)),
-		SpeedLimit:   speedLimit,
-		ChainType:    2,
-		NextHopIP:    nextHopIP,
-		NextHopPort:  nextHopPort,
-	}
-}
-
-// resolveChainNextHop resolve next hop in chain tunnel
-func resolveChainNextHop(chainNodes []chainNodeRecord, nodeID int64, finalTarget string) (string, int) {
-	if len(chainNodes) == 0 {
-		host, port, _ := net.SplitHostPort(finalTarget)
-		p, _ := strconv.Atoi(port)
-		return host, p
-	}
-
+// resolveNextHopForChain 解析链节点的下一跳信息
+func resolveNextHopForChain(chainNodes []chainNodeRecord, portMap map[int64]int, currentNodeID int64, finalTarget string) (*chainNodeRecord, int, string) {
 	inNodes, chainHops, outNodes := splitChainNodeGroups(chainNodes)
 
-	// Check if current node is an entry node (chainType=1)
+	// 检查是否是入口节点
 	for _, inNode := range inNodes {
-		if inNode.NodeID == nodeID {
-			// Entry node: next hop is first chain hop node, or first exit node
+		if inNode.NodeID == currentNodeID {
+			// 下一跳是第一个链节点组的第一个节点
 			if len(chainHops) > 0 && len(chainHops[0]) > 0 {
 				next := chainHops[0][0]
-				if ip := strings.TrimSpace(next.ConnectIP); ip != "" && next.Port > 0 {
-					return ip, next.Port
+				if port, ok := portMap[next.NodeID]; ok {
+					ip := resolveChainNodeIP(next)
+					if ip != "" {
+						return &next, port, ip
+					}
 				}
 			}
+			// 没有中间跳，直接到出口节点
 			if len(outNodes) > 0 {
 				next := outNodes[0]
-				if ip := strings.TrimSpace(next.ConnectIP); ip != "" && next.Port > 0 {
-					return ip, next.Port
+				if port, ok := portMap[next.NodeID]; ok {
+					ip := resolveChainNodeIP(next)
+					if ip != "" {
+						return &next, port, ip
+					}
 				}
 			}
-			host, port, _ := net.SplitHostPort(finalTarget)
-			p, _ := strconv.Atoi(port)
-			return host, p
+			return nil, 0, ""
 		}
 	}
 
-	// Check if current node is a chain hop node (chainType=2)
+	// 检查是否是中间跳节点
 	for hopIdx, hop := range chainHops {
 		for _, chainNode := range hop {
-			if chainNode.NodeID == nodeID {
-				// Chain hop node: next hop is first node in next hop group, or first exit node
+			if chainNode.NodeID == currentNodeID {
+				// 下一跳是下一个链节点组
 				if hopIdx+1 < len(chainHops) && len(chainHops[hopIdx+1]) > 0 {
 					next := chainHops[hopIdx+1][0]
-					if ip := strings.TrimSpace(next.ConnectIP); ip != "" && next.Port > 0 {
-						return ip, next.Port
+					if port, ok := portMap[next.NodeID]; ok {
+						ip := resolveChainNodeIP(next)
+						if ip != "" {
+							return &next, port, ip
+						}
 					}
 				}
+				// 没有下一跳，到出口节点
 				if len(outNodes) > 0 {
 					next := outNodes[0]
-					if ip := strings.TrimSpace(next.ConnectIP); ip != "" && next.Port > 0 {
-						return ip, next.Port
+					if port, ok := portMap[next.NodeID]; ok {
+						ip := resolveChainNodeIP(next)
+						if ip != "" {
+							return &next, port, ip
+						}
 					}
 				}
-				host, port, _ := net.SplitHostPort(finalTarget)
-				p, _ := strconv.Atoi(port)
-				return host, p
+				return nil, 0, ""
 			}
 		}
 	}
 
-	// Fallback: node not found in any group
-	host, port, _ := net.SplitHostPort(finalTarget)
-	p, _ := strconv.Atoi(port)
-	return host, p
+	return nil, 0, ""
+}
+
+// resolveChainNodeIP 解析链节点的连接 IP
+func resolveChainNodeIP(node chainNodeRecord) string {
+	if ip := strings.TrimSpace(node.ConnectIP); ip != "" {
+		return ip
+	}
+	return ""
 }
 
 // filterRulesByNodeID filter rules by node ID

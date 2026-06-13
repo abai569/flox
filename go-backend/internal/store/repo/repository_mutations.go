@@ -1462,6 +1462,21 @@ func (r *Repository) ReplaceForwardPorts(forwardID int64, entries []struct {
 	})
 }
 
+// CreateForwardPortTx 创建单条 ForwardPort 记录（用于链节点端口分配）
+func (r *Repository) CreateForwardPortTx(forwardID int64, nodeID int64, port int, inIP string, chainType int) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	fp := model.ForwardPort{
+		ForwardID: forwardID,
+		NodeID:    nodeID,
+		Port:      port,
+		InIP:      sql.NullString{String: inIP, Valid: inIP != ""},
+		ChainType: chainType,
+	}
+	return r.db.Create(&fp).Error
+}
+
 func (r *Repository) CheckAndDecrementStock(packageID int64, quantity int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
@@ -2919,6 +2934,7 @@ func (r *Repository) CreateForwardTx(userID int64, userName, name string, tunnel
 				NodeID:    nodeID,
 				Port:      port,
 				InIP:      sql.NullString{String: inIp, Valid: inIp != ""},
+				ChainType: 1, // 入口节点
 			}
 			if err := tx.Create(&fp).Error; err != nil {
 				return err

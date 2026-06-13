@@ -77,6 +77,7 @@ type ForwardPort struct {
 	NodeID    int64          `gorm:"column:node_id;not null"`
 	Port      int            `gorm:"not null"`
 	InIP      sql.NullString `gorm:"column:in_ip;type:text"`
+	ChainType int            `gorm:"column:chain_type;not null;default:0"` // 0=入口, 1=入口, 2=中间跳, 3=出口
 }
 
 func (ForwardPort) TableName() string { return "forward_port" }
@@ -683,9 +684,10 @@ type UserQuotaView struct {
 
 // ForwardPortRecord is a forward port mapping used by control plane.
 type ForwardPortRecord struct {
-	NodeID int64
-	Port   int
-	InIP   string
+	NodeID    int64
+	Port      int
+	InIP      string
+	ChainType int // 0=入口, 1=入口, 2=中间跳, 3=出口
 }
 
 // NodeRecord is a node view used by control plane.
