@@ -2191,11 +2191,11 @@ export default function ForwardPage() {
         const params = {}; // 永远拉取全量数据
         const [tunnelsRes, forwardsRes, speedLimitsRes, licenseRes] =
           await Promise.all([
-          userTunnel(),
-          getForwardList(params),
-          getSpeedLimitList(),
-          getLicenseInfo(),
-        ]);
+            userTunnel(),
+            getForwardList(params),
+            getSpeedLimitList(),
+            getLicenseInfo(),
+          ]);
 
         if (tunnelsRes.code === 0) {
           setTunnels(tunnelsRes.data || []);
@@ -5592,7 +5592,10 @@ export default function ForwardPage() {
                     </Select>
                     {form.mode === "sdwan" && (
                       <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary-700 dark:text-primary-300">
-                        已选择 SDWAN 模式：如果当前规则绑定的是链式隧道，系统会自动按隧道里的入口节点 / 中间节点 / 出口节点角色进行转发，最终由出口节点去连接落地地址。
+                        已选择 SDWAN
+                        模式：如果当前规则绑定的是链式隧道，系统会自动按隧道里的入口节点
+                        / 中间节点 /
+                        出口节点角色进行转发，最终由出口节点去连接落地地址。
                       </div>
                     )}
                   </div>

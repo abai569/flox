@@ -146,7 +146,10 @@ export const issueNodeSDWANCert = (id: number, vpnIp?: string) =>
     lighthouseAddr: string;
     remoteConfig: string;
   }>("/node/sdwan/issue-cert", { id, vpnIp: vpnIp || "" });
-export const bootstrapNodeSDWAN = (nodeIds: number[], lighthouseNodeId?: number) =>
+export const bootstrapNodeSDWAN = (
+  nodeIds: number[],
+  lighthouseNodeId?: number,
+) =>
   Network.post<{
     updatedCount: number;
     lighthouseNodeId: number;
