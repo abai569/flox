@@ -2,7 +2,7 @@
 >
 > Web 面板升级存在数据丢失风险（如本文档所述）。SSH 脚本升级会自动处理数据库备份、Docker 卷迁移、旧数据恢复等操作，安全可靠。
 >
-> 升级命令：SSH 登录服务器后执行 `bash <(curl -fsSL https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh)`
+> 升级命令：SSH 登录服务器后执行 `bash <(curl -fsSL https://raw.githubusercontent.com/abai569/flox/main/panel_install.sh) update`
 >
 > 如已通过 Web 升级导致数据丢失，请参考下方恢复步骤。
 
