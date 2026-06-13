@@ -5025,8 +5025,7 @@ func (h *Handler) cleanupFederationRuntime(tunnelID int64) {
 }
 
 // resolveTunnelRelayMode 根据 tunnel 下所有 forward 的 mode 推导 relay 内核。
-// 约束：同一 tunnel 下所有 forward.mode 必须一致。
-// 返回值："gost" 或 "floxcore"（nftables 映射到 gost）。
+// 同一隧道允许不同 forward.mode 混用：整体一致时沿用该模式，混用时回退为 gost。
 func (h *Handler) resolveTunnelRelayMode(tunnelID int64) (string, error) {
 	forwards, err := h.repo.ListActiveForwardsByTunnel(tunnelID)
 	if err != nil {
@@ -5035,7 +5034,8 @@ func (h *Handler) resolveTunnelRelayMode(tunnelID int64) (string, error) {
 	if len(forwards) == 0 {
 		return "gost", nil
 	}
-	var mode string
+	mode := ""
+	allSame := true
 	for _, f := range forwards {
 		m := strings.ToLower(f.Mode)
 		if m == "" {
@@ -5044,8 +5044,12 @@ func (h *Handler) resolveTunnelRelayMode(tunnelID int64) (string, error) {
 		if mode == "" {
 			mode = m
 		} else if mode != m {
-			return "", fmt.Errorf("隧道 %d 下转发规则模式不一致: 存在 %s 和 %s 模式混用", tunnelID, mode, m)
+			allSame = false
+			break
 		}
+	}
+	if !allSame {
+		return "gost", nil
 	}
 	if mode == "nftables" {
 		mode = "gost"
@@ -5053,20 +5057,8 @@ func (h *Handler) resolveTunnelRelayMode(tunnelID int64) (string, error) {
 	return mode, nil
 }
 
-// validateForwardModeConsistency 校验同一 tunnel 下 forward mode 是否一致。
+// validateForwardModeConsistency 同一隧道允许不同 forward.mode 共存，不再强制一致。
 func (h *Handler) validateForwardModeConsistency(tunnelID int64, excludeForwardID int64, newMode string) error {
-	existingForwards, err := h.repo.ListActiveForwardsByTunnel(tunnelID)
-	if err != nil {
-		return nil
-	}
-	for _, ef := range existingForwards {
-		if ef.ID == excludeForwardID {
-			continue
-		}
-		if !strings.EqualFold(ef.Mode, newMode) {
-			return fmt.Errorf("同一隧道下转发模式必须一致: 已有 %s 模式规则，不允许创建/切换到 %s 模式", ef.Mode, newMode)
-		}
-	}
 	return nil
 }
 
