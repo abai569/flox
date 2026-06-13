@@ -2383,8 +2383,12 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 
 	for _, fp := range ports {
 		for _, protocol := range protocols {
-			for _, target := range targets {
 			if tunnel.Type == 1 {
+				// nft DNAT 只能匹配 协议+dport，同一端口同一协议只能有一条规则。
+				// 如果 remoteAddr 有多个目标，只取第一个。
+				if len(targets) == 0 {
+					continue
+				}
 				rules = append(rules, NftablesRulePayload{
 					ForwardID:    forward.ID,
 					NodeID:       fp.NodeID,
@@ -2392,11 +2396,12 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 					UserTunnelID: userTunnelID,
 					Protocol:     protocol,
 					Port:         fp.Port,
-					Target:       target,
+					Target:       targets[0],
 					SpeedLimit:   spdLimit,
 					ChainType:    1,
 				})
-				} else if tunnel.Type == 2 {
+			} else if tunnel.Type == 2 {
+				for _, target := range targets {
 					rules = append(rules, buildChainNftablesRule(forward.ID, forward.UserID, userTunnelID, chainNodes, fp, protocol, target, spdLimit))
 				}
 			}
@@ -2431,28 +2436,55 @@ func resolveChainNextHop(chainNodes []chainNodeRecord, nodeID int64, finalTarget
 		return host, p
 	}
 
-	var currentNodeIdx int = -1
-	for i, cn := range chainNodes {
-		if cn.NodeID == nodeID {
-			currentNodeIdx = i
-			break
+	inNodes, chainHops, outNodes := splitChainNodeGroups(chainNodes)
+
+	// Check if current node is an entry node (chainType=1)
+	for _, inNode := range inNodes {
+		if inNode.NodeID == nodeID {
+			// Entry node: next hop is first chain hop node, or first exit node
+			if len(chainHops) > 0 && len(chainHops[0]) > 0 {
+				next := chainHops[0][0]
+				if ip := strings.TrimSpace(next.ConnectIP); ip != "" && next.Port > 0 {
+					return ip, next.Port
+				}
+			}
+			if len(outNodes) > 0 {
+				next := outNodes[0]
+				if ip := strings.TrimSpace(next.ConnectIP); ip != "" && next.Port > 0 {
+					return ip, next.Port
+				}
+			}
+			host, port, _ := net.SplitHostPort(finalTarget)
+			p, _ := strconv.Atoi(port)
+			return host, p
 		}
 	}
 
-	if currentNodeIdx < 0 {
-		host, port, _ := net.SplitHostPort(finalTarget)
-		p, _ := strconv.Atoi(port)
-		return host, p
-	}
-
-	if currentNodeIdx+1 < len(chainNodes) {
-		nextNode := chainNodes[currentNodeIdx+1]
-		if ip := strings.TrimSpace(nextNode.ConnectIP); ip != "" && nextNode.Port > 0 {
-			return ip, nextNode.Port
+	// Check if current node is a chain hop node (chainType=2)
+	for hopIdx, hop := range chainHops {
+		for _, chainNode := range hop {
+			if chainNode.NodeID == nodeID {
+				// Chain hop node: next hop is first node in next hop group, or first exit node
+				if hopIdx+1 < len(chainHops) && len(chainHops[hopIdx+1]) > 0 {
+					next := chainHops[hopIdx+1][0]
+					if ip := strings.TrimSpace(next.ConnectIP); ip != "" && next.Port > 0 {
+						return ip, next.Port
+					}
+				}
+				if len(outNodes) > 0 {
+					next := outNodes[0]
+					if ip := strings.TrimSpace(next.ConnectIP); ip != "" && next.Port > 0 {
+						return ip, next.Port
+					}
+				}
+				host, port, _ := net.SplitHostPort(finalTarget)
+				p, _ := strconv.Atoi(port)
+				return host, p
+			}
 		}
-		// Fallback: use finalTarget when next hop info is incomplete
 	}
 
+	// Fallback: node not found in any group
 	host, port, _ := net.SplitHostPort(finalTarget)
 	p, _ := strconv.Atoi(port)
 	return host, p

@@ -3,6 +3,7 @@
 package nftables
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"os/exec"
@@ -171,9 +172,7 @@ func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protoco
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	fmt.Printf("DEBUG AddRule: forwardID=%d protocol=%s port=%d target=%q speedLimit=%d\n", forwardID, protocol, port, target, speedLimit)
-
-	key := ruleKey(forwardID, protocol)
+	key := ruleKey(forwardID, protocol, port)
 	if _, exists := m.rules[key]; exists {
 		return fmt.Errorf("rule already exists: %s", key)
 	}
@@ -298,7 +297,7 @@ func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protoco
 func (m *Manager) UpdateRule(forwardID int64, protocol string, port int, target string, speedLimit int) error {
 	m.mu.RLock()
 	var userID, userTunnelID int64
-	if rs, exists := m.rules[ruleKey(forwardID, protocol)]; exists {
+	if rs, exists := m.rules[ruleKey(forwardID, protocol, port)]; exists {
 		userID = rs.UserID
 		userTunnelID = rs.UserTunnelID
 	}
@@ -314,20 +313,36 @@ func (m *Manager) DeleteRule(forwardID int64, protocol string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := ruleKey(forwardID, protocol)
-	rs, exists := m.rules[key]
-	if !exists {
-		fmt.Printf("️ DeleteRule: rule not in memory map %s, attempting kernel deletion\n", key)
+	prefix := fmt.Sprintf("%d_%s_", forwardID, protocol)
+	var matchedKeys []string
+	for key := range m.rules {
+		if strings.HasPrefix(key, prefix) {
+			matchedKeys = append(matchedKeys, key)
+		}
+	}
+
+	if len(matchedKeys) == 0 {
+		fmt.Printf("⚠️ DeleteRule: no rules in memory map for forwardID=%d protocol=%s, attempting kernel deletion\n", forwardID, protocol)
 		return m.deleteRuleFromKernel(forwardID, protocol)
 	}
 
-	// 从内存中移除，但不用 rs.Rule 删内核 — AddRule 不返回有效 handle
-	delete(m.rules, key)
-	if rs.Rule != nil && rs.Rule.Handle != 0 {
-		m.conn.DelRule(rs.Rule)
-		return m.conn.Flush()
+	var errs []error
+	for _, key := range matchedKeys {
+		rs := m.rules[key]
+		delete(m.rules, key)
+		if rs.Rule != nil && rs.Rule.Handle != 0 {
+			m.conn.DelRule(rs.Rule)
+		} else {
+			if err := m.deleteRuleFromKernel(forwardID, protocol); err != nil {
+				errs = append(errs, err)
+			}
+			continue
+		}
 	}
-	return m.deleteRuleFromKernel(forwardID, protocol)
+	if len(errs) > 0 {
+		return errs[0]
+	}
+	return m.conn.Flush()
 }
 
 // DeleteRuleWithPort 通过 forwardID+协议+端口删除规则（精确匹配）
@@ -335,39 +350,41 @@ func (m *Manager) DeleteRuleWithPort(forwardID int64, protocol string, port int)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	key := ruleKey(forwardID, protocol)
-	_, exists := m.rules[key]
+	key := ruleKey(forwardID, protocol, port)
+	rs, exists := m.rules[key]
 	if !exists {
-		fmt.Printf("️ DeleteRuleWithPort: rule not in memory map %s, attempting kernel deletion\n", key)
-		return m.deleteRuleByPortFromKernel(protocol, port)
+		fmt.Printf("⚠️ DeleteRuleWithPort: rule not in memory map %s, attempting kernel deletion\n", key)
+		return m.deleteRuleByPortFromKernel(protocol, port, "")
 	}
 
-	// 从内存中移除，但不用 rs.Rule 删内核 — AddRule 不返回有效 handle
-	// 直接通过协议+端口扫描内核删除
+	target := rs.Target
 	delete(m.rules, key)
-	return m.deleteRuleByPortFromKernel(protocol, port)
+	return m.deleteRuleByPortFromKernel(protocol, port, target)
 }
 
-// DeleteRuleByPort 通过协议+端口从内核删除规则（更精确的匹配）
+// DeleteRuleByPort 通过协议+端口从内核删除规则
 func (m *Manager) DeleteRuleByPort(protocol string, port int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// 先从内存 map 中移除
+	var matchedKeys []string
 	for key, rs := range m.rules {
 		if rs.Protocol == protocol && rs.Port == port {
-			delete(m.rules, key)
-			fmt.Printf("✅ Removed rule from memory map: %s\n", key)
-			break
+			matchedKeys = append(matchedKeys, key)
 		}
 	}
 
-	// 内核通过协议+端口扫描删除（不依赖 handle）
-	return m.deleteRuleByPortFromKernel(protocol, port)
+	for _, key := range matchedKeys {
+		delete(m.rules, key)
+		fmt.Printf("✅ Removed rule from memory map: %s\n", key)
+	}
+
+	return m.deleteRuleByPortFromKernel(protocol, port, "")
 }
 
-// deleteRuleByPortFromKernel 通过协议+端口直接从内核删除规则
-func (m *Manager) deleteRuleByPortFromKernel(protocol string, port int) error {
+// deleteRuleByPortFromKernel 通过协议+端口从内核删除规则
+// 当 target 非空时，额外匹配 DNAT 目标地址，避免误删同端口其他 forward 的规则
+func (m *Manager) deleteRuleByPortFromKernel(protocol string, port int, target string) error {
 	preroutingChain := &nftables.Chain{
 		Name:  PreroutingChain,
 		Table: m.table,
@@ -394,9 +411,12 @@ func (m *Manager) deleteRuleByPortFromKernel(protocol string, port int) error {
 		portMatch := matchPortInRule(rule, portBytes)
 
 		if protoMatch && portMatch {
+			if target != "" && !matchNATTargetInRule(rule, target) {
+				continue
+			}
 			m.conn.DelRule(rule)
 			deleted = true
-			fmt.Printf("✅ Deleted kernel rule: %s port %d\n", protocol, port)
+			fmt.Printf("✅ Deleted kernel rule: %s port %d target=%s\n", protocol, port, target)
 		}
 	}
 
@@ -463,10 +483,12 @@ func (m *Manager) deleteRuleFromKernel(forwardID int64, protocol string) error {
 }
 
 func findPortInRulesMap(rules map[string]*RuleState, forwardID int64, protocol string) []byte {
-	key := ruleKey(forwardID, protocol)
-	if rs, ok := rules[key]; ok {
-		port := rs.Port
-		return []byte{byte(port >> 8), byte(port & 0xFF)}
+	prefix := fmt.Sprintf("%d_%s_", forwardID, protocol)
+	for key, rs := range rules {
+		if strings.HasPrefix(key, prefix) {
+			port := rs.Port
+			return []byte{byte(port >> 8), byte(port & 0xFF)}
+		}
 	}
 	return nil
 }
@@ -498,6 +520,46 @@ func matchPortInRule(rule *nftables.Rule, portBytes []byte) bool {
 	for _, e := range rule.Exprs {
 		if cmp, ok := e.(*expr.Cmp); ok && cmp.Register == 1 {
 			if len(cmp.Data) == 2 && cmp.Data[0] == portBytes[0] && cmp.Data[1] == portBytes[1] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matchNATTargetInRule checks if a kernel nft rule contains a DNAT target matching the given host:port.
+func matchNATTargetInRule(rule *nftables.Rule, target string) bool {
+	host, portStr, err := net.SplitHostPort(target)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	var ipBytes []byte
+	if ip4 := ip.To4(); ip4 != nil {
+		ipBytes = ip4
+	} else {
+		ipBytes = ip.To16()
+	}
+	if ipBytes == nil {
+		return false
+	}
+	port, _ := strconv.Atoi(portStr)
+	portBytes := []byte{byte(port >> 8), byte(port & 0xFF)}
+
+	for i, e := range rule.Exprs {
+		if _, ok := e.(*expr.NAT); !ok {
+			continue
+		}
+		if i < 2 {
+			continue
+		}
+		imm2, ok2 := rule.Exprs[i-1].(*expr.Immediate)
+		imm1, ok1 := rule.Exprs[i-2].(*expr.Immediate)
+		if ok1 && ok2 && len(imm1.Data) == len(ipBytes) && len(imm2.Data) == 2 {
+			if bytes.Equal(imm1.Data, ipBytes) && bytes.Equal(imm2.Data, portBytes) {
 				return true
 			}
 		}
@@ -789,20 +851,17 @@ func (m *Manager) CountConnectionsByRule() ([]RuleConnInfo, error) {
 	return results, nil
 }
 
-func ruleKey(forwardID int64, protocol string) string {
-	return fmt.Sprintf("%d_%s", forwardID, protocol)
+func ruleKey(forwardID int64, protocol string, port int) string {
+	return fmt.Sprintf("%d_%s_%d", forwardID, protocol, port)
 }
 
 func parseTarget(target string) (string, int) {
 	target = strings.TrimSpace(target)
-	fmt.Printf("DEBUG parseTarget input: %q\n", target)
 	host, portStr, err := net.SplitHostPort(target)
 	if err != nil {
-		fmt.Printf("DEBUG parseTarget SplitHostPort failed: %v\n", err)
 		return "", 0
 	}
 	port, _ := strconv.Atoi(portStr)
-	fmt.Printf("DEBUG parseTarget result: host=%q port=%d\n", host, port)
 	return host, port
 }
 
