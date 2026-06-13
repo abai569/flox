@@ -46,13 +46,13 @@ func TestReconstructTunnelState_PreservesConnectIP(t *testing.T) {
 		t.Fatalf("insert entry chain: %v", err)
 	}
 	if err := r.DB().Exec(`
-		INSERT INTO chain_tunnel(tunnel_id, chain_type, node_id, port, strategy, inx, protocol, connect_ip)
+		INSERT INTO chain_tunnel(tunnel_id, chain_type, node_id, port, strategy, inx, protocol, connect_ip_type)
 		VALUES(1, '2', 102, 30002, 'round', 1, 'tls', '10.99.9.22')
 	`).Error; err != nil {
 		t.Fatalf("insert middle chain: %v", err)
 	}
 	if err := r.DB().Exec(`
-		INSERT INTO chain_tunnel(tunnel_id, chain_type, node_id, port, strategy, inx, protocol, connect_ip)
+		INSERT INTO chain_tunnel(tunnel_id, chain_type, node_id, port, strategy, inx, protocol, connect_ip_type)
 		VALUES(1, '3', 103, 30003, 'round', 1, 'tls', '10.99.9.33')
 	`).Error; err != nil {
 		t.Fatalf("insert exit chain: %v", err)

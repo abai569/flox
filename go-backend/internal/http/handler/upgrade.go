@@ -41,10 +41,6 @@ type githubRelease struct {
 }
 
 func normalizeReleaseChannel(channel string) string {
-	// 空字符串返回空，表示不指定通道（获取最新版本）
-	if channel == "" {
-		return ""
-	}
 	switch strings.ToLower(strings.TrimSpace(channel)) {
 	case releaseChannelDev:
 		return releaseChannelDev

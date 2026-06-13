@@ -142,16 +142,19 @@ type remoteUsageNodeItem struct {
 }
 
 func buildFederationServiceConfig(serviceName, addr, protocol, role, chainName string, targetCount int, interfaceName string) map[string]interface{} {
+	handler := map[string]interface{}{
+		"type": "relay",
+	}
+	if strings.EqualFold(protocol, "tls") {
+		handler["metadata"] = map[string]interface{}{
+			"nodelay": true,
+			"udpTTL":  "5s",
+		}
+	}
 	service := map[string]interface{}{
-		"name": serviceName,
-		"addr": addr,
-		"handler": map[string]interface{}{
-			"type": "relay",
-			"metadata": map[string]interface{}{
-				"nodelay": true, // ✅ 修复 1: 为所有 Relay Handler 启用 noDelay 模式
-				"udpTTL":  "5s", // ✅ 修复 2: 添加 UDP TTL 默认配置
-			},
-		},
+		"name":    serviceName,
+		"addr":    addr,
+		"handler": handler,
 		"listener": map[string]interface{}{
 			"type": protocol,
 		},
