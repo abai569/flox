@@ -125,6 +125,17 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       ),
     },
     {
+      path: "/sdwan",
+      label: "组网",
+      adminOnly: true,
+      premiumOnly: true,
+      icon: (
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M4 5a2 2 0 012-2h8a2 2 0 012 2v3h-2V5H6v10h4v2H6a2 2 0 01-2-2V5zm9.707 4.293a1 1 0 00-1.414 1.414L13.586 12H9a1 1 0 100 2h4.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414l-3-3z" />
+        </svg>
+      ),
+    },
+    {
       path: "/node",
       label: "节点",
       adminOnly: true,
@@ -135,17 +146,6 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
             d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z"
             fillRule="evenodd"
           />
-        </svg>
-      ),
-    },
-    {
-      path: "/sdwan",
-      label: "组网",
-      adminOnly: true,
-      premiumOnly: true,
-      icon: (
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M4 5a2 2 0 012-2h8a2 2 0 012 2v3h-2V5H6v10h4v2H6a2 2 0 01-2-2V5zm9.707 4.293a1 1 0 00-1.414 1.414L13.586 12H9a1 1 0 100 2h4.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414l-3-3z" />
         </svg>
       ),
     },

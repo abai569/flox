@@ -1176,7 +1176,7 @@ const SortableCompactTableRow = ({
           )}
           {forward.mode === "floxcore" && (
             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800">
-              fc
+              flc
             </span>
           )}
           {forward.mode === "sdwan" && (
@@ -4403,7 +4403,7 @@ export default function ForwardPage() {
                 )}
                 {forward.mode === "floxcore" && (
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800 flex-shrink-0">
-                    fc
+                    flc
                   </span>
                 )}
                 {forward.mode === "sdwan" && (
