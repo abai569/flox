@@ -37,6 +37,36 @@ type TrafficReportItem struct {
 	D int64  `json:"d"` // 下行流量（down缩写）
 }
 
+// NftablesFlowDelta nftables 流量增量
+type NftablesFlowDelta struct {
+	ServiceName string
+	Bytes       uint64
+}
+
+// ReportNftablesFlow 上报 nftables 流量到面板（更新数据库总流量）
+func ReportNftablesFlow(deltas []NftablesFlowDelta) {
+	if httpReportURL == "" || len(deltas) == 0 {
+		return
+	}
+
+	items := make([]TrafficReportItem, 0, len(deltas))
+	for _, d := range deltas {
+		items = append(items, TrafficReportItem{
+			N: d.ServiceName,
+			U: int64(d.Bytes),
+			D: 0,
+		})
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := sendBatchTrafficReport(ctx, items); err != nil {
+			fmt.Printf("⚠️ [nft] 上报流量失败: %v\n", err)
+		}
+	}()
+}
+
 func SetHTTPReportURL(addr string, secret string) {
 	uploadURLs, configURLs := buildReportURLCandidates(addr, secret)
 	if len(uploadURLs) > 0 {

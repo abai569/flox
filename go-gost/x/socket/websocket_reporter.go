@@ -1073,11 +1073,18 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		return
 	}
 
-	// 注入 nftables 流量统计到 stats 系统
+	// 注入 nftables 流量统计到 stats 系统（实时带宽）
+	var flowDeltas []service.NftablesFlowDelta
 	for _, d := range deltas {
 		serviceName := fmt.Sprintf("%d_%d_%d_nft", d.forwardID, d.userID, d.userTunnelID)
 		stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, 0, d.port, true, d.delta)
+		flowDeltas = append(flowDeltas, service.NftablesFlowDelta{
+			ServiceName: serviceName,
+			Bytes:       d.delta,
+		})
 	}
+	// 同时通过 HTTP 上报流量给面板（更新数据库总流量）
+	service.ReportNftablesFlow(flowDeltas)
 }
 
 func nftForwardMetricServiceName(info nftables.RuleConnInfo) string {
