@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-gost/x/adapter"
 	"github.com/go-gost/x/config"
 	"github.com/go-gost/x/internal/util/crypto"
 	"github.com/go-gost/x/nftables"
@@ -173,6 +174,19 @@ type ServiceMonitorCheckResult struct {
 // ListServicesResult 返回当前注册的所有 GOST 服务状态
 type ListServicesResult struct {
 	Services []ServiceStatus `json:"services"`
+}
+
+// SdwanDiagResult SDWAN overlay 诊断结果
+type SdwanDiagResult struct {
+	Running       bool   `json:"running"`
+	VPNIP         string `json:"vpnIp"`
+	Network       string `json:"network"`
+	CertMask      int    `json:"certMask"`
+	ListenPort    string `json:"listenPort"`
+	CacheCount    int    `json:"cacheCount"`
+	OverlayActive bool   `json:"overlayActive"`
+	ServiceName   string `json:"serviceName"`
+	ErrorMessage  string `json:"errorMessage,omitempty"`
 }
 
 // ServiceStatus 单个服务的运行时状态
@@ -1454,6 +1468,13 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		response.Data = tcpPingResult
 		// needSaveConfig = false (默认值)
 
+	// SDWAN overlay 诊断（只读）
+	case "SdwanDiag":
+		var sdwanResult SdwanDiagResult
+		sdwanResult = w.handleSdwanDiag(cmd.Data)
+		response.Type = "SdwanDiagResponse"
+		response.Data = sdwanResult
+
 	// List local GOST services (read-only)
 	case "ListServices":
 		var listResult ListServicesResult
@@ -2713,6 +2734,19 @@ func (w *WebSocketReporter) handleTcpPing(data interface{}) (TcpPingResponse, er
 	}
 
 	return response, nil
+}
+
+func (w *WebSocketReporter) handleSdwanDiag(data interface{}) SdwanDiagResult {
+	result := SdwanDiagResult{}
+	status := adapter.GetSDWANOverlayStatus()
+	result.Running = status.Running
+	result.VPNIP = status.VPNIP
+	result.Network = status.Network
+	result.CertMask = status.CertMask
+	result.ListenPort = status.ListenPort
+	result.CacheCount = status.CacheCount
+	result.OverlayActive = status.OverlayActive
+	return result
 }
 
 // handleServiceMonitorCheck executes a service monitor check on this node.

@@ -3366,7 +3366,7 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 	} else if tunnelID != forward.TunnelID {
 		err = h.replaceForwardPorts(id, tunnelID, port, "")
 	} else {
-		err = h.replaceForwardPortsPreservingInIP(id, tunnelID, port, oldPorts)
+		err = h.replaceForwardPorts(id, tunnelID, port, "")
 	}
 	if err != nil {
 		h.rollbackForwardMutation(forward, oldPorts)
@@ -5876,31 +5876,6 @@ type forwardPortReplaceEntry = struct {
 	InIP   string
 }
 
-func buildForwardPortEntriesWithPreservedInIP(entryNodeIDs []int64, oldPorts []forwardPortRecord, port int) []forwardPortReplaceEntry {
-	preservedByNode := make(map[int64]string)
-	for _, fp := range oldPorts {
-		current, exists := preservedByNode[fp.NodeID]
-		if !exists {
-			preservedByNode[fp.NodeID] = fp.InIP
-			continue
-		}
-		if strings.TrimSpace(current) == "" && strings.TrimSpace(fp.InIP) != "" {
-			preservedByNode[fp.NodeID] = fp.InIP
-		}
-	}
-
-	entries := make([]forwardPortReplaceEntry, 0, len(entryNodeIDs))
-	for _, nid := range entryNodeIDs {
-		entries = append(entries, forwardPortReplaceEntry{
-			NodeID: nid,
-			Port:   port,
-			InIP:   preservedByNode[nid],
-		})
-	}
-
-	return entries
-}
-
 func (h *Handler) replaceForwardPorts(forwardID, tunnelID int64, port int, inIp string) error {
 	entryNodes, err := h.tunnelEntryNodeIDs(tunnelID)
 	if err != nil {
@@ -5910,15 +5885,6 @@ func (h *Handler) replaceForwardPorts(forwardID, tunnelID int64, port int, inIp 
 	for i, nid := range entryNodes {
 		entries[i] = forwardPortReplaceEntry{NodeID: nid, Port: port, InIP: inIp}
 	}
-	return h.repo.ReplaceForwardPorts(forwardID, entries)
-}
-
-func (h *Handler) replaceForwardPortsPreservingInIP(forwardID, tunnelID int64, port int, oldPorts []forwardPortRecord) error {
-	entryNodes, err := h.tunnelEntryNodeIDs(tunnelID)
-	if err != nil {
-		return err
-	}
-	entries := buildForwardPortEntriesWithPreservedInIP(entryNodes, oldPorts, port)
 	return h.repo.ReplaceForwardPorts(forwardID, entries)
 }
 

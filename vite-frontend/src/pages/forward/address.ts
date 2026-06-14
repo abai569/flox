@@ -17,7 +17,7 @@ const splitAddressEntries = (value: string): string[] => {
 };
 
 const formatAddressWithPort = (ip: string, port: number): string => {
-  if (ip.includes(":") && !ip.startsWith("[")) {
+  if ((ip.includes("::") || /^[\da-fA-F:]+$/.test(ip)) && !ip.startsWith("[")) {
     return `[${ip}]:${port}`;
   }
 

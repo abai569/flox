@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -3813,7 +3814,7 @@ func resolveForwardIngress(db *gorm.DB, forwardID int64, tunnelID int64) (string
 	ports := make([]int64, 0)
 	entries := make([]string, 0)
 	seenPorts := make(map[int64]struct{})
-	seenPairs := make(map[string]struct{})
+	seenIPs := make(map[string]struct{})
 
 	for _, row := range fpRows {
 		if !row.Port.Valid {
@@ -3837,9 +3838,10 @@ func resolveForwardIngress(db *gorm.DB, forwardID int64, tunnelID int64) (string
 		}
 
 		if ip != "" {
-			pair := fmt.Sprintf("%s:%d", ip, row.Port.Int64)
-			if _, ok := seenPairs[pair]; !ok {
-				seenPairs[pair] = struct{}{}
+			cleanIP := stripEmbeddedPort(ip)
+			if _, exists := seenIPs[cleanIP]; !exists {
+				seenIPs[cleanIP] = struct{}{}
+				pair := fmt.Sprintf("%s:%d", cleanIP, row.Port.Int64)
 				entries = append(entries, pair)
 			}
 		}
@@ -3852,6 +3854,16 @@ func resolveForwardIngress(db *gorm.DB, forwardID int64, tunnelID int64) (string
 	inPort := sql.NullInt64{Int64: ports[0], Valid: true}
 
 	return strings.Join(entries, ","), inPort, nil
+}
+
+func stripEmbeddedPort(ip string) string {
+	if idx := strings.LastIndex(ip, ":"); idx > 0 {
+		suffix := ip[idx+1:]
+		if _, err := strconv.Atoi(suffix); err == nil {
+			return ip[:idx]
+		}
+	}
+	return ip
 }
 
 func nullableString(v sql.NullString) interface{} {
