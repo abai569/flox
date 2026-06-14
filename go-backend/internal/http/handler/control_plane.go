@@ -908,6 +908,49 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 				})
 			}
 		}
+
+		seenNodes := map[int64]bool{}
+		for _, inNode := range inNodes {
+			if !seenNodes[inNode.NodeID] {
+				seenNodes[inNode.NodeID] = true
+				workItems = append(workItems, diagnosisWorkItem{
+					fromNodeID:  inNode.NodeID,
+					description: fmt.Sprintf("SDWAN状态(%s)", inNode.NodeName),
+					metadata: map[string]interface{}{
+						"sdwanCheck": true,
+						"nodeName":   inNode.NodeName,
+					},
+				})
+			}
+		}
+		for _, hop := range chainHops {
+			for _, cn := range hop {
+				if !seenNodes[cn.NodeID] {
+					seenNodes[cn.NodeID] = true
+					workItems = append(workItems, diagnosisWorkItem{
+						fromNodeID:  cn.NodeID,
+						description: fmt.Sprintf("SDWAN状态(%s)", cn.NodeName),
+						metadata: map[string]interface{}{
+							"sdwanCheck": true,
+							"nodeName":   cn.NodeName,
+						},
+					})
+				}
+			}
+		}
+		for _, outNode := range outNodes {
+			if !seenNodes[outNode.NodeID] {
+				seenNodes[outNode.NodeID] = true
+				workItems = append(workItems, diagnosisWorkItem{
+					fromNodeID:  outNode.NodeID,
+					description: fmt.Sprintf("SDWAN状态(%s)", outNode.NodeName),
+					metadata: map[string]interface{}{
+						"sdwanCheck": true,
+						"nodeName":   outNode.NodeName,
+					},
+				})
+			}
+		}
 	default:
 		for _, inNode := range inNodes {
 			for _, target := range targets {
@@ -1208,7 +1251,9 @@ func newDiagnosisTimeoutItem(workItem diagnosisWorkItem, message string) map[str
 func (h *Handler) executeDiagnosisWorkItem(workItem diagnosisWorkItem, options diagnosisExecOptions) map[string]interface{} {
 	single := make([]map[string]interface{}, 0, 1)
 	nodeCache := map[int64]*nodeRecord{}
-	if workItem.hasChainHop {
+	if workItem.metadata["sdwanCheck"] == true {
+		h.appendSdwanDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.description, workItem.metadata, options)
+	} else if workItem.hasChainHop {
 		h.appendChainHopDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.toNode, workItem.description, workItem.metadata, workItem.ipPreference, workItem.connectIpType, options)
 	} else if workItem.metadata["exitTest"] == true {
 		exitOptions := options
@@ -1396,6 +1441,54 @@ func (h *Handler) appendPathDiagnosis(results *[]map[string]interface{}, nodeCac
 		}
 	}
 	item["message"] = message
+	*results = append(*results, item)
+}
+
+func (h *Handler) appendSdwanDiagnosis(results *[]map[string]interface{}, nodeCache map[int64]*nodeRecord, nodeID int64, description string, metadata map[string]interface{}, options diagnosisExecOptions) {
+	node, _ := h.cachedNode(nodeCache, nodeID)
+	item := newDiagnosisResultItem(nodeID, "", 0, description, metadata)
+	if node != nil {
+		item["nodeName"] = node.Name
+	}
+
+	sdwanData, err := h.sdwanDiagViaNode(nodeID, options)
+	if err != nil {
+		item["success"] = false
+		item["message"] = fmt.Sprintf("SDWAN 诊断失败: %v", err)
+		*results = append(*results, item)
+		return
+	}
+
+	running := asBool(sdwanData["running"], false)
+	certMask := int(asFloat(sdwanData["certMask"], 0))
+	cacheCount := int(asFloat(sdwanData["cacheCount"], 0))
+	vpnIP := asString(sdwanData["vpnIp"])
+	network := asString(sdwanData["network"])
+
+	var msgs []string
+	if running {
+		msgs = append(msgs, fmt.Sprintf("Overlay运行中(%s/%s)", vpnIP, network))
+	} else {
+		msgs = append(msgs, "Overlay未运行")
+	}
+	if certMask > 0 {
+		if certMask >= 24 {
+			msgs = append(msgs, fmt.Sprintf("证书掩码/%d✓", certMask))
+		} else {
+			msgs = append(msgs, fmt.Sprintf("证书掩码/%d✗(应用/24)", certMask))
+		}
+	}
+	if cacheCount > 0 {
+		msgs = append(msgs, fmt.Sprintf("缓存实例:%d", cacheCount))
+	}
+
+	item["success"] = running && certMask >= 24
+	item["sdwanRunning"] = running
+	item["sdwanCertMask"] = certMask
+	item["sdwanVpnIP"] = vpnIP
+	item["sdwanNetwork"] = network
+	item["sdwanCacheCount"] = cacheCount
+	item["message"] = strings.Join(msgs, "，")
 	*results = append(*results, item)
 }
 
@@ -1679,6 +1772,20 @@ func (h *Handler) tcpPingViaNode(nodeID int64, ip string, port int, options diag
 	}
 	if res.Data == nil {
 		return nil, errors.New("节点未返回诊断数据")
+	}
+	return res.Data, nil
+}
+
+func (h *Handler) sdwanDiagViaNode(nodeID int64, options diagnosisExecOptions) (map[string]interface{}, error) {
+	if options.commandTimeout <= 0 {
+		options.commandTimeout = diagnosisCommandTimeout
+	}
+	res, err := h.sendNodeCommandWithTimeout(nodeID, "SdwanDiag", map[string]interface{}{}, options.commandTimeout, false, false)
+	if err != nil {
+		return nil, err
+	}
+	if res.Data == nil {
+		return nil, errors.New("节点未返回 SDWAN 诊断数据")
 	}
 	return res.Data, nil
 }
@@ -2061,6 +2168,44 @@ func resolveTargetIP(target string) string {
 	return ips[0] + ":" + port
 }
 
+// resolveTargetDualStack resolves a target (IP:port or domain:port) to separate IPv4 and IPv6 targets.
+// Returns (ipv4Target, ipv6Target). Each target is "ip:port" (IPv4) or "[ip]:port" (IPv6).
+// For literal IPs, the appropriate family is returned. For domains, all A and AAAA records are resolved.
+func resolveTargetDualStack(target string) (string, string) {
+	host, port, err := net.SplitHostPort(target)
+	if err != nil {
+		return target, ""
+	}
+	host = strings.TrimSpace(host)
+	port = strings.TrimSpace(port)
+
+	if ip := net.ParseIP(host); ip != nil {
+		if strings.Contains(host, ":") {
+			return "", "[" + host + "]:" + port
+		}
+		return host + ":" + port, ""
+	}
+
+	ips, err := net.LookupHost(host)
+	if err != nil || len(ips) == 0 {
+		return target, ""
+	}
+
+	var ipv4, ipv6 string
+	for _, ip := range ips {
+		if strings.Contains(ip, ":") {
+			if ipv6 == "" {
+				ipv6 = "[" + ip + "]:" + port
+			}
+		} else {
+			if ipv4 == "" {
+				ipv4 = ip + ":" + port
+			}
+		}
+	}
+	return ipv4, ipv6
+}
+
 func normalizeServerAddressInput(serverAddr string) string {
 	serverAddr = strings.TrimSpace(serverAddr)
 	if serverAddr == "" {
@@ -2278,49 +2423,45 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 	// 为链节点填充缺失的 ConnectIP，同时收集 IPv6 地址
 	nodeIPv6Map := make(map[int64]string)
 	for i := range chainNodes {
-		if strings.TrimSpace(chainNodes[i].ConnectIP) != "" {
-			// ConnectIP 已有值，检查是否是 IPv6
-			if strings.Contains(chainNodes[i].ConnectIP, ":") {
-				nodeIPv6Map[chainNodes[i].NodeID] = chainNodes[i].ConnectIP
-			}
-			continue
+		connectIPSet := strings.TrimSpace(chainNodes[i].ConnectIP) != ""
+
+		// 如果 ConnectIP 已有值且是 IPv6，先记入 nodeIPv6Map
+		if connectIPSet && strings.Contains(chainNodes[i].ConnectIP, ":") {
+			nodeIPv6Map[chainNodes[i].NodeID] = chainNodes[i].ConnectIP
 		}
-		node, err := h.getNodeRecord(chainNodes[i].NodeID)
-		if err != nil || node == nil {
-			continue
-		}
-		// 与 selectTunnelDialHost 保持一致：LAN → IPv4 → IPv6 → ServerIP
-		if v := strings.TrimSpace(node.IntranetIP); v != "" {
-			chainNodes[i].ConnectIP = v
-			continue
-		}
-		if v := strings.TrimSpace(node.ExtraIPs); v != "" {
-			for _, ip := range strings.Split(v, ",") {
-				ip = strings.TrimSpace(ip)
-				if ip != "" && !strings.HasPrefix(ip, "[") {
-					chainNodes[i].ConnectIP = ip
-					break
-				}
-			}
-			if chainNodes[i].ConnectIP != "" {
+
+		// ConnectIP 为空时从 node 记录填充
+		if !connectIPSet {
+			node, err := h.getNodeRecord(chainNodes[i].NodeID)
+			if err != nil || node == nil {
 				continue
 			}
+			// 与 selectTunnelDialHost 保持一致：LAN → IPv4 → IPv6 → ServerIP
+			if v := strings.TrimSpace(node.IntranetIP); v != "" {
+				chainNodes[i].ConnectIP = v
+			} else if v := strings.TrimSpace(node.ExtraIPs); v != "" {
+				for _, ip := range strings.Split(v, ",") {
+					ip = strings.TrimSpace(ip)
+					if ip != "" && !strings.HasPrefix(ip, "[") {
+						chainNodes[i].ConnectIP = ip
+						break
+					}
+				}
+			} else if v := strings.TrimSpace(node.ServerIPv4); v != "" {
+				chainNodes[i].ConnectIP = v
+			} else if v := strings.TrimSpace(node.ServerIPv6); v != "" {
+				chainNodes[i].ConnectIP = v
+			} else if v := strings.TrimSpace(node.ServerIP); v != "" {
+				chainNodes[i].ConnectIP = v
+			}
 		}
-		if v := strings.TrimSpace(node.ServerIPv4); v != "" {
-			chainNodes[i].ConnectIP = v
-			// 同时记录 IPv6 地址
+
+		// 统一查 node 记录补 nodeIPv6Map（无论 ConnectIP 是否已有值）
+		node, err := h.getNodeRecord(chainNodes[i].NodeID)
+		if err == nil && node != nil {
 			if v6 := strings.TrimSpace(node.ServerIPv6); v6 != "" {
 				nodeIPv6Map[chainNodes[i].NodeID] = v6
 			}
-			continue
-		}
-		if v := strings.TrimSpace(node.ServerIPv6); v != "" {
-			chainNodes[i].ConnectIP = v
-			nodeIPv6Map[chainNodes[i].NodeID] = v
-			continue
-		}
-		if v := strings.TrimSpace(node.ServerIP); v != "" {
-			chainNodes[i].ConnectIP = v
 		}
 	}
 
@@ -2418,12 +2559,13 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 	}
 
 	if tunnel.Type == 1 {
-		// 直连隧道：入口节点直接 DNAT 到落地机
+		// 直连隧道：入口节点直接 DNAT 到落地机（支持 IPv4/IPv6 双栈）
 		for _, fp := range ports {
 			for _, protocol := range protocols {
 				if len(targets) == 0 {
 					continue
 				}
+				target4, target6 := resolveTargetDualStack(targets[0])
 				rules = append(rules, NftablesRulePayload{
 					ForwardID:    forward.ID,
 					NodeID:       fp.NodeID,
@@ -2431,9 +2573,11 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 					UserTunnelID: userTunnelID,
 					Protocol:     protocol,
 					Port:         fp.Port,
-					Target:       targets[0],
+					Target:       target4,
 					SpeedLimit:   spdLimit,
 					ChainType:    1,
+					NextHopIPv6:  target6,
+					NextHopPort:  fp.Port,
 				})
 			}
 		}
@@ -2510,12 +2654,13 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 					}
 				}
 
-				// 3. 出口节点规则：出口端口 → 落地机
+				// 3. 出口节点规则：出口端口 → 落地机（支持 IPv4/IPv6 双栈）
 				for _, outNode := range outNodes {
 					exitPort, ok := portMap[outNode.NodeID]
 					if !ok {
 						continue
 					}
+					target4, target6 := resolveTargetDualStack(target)
 					rules = append(rules, NftablesRulePayload{
 						ForwardID:    forward.ID,
 						NodeID:       outNode.NodeID,
@@ -2523,9 +2668,10 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 						UserTunnelID: userTunnelID,
 						Protocol:     protocol,
 						Port:         exitPort,
-						Target:       target,
+						Target:       target4,
 						SpeedLimit:   spdLimit,
 						ChainType:    3,
+						NextHopIPv6:  target6,
 					})
 				}
 			}
