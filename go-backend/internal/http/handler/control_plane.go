@@ -320,15 +320,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	if strings.EqualFold(forward.Mode, forwardModeSDWAN) && tunnel != nil && tunnel.Type == 2 {
 		return h.syncSDWANChainForwardServicesWithWarnings(forward, tunnel, ports, userTunnelID)
 	}
-	if isPremiumForwardMode(forward.Mode) && tunnel != nil && tunnel.Type == 2 {
-		relayMode, _ := h.resolveTunnelRelayMode(forward.TunnelID)
-		state, stateErr := h.buildTunnelStateForNftRelay(forward.TunnelID, relayMode)
-		if stateErr != nil {
-			fmt.Printf("[fc.debug] buildTunnelStateForNftRelay failed: %v\n", stateErr)
-		} else if _, _, applyErr := h.applyTunnelRuntime(state); applyErr != nil {
-			fmt.Printf("[fc.debug] applyTunnelRuntime failed: %v\n", applyErr)
-		}
-	}
+	h.syncFloxChainTunnel(forward, tunnel)
 
 	// ✅ 动态限速器名称
 	var dynamicLimiterName string
