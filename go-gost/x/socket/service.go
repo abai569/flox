@@ -23,14 +23,25 @@ import (
 // kernelName returns the kernel name from service config metadata.
 // Returns "gost" if not set.
 func kernelName(cfg *config.ServiceConfig) string {
-	if cfg.Metadata == nil {
-		return "gost"
+	// Check top-level metadata first.
+	if cfg.Metadata != nil {
+		if v, ok := cfg.Metadata["kernel"]; ok {
+			if s, ok := v.(string); ok {
+				s = strings.TrimSpace(strings.ToLower(s))
+				if s == "floxcore" || s == "sdwan" {
+					return s
+				}
+			}
+		}
 	}
-	if v, ok := cfg.Metadata["kernel"]; ok {
-		if s, ok := v.(string); ok {
-			s = strings.TrimSpace(strings.ToLower(s))
-			if s == "floxcore" || s == "sdwan" {
-				return s
+	// Fallback to handler metadata (relay services put kernel here).
+	if cfg.Handler != nil && cfg.Handler.Metadata != nil {
+		if v, ok := cfg.Handler.Metadata["kernel"]; ok {
+			if s, ok := v.(string); ok {
+				s = strings.TrimSpace(strings.ToLower(s))
+				if s == "floxcore" || s == "sdwan" {
+					return s
+				}
 			}
 		}
 	}

@@ -320,6 +320,15 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	if strings.EqualFold(forward.Mode, forwardModeSDWAN) && tunnel != nil && tunnel.Type == 2 {
 		return h.syncSDWANChainForwardServicesWithWarnings(forward, tunnel, ports, userTunnelID)
 	}
+	if isPremiumForwardMode(forward.Mode) && tunnel != nil && tunnel.Type == 2 {
+		relayMode, _ := h.resolveTunnelRelayMode(forward.TunnelID)
+		state, stateErr := h.buildTunnelStateForNftRelay(forward.TunnelID, relayMode)
+		if stateErr != nil {
+			fmt.Printf("[fc.debug] buildTunnelStateForNftRelay failed: %v\n", stateErr)
+		} else if _, _, applyErr := h.applyTunnelRuntime(state); applyErr != nil {
+			fmt.Printf("[fc.debug] applyTunnelRuntime failed: %v\n", applyErr)
+		}
+	}
 
 	// ✅ 动态限速器名称
 	var dynamicLimiterName string
@@ -2031,7 +2040,7 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 			}
 			service["listener"].(map[string]interface{})["metadata"] = listenerMetadata
 		}
-		if tunnel != nil && tunnel.Type == 2 {
+		if tunnel != nil && tunnel.Type == 2 && !isPremiumForwardMode(forward.Mode) {
 			service["handler"].(map[string]interface{})["chain"] = fmt.Sprintf("chains_%d", forward.TunnelID)
 		}
 		// 合并 metadata
