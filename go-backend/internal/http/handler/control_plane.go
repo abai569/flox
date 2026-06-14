@@ -657,11 +657,17 @@ func shouldSelfHealForwardServiceControl(commandType string) bool {
 }
 
 func (h *Handler) applyNodeProtocolChange(nodeID int64, httpVal, tlsVal, socksVal, blockOtherVal int) error {
+	toJSONVal := func(v int) interface{} {
+		if v == 1 {
+			return 1
+		}
+		return nil
+	}
 	_, err := h.sendNodeCommand(nodeID, "SetProtocol", map[string]interface{}{
-		"http":       httpVal,
-		"tls":        tlsVal,
-		"socks":      socksVal,
-		"blockOther": blockOtherVal,
+		"http":       toJSONVal(httpVal),
+		"tls":        toJSONVal(tlsVal),
+		"socks":      toJSONVal(socksVal),
+		"blockOther": toJSONVal(blockOtherVal),
 	}, false, false)
 	return err
 }
