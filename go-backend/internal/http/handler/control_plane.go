@@ -2233,6 +2233,7 @@ type NftablesRulePayload struct {
 	ChainType    int    `json:"chain_type"`
 	NextHopIP    string `json:"next_hop_ip"`
 	NextHopPort  int    `json:"next_hop_port"`
+	NextHopIPv6  string `json:"next_hop_ipv6,omitempty"`
 }
 
 // AddNftablesRulesRequest nftables rules create request
@@ -2274,9 +2275,14 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 
 	chainNodes, _ := h.listChainNodesForTunnel(forward.TunnelID)
 
-	// 🛠 修复：为链节点填充缺失的 ConnectIP，确保 DNAT 目标可达
+	// 为链节点填充缺失的 ConnectIP，同时收集 IPv6 地址
+	nodeIPv6Map := make(map[int64]string)
 	for i := range chainNodes {
 		if strings.TrimSpace(chainNodes[i].ConnectIP) != "" {
+			// ConnectIP 已有值，检查是否是 IPv6
+			if strings.Contains(chainNodes[i].ConnectIP, ":") {
+				nodeIPv6Map[chainNodes[i].NodeID] = chainNodes[i].ConnectIP
+			}
 			continue
 		}
 		node, err := h.getNodeRecord(chainNodes[i].NodeID)
@@ -2302,10 +2308,15 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		}
 		if v := strings.TrimSpace(node.ServerIPv4); v != "" {
 			chainNodes[i].ConnectIP = v
+			// 同时记录 IPv6 地址
+			if v6 := strings.TrimSpace(node.ServerIPv6); v6 != "" {
+				nodeIPv6Map[chainNodes[i].NodeID] = v6
+			}
 			continue
 		}
 		if v := strings.TrimSpace(node.ServerIPv6); v != "" {
 			chainNodes[i].ConnectIP = v
+			nodeIPv6Map[chainNodes[i].NodeID] = v
 			continue
 		}
 		if v := strings.TrimSpace(node.ServerIP); v != "" {
@@ -2313,7 +2324,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		}
 	}
 
-	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, userTunnelID, speedLimit)
+	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, nodeIPv6Map, userTunnelID, speedLimit)
 	fmt.Printf("[nft.debug] built %d rule payloads for forwardID=%d\n", len(rules), forward.ID)
 
 	// Group ports by node for batch operations
@@ -2391,7 +2402,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 }
 
 // buildNftablesRulePayloads build nftables rule payloads
-func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, chainNodes []chainNodeRecord, userTunnelID int64, speedLimit *int) []NftablesRulePayload {
+func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, chainNodes []chainNodeRecord, nodeIPv6Map map[int64]string, userTunnelID int64, speedLimit *int) []NftablesRulePayload {
 	var rules []NftablesRulePayload
 	protocols := []string{"tcp", "udp"}
 	targets := splitRemoteTargets(forward.RemoteAddr)
@@ -2449,7 +2460,7 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 					if nextNode == nil {
 						continue
 					}
-					rules = append(rules, NftablesRulePayload{
+					payload := NftablesRulePayload{
 						ForwardID:    forward.ID,
 						NodeID:       inNode.NodeID,
 						UserID:       forward.UserID,
@@ -2461,7 +2472,11 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 						ChainType:    2,
 						NextHopIP:    nextIP,
 						NextHopPort:  nextPort,
-					})
+					}
+					if v6, ok := nodeIPv6Map[nextNode.NodeID]; ok {
+						payload.NextHopIPv6 = v6
+					}
+					rules = append(rules, payload)
 				}
 
 				// 2. 中间跳节点规则：当前跳端口 → 下一跳
@@ -2475,7 +2490,7 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 						if nextNode == nil {
 							continue
 						}
-						rules = append(rules, NftablesRulePayload{
+						payload := NftablesRulePayload{
 							ForwardID:    forward.ID,
 							NodeID:       hopNode.NodeID,
 							UserID:       forward.UserID,
@@ -2487,7 +2502,11 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 							ChainType:    2,
 							NextHopIP:    nextIP,
 							NextHopPort:  nextPort,
-						})
+						}
+						if v6, ok := nodeIPv6Map[nextNode.NodeID]; ok {
+							payload.NextHopIPv6 = v6
+						}
+						rules = append(rules, payload)
 					}
 				}
 
@@ -2582,6 +2601,15 @@ func resolveNextHopForChain(chainNodes []chainNodeRecord, portMap map[int64]int,
 func resolveChainNodeIP(node chainNodeRecord) string {
 	if ip := strings.TrimSpace(node.ConnectIP); ip != "" {
 		return ip
+	}
+	return ""
+}
+
+// resolveChainNodeIPv6 解析链节点的 IPv6 地址
+func resolveChainNodeIPv6(node chainNodeRecord) string {
+	ip := strings.TrimSpace(node.ConnectIP)
+	if ip != "" && strings.Contains(ip, ":") {
+		return ip // ConnectIP 本身就是 IPv6
 	}
 	return ""
 }
