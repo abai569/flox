@@ -16,6 +16,7 @@ type CounterResult struct {
 	Port         int    `json:"port"`
 	Packets      uint64 `json:"packets"`
 	Bytes        uint64 `json:"bytes"`
+	NodeID       int64  `json:"node_id"`
 }
 
 type RuleConnInfo struct {

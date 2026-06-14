@@ -40,7 +40,8 @@ type TrafficReportItem struct {
 // NftablesFlowDelta nftables 流量增量
 type NftablesFlowDelta struct {
 	ServiceName string
-	Bytes       uint64
+	Up          uint64
+	Down        uint64
 }
 
 // ReportNftablesFlow 上报 nftables 流量到面板（更新数据库总流量）
@@ -53,8 +54,8 @@ func ReportNftablesFlow(deltas []NftablesFlowDelta) {
 	for _, d := range deltas {
 		items = append(items, TrafficReportItem{
 			N: d.ServiceName,
-			U: int64(d.Bytes),
-			D: 0,
+			U: int64(d.Up),
+			D: int64(d.Down),
 		})
 	}
 

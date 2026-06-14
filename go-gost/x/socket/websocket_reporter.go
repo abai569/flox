@@ -1055,6 +1055,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		port         int
 		protocol     string
 		delta        uint64
+		nodeID       int64
 	}
 	var deltas []deltaEntry
 
@@ -1077,6 +1078,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 					port:         c.Port,
 					protocol:     c.Protocol,
 					delta:        delta,
+					nodeID:       c.NodeID,
 				})
 			}
 		}
@@ -1091,10 +1093,12 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 	var flowDeltas []service.NftablesFlowDelta
 	for _, d := range deltas {
 		serviceName := fmt.Sprintf("%d_%d_%d_nft", d.forwardID, d.userID, d.userTunnelID)
-		stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, 0, d.port, true, d.delta)
+		stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, d.nodeID, d.port, true, d.delta)
+		stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, d.nodeID, d.port, false, d.delta)
 		flowDeltas = append(flowDeltas, service.NftablesFlowDelta{
 			ServiceName: serviceName,
-			Bytes:       d.delta,
+			Up:          d.delta,
+			Down:        d.delta,
 		})
 	}
 	// 同时通过 HTTP 上报流量给面板（更新数据库总流量）
