@@ -277,7 +277,10 @@ const mergeSDWANConfig = (
     }
   });
 
-  return Object.keys(parsed).length > 0 ? JSON.stringify(parsed) : "";
+  if (Object.keys(parsed).length > 0) {
+    return JSON.stringify(parsed);
+  }
+  return raw.trim() ? raw : "";
 };
 
 type NodeExpiryState = "permanent" | "healthy" | "expiringSoon" | "expired";

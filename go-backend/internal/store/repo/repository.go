@@ -828,13 +828,12 @@ func (r *Repository) GetNodeByID(id int64) (*model.Node, error) {
 	return &n, nil
 }
 
-func (r *Repository) UpdateNodeOnline(nodeID int64, status int, version string, httpVal, tlsVal, socksVal, blockOtherVal int) error {
+func (r *Repository) UpdateNodeOnline(nodeID int64, status int, version string) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
-		"status": status, "version": version, "http": httpVal, "tls": tlsVal,
-		"socks": socksVal, "block_other": blockOtherVal, "updated_time": unixMilliNow(),
+		"status": status, "version": version, "updated_time": unixMilliNow(),
 	}).Error
 }
 

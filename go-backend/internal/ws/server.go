@@ -377,10 +377,6 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	go startKeepalive(cw, done)
 
 	version := r.URL.Query().Get("version")
-	httpVal := parseIntDefault(r.URL.Query().Get("http"), 0)
-	tlsVal := parseIntDefault(r.URL.Query().Get("tls"), 0)
-	socksVal := parseIntDefault(r.URL.Query().Get("socks"), 0)
-	blockOtherVal := parseIntDefault(r.URL.Query().Get("blockOther"), 0)
 
 	s.mu.Lock()
 	if old, ok := s.nodes[nodeID]; ok {
@@ -399,7 +395,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	delete(s.nodeOfflineTime, nodeID)
 	s.mu.Unlock()
 
-	_ = s.repo.UpdateNodeOnline(nodeID, 1, version, httpVal, tlsVal, socksVal, blockOtherVal)
+	_ = s.repo.UpdateNodeOnline(nodeID, 1, version)
 	s.broadcastStatus(nodeID, 1)
 
 	s.mu.RLock()
@@ -894,14 +890,6 @@ func decryptIfNeeded(payload []byte, crypto *security.AESCrypto, secret string) 
 		return text
 	}
 	return string(plain)
-}
-
-func parseIntDefault(v string, fallback int) int {
-	x, err := strconv.Atoi(v)
-	if err != nil {
-		return fallback
-	}
-	return x
 }
 
 func startKeepalive(cw *connWrap, done <-chan struct{}) {

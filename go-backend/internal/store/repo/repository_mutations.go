@@ -397,10 +397,9 @@ func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, ser
 		"block_other":               blockOtherFlag,
 		"tcp_listen_addr":           tcpAddr,
 		"udp_listen_addr":           udpAddr,
-		"updated_time":              sql.NullInt64{Int64: now, Valid: true},
-		"expiry_reminder_dismissed": 0,
-		"traffic_limit":             trafficLimit,
-		"flow_reset_time":           flowResetTime,
+		"updated_time":    sql.NullInt64{Int64: now, Valid: true},
+		"traffic_limit":   trafficLimit,
+		"flow_reset_time": flowResetTime,
 	}
 	if groupID != nil {
 		updates["group_id"] = groupID
