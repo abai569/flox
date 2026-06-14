@@ -1,8 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -573,16 +576,14 @@ func (c *Config) Load() error {
 	if err := v.ReadInConfig(); err != nil {
 		return err
 	}
-
-	return v.Unmarshal(c)
+	return unmarshalWithFallback(v, c)
 }
 
 func (c *Config) Read(r io.Reader) error {
 	if err := v.ReadConfig(r); err != nil {
 		return err
 	}
-
-	return v.Unmarshal(c)
+	return unmarshalWithFallback(v, c)
 }
 
 func (c *Config) ReadFile(file string) error {
@@ -590,7 +591,7 @@ func (c *Config) ReadFile(file string) error {
 	if err := v.ReadInConfig(); err != nil {
 		return err
 	}
-	return v.Unmarshal(c)
+	return unmarshalWithFallback(v, c)
 }
 
 func (c *Config) Write(w io.Writer, format string) error {
@@ -609,4 +610,44 @@ func (c *Config) Write(w io.Writer, format string) error {
 
 		return enc.Encode(c)
 	}
+}
+
+// unmarshalWithFallback 解析配置，遇到 TLS 类型错误时自动修复后重试
+func unmarshalWithFallback(vp *viper.Viper, c *Config) error {
+	if err := vp.Unmarshal(c); err != nil {
+		if isTLSDecodeError(err) {
+			vp.Set("tls", nil)
+			*c = Config{}
+			if retryErr := vp.Unmarshal(c); retryErr != nil {
+				return fmt.Errorf("%w (已尝试修复 TLS 字段)", retryErr)
+			}
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// ValidateConfigBytes 验证 JSON 字节能否被正确解析为 Config（供 saveConfig 写入前校验）
+func ValidateConfigBytes(b []byte) error {
+	tmpV := viper.New()
+	tmpV.SetConfigType("json")
+	if err := tmpV.ReadConfig(bytes.NewReader(b)); err != nil {
+		return err
+	}
+	var cfg Config
+	if err := tmpV.Unmarshal(&cfg); err != nil {
+		if isTLSDecodeError(err) {
+			tmpV.Set("tls", nil)
+			var cfg2 Config
+			return tmpV.Unmarshal(&cfg2)
+		}
+		return err
+	}
+	return nil
+}
+
+func isTLSDecodeError(err error) bool {
+	s := err.Error()
+	return strings.Contains(s, "expected a map") && strings.Contains(s, "'TLS'")
 }
