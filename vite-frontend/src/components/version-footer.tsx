@@ -85,11 +85,14 @@ export function VersionFooter({
   );
 
   // 从后端 API 获取真实面板版本，覆盖编译时 prop
-  const [realVersion, setRealVersion] = useState<string | null>(null);
+  const [realVersion, setRealVersion] = useState<string | null>(
+    () => localStorage.getItem("panel_version"),
+  );
   useEffect(() => {
     getSystemUpgradeVersion()
       .then((res) => {
         if (res.code === 0 && res.data?.currentVersion) {
+          localStorage.setItem("panel_version", res.data.currentVersion);
           setRealVersion(res.data.currentVersion);
         }
       })
