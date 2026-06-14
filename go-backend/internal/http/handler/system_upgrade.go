@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -507,6 +508,9 @@ func releasesForChannel(releases []githubRelease, channel string) []systemUpgrad
 			Channel:     itemChannel,
 		})
 	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].PublishedAt > items[j].PublishedAt
+	})
 	return items
 }
 
