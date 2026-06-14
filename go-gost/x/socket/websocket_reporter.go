@@ -1022,6 +1022,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 
 	counters := w.nftablesMgr.RefreshCounters()
 	if len(counters) == 0 {
+		fmt.Println("⚠️ [nft] RefreshCounters returned empty")
 		return
 	}
 
