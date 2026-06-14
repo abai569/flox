@@ -3122,8 +3122,8 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-	// nftables 链式隧道：为中间跳和出口节点分配端口
-	if tunnel.Type == 2 && mode == "nftables" {
+	// 链式隧道：为中间跳和出口节点分配端口（nftables/sdwan 模式需要独立端口）
+	if tunnel.Type == 2 && (mode == "nftables" || strings.EqualFold(mode, "sdwan")) {
 		if err := h.createChainNodePorts(forwardID, tunnelID); err != nil {
 			_ = h.deleteForwardByID(forwardID)
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
@@ -3373,8 +3373,8 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-	// nftables 链式隧道：重建链节点端口（replaceForwardPorts 只创建入口节点端口）
-	if tunnel.Type == 2 && strings.EqualFold(mode, "nftables") {
+	// 链式隧道：重建链节点端口（replaceForwardPorts 只创建入口节点端口）
+	if tunnel.Type == 2 && (strings.EqualFold(mode, "nftables") || strings.EqualFold(mode, "sdwan")) {
 		if chainErr := h.createChainNodePorts(id, tunnelID); chainErr != nil {
 			warnings = append(warnings, fmt.Sprintf("链节点端口创建失败: %v", chainErr))
 		}
