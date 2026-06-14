@@ -716,28 +716,8 @@ func (h *Handler) pauseForward(forwardID int64, reason string) error {
 		return fmt.Errorf("get forward record: %w", err)
 	}
 
-	// 获取入口端口
-	ports, err := h.listForwardPorts(forwardID)
-	if err != nil {
-		return fmt.Errorf("list forward ports: %w", err)
-	}
-
-	// 通知 gost 删除服务
-	serviceBase := buildForwardServiceBaseWithResolvedUserTunnel(forwardID, forward.UserID, 0)
-	for _, fp := range ports {
-		node, nodeErr := h.getNodeRecord(fp.NodeID)
-		if nodeErr != nil {
-			log.Printf("WARN: pauseForward %d: get node %d failed: %v", forwardID, fp.NodeID, nodeErr)
-			continue
-		}
-
-		serviceName := serviceBase
-		_, _ = h.sendNodeCommand(node.ID, "DeleteService", map[string]interface{}{
-			"services": []string{serviceName + "_tcp", serviceName + "_udp"},
-		}, false, true)
-
-		log.Printf("Forward %d: deleted service on node %d", forwardID, node.ID)
-	}
+	// 复用 pauseForwardRecords 的完整逻辑（支持 nftables 和 GOST 模式）
+	h.pauseForwardRecords([]forwardRecord{*forward}, now)
 
 	log.Printf("Forward %d paused: %s", forwardID, reason)
 	return nil

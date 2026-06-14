@@ -3352,6 +3352,14 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 				_ = h.deleteForwardServicesOnNodeBatch(forward, nodeID)
 			}
 		}
+		// 切换到 GOST 模式时，清空域名 InIP（GOST 要求监听 IP 是有效 IP）
+		if isServiceBackedForwardMode(mode) {
+			for _, fp := range oldPorts {
+				if fp.InIP != "" && net.ParseIP(fp.InIP) == nil {
+					_ = h.repo.UpdateForwardPortBindIP(id, fp.NodeID, fp.Port, "")
+				}
+			}
+		}
 	}
 	if hasInIP {
 		err = h.replaceForwardPorts(id, tunnelID, port, inIp)
@@ -3364,6 +3372,12 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		h.rollbackForwardMutation(forward, oldPorts)
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
+	}
+	// nftables 链式隧道：重建链节点端口（replaceForwardPorts 只创建入口节点端口）
+	if tunnel.Type == 2 && strings.EqualFold(mode, "nftables") {
+		if chainErr := h.createChainNodePorts(id, tunnelID); chainErr != nil {
+			warnings = append(warnings, fmt.Sprintf("链节点端口创建失败: %v", chainErr))
+		}
 	}
 	updatedForward, err := h.getForwardRecord(id)
 	if err != nil {
