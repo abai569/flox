@@ -509,7 +509,7 @@ func releasesForChannel(releases []githubRelease, channel string) []systemUpgrad
 		})
 	}
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].PublishedAt > items[j].PublishedAt
+		return compareVersions(items[i].Version, items[j].Version) > 0
 	})
 	return items
 }

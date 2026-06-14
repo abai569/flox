@@ -118,7 +118,8 @@ func resolveLatestReleaseByChannel(channel string) (string, error) {
 		return "", fmt.Errorf("未找到版本号")
 	}
 
-	// 否则按通道查找
+	// 按通道过滤，再按版本号降序取最新
+	var candidates []string
 	for _, r := range releases {
 		if r.Draft {
 			continue
@@ -128,11 +129,16 @@ func resolveLatestReleaseByChannel(channel string) (string, error) {
 			continue
 		}
 		if releaseChannelFromTag(tag) == normalizedChannel {
-			return tag, nil
+			candidates = append(candidates, tag)
 		}
 	}
 
-	return "", fmt.Errorf("未找到%s版本号", releaseChannelLabel(normalizedChannel))
+	if len(candidates) == 0 {
+		return "", fmt.Errorf("未找到%s版本号", releaseChannelLabel(normalizedChannel))
+	}
+
+	sortVersionsDesc(candidates)
+	return candidates[0], nil
 }
 
 func resolveGitHubProxyURLs(repo interface {
@@ -385,7 +391,7 @@ func (h *Handler) listReleases(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].PublishedAt > items[j].PublishedAt
+		return compareVersions(items[i].Version, items[j].Version) > 0
 	})
 
 	response.WriteJSON(w, response.OK(items))
