@@ -106,6 +106,7 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { saveOrder } from "@/utils/order-storage";
 import { JwtUtil } from "@/utils/jwt";
 import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
+import { configCache } from "@/config/site";
 interface Forward {
   id: number;
   name: string;
@@ -1577,6 +1578,9 @@ export default function ForwardPage() {
     null,
   );
   const isFreeTier = licenseInfo?.tier === "free";
+  const nftEnabled = configCache.get("forward_mode_nft_enabled") !== "false";
+  const flcEnabled = configCache.get("forward_mode_flc_enabled") !== "false";
+  const sdwEnabled = configCache.get("forward_mode_sdw_enabled") !== "false";
   const [batchRedeployLoading, setBatchRedeployLoading] = useState(false);
   const [batchPauseLoading, setBatchPauseLoading] = useState(false);
   const [batchResumeLoading, setBatchResumeLoading] = useState(false);
@@ -2230,19 +2234,34 @@ export default function ForwardPage() {
   }, [loadData]);
 
   useEffect(() => {
-    if (!isFreeTier) {
+    if (isFreeTier) {
+      if (form.mode !== "gost") {
+        setForm((prev) => ({ ...prev, mode: "gost" }));
+      }
+      if (batchTargetMode !== "gost") {
+        setBatchTargetMode("gost");
+      }
       return;
     }
-    if (form.mode === "floxcore" || form.mode === "sdwan") {
-      setForm((prev) => ({
-        ...prev,
-        mode: "gost",
-      }));
+    if (form.mode === "nftables" && !nftEnabled) {
+      setForm((prev) => ({ ...prev, mode: "gost" }));
     }
-    if (batchTargetMode === "floxcore" || batchTargetMode === "sdwan") {
+    if (form.mode === "floxcore" && !flcEnabled) {
+      setForm((prev) => ({ ...prev, mode: "gost" }));
+    }
+    if (form.mode === "sdwan" && !sdwEnabled) {
+      setForm((prev) => ({ ...prev, mode: "gost" }));
+    }
+    if (batchTargetMode === "nftables" && !nftEnabled) {
       setBatchTargetMode("gost");
     }
-  }, [batchTargetMode, form.mode, isFreeTier, setForm]);
+    if (batchTargetMode === "floxcore" && !flcEnabled) {
+      setBatchTargetMode("gost");
+    }
+    if (batchTargetMode === "sdwan" && !sdwEnabled) {
+      setBatchTargetMode("gost");
+    }
+  }, [batchTargetMode, form.mode, isFreeTier, nftEnabled, flcEnabled, sdwEnabled, setForm]);
 
   usePullToRefresh(loadData);
   // 定时刷新连接数（每5秒）
@@ -5582,11 +5601,13 @@ export default function ForwardPage() {
                       }}
                     >
                       <SelectItem key="gost">Gost 模式</SelectItem>
-                      <SelectItem key="nftables">NFtables 模式</SelectItem>
-                      {!isFreeTier && (
+                      {!isFreeTier && nftEnabled && (
+                        <SelectItem key="nftables">NFtables 模式</SelectItem>
+                      )}
+                      {!isFreeTier && flcEnabled && (
                         <SelectItem key="floxcore">FloxCore 模式</SelectItem>
                       )}
-                      {!isFreeTier && (
+                      {!isFreeTier && sdwEnabled && (
                         <SelectItem key="sdwan">Sdwan 模式</SelectItem>
                       )}
                     </Select>
@@ -7225,11 +7246,13 @@ export default function ForwardPage() {
                   }}
                 >
                   <SelectItem key="gost">Gost 模式</SelectItem>
-                  <SelectItem key="nftables">NFtables 模式</SelectItem>
-                  {!isFreeTier && (
+                  {!isFreeTier && nftEnabled && (
+                    <SelectItem key="nftables">NFtables 模式</SelectItem>
+                  )}
+                  {!isFreeTier && flcEnabled && (
                     <SelectItem key="floxcore">FloxCore 模式</SelectItem>
                   )}
-                  {!isFreeTier && (
+                  {!isFreeTier && sdwEnabled && (
                     <SelectItem key="sdwan">Sdwan 模式</SelectItem>
                   )}
                 </Select>

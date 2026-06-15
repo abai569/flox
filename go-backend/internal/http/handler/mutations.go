@@ -3109,6 +3109,16 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(403, err.Error()))
 		return
 	}
+	if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+		cfg, _ := h.repo.GetConfigByName(key)
+		if cfg == nil {
+			return "", false
+		}
+		return cfg.Value, true
+	}, mode); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
+		return
+	}
 	if err := ensureForwardModeCompatibleWithTunnel(mode, tunnel); err != nil {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
@@ -3307,6 +3317,16 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := ensureForwardModeAllowedForTier(tier, mode); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
+		return
+	}
+	if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+		cfg, _ := h.repo.GetConfigByName(key)
+		if cfg == nil {
+			return "", false
+		}
+		return cfg.Value, true
+	}, mode); err != nil {
 		response.WriteJSON(w, response.Err(403, err.Error()))
 		return
 	}
@@ -3586,6 +3606,16 @@ func (h *Handler) forwardResume(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(403, err.Error()))
 		return
 	}
+	if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+		cfg, _ := h.repo.GetConfigByName(key)
+		if cfg == nil {
+			return "", false
+		}
+		return cfg.Value, true
+	}, forward.Mode); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
+		return
+	}
 	now := time.Now().UnixMilli()
 	if err := h.ensureUserTunnelForwardAllowed(forward.UserID, forward.TunnelID, now); err != nil {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
@@ -3828,6 +3858,17 @@ func (h *Handler) forwardBatchResume(w http.ResponseWriter, r *http.Request) {
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
 		}
+		if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+			cfg, _ := h.repo.GetConfigByName(key)
+			if cfg == nil {
+				return "", false
+			}
+			return cfg.Value, true
+		}, forward.Mode); err != nil {
+			f++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
+			continue
+		}
 
 		// 先更新状态，避免 syncForwardServicesWithWarnings 末尾的暂停检查删除刚添加的规则
 		_ = h.repo.UpdateForwardStatus(id, 1, now)
@@ -3884,6 +3925,17 @@ func (h *Handler) forwardBatchRedeploy(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if err := ensureForwardModeAllowedForTier(tier, forward.Mode); err != nil {
+			f++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
+			continue
+		}
+		if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+			cfg, _ := h.repo.GetConfigByName(key)
+			if cfg == nil {
+				return "", false
+			}
+			return cfg.Value, true
+		}, forward.Mode); err != nil {
 			f++
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
@@ -3952,6 +4004,17 @@ func (h *Handler) forwardBatchChangeTunnel(w http.ResponseWriter, r *http.Reques
 			continue
 		}
 		if err := ensureForwardModeAllowedForTier(tier, forward.Mode); err != nil {
+			fail++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
+			continue
+		}
+		if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+			cfg, _ := h.repo.GetConfigByName(key)
+			if cfg == nil {
+				return "", false
+			}
+			return cfg.Value, true
+		}, forward.Mode); err != nil {
 			fail++
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
@@ -4081,6 +4144,16 @@ func (h *Handler) forwardBatchChangeMode(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := ensureForwardModeAllowedForTier(tier, req.Mode); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
+		return
+	}
+	if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+		cfg, _ := h.repo.GetConfigByName(key)
+		if cfg == nil {
+			return "", false
+		}
+		return cfg.Value, true
+	}, req.Mode); err != nil {
 		response.WriteJSON(w, response.Err(403, err.Error()))
 		return
 	}

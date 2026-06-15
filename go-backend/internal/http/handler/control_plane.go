@@ -317,6 +317,15 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
 		return nil, ensureForwardModeAllowedForTier(tier, forward.Mode)
 	}
+	if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+		cfg, _ := h.repo.GetConfigByName(key)
+		if cfg == nil {
+			return "", false
+		}
+		return cfg.Value, true
+	}, forward.Mode); err != nil {
+		return nil, err
+	}
 	if strings.EqualFold(forward.Mode, forwardModeSDWAN) && tunnel != nil && tunnel.Type == 2 {
 		return h.syncSDWANChainForwardServicesWithWarnings(forward, tunnel, ports, userTunnelID)
 	}

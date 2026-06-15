@@ -180,6 +180,9 @@ const getInitialConfigs = (): Record<string, string> => {
     "cloudflare_site_key",
     "cloudflare_secret_key",
     "forward_compact_mode",
+    "forward_mode_nft_enabled",
+    "forward_mode_flc_enabled",
+    "forward_mode_sdw_enabled",
     "ghfast_url",
     "domestic_download_host",
     "ip",
@@ -197,6 +200,9 @@ const getInitialConfigs = (): Record<string, string> => {
         initialConfigs[key] = cachedValue;
       } else if (key === "payment_enabled") {
         // 默认开启商城
+        initialConfigs[key] = "true";
+      } else if (key.startsWith("forward_mode_")) {
+        // 默认开启所有转发模式
         initialConfigs[key] = "true";
       }
     });
@@ -1468,6 +1474,72 @@ export default function ConfigPage() {
               </CardBody>
             </Card>
           )}
+        {/* 转发模式开关 */}
+        <Card className="shadow-md dark:bg-content1">
+          <CardHeader className="pb-4">
+            <div>
+              <h2 className="text-lg font-semibold">转发模式开关</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                控制用户可选的转发模式，关闭后对应模式将不可用
+              </p>
+            </div>
+          </CardHeader>
+          <Divider />
+          <CardBody className="py-3">
+            <div className="flex flex-col gap-1">
+              {(
+                [
+                  {
+                    key: "forward_mode_nft_enabled",
+                    label: "NFtables 模式",
+                    desc: "基于 nftables 的高性能转发",
+                  },
+                  {
+                    key: "forward_mode_flc_enabled",
+                    label: "FloxCore 模式",
+                    desc: "FloxCore 内核转发",
+                  },
+                  {
+                    key: "forward_mode_sdw_enabled",
+                    label: "SDWAN 模式",
+                    desc: "SDWAN 组网转发",
+                  },
+                ] as const
+              ).map((item) => (
+                <div
+                  key={item.key}
+                  className="flex justify-between items-center py-1"
+                >
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      {item.label}
+                    </span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {licenseStatus?.tier === "free"
+                        ? "付费授权后可用"
+                        : item.desc}
+                    </span>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <Switch
+                      color="primary"
+                      isDisabled={licenseStatus?.tier === "free"}
+                      isSelected={
+                        licenseStatus?.tier === "free"
+                          ? false
+                          : configs[item.key] === "true"
+                      }
+                      size="sm"
+                      onValueChange={(checked) =>
+                        handleDirectSwitchChange(item.key, checked)
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardBody>
+        </Card>
         <Modal
           isOpen={transferConfirmOpen}
           onClose={() => setTransferConfirmOpen(false)}
