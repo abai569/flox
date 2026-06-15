@@ -228,6 +228,7 @@ type WebSocketReporter struct {
 	serviceName          string                   // 服务名
 	nftablesMgr          NftablesManagerInterface // nftables manager (platform-specific)
 	nftablesPrevCounters map[string]uint64        // "forwardID_protocol" → last total bytes
+	nftablesConntrackPrev map[string]uint64       // "protocol:port" → last total conntrack bytes
 	nftConnPrev          map[int64]nftables.RuleConnInfo
 	nftablesPrevMu       sync.Mutex
 	nodeNetworkEnv       string // 节点网络环境永久缓存："domestic" | "overseas" | ""（未检测）
@@ -261,6 +262,7 @@ func NewWebSocketReporter(serverURL string, secret string) *WebSocketReporter {
 		connecting:           false,
 		aesCrypto:            aesCrypto,
 		nftablesPrevCounters: make(map[string]uint64),
+		nftablesConntrackPrev: make(map[string]uint64),
 		nftConnPrev:          make(map[int64]nftables.RuleConnInfo),
 	}
 }
@@ -1034,17 +1036,73 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		return
 	}
 
-	counters := w.nftablesMgr.RefreshCounters()
-	if len(counters) == 0 {
-		fmt.Println("⚠️ [nft] RefreshCounters returned empty")
-		return
-	}
-
 	w.nftablesPrevMu.Lock()
 	defer w.nftablesPrevMu.Unlock()
 
 	if w.nftablesPrevCounters == nil {
 		w.nftablesPrevCounters = make(map[string]uint64)
+	}
+	if w.nftablesConntrackPrev == nil {
+		w.nftablesConntrackPrev = make(map[string]uint64)
+	}
+
+	if bytesResults, err := w.nftablesMgr.CountConnectionBytesByRule(); err == nil && len(bytesResults) > 0 {
+		type deltaEntry struct {
+			forwardID    int64
+			userID       int64
+			userTunnelID int64
+			port         int
+			protocol     string
+			delta        uint64
+			nodeID       int64
+		}
+		var deltas []deltaEntry
+		for _, c := range bytesResults {
+			key := fmt.Sprintf("%s:%d", c.Protocol, c.Port)
+			total := c.Bytes
+			prev, exists := w.nftablesConntrackPrev[key]
+			if exists {
+				var delta uint64
+				if total > prev {
+					delta = total - prev
+				} else if total < prev {
+					delta = total
+				}
+				if delta > 0 {
+					deltas = append(deltas, deltaEntry{
+						forwardID:    c.ForwardID,
+						userID:       c.UserID,
+						userTunnelID: c.UserTunnelID,
+						port:         c.Port,
+						protocol:     c.Protocol,
+						delta:        delta,
+						nodeID:       c.NodeID,
+					})
+				}
+			}
+			w.nftablesConntrackPrev[key] = total
+		}
+
+		if len(deltas) > 0 {
+			var flowDeltas []service.NftablesFlowDelta
+			for _, d := range deltas {
+				serviceName := fmt.Sprintf("%d_%d_%d_nft", d.forwardID, d.userID, d.userTunnelID)
+				stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, d.nodeID, d.port, false, d.delta)
+				flowDeltas = append(flowDeltas, service.NftablesFlowDelta{
+					ServiceName: serviceName,
+					Up:          0,
+					Down:        d.delta,
+				})
+			}
+			service.ReportNftablesFlow(flowDeltas)
+			return
+		}
+	}
+
+	counters := w.nftablesMgr.RefreshCounters()
+	if len(counters) == 0 {
+		fmt.Println("⚠️ [nft] RefreshCounters returned empty")
+		return
 	}
 
 	// 收集按 forwardID 聚合的 delta（TCP+UDP 合并）
@@ -1056,10 +1114,15 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		protocol     string
 		delta        uint64
 		nodeID       int64
+		chainType    int
 	}
 	var deltas []deltaEntry
 
 	for _, c := range counters {
+		// 出口节点（ChainType=3）不统计流量，只统计入口
+		if c.ChainType == 3 {
+			continue
+		}
 		key := fmt.Sprintf("%d_%s", c.ForwardID, c.Protocol)
 		total := c.Bytes
 		prev, exists := w.nftablesPrevCounters[key]
@@ -1079,6 +1142,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 					protocol:     c.Protocol,
 					delta:        delta,
 					nodeID:       c.NodeID,
+					chainType:    c.ChainType,
 				})
 			}
 		}

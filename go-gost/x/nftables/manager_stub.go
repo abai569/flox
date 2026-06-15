@@ -17,6 +17,7 @@ type CounterResult struct {
 	Packets      uint64 `json:"packets"`
 	Bytes        uint64 `json:"bytes"`
 	NodeID       int64  `json:"node_id"`
+	ChainType    int    `json:"chain_type"`
 }
 
 type RuleConnInfo struct {
@@ -26,6 +27,17 @@ type RuleConnInfo struct {
 	Protocol  string `json:"protocol"`
 	Port      int    `json:"port"`
 	ConnCount int    `json:"conn_count"`
+}
+
+type ConntrackByteResult struct {
+	ForwardID    int64  `json:"forward_id"`
+	UserID       int64  `json:"user_id"`
+	UserTunnelID int64  `json:"user_tunnel_id"`
+	Protocol     string `json:"protocol"`
+	Port         int    `json:"port"`
+	Bytes        uint64 `json:"bytes"`
+	NodeID       int64  `json:"node_id"`
+	ChainType    int    `json:"chain_type"`
 }
 
 func NewManager() (*Manager, error) {
@@ -40,11 +52,11 @@ func (m *Manager) initChains() error {
 	return errors.New("nftables not supported on this platform")
 }
 
-func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protocol string, port int, target string, speedLimit int) error {
+func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protocol string, port int, target string, speedLimit int, chainType int) error {
 	return errors.New("nftables not supported on this platform")
 }
 
-func (m *Manager) UpdateRule(forwardID int64, protocol string, port int, target string, speedLimit int) error {
+func (m *Manager) UpdateRule(forwardID int64, protocol string, port int, target string, speedLimit int, chainType int) error {
 	return errors.New("nftables not supported on this platform")
 }
 
@@ -61,6 +73,10 @@ func (m *Manager) RefreshCounters() []CounterResult {
 }
 
 func (m *Manager) CountConnectionsByRule() ([]RuleConnInfo, error) {
+	return nil, errors.New("nftables not supported on this platform")
+}
+
+func (m *Manager) CountConnectionBytesByRule() ([]ConntrackByteResult, error) {
 	return nil, errors.New("nftables not supported on this platform")
 }
 
