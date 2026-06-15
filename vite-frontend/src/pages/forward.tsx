@@ -6577,6 +6577,44 @@ export default function ForwardPage() {
                               "🚀 出口测试",
                               groupedResults.exit,
                             )}
+                            {/* SDWAN Overlay 状态 */}
+                            {(() => {
+                              const sdwanItems = diagnosisResult.results.filter(
+                                (r: any) => r.sdwanRunning !== undefined,
+                              );
+                              if (sdwanItems.length === 0) return null;
+                              return (
+                                <div className="border border-divider rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+                                  <div className="bg-violet-500/10 dark:bg-violet-500/20 px-3 py-2 border-b border-divider">
+                                    <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">
+                                      🌐 SDWAN Overlay 状态
+                                    </h3>
+                                  </div>
+                                  {sdwanItems.map((item: any, index: number) => (
+                                    <div key={index} className="p-3 border-b border-divider last:border-b-0">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${item.success ? "bg-success text-white" : "bg-danger text-white"}`}>
+                                          {item.success ? "✓" : "✗"}
+                                        </span>
+                                        <span className="font-medium">{item.description}</span>
+                                        <span className={`text-xs px-2 py-0.5 rounded ${item.sdwanRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}>
+                                          {item.sdwanRunning ? "运行中" : "已停止"}
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-default-600">
+                                        <div>VPN IP: <span className="font-mono font-medium">{item.sdwanVpnIP || "-"}</span></div>
+                                        <div>网络: <span className="font-mono font-medium">{item.sdwanNetwork || "-"}</span></div>
+                                        <div>证书掩码: <span className="font-medium">{item.sdwanCertMask != null ? `/${item.sdwanCertMask}` : "-"}</span></div>
+                                        <div>缓存实例: <span className="font-medium">{item.sdwanCacheCount ?? 0}</span></div>
+                                      </div>
+                                      {item.message && (
+                                        <div className="mt-1 text-xs text-default-500">{item.message}</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </>
                         );
                       })()}
@@ -6755,6 +6793,48 @@ export default function ForwardPage() {
                               "🚀 出口测试",
                               groupedResults.exit,
                             )}
+                            {/* SDWAN Overlay 状态 */}
+                            {(() => {
+                              const sdwanItems = diagnosisResult.results.filter(
+                                (r: any) => r.sdwanRunning !== undefined,
+                              );
+                              if (sdwanItems.length === 0) return null;
+                              return (
+                                <div className="space-y-2">
+                                  <div className="px-2 py-1.5 bg-violet-500/10 dark:bg-violet-500/20 rounded-lg border border-violet-500/30">
+                                    <h3 className="text-sm font-semibold text-violet-600 dark:text-violet-400">
+                                      🌐 SDWAN Overlay 状态
+                                    </h3>
+                                  </div>
+                                  {sdwanItems.map((item: any, index: number) => (
+                                    <div key={index} className={`border rounded-lg p-3 ${item.success ? "border-divider bg-white dark:bg-gray-800" : "border-danger-200 dark:border-danger-300/30 bg-danger-50 dark:bg-danger-900/30"}`}>
+                                      <div className="flex items-start gap-2 mb-2">
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${item.success ? "bg-success text-white" : "bg-danger text-white"}`}>
+                                          {item.success ? "✓" : "✗"}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-semibold text-sm text-foreground break-words">
+                                            {item.description}
+                                          </div>
+                                        </div>
+                                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${item.sdwanRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}>
+                                          {item.sdwanRunning ? "运行中" : "已停止"}
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-2 text-xs text-default-600 mt-2 pt-2 border-t border-divider">
+                                        <div>VPN IP: <span className="font-mono font-medium">{item.sdwanVpnIP || "-"}</span></div>
+                                        <div>网络: <span className="font-mono font-medium">{item.sdwanNetwork || "-"}</span></div>
+                                        <div>证书掩码: <span className="font-medium">{item.sdwanCertMask != null ? `/${item.sdwanCertMask}` : "-"}</span></div>
+                                        <div>缓存实例: <span className="font-medium">{item.sdwanCacheCount ?? 0}</span></div>
+                                      </div>
+                                      {item.message && (
+                                        <div className={`text-xs mt-2 ${item.success ? "text-default-500" : "text-danger"}`}>{item.message}</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </>
                         );
                       })()}

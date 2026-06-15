@@ -201,6 +201,8 @@ export const setSDWANLighthouse = (nodeId: number) =>
     lighthouseVPNIP: string;
     lighthouseAddr: string;
   }>("/sdwan/set-lighthouse", { nodeId });
+export const unbootstrapNodeSDWAN = (nodeId: number) =>
+  Network.post<unknown>("/node/sdwan/unbootstrap", { nodeId });
 export const reconcileSDWAN = () => Network.post("/sdwan/reconcile");
 export const toggleSDWANBackupLighthouse = (nodeId: number, enabled: boolean) =>
   Network.post<{ backupNodeIds: number[] }>("/sdwan/toggle-backup-lighthouse", {

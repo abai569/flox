@@ -285,6 +285,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/update", h.nodeUpdate)
 	mux.HandleFunc("/api/v1/node/sdwan/issue-cert", h.nodeIssueSDWANCert)
 	mux.HandleFunc("/api/v1/node/sdwan/bootstrap", h.nodeBootstrapSDWAN)
+	mux.HandleFunc("/api/v1/node/sdwan/unbootstrap", h.nodeSDWANUnbootstrap)
 	mux.HandleFunc("/api/v1/sdwan/status", h.sdwanStatus)
 	mux.HandleFunc("/api/v1/sdwan/settings", h.sdwanSettings)
 	mux.HandleFunc("/api/v1/sdwan/settings/save", h.sdwanSaveSettings)

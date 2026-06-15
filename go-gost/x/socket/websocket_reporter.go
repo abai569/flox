@@ -1511,6 +1511,11 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		response.Type = "RollbackAgentResponse"
 		// needSaveConfig = false (默认值)
 
+	// SDWAN shutdown（退出组网时关闭 overlay 进程）
+	case "SdwanShutdown":
+		adapter.ShutdownSDWANOverlay()
+		response.Type = "SdwanShutdownResponse"
+
 	// Nftables
 	case "AddNftablesRules":
 		rawData, _ := json.Marshal(cmd.Data)

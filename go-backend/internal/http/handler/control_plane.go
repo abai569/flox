@@ -2047,6 +2047,12 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 			meta["kernel"] = normalizeForwardMode(forward.Mode)
 		}
 		if strings.EqualFold(forward.Mode, forwardModeSDWAN) {
+			dialMode := parseSDWANDialModeFromRemoteConfig(node.RemoteConfig)
+			if dialMode == "" {
+				dialMode = "overlay"
+			}
+			meta["sdwanDialMode"] = dialMode
+			meta["sdwanOverlayListen"] = dialMode == "overlay"
 			if cfgYAML := parseSDWANConfigYAMLFromRemoteConfig(node.RemoteConfig); cfgYAML != "" {
 				meta["sdwanConfigYAML"] = cfgYAML
 			}
