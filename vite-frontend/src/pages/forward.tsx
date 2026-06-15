@@ -107,6 +107,13 @@ import { saveOrder } from "@/utils/order-storage";
 import { JwtUtil } from "@/utils/jwt";
 import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
 import { configCache } from "@/config/site";
+
+const getForwardModeEnabledState = () => ({
+  nft: configCache.get("forward_mode_nft_enabled") !== "false",
+  flc: configCache.get("forward_mode_flc_enabled") !== "false",
+  sdw: configCache.get("forward_mode_sdw_enabled") !== "false",
+});
+
 interface Forward {
   id: number;
   name: string;
@@ -1568,6 +1575,9 @@ export default function ForwardPage() {
   const [inIpTouched, setInIpTouched] = useState(false);
   // 表单验证错误
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [forwardModeEnabled, setForwardModeEnabled] = useState(
+    getForwardModeEnabledState,
+  );
   // 批量操作相关状态
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -1578,9 +1588,9 @@ export default function ForwardPage() {
     null,
   );
   const isFreeTier = licenseInfo?.tier === "free";
-  const nftEnabled = configCache.get("forward_mode_nft_enabled") !== "false";
-  const flcEnabled = configCache.get("forward_mode_flc_enabled") !== "false";
-  const sdwEnabled = configCache.get("forward_mode_sdw_enabled") !== "false";
+  const nftEnabled = forwardModeEnabled.nft;
+  const flcEnabled = forwardModeEnabled.flc;
+  const sdwEnabled = forwardModeEnabled.sdw;
   const [batchRedeployLoading, setBatchRedeployLoading] = useState(false);
   const [batchPauseLoading, setBatchPauseLoading] = useState(false);
   const [batchResumeLoading, setBatchResumeLoading] = useState(false);
@@ -2232,6 +2242,27 @@ export default function ForwardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const handleConfigUpdated = (event: Event) => {
+      const changedKeys = (event as CustomEvent<{ changedKeys?: string[] }>).detail
+        ?.changedKeys;
+
+      if (
+        changedKeys &&
+        !changedKeys.some((key) => key.startsWith("forward_mode_"))
+      ) {
+        return;
+      }
+      setForwardModeEnabled(getForwardModeEnabledState());
+    };
+
+    window.addEventListener("configUpdated", handleConfigUpdated);
+
+    return () => {
+      window.removeEventListener("configUpdated", handleConfigUpdated);
+    };
+  }, []);
 
   useEffect(() => {
     if (isFreeTier) {
@@ -5608,7 +5639,7 @@ export default function ForwardPage() {
                         <SelectItem key="floxcore">FloxCore 模式</SelectItem>
                       )}
                       {!isFreeTier && sdwEnabled && (
-                        <SelectItem key="sdwan">Sdwan 模式</SelectItem>
+                        <SelectItem key="sdwan">SDWAN 模式</SelectItem>
                       )}
                     </Select>
                     {form.mode === "sdwan" && (
@@ -7253,7 +7284,7 @@ export default function ForwardPage() {
                     <SelectItem key="floxcore">FloxCore 模式</SelectItem>
                   )}
                   {!isFreeTier && sdwEnabled && (
-                    <SelectItem key="sdwan">Sdwan 模式</SelectItem>
+                    <SelectItem key="sdwan">SDWAN 模式</SelectItem>
                   )}
                 </Select>
               </ModalBody>
