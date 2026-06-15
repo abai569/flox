@@ -1093,11 +1093,11 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 	var flowDeltas []service.NftablesFlowDelta
 	for _, d := range deltas {
 		serviceName := fmt.Sprintf("%d_%d_%d_nft", d.forwardID, d.userID, d.userTunnelID)
-		stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, d.nodeID, d.port, true, d.delta)
+		// nftables DNAT 计数器统计的是客户端→目标方向的流量，从面板视角为下行
 		stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, d.nodeID, d.port, false, d.delta)
 		flowDeltas = append(flowDeltas, service.NftablesFlowDelta{
 			ServiceName: serviceName,
-			Up:          d.delta,
+			Up:          0,
 			Down:        d.delta,
 		})
 	}
@@ -1180,6 +1180,8 @@ func collectForwardMetrics() []ForwardMetric {
 			ForwardID:   m.ForwardID,
 			UserID:      m.UserID,
 			TunnelID:    m.TunnelID,
+			NodeID:      m.NodeID,
+			Port:        m.Port,
 			ServiceName: m.ServiceName,
 			InSpeed:     m.InSpeed,
 			OutSpeed:    m.OutSpeed,
