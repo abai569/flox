@@ -5591,11 +5591,8 @@ export default function ForwardPage() {
                       )}
                     </Select>
                     {form.mode === "sdwan" && (
-                      <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary-700 dark:text-primary-300">
-                        已选择 SDWAN
-                        模式：如果当前规则绑定的是链式隧道，系统会自动按隧道里的入口节点
-                        / 中间节点 /
-                        出口节点角色进行转发，最终由出口节点去连接落地地址。
+                      <div className="col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary-700 dark:text-primary-300">
+                        使用 SDWAN 模式请先到节点高级设置里一键签发证书，然后到组网里面把对应节点加入组网
                       </div>
                     )}
                   </div>
