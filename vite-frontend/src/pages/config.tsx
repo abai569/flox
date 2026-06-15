@@ -1527,7 +1527,7 @@ export default function ConfigPage() {
                       isSelected={
                         licenseStatus?.tier === "free"
                           ? false
-                          : configs[item.key] === "true"
+                          : configs[item.key] !== "false"
                       }
                       size="sm"
                       onValueChange={(checked) =>
