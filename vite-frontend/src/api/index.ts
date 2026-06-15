@@ -184,6 +184,42 @@ export const getSDWANStatus = () =>
       lighthouseAddr: string;
     }>;
   }>("/sdwan/status");
+export const getSDWANGroupList = () =>
+  Network.post<{
+    groups: Array<{
+      id: string;
+      name: string;
+      networkCIDR: string;
+      lighthouseNodeId: number;
+      lighthouseName: string;
+      listenPort: number;
+      memberCount: number;
+      members: Array<{
+        id: number;
+        name: string;
+        status: number;
+        vpnIp: string;
+        role: string;
+        hasCert: boolean;
+        lighthouseAddr: string;
+      }>;
+    }>;
+  }>("/sdwan/group/list");
+export const createSDWANGroup = (data: {
+  name: string;
+  networkCIDR?: string;
+  lighthouseNodeId: number;
+  memberNodeIds: number[];
+}) => Network.post("/sdwan/group/create", data);
+export const updateSDWANGroup = (data: {
+  groupId: string;
+  name?: string;
+  networkCIDR?: string;
+  lighthouseNodeId?: number;
+  memberNodeIds?: number[];
+}) => Network.post("/sdwan/group/update", data);
+export const deleteSDWANGroup = (groupId: string) =>
+  Network.post("/sdwan/group/delete", { groupId });
 export const getSDWANSettings = () =>
   Network.post<{
     networkCIDR: string;
