@@ -1,4 +1,8 @@
-import type { ForwardApiItem, SpeedLimitApiItem } from "@/api/types";
+import type {
+  BatchOperationFailure,
+  ForwardApiItem,
+  SpeedLimitApiItem,
+} from "@/api/types";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
@@ -23,6 +27,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { BatchActionResultModal } from "@/components/batch-action-result-modal";
 import { SearchBar } from "@/components/search-bar";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Button } from "@/shadcn-bridge/heroui/button";
@@ -218,6 +223,20 @@ interface BatchProgressState {
   label: string;
   percent: number;
 }
+interface BatchResultModalState {
+  failures: BatchOperationFailure[];
+  open: boolean;
+  skipped: BatchOperationFailure[];
+  summary: string;
+  title: string;
+}
+const EMPTY_BATCH_RESULT_MODAL_STATE: BatchResultModalState = {
+  failures: [],
+  open: false,
+  skipped: [],
+  summary: "",
+  title: "",
+};
 type ForwardGroupOrderMap = Record<string, string[]>;
 type ForwardGroupCollapsedMap = Record<string, boolean>;
 const UNKNOWN_FORWARD_USER_NAME = "未知用户";
@@ -1622,6 +1641,25 @@ export default function ForwardPage() {
     label: "",
     percent: 0,
   });
+  const [batchResultModal, setBatchResultModal] =
+    useState<BatchResultModalState>(EMPTY_BATCH_RESULT_MODAL_STATE);
+  const openBatchResultModal = useCallback(
+    (
+      title: string,
+      summary: string,
+      failures: BatchOperationFailure[],
+      skipped: BatchOperationFailure[] = [],
+    ) => {
+      setBatchResultModal({
+        failures,
+        open: true,
+        skipped,
+        summary,
+        title,
+      });
+    },
+    [],
+  );
   const [groupOrderMap, setGroupOrderMap] = useState<ForwardGroupOrderMap>({});
   const [collapsedTunnelGroups, setCollapsedTunnelGroups] =
     useState<ForwardGroupCollapsedMap>({});
@@ -3635,7 +3673,13 @@ export default function ForwardPage() {
         Array.from(selectedIds),
       );
 
-      if (outcome.toastVariant === "success") {
+      if (outcome.failures && outcome.failures.length > 0) {
+        openBatchResultModal(
+          "批量下发结果",
+          outcome.toastMessage,
+          outcome.failures,
+        );
+      } else if (outcome.toastVariant === "success") {
         toast.success(outcome.toastMessage);
       } else {
         toast.error(outcome.toastMessage);
@@ -7402,6 +7446,20 @@ export default function ForwardPage() {
           )}
         </ModalContent>
       </Modal>
+      <BatchActionResultModal
+        failures={batchResultModal.failures}
+        isOpen={batchResultModal.open}
+        skipped={batchResultModal.skipped}
+        summary={batchResultModal.summary}
+        title={batchResultModal.title}
+        onOpenChange={(open) => {
+          if (open) {
+            setBatchResultModal((prev) => ({ ...prev, open: true }));
+            return;
+          }
+          setBatchResultModal(EMPTY_BATCH_RESULT_MODAL_STATE);
+        }}
+      />
     </AnimatedPage>
   );
 }

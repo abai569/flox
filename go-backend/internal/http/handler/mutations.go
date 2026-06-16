@@ -3903,40 +3903,57 @@ func (h *Handler) forwardBatchRedeploy(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(401, "无效的token或token已过期"))
 		return
 	}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 	s := 0
 	f := 0
 	failures := make([]batchFailureDetail, 0)
 	for _, id := range ids {
-		forward, accessErr := h.ensureForwardAccessByActor(actorUserID, actorRole, id)
-		if accessErr != nil {
-			f++
-			failures = appendBatchFailure(failures, id, "", accessErr)
-			continue
-		}
-		if err := ensureForwardModeAllowedForTier(tier, forward.Mode); err != nil {
-			f++
-			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
-			continue
-		}
-		if err := ensureForwardModeEnabled(func(key string) (string, bool) {
-			cfg, _ := h.repo.GetConfigByName(key)
-			if cfg == nil {
-				return "", false
+		wg.Add(1)
+		go func(forwardID int64) {
+			defer wg.Done()
+			forward, accessErr := h.ensureForwardAccessByActor(actorUserID, actorRole, forwardID)
+			if accessErr != nil {
+				mu.Lock()
+				f++
+				failures = appendBatchFailure(failures, forwardID, "", accessErr)
+				mu.Unlock()
+				return
 			}
-			return cfg.Value, true
-		}, forward.Mode); err != nil {
-			f++
-			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
-			continue
-		}
+			if err := ensureForwardModeAllowedForTier(tier, forward.Mode); err != nil {
+				mu.Lock()
+				f++
+				failures = appendBatchFailureReason(failures, forwardID, forward.Name, err.Error())
+				mu.Unlock()
+				return
+			}
+			if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+				cfg, _ := h.repo.GetConfigByName(key)
+				if cfg == nil {
+					return "", false
+				}
+				return cfg.Value, true
+			}, forward.Mode); err != nil {
+				mu.Lock()
+				f++
+				failures = appendBatchFailureReason(failures, forwardID, forward.Name, err.Error())
+				mu.Unlock()
+				return
+			}
 
-		if err := h.syncForwardServices(forward, "UpdateService", true); err != nil {
-			f++
-			failures = appendBatchFailure(failures, id, forward.Name, err)
-		} else {
-			s++
-		}
+			if err := h.syncForwardServices(forward, "UpdateService", true); err != nil {
+				mu.Lock()
+				f++
+				failures = appendBatchFailure(failures, forwardID, forward.Name, err)
+				mu.Unlock()
+			} else {
+				mu.Lock()
+				s++
+				mu.Unlock()
+			}
+		}(id)
 	}
+	wg.Wait()
 	response.WriteJSON(w, response.OK(batchOperationResult{SuccessCount: s, FailCount: f, Failures: failures}))
 }
 

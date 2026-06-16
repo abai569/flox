@@ -1,4 +1,7 @@
-import type { BatchOperationResult } from "@/api/types";
+import type {
+  BatchOperationFailure,
+  BatchOperationResult,
+} from "@/api/types";
 
 import {
   batchChangeModeForwards,
@@ -20,6 +23,7 @@ export interface ForwardBatchActionOutcome {
   closeChangeTunnelModal?: boolean;
   closeChangeModeModal?: boolean;
   resetTargetTunnel?: boolean;
+  failures?: BatchOperationFailure[];
 }
 
 const normalizeBatchResult = (value: unknown): BatchOperationResult => {
@@ -28,6 +32,7 @@ const normalizeBatchResult = (value: unknown): BatchOperationResult => {
   return {
     successCount: Number(raw.successCount ?? 0),
     failCount: Number(raw.failCount ?? 0),
+    failures: raw.failures || [],
   };
 };
 
@@ -137,11 +142,23 @@ export const executeForwardBatchRedeploy = async (
 
     const summary = normalizeBatchResult(response.data);
 
+    if (summary.failCount === 0) {
+      return {
+        toastVariant: "success",
+        toastMessage: `成功重新下发 ${summary.successCount} 项`,
+        shouldRefresh: true,
+        progressPercent: 100,
+        progressLabel: `重新下发完成：成功 ${summary.successCount} 项`,
+      };
+    }
+
     return {
-      ...buildBatchToast(summary, `成功重新下发 ${summary.successCount} 项`),
+      toastVariant: "error",
+      toastMessage: `成功 ${summary.successCount} 项，失败 ${summary.failCount} 项`,
       shouldRefresh: true,
       progressPercent: 100,
-      progressLabel: `重新下发完成：成功 ${summary.successCount} 项`,
+      progressLabel: `重新下发完成：成功 ${summary.successCount} 项，失败 ${summary.failCount} 项`,
+      failures: summary.failures || [],
     };
   } catch (error) {
     return {
