@@ -199,6 +199,7 @@ export const getSDWANGroupList = () =>
         name: string;
         status: number;
         vpnIp: string;
+        intranetIp: string;
         role: string;
         hasCert: boolean;
         lighthouseAddr: string;
