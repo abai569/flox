@@ -453,7 +453,10 @@ export default function NodePage() {
     "node-filter-group-id",
     null,
   );
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isSearchVisible, setIsSearchVisible] = useLocalStorageState(
+    "node-search-visible",
+    false,
+  );
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogTitle, setDialogTitle] = useState("");

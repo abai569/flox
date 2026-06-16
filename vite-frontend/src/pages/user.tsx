@@ -239,7 +239,10 @@ export default function UserPage() {
     "",
   );
   const activeFilterCount = searchKeyword.trim() ? 1 : 0;
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isSearchVisible, setIsSearchVisible] = useLocalStorageState(
+    "user-search-visible",
+    false,
+  );
   const [pagination, setPagination] = useState<PaginationType>({
     current: 1,
     size: 10,

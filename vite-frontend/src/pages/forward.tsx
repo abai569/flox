@@ -1464,7 +1464,10 @@ export default function ForwardPage() {
   );
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   // 工具栏搜索框状态
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isSearchVisible, setIsSearchVisible] = useLocalStorageState(
+    "forward-search-visible",
+    false,
+  );
   const [searchKeyword, setSearchKeyword] = useLocalStorageState(
     "forward-search-keyword",
     "",

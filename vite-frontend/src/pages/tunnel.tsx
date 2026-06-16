@@ -362,7 +362,10 @@ export default function TunnelPage() {
     "tunnel-search-keyword",
     "",
   );
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isSearchVisible, setIsSearchVisible] = useLocalStorageState(
+    "tunnel-search-visible",
+    false,
+  );
   // 弹窗状态
   const [modalOpen, setModalOpen] = useState(false);
   const [toggleModalOpen, setToggleModalOpen] = useState(false);

@@ -64,7 +64,10 @@ export default function LimitPage() {
     "",
   );
   const activeFilterCount = searchKeyword.trim() ? 1 : 0;
-  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [isSearchVisible, setIsSearchVisible] = useLocalStorageState(
+    "limit-search-visible",
+    false,
+  );
   // 视图模式状态
   const [viewMode, setViewMode] = useState<"card" | "list">(() => {
     const stored = localStorage.getItem(LIMIT_VIEW_MODE_KEY);
