@@ -118,6 +118,8 @@ func updateServices(req updateServicesRequest) error {
 			old.Close()
 			// 3. 从注册表移除旧服务
 			registry.ServiceRegistry().Unregister(name)
+			// 等待端口释放，避免 SDWAN UDP 端口冲突
+			time.Sleep(500 * time.Millisecond)
 		}
 
 		// 4. 解析新服务配置
