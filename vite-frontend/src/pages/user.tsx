@@ -3798,19 +3798,11 @@ export default function UserPage() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-danger font-mono font-bold text-xs sm:text-sm">
-                                  {formatFlow(
-                                    calculateTunnelUsedFlow(userTunnel),
-                                  )}
-                                </span>
-                                <span className="text-default-300 text-xs">
-                                  /
-                                </span>
-                                <span className="text-default-500 font-mono text-xs sm:text-sm">
-                                  {formatFlow(userTunnel.flow, "gb")}
-                                </span>
-                              </div>
+                              <span className="text-danger font-mono font-bold text-xs sm:text-sm">
+                                {formatFlow(
+                                  calculateTunnelUsedFlow(userTunnel),
+                                )}
+                              </span>
                             </TableCell>
                             <TableCell>
                               <span className="text-xs sm:text-sm text-default-600 bg-default-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
