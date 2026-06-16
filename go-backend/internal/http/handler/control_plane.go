@@ -919,46 +919,51 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 			}
 		}
 
-		seenNodes := map[int64]bool{}
-		for _, inNode := range inNodes {
-			if !seenNodes[inNode.NodeID] {
-				seenNodes[inNode.NodeID] = true
-				workItems = append(workItems, diagnosisWorkItem{
-					fromNodeID:  inNode.NodeID,
-					description: fmt.Sprintf("SDWAN状态(%s)", inNode.NodeName),
-					metadata: map[string]interface{}{
-						"sdwanCheck": true,
-						"nodeName":   inNode.NodeName,
-					},
-				})
-			}
-		}
-		for _, hop := range chainHops {
-			for _, cn := range hop {
-				if !seenNodes[cn.NodeID] {
-					seenNodes[cn.NodeID] = true
+		if forward.Mode == "sdwan" {
+			seenNodes := map[int64]bool{}
+			for _, inNode := range inNodes {
+				if !seenNodes[inNode.NodeID] {
+					seenNodes[inNode.NodeID] = true
 					workItems = append(workItems, diagnosisWorkItem{
-						fromNodeID:  cn.NodeID,
-						description: fmt.Sprintf("SDWAN状态(%s)", cn.NodeName),
+						fromNodeID:  inNode.NodeID,
+						description: fmt.Sprintf("SDWAN状态(%s)", inNode.NodeName),
 						metadata: map[string]interface{}{
-							"sdwanCheck": true,
-							"nodeName":   cn.NodeName,
+							"sdwanCheck":    true,
+							"nodeName":      inNode.NodeName,
+							"fromChainType": 1,
 						},
 					})
 				}
 			}
-		}
-		for _, outNode := range outNodes {
-			if !seenNodes[outNode.NodeID] {
-				seenNodes[outNode.NodeID] = true
-				workItems = append(workItems, diagnosisWorkItem{
-					fromNodeID:  outNode.NodeID,
-					description: fmt.Sprintf("SDWAN状态(%s)", outNode.NodeName),
-					metadata: map[string]interface{}{
-						"sdwanCheck": true,
-						"nodeName":   outNode.NodeName,
-					},
-				})
+			for _, hop := range chainHops {
+				for _, cn := range hop {
+					if !seenNodes[cn.NodeID] {
+						seenNodes[cn.NodeID] = true
+						workItems = append(workItems, diagnosisWorkItem{
+							fromNodeID:  cn.NodeID,
+							description: fmt.Sprintf("SDWAN状态(%s)", cn.NodeName),
+							metadata: map[string]interface{}{
+								"sdwanCheck":    true,
+								"nodeName":      cn.NodeName,
+								"fromChainType": 2,
+							},
+						})
+					}
+				}
+			}
+			for _, outNode := range outNodes {
+				if !seenNodes[outNode.NodeID] {
+					seenNodes[outNode.NodeID] = true
+					workItems = append(workItems, diagnosisWorkItem{
+						fromNodeID:  outNode.NodeID,
+						description: fmt.Sprintf("SDWAN状态(%s)", outNode.NodeName),
+						metadata: map[string]interface{}{
+							"sdwanCheck":    true,
+							"nodeName":      outNode.NodeName,
+							"fromChainType": 3,
+						},
+					})
+				}
 			}
 		}
 	default:

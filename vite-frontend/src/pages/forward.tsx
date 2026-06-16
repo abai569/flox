@@ -3046,6 +3046,12 @@ export default function ForwardPage() {
       window.prompt(`复制失败，请手动复制${label}：`, text);
     }
   };
+  const maskPublicIP = (ip: string): string => {
+    if (!ip) return ip;
+    const parts = ip.split(".");
+    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.**`;
+    return ip;
+  };
   // 复制所有地址
   const copyAllAddresses = () => {
     if (addressList.length === 0) return;
@@ -6537,8 +6543,14 @@ export default function ForwardPage() {
                                                 {result.description}
                                               </div>
                                               <div className="text-xs text-default-500 truncate">
-                                                {result.targetIp}:
-                                                {result.targetPort}
+                                                <span
+                                                  className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                                  title={result.targetIp}
+                                                  onClick={() => copyToClipboard(result.targetIp, "目标IP")}
+                                                >
+                                                  {maskPublicIP(result.targetIp)}
+                                                </span>
+                                                :{result.targetPort}
                                               </div>
                                             </div>
                                           </div>
@@ -6628,9 +6640,9 @@ export default function ForwardPage() {
                             )}
                             {/* SDWAN Overlay 状态 */}
                             {(() => {
-                              const sdwanItems = diagnosisResult.results.filter(
-                                (r: any) => r.sdwanRunning !== undefined,
-                              );
+                              const sdwanItems = diagnosisResult.results
+                                .filter((r: any) => r.sdwanRunning !== undefined)
+                                .sort((a: any, b: any) => (a.fromChainType || 0) - (b.fromChainType || 0));
                               if (sdwanItems.length === 0) return null;
                               return (
                                 <div className="border border-divider rounded-lg overflow-hidden bg-white dark:bg-gray-800">
@@ -6745,8 +6757,15 @@ export default function ForwardPage() {
                                         <div className="font-semibold text-sm text-foreground break-words">
                                           {result.description}
                                         </div>
-                                        <div className="text-xs text-default-500 mt-0.5 break-all">
-                                          {result.targetIp}:{result.targetPort}
+                                        <div className="text-xs text-default-500 mt-0.5">
+                                          <span
+                                            className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                            title={result.targetIp}
+                                            onClick={() => copyToClipboard(result.targetIp, "目标IP")}
+                                          >
+                                            {maskPublicIP(result.targetIp)}
+                                          </span>
+                                          :{result.targetPort}
                                         </div>
                                       </div>
                                       <div
@@ -6844,9 +6863,9 @@ export default function ForwardPage() {
                             )}
                             {/* SDWAN Overlay 状态 */}
                             {(() => {
-                              const sdwanItems = diagnosisResult.results.filter(
-                                (r: any) => r.sdwanRunning !== undefined,
-                              );
+                              const sdwanItems = diagnosisResult.results
+                                .filter((r: any) => r.sdwanRunning !== undefined)
+                                .sort((a: any, b: any) => (a.fromChainType || 0) - (b.fromChainType || 0));
                               if (sdwanItems.length === 0) return null;
                               return (
                                 <div className="space-y-2">

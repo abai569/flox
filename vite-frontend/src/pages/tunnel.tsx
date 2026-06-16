@@ -679,6 +679,12 @@ export default function TunnelPage() {
       toast.error("复制失败，请手动选择文本复制");
     }
   };
+  const maskPublicIP = (ip: string): string => {
+    if (!ip) return ip;
+    const parts = ip.split(".");
+    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.**`;
+    return ip;
+  };
   // 新增隧道
   const handleAdd = () => {
     setIsEdit(false);
@@ -4533,8 +4539,17 @@ export default function TunnelPage() {
                                               </div>
                                               <div className="text-xs text-default-500 truncate">
                                                 {result.actualTarget
-                                                  ? `${result.actualTarget}:${result.targetPort}`
-                                                  : `${result.targetIp}:${result.targetPort}`}
+                                                  ? <>{result.actualTarget}:{result.targetPort}</>
+                                                  : <>
+                                                      <span
+                                                        className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                                        title={result.targetIp}
+                                                        onClick={() => copyToClipboard(result.targetIp, "目标IP")}
+                                                      >
+                                                        {maskPublicIP(result.targetIp)}
+                                                      </span>
+                                                      :{result.targetPort}
+                                                    </>}
                                               </div>
                                             </div>
                                           </div>
@@ -4702,10 +4717,19 @@ export default function TunnelPage() {
                                         <div className="font-semibold text-sm text-foreground break-words">
                                           {result.description}
                                         </div>
-                                        <div className="text-xs text-default-500 mt-0.5 break-all">
+                                        <div className="text-xs text-default-500 mt-0.5">
                                           {result.actualTarget
-                                            ? `${result.actualTarget}:${result.targetPort}`
-                                            : `${result.targetIp}:${result.targetPort}`}
+                                            ? <>{result.actualTarget}:{result.targetPort}</>
+                                            : <>
+                                                <span
+                                                  className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                                  title={result.targetIp}
+                                                  onClick={() => copyToClipboard(result.targetIp, "目标IP")}
+                                                >
+                                                  {maskPublicIP(result.targetIp)}
+                                                </span>
+                                                :{result.targetPort}
+                                              </>}
                                         </div>
                                       </div>
                                       <div
