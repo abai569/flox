@@ -3123,10 +3123,6 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
-	if err := h.validateForwardModeConsistency(tunnelID, 0, mode); err != nil {
-		response.WriteJSON(w, response.ErrDefault(err.Error()))
-		return
-	}
 	forwardID, err := h.repo.CreateForwardTx(userID, userName, name, tunnelID, remoteAddr, normalizeForwardStrategy(asString(req["strategy"])), now, inx, entryNodes, port, inIp, nullableInt(speedID), asInt(req["maxConnections"], 0), trafficLimit, expiryTime, speedLimitEnabled, speedLimit, mode)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -3339,13 +3335,6 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		removedNodeIDs = diffInt64s(oldServiceNodeIDs, newServiceNodeIDs)
 		keptNodeIDs = diffInt64s(oldServiceNodeIDs, removedNodeIDs)
 	}
-	modeSwitched := mode != "" && mode != forward.Mode
-	if modeSwitched {
-		if err := h.validateForwardModeConsistency(tunnelID, id, mode); err != nil {
-			response.WriteJSON(w, response.ErrDefault(err.Error()))
-			return
-		}
-	}
 
 	if err := h.repo.UpdateForward(id, name, tunnelID, remoteAddr, strategy, now, newSpeedID, maxConnections, trafficLimit, newExpiryTime, speedLimitEnabled, speedLimit, mode); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -3355,7 +3344,7 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 	var warnings []string
 
 	// 检测转发模式切换，清理旧模式规则
-	if modeSwitched {
+	if mode != "" && mode != forward.Mode {
 		ports, _ := h.listForwardPorts(id)
 		if strings.EqualFold(forward.Mode, "nftables") && !strings.EqualFold(mode, "nftables") {
 			if err := h.deleteNftablesRules(&forwardRecord{ID: id}, ports); err != nil {
@@ -4178,11 +4167,6 @@ func (h *Handler) forwardBatchChangeMode(w http.ResponseWriter, r *http.Request)
 		if forward.Mode == req.Mode {
 			fail++
 			failures = appendBatchFailureReason(failures, id, forward.Name, "规则已是该模式")
-			continue
-		}
-		if err := h.validateForwardModeConsistency(forward.TunnelID, id, req.Mode); err != nil {
-			fail++
-			failures = appendBatchFailure(failures, id, forward.Name, err)
 			continue
 		}
 		tunnel, tunnelErr := h.getTunnelRecord(forward.TunnelID)
@@ -5145,11 +5129,6 @@ func (h *Handler) resolveTunnelRelayMode(tunnelID int64) (string, error) {
 		mode = "gost"
 	}
 	return mode, nil
-}
-
-// validateForwardModeConsistency 同一隧道允许不同 forward.mode 共存，不再强制一致。
-func (h *Handler) validateForwardModeConsistency(tunnelID int64, excludeForwardID int64, newMode string) error {
-	return nil
 }
 
 func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64, error) {
