@@ -202,6 +202,7 @@ export const getSDWANGroupList = () =>
         role: string;
         hasCert: boolean;
         lighthouseAddr: string;
+        overlayRunning: boolean;
       }>;
     }>;
   }>("/sdwan/group/list");
