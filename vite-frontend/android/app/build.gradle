@@ -15,6 +15,12 @@ def releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
 def releaseKeystoreType = System.getenv("ANDROID_KEYSTORE_TYPE")
 def hasReleaseSigning = releaseKeystoreFile && releaseKeystorePassword && releaseKeyAlias && releaseKeyPassword
 
+def debugKeystoreFile = System.getenv("ANDROID_KEYSTORE_FILE")
+def debugKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def debugKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+def debugKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+def hasDebugSigning = debugKeystoreFile && debugKeystorePassword && debugKeyAlias && debugKeyPassword
+
 android {
     namespace = "com.flox.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -41,6 +47,14 @@ android {
                 }
             }
         }
+        if (hasDebugSigning) {
+            debug {
+                storeFile file(debugKeystoreFile)
+                storePassword debugKeystorePassword
+                keyAlias debugKeyAlias
+                keyPassword debugKeyPassword
+            }
+        }
     }
     buildTypes {
         release {
@@ -49,6 +63,11 @@ android {
                 signingConfig signingConfigs.release
             }
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            if (hasDebugSigning) {
+                signingConfig signingConfigs.debug
+            }
         }
     }
 }

@@ -140,7 +140,7 @@ body {
 }
 
 .safe-top {
-  padding-top: var(--safe-area-top);
+  padding-top: max(var(--safe-area-top), 8px);
 }
 
 .safe-bottom {

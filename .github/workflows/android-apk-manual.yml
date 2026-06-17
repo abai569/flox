@@ -85,6 +85,13 @@ jobs:
             echo "build_type=debug" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Generate fixed debug keystore
+        if: steps.signing.outputs.build_type != 'release'
+        working-directory: vite-frontend/android
+        run: |
+          mkdir -p app/keystore
+          keytool -genkey -v -keystore app/keystore/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Debug,O=Android,C=US"
+
       - name: Build release APK
         if: steps.signing.outputs.build_type == 'release'
         working-directory: vite-frontend/android
@@ -98,6 +105,11 @@ jobs:
       - name: Build debug APK
         if: steps.signing.outputs.build_type != 'release'
         working-directory: vite-frontend/android
+        env:
+          ANDROID_KEYSTORE_FILE: app/keystore/debug.keystore
+          ANDROID_KEYSTORE_PASSWORD: android
+          ANDROID_KEY_ALIAS: androiddebugkey
+          ANDROID_KEY_PASSWORD: android
         run: ./gradlew assembleDebug
 
       - name: Rename APK
