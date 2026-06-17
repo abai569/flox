@@ -1,0 +1,134 @@
+name: Android APK (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_to_release:
+        description: '上传到已有 Release 的 tag（留空仅构建不上传）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vite-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout closed repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flox-closed
+          path: closed
+          token: ${{ secrets.CLOSED_REPO_PAT }}
+
+      - name: Merge closed source
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: ./closed/scripts/merge-closed.ps1 -RootDir ${{ github.workspace }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          ANDROID_VERSION="$(node -e "const fs=require('fs');const text=fs.readFileSync('../shared/versions.ts','utf8');const match=text.match(/ANDROID_APP_VERSION\\s*=\\s*['\\\"]v?([^'\\\"]+)['\\\"]/);if(!match)throw new Error('ANDROID_APP_VERSION not found');process.stdout.write(match[1]);")"
+          echo "android_version=$ANDROID_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Prepare build env
+        run: |
+          VERSION=$(node -e "const fs=require('fs');const text=fs.readFileSync('../shared/versions.ts','utf8');const match=text.match(/APP_VERSION\s*=\s*['\\\"]([^'\\\"]+)['\\\"]/);process.stdout.write(match ? match[1] : 'dev');")
+          echo "VITE_GITHUB_REPO=https://github.com/${{ github.repository }}" > .env.production
+          echo "VITE_APP_VERSION=$VERSION" >> .env.production
+
+      - name: Build web assets
+        run: npx vite build
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Prepare Gradle wrapper
+        run: chmod +x android/gradlew
+
+      - name: Prepare release signing
+        id: signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
+            mkdir -p android/app/keystore
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/keystore/release.jks
+            echo "build_type=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "build_type=debug" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build release APK
+        if: steps.signing.outputs.build_type == 'release'
+        working-directory: vite-frontend/android
+        env:
+          ANDROID_KEYSTORE_FILE: keystore/release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Build debug APK
+        if: steps.signing.outputs.build_type != 'release'
+        working-directory: vite-frontend/android
+        run: ./gradlew assembleDebug
+
+      - name: Rename APK
+        shell: bash
+        run: |
+          ANDROID_VERSION="${{ steps.version.outputs.android_version }}"
+          mkdir -p dist
+          if [[ -f android/app/build/outputs/apk/release/app-release.apk ]]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "dist/flox-android-${ANDROID_VERSION}.apk"
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk "dist/flox-android-${ANDROID_VERSION}-debug.apk"
+          fi
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flox-android-apk
+          path: vite-frontend/dist/*.apk
+
+      - name: Upload APK to existing Release
+        if: github.event.inputs.upload_to_release != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.upload_to_release }}"
+          ANDROID_VERSION="${{ steps.version.outputs.android_version }}"
+          REPO="${{ github.repository }}"
+          if [[ -f vite-frontend/dist/flox-android-${ANDROID_VERSION}.apk ]]; then
+            gh release upload "${VERSION}" "vite-frontend/dist/flox-android-${ANDROID_VERSION}.apk" --clobber --repo "${REPO}"
+          else
+            gh release upload "${VERSION}" "vite-frontend/dist/flox-android-${ANDROID_VERSION}-debug.apk" --clobber --repo "${REPO}"
+          fi
+          echo "✅ Android APK uploaded to release ${VERSION}"

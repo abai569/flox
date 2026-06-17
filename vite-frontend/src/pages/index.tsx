@@ -14,6 +14,7 @@ import {
   ModalFooter,
 } from "@/shadcn-bridge/heroui/modal";
 import { siteConfig } from "@/config/site";
+import { BrandLogo } from "@/components/brand-logo";
 import { title } from "@/components/primitives";
 import { VersionFooter } from "@/components/version-footer";
 import DefaultLayout from "@/layouts/default";
@@ -240,9 +241,10 @@ export default function IndexPage() {
           transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
         >
           <Card className="w-full">
-            <CardHeader className="pb-0 pt-6 px-6 flex-col items-center">
+            <CardHeader className="pb-0 pt-6 px-6 flex-col items-center gap-3">
+              <BrandLogo size={48} className="text-foreground" />
               <h1 className={title({ size: "sm" })}>登陆</h1>
-              <p className="text-small text-default-500 mt-2">
+              <p className="text-small text-default-500">
                 请输入您的账号信息
               </p>
             </CardHeader>
