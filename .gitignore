@@ -261,6 +261,9 @@ AGENTS.md
 # 证书文件
 *.crt
 *.cert
+
+# Android Gradle wrapper jar (overrides *.jar above)
+!vite-frontend/android/gradle/wrapper/gradle-wrapper.jar
 doraemon.jks
 device.id
 commit.sh
