@@ -47,8 +47,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          ANDROID_VERSION="$(node -e "const fs=require('fs');const text=fs.readFileSync('../shared/versions.ts','utf8');const match=text.match(/ANDROID_APP_VERSION\\s*=\\s*['\\\"]v?([^'\\\"]+)['\\\"]/);if(!match)throw new Error('ANDROID_APP_VERSION not found');process.stdout.write(match[1]);")"
-          echo "android_version=$ANDROID_VERSION" >> "$GITHUB_OUTPUT"
+          echo "android_version=1.0.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
@@ -100,6 +99,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
         run: ./gradlew assembleRelease
 
       - name: Build debug APK
@@ -110,6 +110,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: android
           ANDROID_KEY_ALIAS: androiddebugkey
           ANDROID_KEY_PASSWORD: android
+          ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
         run: ./gradlew assembleDebug
 
       - name: Rename APK

@@ -1,8 +1,14 @@
 apply plugin: 'com.android.application'
 
-def versionsText = rootProject.file('../../shared/versions.ts').text
-def androidVersionMatch = versionsText =~ /ANDROID_APP_VERSION\s*=\s*["']v?([^"']+)["']/
-def appVersionName = androidVersionMatch.find() ? androidVersionMatch.group(1).toString() : "0.0.0"
+def envVersion = System.getenv("ANDROID_VERSION_NAME")
+def appVersionName
+if (envVersion != null && !envVersion.isEmpty()) {
+    appVersionName = envVersion
+} else {
+    def versionsText = rootProject.file('../../shared/versions.ts').text
+    def androidVersionMatch = versionsText =~ /ANDROID_APP_VERSION\s*=\s*["']v?([^"']+)["']/
+    appVersionName = androidVersionMatch.find() ? androidVersionMatch.group(1).toString() : "0.0.0"
+}
 def appVersionCode = {
     def parts = appVersionName.replaceFirst(/^v/, '').split(/\./).collect { it.isInteger() ? it.toInteger() : 0 }
     while (parts.size() < 3) parts.add(0)

@@ -630,6 +630,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_NAME: ${{ needs.check-version.outputs.version }}
         run: ./gradlew assembleRelease
 
       - name: Build debug APK
@@ -640,6 +641,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: android
           ANDROID_KEY_ALIAS: androiddebugkey
           ANDROID_KEY_PASSWORD: android
+          ANDROID_VERSION_NAME: ${{ needs.check-version.outputs.version }}
         run: ./gradlew assembleDebug
 
       - name: Rename APK
