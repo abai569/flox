@@ -35,7 +35,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.19.0'
+          node-version: '22'
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -89,7 +89,7 @@ jobs:
         if: steps.signing.outputs.build_type == 'release'
         working-directory: vite-frontend/android
         env:
-          ANDROID_KEYSTORE_FILE: keystore/release.jks
+          ANDROID_KEYSTORE_FILE: app/keystore/release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
