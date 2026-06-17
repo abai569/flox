@@ -277,14 +277,7 @@ function App() {
         }
         path="/admin/telegram"
       />
-      <Route
-        element={
-          <ProtectedRoute skipLayout={true}>
-            <AdminPanelAddressPage />
-          </ProtectedRoute>
-        }
-        path="/settings"
-      />
+      <Route element={<AdminPanelAddressPage />} path="/settings" />
     </Routes>
   );
 }
