@@ -92,7 +92,7 @@ export default function AdminPanelAddressPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-black safe-top">
+    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-black">
       <header className="sticky top-0 bg-white dark:bg-black border-b border-gray-200 dark:border-gray-600 h-14 flex items-center px-4 gap-3 z-10">
         <button
           className="p-1.5 -ml-1.5 text-gray-600 dark:text-gray-300 hover:text-foreground rounded-md transition-colors"

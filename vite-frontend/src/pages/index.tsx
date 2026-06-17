@@ -243,7 +243,7 @@ export default function IndexPage() {
 
   return (
     <DefaultLayout>
-      <section className="flex flex-col items-center min-h-screen">
+      <section className="flex flex-col items-center flex-1">
         <motion.div
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md px-4 sm:px-0 flex-1 flex flex-col justify-center"

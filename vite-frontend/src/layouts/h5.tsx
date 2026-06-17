@@ -506,7 +506,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-black overflow-x-hidden">
       {/* 顶部导航栏 */}
-      <header className="fixed top-0 left-0 w-full bg-white dark:bg-black shadow-sm border-b border-gray-200 dark:border-gray-600 h-14 safe-top flex-shrink-0 flex items-center justify-between px-3 sm:px-4 z-40">
+      <header className="fixed top-0 left-0 w-full bg-white dark:bg-black shadow-sm border-b border-gray-200 dark:border-gray-600 h-14 flex-shrink-0 flex items-center justify-between px-3 sm:px-4 z-40">
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             className="p-1.5 -ml-1.5 text-gray-600 dark:text-gray-300 hover:text-foreground rounded-md active:bg-gray-200 dark:active:bg-gray-800 transition-colors"

@@ -11,9 +11,6 @@
 }
 
 :root {
-  --safe-area-top: env(safe-area-inset-top, 0px);
-  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
-
   --background: #f6f7fb;
   --foreground: #111827;
   --border: #e5e7eb;
@@ -137,14 +134,6 @@ body {
 .no-flox-transition,
 .no-flox-transition * {
   transition: none !important;
-}
-
-.safe-top {
-  padding-top: max(var(--safe-area-top), 8px);
-}
-
-.safe-bottom {
-  padding-bottom: var(--safe-area-bottom);
 }
 
 .text-small {
