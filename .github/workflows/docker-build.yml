@@ -626,7 +626,7 @@ jobs:
         if: steps.signing.outputs.build_type == 'release'
         working-directory: vite-frontend/android
         env:
-          ANDROID_KEYSTORE_FILE: app/keystore/release.jks
+          ANDROID_KEYSTORE_FILE: keystore/release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -636,7 +636,7 @@ jobs:
         if: steps.signing.outputs.build_type != 'release'
         working-directory: vite-frontend/android
         env:
-          ANDROID_KEYSTORE_FILE: app/keystore/debug.keystore
+          ANDROID_KEYSTORE_FILE: keystore/debug.keystore
           ANDROID_KEYSTORE_PASSWORD: android
           ANDROID_KEY_ALIAS: androiddebugkey
           ANDROID_KEY_PASSWORD: android
