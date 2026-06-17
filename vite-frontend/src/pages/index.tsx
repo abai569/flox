@@ -34,7 +34,7 @@ export default function IndexPage() {
   });
   const [errors, setErrors] = useState<Partial<LoginForm>>({});
   const [loading, setLoading] = useState(false);
-  const isWebView = useWebViewMode();
+  const { isWebView } = useWebViewMode();
   const [siteKey, setSiteKey] = useState("");
   const [regSiteKey, setRegSiteKey] = useState("");
 

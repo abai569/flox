@@ -25,7 +25,7 @@ import { BackIcon } from "@/components/icons";
 
 export default function AdminPanelAddressPage() {
   const navigate = useNavigate();
-  const isWebView = useWebViewMode();
+  const { isWebView, ready } = useWebViewMode();
   const [addresses, setAddresses] = useState<PanelAddress[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -33,12 +33,13 @@ export default function AdminPanelAddressPage() {
   const [newAddress, setNewAddress] = useState("");
 
   useEffect(() => {
+    if (!ready) return;
     if (!isWebView) {
       navigate("/dashboard", { replace: true });
       return;
     }
     loadAddresses();
-  }, [isWebView, navigate]);
+  }, [isWebView, ready, navigate]);
 
   const loadAddresses = async () => {
     setLoading(true);

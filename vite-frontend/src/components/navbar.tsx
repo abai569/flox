@@ -20,7 +20,7 @@ export const Navbar = () => {
   // 初始状态使用siteConfig中已经从缓存读取的值，避免闪烁
   const [appName, setAppName] = useState(siteConfig.name);
   const [showMonitorLink, setShowMonitorLink] = useState(false);
-  const isWebView = useWebViewMode();
+  const { isWebView } = useWebViewMode();
 
   useEffect(() => {
     // 异步检查是否有更新的配置
