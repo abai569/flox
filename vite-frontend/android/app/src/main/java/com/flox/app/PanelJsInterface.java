@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.webkit.JavascriptInterface;
 
+import com.flox.app.R;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
@@ -122,7 +123,7 @@ public class PanelJsInterface {
     private android.webkit.WebView findWebView() {
         if (context instanceof android.app.Activity) {
             android.webkit.WebView webView = ((android.app.Activity) context).findViewById(
-                com.getcapacitor.R.id.webview
+                R.id.webview
             );
             return webView;
         }
