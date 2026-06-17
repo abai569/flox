@@ -47,7 +47,7 @@ const isUpgradeDismissedToday = (): boolean => {
 };
 
 interface VersionFooterProps {
-  version: string;
+  version?: string;
   showUpdateInfo?: boolean;
   containerClassName?: string;
   versionClassName?: string;
@@ -136,7 +136,7 @@ export function VersionFooter({
         return;
       }
 
-      const hasUpdate = hasVersionUpdate(version, latestVersion);
+      const hasUpdate = version ? hasVersionUpdate(version, latestVersion) : false;
 
       setUpdateAvailable(hasUpdate);
       setLatestUpdateVersion(hasUpdate ? latestVersion : null);
@@ -235,52 +235,56 @@ export function VersionFooter({
   return (
     <>
       <div className={containerClassName}>
-        {upgrading ? (
-          <p className={versionClassName}>
-            <span className="animate-pulse inline-flex items-center h-[18px] px-2 rounded text-[10px] font-semibold bg-primary text-primary-foreground">
-              升级中...
-            </span>
-          </p>
-        ) : showUpdateInfo && updateAvailable && latestUpdateVersion ? (
-          <div className="flex flex-col gap-0.5">
-            <p className={versionClassName}>
-              <span className="text-gray-600 dark:text-white">{realVersion || version}</span>
-            </p>
-            <p className={versionClassName}>
-              <span className="text-blue-600 dark:text-white text-[10px]">
-                ⬇
-              </span>
-            </p>
-            <p className={versionClassName}>
-              <span className={updateBadgeClassName} role="status">
-                {latestUpdateVersion}
-              </span>{" "}
-              {showUpdateInfo && (
-                <Button
-                  className="inline-flex w-[24px] h-[16px] px-0 text-[9px] min-w-0 rounded-xs font-semibold [&>span]:text-[9px]"
-                  color="danger"
-                  size="sm"
-                  onPress={handleOpenUpgradeModal}
-                >
-                  UP
-                </Button>
-              )}
-            </p>
-          </div>
-        ) : (
-          <p className={versionClassName}>
-            <span className="text-gray-600 dark:text-white">{realVersion || version}</span>{" "}
-            {showUpdateInfo && (
-              <Button
-                className="inline-flex w-[24px] h-[16px] px-0 text-[9px] min-w-0 rounded-xs font-semibold [&>span]:text-[9px]"
-                color="danger"
-                size="sm"
-                onPress={handleOpenUpgradeModal}
-              >
-                UP
-              </Button>
+        {(version || realVersion) && (
+          <>
+            {upgrading ? (
+              <p className={versionClassName}>
+                <span className="animate-pulse inline-flex items-center h-[18px] px-2 rounded text-[10px] font-semibold bg-primary text-primary-foreground">
+                  升级中...
+                </span>
+              </p>
+            ) : showUpdateInfo && updateAvailable && latestUpdateVersion ? (
+              <div className="flex flex-col gap-0.5">
+                <p className={versionClassName}>
+                  <span className="text-gray-600 dark:text-white">{realVersion || version}</span>
+                </p>
+                <p className={versionClassName}>
+                  <span className="text-blue-600 dark:text-white text-[10px]">
+                    ⬇
+                  </span>
+                </p>
+                <p className={versionClassName}>
+                  <span className={updateBadgeClassName} role="status">
+                    {latestUpdateVersion}
+                  </span>{" "}
+                  {showUpdateInfo && (
+                    <Button
+                      className="inline-flex w-[24px] h-[16px] px-0 text-[9px] min-w-0 rounded-xs font-semibold [&>span]:text-[9px]"
+                      color="danger"
+                      size="sm"
+                      onPress={handleOpenUpgradeModal}
+                    >
+                      UP
+                    </Button>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <p className={versionClassName}>
+                <span className="text-gray-600 dark:text-white">{realVersion || version}</span>{" "}
+                {showUpdateInfo && (
+                  <Button
+                    className="inline-flex w-[24px] h-[16px] px-0 text-[9px] min-w-0 rounded-xs font-semibold [&>span]:text-[9px]"
+                    color="danger"
+                    size="sm"
+                    onPress={handleOpenUpgradeModal}
+                  >
+                    UP
+                  </Button>
+                )}
+              </p>
             )}
-          </p>
+          </>
         )}
         {isAdmin && (
           <p className={[versionClassName, "mt-1"].filter(Boolean).join(" ")}>

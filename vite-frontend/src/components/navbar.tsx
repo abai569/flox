@@ -7,12 +7,16 @@ import {
   NavbarBrand,
   NavbarContent,
 } from "@/shadcn-bridge/heroui/navbar";
+import { Button } from "@/shadcn-bridge/heroui/button";
 import { BrandLogo } from "@/components/brand-logo";
+import { SunFilledIcon, MoonFilledIcon } from "@/components/icons";
 import { siteConfig, getCachedConfig } from "@/config/site";
 import { useWebViewMode } from "@/hooks/useWebViewMode";
+import { useThemeContext } from "@/themes/context";
 
 export const Navbar = () => {
   const navigate = useNavigate();
+  const { effectiveMode, setMode } = useThemeContext();
   // 初始状态使用siteConfig中已经从缓存读取的值，避免闪烁
   const [appName, setAppName] = useState(siteConfig.name);
   const [showMonitorLink, setShowMonitorLink] = useState(false);
@@ -86,6 +90,16 @@ export const Navbar = () => {
         </NavbarContent>
 
         <NavbarContent className="basis-1/5 sm:basis-full" justify="end">
+          {/* 白天/夜晚切换 */}
+          <Button
+            isIconOnly
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            size="sm"
+            variant="light"
+            onPress={() => setMode(effectiveMode === "dark" ? "light" : "dark")}
+          >
+            {effectiveMode === "dark" ? <SunFilledIcon size={16} /> : <MoonFilledIcon size={16} />}
+          </Button>
           {/* 监控入口图标 */}
           {showMonitorLink && (
             <button

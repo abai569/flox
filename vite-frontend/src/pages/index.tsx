@@ -13,7 +13,6 @@ import {
   ModalBody,
   ModalFooter,
 } from "@/shadcn-bridge/heroui/modal";
-import { siteConfig } from "@/config/site";
 import { BrandLogo } from "@/components/brand-logo";
 import { title } from "@/components/primitives";
 import { VersionFooter } from "@/components/version-footer";
@@ -245,10 +244,10 @@ export default function IndexPage() {
 
   return (
     <DefaultLayout>
-      <section className="flex flex-col items-center justify-center gap-4 py-4 sm:py-8 md:py-10 pb-20 min-h-[calc(100dvh-120px)] sm:min-h-[calc(100dvh-200px)]">
+      <section className="flex flex-col items-center min-h-screen">
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md px-4 sm:px-0"
+          className="w-full max-w-md px-4 sm:px-0 flex-1 flex flex-col justify-center"
           initial={{ opacity: 0, y: 24 }}
           transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
         >
@@ -341,12 +340,8 @@ export default function IndexPage() {
         </motion.div>
 
         <VersionFooter
-          containerClassName="fixed inset-x-0 bottom-4 text-center py-4"
+          containerClassName="mt-auto text-center py-4"
           poweredClassName="text-xs text-gray-600 dark:text-white"
-          showUpdateInfo={false}
-          updateBadgeClassName="inline-flex items-center h-[18px] px-1.5 rounded-sm bg-green-500/90 text-[10px] font-semibold text-white"
-          version={isWebView ? siteConfig.app_version : siteConfig.version}
-          versionClassName="text-xs text-gray-400 dark:text-gray-500 mt-1"
         />
 
         <Modal

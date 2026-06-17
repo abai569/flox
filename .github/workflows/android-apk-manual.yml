@@ -55,9 +55,7 @@ jobs:
 
       - name: Prepare build env
         run: |
-          VERSION=$(node -e "const fs=require('fs');const text=fs.readFileSync('../shared/versions.ts','utf8');const match=text.match(/APP_VERSION\s*=\s*['\\\"]([^'\\\"]+)['\\\"]/);process.stdout.write(match ? match[1] : 'dev');")
           echo "VITE_GITHUB_REPO=https://github.com/${{ github.repository }}" > .env.production
-          echo "VITE_APP_VERSION=$VERSION" >> .env.production
 
       - name: Build web assets
         run: npx vite build
