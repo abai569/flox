@@ -1,3 +1,26 @@
+// Promise 封装：请求面板地址列表，返回 Promise<PanelAddress[]>
+export function requestPanelAddresses(): Promise<PanelAddress[]> {
+  return new Promise((resolve) => {
+    const callbackName = "__panelAddressCallback_" + Date.now();
+    const timeout = setTimeout(() => {
+      delete (window as any)[callbackName];
+      resolve([]);
+    }, 5000);
+    (window as any)[callbackName] = (addresses: PanelAddress[]) => {
+      clearTimeout(timeout);
+      delete (window as any)[callbackName];
+      resolve(addresses);
+    };
+    getPanelAddresses(callbackName);
+  });
+}
+
+export interface PanelAddress {
+  name: string;
+  address: string;
+  inx: boolean;
+}
+
 // 获取面板地址列表
 export async function getPanelAddresses(
   callback: string = "setPanelAddresses",

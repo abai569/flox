@@ -22,6 +22,7 @@ import AdminPlansPage from "@/pages/admin-plans";
 import AdminOrdersPage from "@/pages/admin-orders";
 import AdminPaymentPage from "@/pages/admin-payment";
 import AdminTelegramPage from "@/pages/admin-telegram";
+import AdminPanelAddressPage from "@/pages/admin-panel-address";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
 import { isLoggedIn } from "@/utils/auth";
@@ -275,6 +276,14 @@ function App() {
           </ProtectedRoute>
         }
         path="/admin/telegram"
+      />
+      <Route
+        element={
+          <ProtectedRoute skipLayout={true}>
+            <AdminPanelAddressPage />
+          </ProtectedRoute>
+        }
+        path="/settings"
       />
     </Routes>
   );
