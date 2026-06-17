@@ -10,10 +10,10 @@ import (
 type Config struct {
 	Addr                 string `json:"addr"`
 	Secret               string `json:"secret"`
-	Http                 int    `json:"http"`
-	Tls                  int    `json:"tls"`
-	Socks                int    `json:"socks"`
-	BlockOther           int    `json:"block_other"`
+	BlockHttp            int    `json:"block_http,omitempty"`
+	BlockTls             int    `json:"block_tls,omitempty"`
+	BlockSocks           int    `json:"block_socks,omitempty"`
+	BlockOtherPorts      int    `json:"block_other_ports,omitempty"`
 	NodeID               int64  `json:"node_id"`
 	ServiceName          string `json:"service_name"`
 	DomesticDownloadHost string `json:"domestic_download_host"`
@@ -32,6 +32,9 @@ func LoadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("读取配置文件失败: %v", err)
 	}
 
+	// 迁移旧版协议过滤字段名
+	data = migrateConfigKeys(data, configPath)
+
 	// 解析JSON
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
@@ -44,4 +47,45 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// migrateConfigKeys 将旧版协议过滤字段名迁移到新版
+func migrateConfigKeys(data []byte, configPath string) []byte {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return data
+	}
+
+	oldToNew := map[string]string{
+		"http":        "block_http",
+		"tls":         "block_tls",
+		"socks":       "block_socks",
+		"block_other": "block_other_ports",
+	}
+
+	changed := false
+	for oldKey, newKey := range oldToNew {
+		if _, hasNew := raw[newKey]; !hasNew {
+			if v, hasOld := raw[oldKey]; hasOld {
+				raw[newKey] = v
+				delete(raw, oldKey)
+				changed = true
+			}
+		} else {
+			// 新key已存在，删除旧key（即使不冲突也清理干净）
+			delete(raw, oldKey)
+		}
+	}
+
+	if !changed {
+		return data
+	}
+
+	newData, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return data
+	}
+
+	os.WriteFile(configPath, newData, 0644)
+	return newData
 }

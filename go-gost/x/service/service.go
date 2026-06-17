@@ -625,12 +625,12 @@ func detectSOCKS(data []byte) bool {
 
 // Config 配置结构体
 type Config struct {
-	Addr       string `json:"addr"`
-	Secret     string `json:"secret"`
-	Http       int    `json:"http"`
-	Tls        int    `json:"tls"`
-	Socks      int    `json:"socks"`
-	BlockOther int    `json:"block_other"`
+	Addr            string `json:"addr"`
+	Secret          string `json:"secret"`
+	BlockHttp       int    `json:"block_http,omitempty"`
+	BlockTls        int    `json:"block_tls,omitempty"`
+	BlockSocks      int    `json:"block_socks,omitempty"`
+	BlockOtherPorts int    `json:"block_other_ports,omitempty"`
 }
 
 func LoadConfig(configPath string) (string, error) {
@@ -643,16 +643,59 @@ func LoadConfig(configPath string) (string, error) {
 		return "", fmt.Errorf("读取配置文件失败: %v", err)
 	}
 
+	// 迁移旧版协议过滤字段名
+	data = migrateConfigKeys(data, configPath)
+
 	var config Config
 	if err := json.Unmarshal(data, &config); err != nil {
 		return "", fmt.Errorf("解析配置文件失败: %v", err)
 	}
 
-	isTls = config.Tls
-	isSocks = config.Socks
-	isHttp = config.Http
-	isBlockOther = config.BlockOther
+	isTls = config.BlockTls
+	isSocks = config.BlockSocks
+	isHttp = config.BlockHttp
+	isBlockOther = config.BlockOtherPorts
 
 	return "", nil
 
+}
+
+// migrateConfigKeys 将旧版协议过滤字段名迁移到新版
+func migrateConfigKeys(data []byte, configPath string) []byte {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return data
+	}
+
+	oldToNew := map[string]string{
+		"http":        "block_http",
+		"tls":         "block_tls",
+		"socks":       "block_socks",
+		"block_other": "block_other_ports",
+	}
+
+	changed := false
+	for oldKey, newKey := range oldToNew {
+		if _, hasNew := raw[newKey]; !hasNew {
+			if v, hasOld := raw[oldKey]; hasOld {
+				raw[newKey] = v
+				delete(raw, oldKey)
+				changed = true
+			}
+		} else {
+			delete(raw, oldKey)
+		}
+	}
+
+	if !changed {
+		return data
+	}
+
+	newData, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return data
+	}
+
+	os.WriteFile(configPath, newData, 0644)
+	return newData
 }

@@ -355,13 +355,13 @@ func (w *WebSocketReporter) connect() error {
 
 	// 重新读取 config.json 获取最新的协议配置
 	type LocalConfig struct {
-		Addr        string `json:"addr"`
-		Secret      string `json:"secret"`
-		Http        int    `json:"http"`
-		Tls         int    `json:"tls"`
-		Socks       int    `json:"socks"`
-		BlockOther  int    `json:"block_other"`
-		ServiceName string `json:"service_name"`
+		Addr            string `json:"addr"`
+		Secret          string `json:"secret"`
+		BlockHttp       int    `json:"block_http,omitempty"`
+		BlockTls        int    `json:"block_tls,omitempty"`
+		BlockSocks      int    `json:"block_socks,omitempty"`
+		BlockOtherPorts int    `json:"block_other_ports,omitempty"`
+		ServiceName     string `json:"service_name"`
 	}
 
 	var cfg LocalConfig
@@ -369,6 +369,7 @@ func (w *WebSocketReporter) connect() error {
 	configPaths := []string{"config.json", "/etc/flox_agent/config.json", "/etc/flux_agent/config.json"}
 	for _, path := range configPaths {
 		if b, err := os.ReadFile(path); err == nil {
+			b = migrateConfigKeys(b, path)
 			json.Unmarshal(b, &cfg)
 			if cfg.ServiceName != "" {
 				w.serviceName = cfg.ServiceName
@@ -377,7 +378,7 @@ func (w *WebSocketReporter) connect() error {
 		}
 	}
 
-	candidates := buildWebSocketCandidates(w.addr, w.secret, w.version, cfg.Http, cfg.Tls, cfg.Socks, cfg.BlockOther, w.preferredWSScheme)
+	candidates := buildWebSocketCandidates(w.addr, w.secret, w.version, cfg.BlockHttp, cfg.BlockTls, cfg.BlockSocks, cfg.BlockOtherPorts, w.preferredWSScheme)
 
 	dialer := websocket.DefaultDialer
 	dialer.HandshakeTimeout = 10 * time.Second
@@ -415,7 +416,7 @@ func (w *WebSocketReporter) connect() error {
 		return nil
 	})
 
-	fmt.Printf("✅ WebSocket 连接建立成功 (%s, http=%d, tls=%d, socks=%d)\n", sanitizeWebSocketURL(usedURL), cfg.Http, cfg.Tls, cfg.Socks)
+	fmt.Printf("✅ WebSocket 连接建立成功 (%s, http=%d, tls=%d, socks=%d)\n", sanitizeWebSocketURL(usedURL), cfg.BlockHttp, cfg.BlockTls, cfg.BlockSocks)
 
 	// 如果 node_id 未配置，尝试从面板获取并初始化基线管理器
 	if w.nodeID <= 0 {
@@ -2412,30 +2413,31 @@ func (w *WebSocketReporter) handleRollbackAgent(data interface{}) error {
 	return nil
 }
 
-// updateLocalConfigJSON 将 http/tls/socks/blockOther 写入工作目录下的 config.json
+// updateLocalConfigJSON 将协议过滤设置写入工作目录下的 config.json
 func (w *WebSocketReporter) updateLocalConfigJSON(httpVal int, tlsVal int, socksVal int, blockOtherVal int) error {
 	configDir := getConfigDir(w.serviceName)
 	path := configDir + "/config.json"
 
 	// 读取现有配置
 	type LocalConfig struct {
-		Addr       string `json:"addr"`
-		Secret     string `json:"secret"`
-		Http       int    `json:"http"`
-		Tls        int    `json:"tls"`
-		Socks      int    `json:"socks"`
-		BlockOther int    `json:"block_other"`
+		Addr            string `json:"addr"`
+		Secret          string `json:"secret"`
+		BlockHttp       int    `json:"block_http,omitempty"`
+		BlockTls        int    `json:"block_tls,omitempty"`
+		BlockSocks      int    `json:"block_socks,omitempty"`
+		BlockOtherPorts int    `json:"block_other_ports,omitempty"`
 	}
 
 	var cfg LocalConfig
 	if b, err := os.ReadFile(path); err == nil {
+		b = migrateConfigKeys(b, path)
 		_ = json.Unmarshal(b, &cfg)
 	}
 
-	cfg.Http = httpVal
-	cfg.Tls = tlsVal
-	cfg.Socks = socksVal
-	cfg.BlockOther = blockOtherVal
+	cfg.BlockHttp = httpVal
+	cfg.BlockTls = tlsVal
+	cfg.BlockSocks = socksVal
+	cfg.BlockOtherPorts = blockOtherVal
 
 	// 写回
 	data, err := json.MarshalIndent(cfg, "", "  ")
@@ -3211,4 +3213,44 @@ func (w *WebSocketReporter) processDurationInData(data interface{}) interface{} 
 	default:
 		return v
 	}
+}
+
+// migrateConfigKeys 将旧版协议过滤字段名迁移到新版
+func migrateConfigKeys(data []byte, configPath string) []byte {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return data
+	}
+
+	oldToNew := map[string]string{
+		"http":        "block_http",
+		"tls":         "block_tls",
+		"socks":       "block_socks",
+		"block_other": "block_other_ports",
+	}
+
+	changed := false
+	for oldKey, newKey := range oldToNew {
+		if _, hasNew := raw[newKey]; !hasNew {
+			if v, hasOld := raw[oldKey]; hasOld {
+				raw[newKey] = v
+				delete(raw, oldKey)
+				changed = true
+			}
+		} else {
+			delete(raw, oldKey)
+		}
+	}
+
+	if !changed {
+		return data
+	}
+
+	newData, err := json.MarshalIndent(raw, "", "  ")
+	if err != nil {
+		return data
+	}
+
+	os.WriteFile(configPath, newData, 0644)
+	return newData
 }
