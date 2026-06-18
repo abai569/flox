@@ -3842,7 +3842,8 @@ export default function UserPage() {
                               <span className="text-danger font-mono font-bold text-xs sm:text-sm">
                                 {formatFlow(
                                   calculateTunnelUsedFlow(userTunnel),
-                                )}
+                                )}{" "}
+                                / <span className="text-default-500">{formatFlow(userTunnel.flow, "gb")}</span>
                               </span>
                             </TableCell>
                             <TableCell>
