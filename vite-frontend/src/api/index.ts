@@ -632,40 +632,6 @@ export const assignGroupPermission = (data: {
 export const removeGroupPermission = (id: number) =>
   Network.post("/group/permission/remove", { id });
 
-// 面板共享 (Federation) 接口
-export const getPeerShareList = () =>
-  Network.post<Array<Record<string, unknown>>>("/federation/share/list");
-export const createPeerShare = (data: {
-  name: string;
-  nodeId: number;
-  maxBandwidth?: number;
-  expiryTime?: number;
-  portRangeStart?: number;
-  portRangeEnd?: number;
-  allowedDomains?: string;
-  allowedIps?: string;
-}) => Network.post("/federation/share/create", data);
-export const updatePeerShare = (data: {
-  id: number;
-  name: string;
-  maxBandwidth: number;
-  expiryTime: number;
-  portRangeStart: number;
-  portRangeEnd: number;
-  allowedDomains: string;
-  allowedIps: string;
-}) => Network.post("/federation/share/update", data);
-export const deletePeerShare = (id: number) =>
-  Network.post("/federation/share/delete", { id });
-export const resetPeerShareFlow = (id: number) =>
-  Network.post("/federation/share/reset-flow", { id });
-export const getPeerRemoteUsageList = () =>
-  Network.post<Array<Record<string, unknown>>>(
-    "/federation/share/remote-usage/list",
-  );
-export const importRemoteNode = (data: { remoteUrl: string; token: string }) =>
-  Network.post("/federation/node/import", data);
-
 export interface BackupTypes {
   users?: boolean;
   nodes?: boolean;

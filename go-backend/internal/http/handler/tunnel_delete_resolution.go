@@ -640,7 +640,6 @@ func (h *Handler) rollbackTunnelForwardMigrationPlans(plans []tunnelForwardMigra
 
 func (h *Handler) deleteTunnelAndCleanup(tunnelID int64) error {
 	h.cleanupTunnelRuntime(tunnelID)
-	h.cleanupFederationRuntime(tunnelID)
 	if err := h.deleteTunnelByID(tunnelID); err != nil {
 		return err
 	}

@@ -381,64 +381,6 @@ type SchemaVersion struct {
 
 func (SchemaVersion) TableName() string { return "schema_version" }
 
-type PeerShare struct {
-	ID             int64  `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name           string `gorm:"type:text;not null" json:"name"`
-	NodeID         int64  `gorm:"column:node_id;not null" json:"nodeId"`
-	Token          string `gorm:"type:text;not null;uniqueIndex" json:"token"`
-	MaxBandwidth   int64  `gorm:"column:max_bandwidth;default:0" json:"maxBandwidth"`
-	ExpiryTime     int64  `gorm:"column:expiry_time;default:0" json:"expiryTime"`
-	PortRangeStart int    `gorm:"column:port_range_start;default:0" json:"portRangeStart"`
-	PortRangeEnd   int    `gorm:"column:port_range_end;default:0" json:"portRangeEnd"`
-	CurrentFlow    int64  `gorm:"column:current_flow;default:0" json:"currentFlow"`
-	IsActive       int    `gorm:"column:is_active;default:1" json:"isActive"`
-	CreatedTime    int64  `gorm:"column:created_time;not null" json:"createdTime"`
-	UpdatedTime    int64  `gorm:"column:updated_time;not null" json:"updatedTime"`
-	AllowedDomains string `gorm:"column:allowed_domains;type:text;default:''" json:"allowedDomains"`
-	AllowedIPs     string `gorm:"column:allowed_ips;type:text;default:''" json:"allowedIps"`
-}
-
-func (PeerShare) TableName() string { return "peer_share" }
-
-type PeerShareRuntime struct {
-	ID            int64  `gorm:"primaryKey;autoIncrement"`
-	ShareID       int64  `gorm:"column:share_id;not null;index:idx_peer_share_runtime_share_node_status"`
-	NodeID        int64  `gorm:"column:node_id;not null;index:idx_peer_share_runtime_share_node_status"`
-	ReservationID string `gorm:"column:reservation_id;type:text;not null;uniqueIndex"`
-	ResourceKey   string `gorm:"column:resource_key;type:text;not null;uniqueIndex"`
-	BindingID     string `gorm:"column:binding_id;type:text;not null;default:'';index:idx_peer_share_runtime_binding_id"`
-	Role          string `gorm:"type:text;not null;default:''"`
-	ChainName     string `gorm:"column:chain_name;type:text;not null;default:''"`
-	ServiceName   string `gorm:"column:service_name;type:text;not null;default:''"`
-	Protocol      string `gorm:"type:text;not null;default:'tls'"`
-	Strategy      string `gorm:"type:text;not null;default:'round'"`
-	Port          int    `gorm:"not null;default:0"`
-	Target        string `gorm:"type:text;not null;default:''"`
-	Applied       int    `gorm:"not null;default:0"`
-	Status        int    `gorm:"not null;default:1;index:idx_peer_share_runtime_share_node_status"`
-	CreatedTime   int64  `gorm:"column:created_time;not null"`
-	UpdatedTime   int64  `gorm:"column:updated_time;not null"`
-}
-
-func (PeerShareRuntime) TableName() string { return "peer_share_runtime" }
-
-type FederationTunnelBinding struct {
-	ID              int64  `gorm:"primaryKey;autoIncrement"`
-	TunnelID        int64  `gorm:"column:tunnel_id;not null;uniqueIndex:idx_federation_tunnel_binding_unique;index:idx_federation_tunnel_binding_tunnel"`
-	NodeID          int64  `gorm:"column:node_id;not null;uniqueIndex:idx_federation_tunnel_binding_unique"`
-	ChainType       int    `gorm:"column:chain_type;not null;uniqueIndex:idx_federation_tunnel_binding_unique"`
-	HopInx          int    `gorm:"column:hop_inx;not null;default:0;uniqueIndex:idx_federation_tunnel_binding_unique"`
-	RemoteURL       string `gorm:"column:remote_url;type:text;not null"`
-	ResourceKey     string `gorm:"column:resource_key;type:text;not null;uniqueIndex"`
-	RemoteBindingID string `gorm:"column:remote_binding_id;type:text;not null"`
-	AllocatedPort   int    `gorm:"column:allocated_port;not null"`
-	Status          int    `gorm:"not null;default:1;index:idx_federation_tunnel_binding_tunnel"`
-	CreatedTime     int64  `gorm:"column:created_time;not null"`
-	UpdatedTime     int64  `gorm:"column:updated_time;not null"`
-}
-
-func (FederationTunnelBinding) TableName() string { return "federation_tunnel_binding" }
-
 // ─── Backup / Import-Export Structs ──────────────────────────────────
 // These are not GORM models; they define the JSON wire format for the
 // backup/restore API and MUST keep their existing json tags unchanged.

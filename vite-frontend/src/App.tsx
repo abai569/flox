@@ -15,7 +15,6 @@ import GroupPage from "@/pages/group";
 import ProfilePage from "@/pages/profile";
 import LimitPage from "@/pages/limit";
 import ConfigPage from "@/pages/config";
-import PanelSharingPage from "@/pages/panel-sharing";
 import ShopPage from "@/pages/shop";
 import MyHomePage from "@/pages/myhome";
 import AdminPlansPage from "@/pages/admin-plans";
@@ -220,14 +219,6 @@ function App() {
           </ProtectedRoute>
         }
         path="/config"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <PanelSharingPage />
-          </ProtectedRoute>
-        }
-        path="/panel-sharing"
       />
       <Route
         element={

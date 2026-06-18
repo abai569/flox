@@ -357,6 +357,14 @@ func (r *Repository) UpdateNodePublicIP(nodeID int64, publicIP string) error {
 		Update("server_ip", publicIP).Error
 }
 
+func (r *Repository) UpdateNodeRemoteConfig(nodeID int64, remoteConfig string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
+		Update("remote_config", remoteConfig).Error
+}
+
 func (r *Repository) UpdateNodePublicIPs(nodeID int64, ipv4, ipv6 string) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
@@ -980,9 +988,6 @@ func (r *Repository) DeleteNodeCascade(nodeID int64) error {
 		if err := tx.Where("node_id = ?", nodeID).Delete(&model.ChainTunnel{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("node_id = ?", nodeID).Delete(&model.FederationTunnelBinding{}).Error; err != nil {
-			return err
-		}
 		return tx.Where("id = ?", nodeID).Delete(&model.Node{}).Error
 	})
 }
@@ -1275,9 +1280,6 @@ func (r *Repository) DeleteTunnelCascade(tunnelID int64) error {
 			return err
 		}
 		if err := tx.Where("tunnel_id = ?", tunnelID).Delete(&model.ChainTunnel{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("tunnel_id = ?", tunnelID).Delete(&model.FederationTunnelBinding{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("id = ?", tunnelID).Delete(&model.Tunnel{}).Error
@@ -2858,46 +2860,6 @@ func (r *Repository) RevokeGroupPermissionPairTx(tx *gorm.DB, userGroupID, tunne
 	}
 
 	return revoked, nil
-}
-
-func (r *Repository) ReplaceFederationTunnelBindingsTx(tx *gorm.DB, tunnelID int64, bindings []FederationTunnelBinding) error {
-	if tx == nil {
-		return errors.New("database unavailable")
-	}
-	if err := tx.Where("tunnel_id = ?", tunnelID).Delete(&model.FederationTunnelBinding{}).Error; err != nil {
-		return err
-	}
-	if len(bindings) == 0 {
-		return nil
-	}
-
-	rows := make([]model.FederationTunnelBinding, 0, len(bindings))
-	now := time.Now().UnixMilli()
-	for _, b := range bindings {
-		created := b.CreatedTime
-		if created <= 0 {
-			created = now
-		}
-		updated := b.UpdatedTime
-		if updated <= 0 {
-			updated = created
-		}
-		rows = append(rows, model.FederationTunnelBinding{
-			TunnelID:        tunnelID,
-			NodeID:          b.NodeID,
-			ChainType:       b.ChainType,
-			HopInx:          b.HopInx,
-			RemoteURL:       b.RemoteURL,
-			ResourceKey:     b.ResourceKey,
-			RemoteBindingID: b.RemoteBindingID,
-			AllocatedPort:   b.AllocatedPort,
-			Status:          b.Status,
-			CreatedTime:     created,
-			UpdatedTime:     updated,
-		})
-	}
-
-	return tx.Create(&rows).Error
 }
 
 func (r *Repository) InsertGroupPermission(userGroupID, tunnelGroupID int64, now int64) error {
