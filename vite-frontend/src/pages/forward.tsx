@@ -5514,10 +5514,14 @@ export default function ForwardPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={modalOpen}
+        isDismissable={false}
         placement="center"
         scrollBehavior="outside"
         size="lg"
-        onOpenChange={setModalOpen}
+        onOpenChange={(open) => {
+          if (!open && !isEdit) resetDraft();
+          setModalOpen(open);
+        }}
       >
         <ModalContent>
           {(onClose) => (

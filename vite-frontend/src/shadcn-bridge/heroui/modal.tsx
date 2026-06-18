@@ -37,6 +37,7 @@ export function useDisclosure(options: DisclosureOptions = {}) {
 
 interface ModalContextValue {
   classNames?: Record<string, string>;
+  isDismissable?: boolean;
   onClose: () => void;
   scrollBehavior?: "inside" | "outside";
   size?: ModalSize;
@@ -90,6 +91,7 @@ export interface ModalProps {
 export function Modal({
   children,
   classNames,
+  isDismissable = true,
   isOpen = false,
   onClose,
   onOpenChange,
@@ -103,8 +105,9 @@ export function Modal({
     }
   };
 
-  const contextValue = {
+  const contextValue: ModalContextValue = {
     classNames,
+    isDismissable,
     onClose: () => {
       handleOpenChange(false);
     },
@@ -143,6 +146,8 @@ export function ModalContent({
       ? children(() => context?.onClose())
       : children;
 
+  const dismissable = context?.isDismissable ?? true;
+
   return (
     <BaseDialogContent
       className={cn(
@@ -157,6 +162,8 @@ export function ModalContent({
         className,
       )}
       showCloseButton={false}
+      onEscapeKeyDown={!dismissable ? (e) => e.preventDefault() : undefined}
+      onPointerDownOutside={!dismissable ? (e) => e.preventDefault() : undefined}
       {...props}
     >
       {renderedChildren}

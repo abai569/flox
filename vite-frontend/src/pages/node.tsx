@@ -1150,6 +1150,7 @@ export default function NodePage() {
   const handleAdd = () => {
     setDialogTitle("新增节点");
     setIsEdit(false);
+    resetDraft();
     setDialogVisible(true);
     setErrors({});
   };
@@ -3183,12 +3184,18 @@ export default function NodePage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={dialogVisible}
+        isDismissable={false}
         placement="center"
         scrollBehavior="outside"
         size="xl"
-        onClose={() => setDialogVisible(false)}
+        onOpenChange={(open) => {
+          if (!open && !isEdit) resetDraft();
+          setDialogVisible(open);
+        }}
       >
         <ModalContent>
+          {(onClose) => (
+            <>
           <ModalHeader>{dialogTitle}</ModalHeader>
           <ModalBody>
             <div className="space-y-4">
@@ -3727,7 +3734,7 @@ export default function NodePage() {
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button variant="flat" onPress={() => setDialogVisible(false)}>
+            <Button variant="flat" onPress={onClose}>
               取消
             </Button>
             <Button
@@ -3738,6 +3745,8 @@ export default function NodePage() {
               {isEdit ? "保存" : "创建"}
             </Button>
           </ModalFooter>
+            </>
+          )}
         </ModalContent>
       </Modal>
       {/* 删除确认弹窗 */}

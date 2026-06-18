@@ -691,6 +691,7 @@ export default function TunnelPage() {
   // 新增隧道
   const handleAdd = () => {
     setIsEdit(false);
+    resetDraft();
     setErrors({});
     setModalOpen(true);
   };
@@ -2918,10 +2919,14 @@ export default function TunnelPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={modalOpen}
+        isDismissable={false}
         placement="center"
         scrollBehavior="inside"
         size="xl"
-        onOpenChange={setModalOpen}
+        onOpenChange={(open) => {
+          if (!open && !isEdit) resetDraft();
+          setModalOpen(open);
+        }}
       >
         <ModalContent>
           {(onClose) => (
