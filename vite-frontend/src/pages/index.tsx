@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Input } from "@/shadcn-bridge/heroui/input";
 import { Button } from "@/shadcn-bridge/heroui/button";
+import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
 import {
   Modal,
   ModalContent,
@@ -49,6 +50,18 @@ export default function IndexPage() {
   const [regEnabled, setRegEnabled] = useState(true);
 
   const [addressMissing, setAddressMissing] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(() => localStorage.getItem("remember_me") === "true");
+
+  useEffect(() => {
+    if (remember) {
+      const savedUser = localStorage.getItem("saved_username") || "";
+      const savedPass = localStorage.getItem("saved_password") || "";
+      if (savedUser) {
+        setForm({ username: savedUser, password: savedPass });
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!isWebView) return;
@@ -144,6 +157,7 @@ export default function IndexPage() {
 
       if (response.data.isDefaultAdmin) {
         writeLoginSession(response.data);
+        saveCredentials();
         toast("正在使用默认密码登录请尽快修改", {
           icon: "⚠️",
           duration: 5000,
@@ -154,6 +168,7 @@ export default function IndexPage() {
       }
 
       writeLoginSession(response.data);
+      saveCredentials();
       toast.success("登录成功");
       window.location.href = "/dashboard";
     } catch {
@@ -179,6 +194,18 @@ export default function IndexPage() {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !loading) {
       handleLogin();
+    }
+  };
+
+  const saveCredentials = () => {
+    if (remember) {
+      localStorage.setItem("remember_me", "true");
+      localStorage.setItem("saved_username", form.username);
+      localStorage.setItem("saved_password", form.password);
+    } else {
+      localStorage.removeItem("remember_me");
+      localStorage.removeItem("saved_username");
+      localStorage.removeItem("saved_password");
     }
   };
 
@@ -284,14 +311,39 @@ export default function IndexPage() {
                   isInvalid={!!errors.password}
                   label="密码"
                   placeholder="请输入密码"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={form.password}
                   variant="bordered"
+                  endContent={
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {showPassword ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} />
+                          <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} />
+                        </svg>
+                      )}
+                    </button>
+                  }
                   onChange={(e) =>
                     handleInputChange("password", e.target.value)
                   }
                   onKeyDown={handleKeyPress}
                 />
+                <Checkbox
+                  isSelected={remember}
+                  onValueChange={setRemember}
+                >
+                  记住用户名密码
+                </Checkbox>
                 <Button
                   className="mt-2"
                   color="primary"
