@@ -136,8 +136,8 @@ export function VersionFooter({
         return;
       }
 
-      const displayVersion = realVersion || version;
-      const hasUpdate = displayVersion ? hasVersionUpdate(displayVersion, latestVersion) : false;
+      if (!realVersion) return;
+      const hasUpdate = hasVersionUpdate(realVersion, latestVersion);
 
       setUpdateAvailable(hasUpdate);
       setLatestUpdateVersion(hasUpdate ? latestVersion : null);

@@ -14,7 +14,6 @@ import {
   ModalFooter,
 } from "@/shadcn-bridge/heroui/modal";
 import { title } from "@/components/primitives";
-import { VersionFooter } from "@/components/version-footer";
 import DefaultLayout from "@/layouts/default";
 import { login, register, LoginData, getConfigByName } from "@/api";
 import { writeLoginSession } from "@/utils/session";
@@ -337,10 +336,17 @@ export default function IndexPage() {
           </Card>
         </motion.div>
 
-        <VersionFooter
-          containerClassName="mt-auto text-center py-4"
-          poweredClassName="text-xs text-gray-600 dark:text-white"
-        />
+        <p className="mt-auto text-center py-4 text-xs text-gray-600 dark:text-white">
+          Powered by{" "}
+          <a
+            className="text-gray-600 dark:text-white hover:text-gray-600 dark:hover:text-gray-300"
+            href="https://github.com/abai569/FLOX"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Flox
+          </a>
+        </p>
 
         <Modal
           isOpen={registerOpen}
