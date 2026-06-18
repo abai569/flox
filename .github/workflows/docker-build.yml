@@ -647,12 +647,11 @@ jobs:
       - name: Rename APK
         shell: bash
         run: |
-          ANDROID_VERSION="${{ steps.version.outputs.android_version }}"
           mkdir -p dist
           if [[ -f android/app/build/outputs/apk/release/app-release.apk ]]; then
-            cp android/app/build/outputs/apk/release/app-release.apk "dist/flox-android-${ANDROID_VERSION}.apk"
+            cp android/app/build/outputs/apk/release/app-release.apk "dist/flox-android.apk"
           else
-            cp android/app/build/outputs/apk/debug/app-debug.apk "dist/flox-android-${ANDROID_VERSION}-debug.apk"
+            cp android/app/build/outputs/apk/debug/app-debug.apk "dist/flox-android.apk"
           fi
 
       - name: Upload APK to Release
@@ -661,13 +660,8 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ needs.check-version.outputs.version }}"
-          ANDROID_VERSION="${{ steps.version.outputs.android_version }}"
           REPO="${{ github.repository }}"
-          if [[ -f dist/flox-android-${ANDROID_VERSION}.apk ]]; then
-            gh release upload "${VERSION}" "dist/flox-android-${ANDROID_VERSION}.apk" --clobber --repo "${REPO}"
-          else
-            gh release upload "${VERSION}" "dist/flox-android-${ANDROID_VERSION}-debug.apk" --clobber --repo "${REPO}"
-          fi
+          gh release upload "${VERSION}" "dist/flox-android.apk" --clobber --repo "${REPO}"
           echo "✅ Android APK uploaded to release ${VERSION}"
 
 
