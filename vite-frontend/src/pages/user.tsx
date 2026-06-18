@@ -3996,9 +3996,69 @@ export default function UserPage() {
         <ModalContent>
           <ModalHeader>编辑隧道权限 - {editTunnelForm?.tunnelName}</ModalHeader>
           <ModalBody>
-            {editTunnelForm && (
-              <>
-                <Select
+              {editTunnelForm && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input
+                      label="总流量 (GB)"
+                      min="0"
+                      type="number"
+                      value={String(editTunnelForm.flow ?? 0)}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setEditTunnelForm((prev) =>
+                          prev ? { ...prev, flow: Number(e.target.value) || 0 } : null,
+                        )
+                      }
+                    />
+                    <Input
+                      label="最大规则数"
+                      min="0"
+                      type="number"
+                      value={String(editTunnelForm.num ?? 0)}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setEditTunnelForm((prev) =>
+                          prev ? { ...prev, num: Number(e.target.value) || 0 } : null,
+                        )
+                      }
+                    />
+                  </div>
+                  <DatePicker
+                    showMonthAndYearPickers
+                    label="到期时间"
+                    value={timestampToCalendarDate(
+                      editTunnelForm.expTime > 0 ? editTunnelForm.expTime : null,
+                    )}
+                    onChange={(date) => {
+                      const ts = calendarDateToTimestamp(date) || 0
+                      setEditTunnelForm((prev) =>
+                        prev ? { ...prev, expTime: ts } : null,
+                      )
+                    }}
+                  >
+                    <DatePresets
+                      onChange={(timestamp) => {
+                        setEditTunnelForm((prev) =>
+                          prev ? { ...prev, expTime: timestamp || 0 } : null,
+                        )
+                      }}
+                    />
+                  </DatePicker>
+                  <Input
+                    label="流量重置日 (1-31)"
+                    min="1"
+                    max="31"
+                    type="number"
+                    value={String(editTunnelForm.flowResetTime ?? 1)}
+                    variant="bordered"
+                    onChange={(e) =>
+                      setEditTunnelForm((prev) =>
+                        prev ? { ...prev, flowResetTime: Math.min(Math.max(Number(e.target.value) || 1, 1), 31) } : null,
+                      )
+                    }
+                  />
+                  <Select
                   label="限速规则"
                   placeholder="不限速"
                   selectedKeys={
