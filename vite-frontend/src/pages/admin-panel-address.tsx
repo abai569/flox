@@ -54,20 +54,14 @@ export default function AdminPanelAddressPage() {
   };
 
   const handleAdd = async () => {
-    if (!newName.trim()) {
-      toast.error("请输入名称");
-      return;
-    }
-    if (!newAddress.trim()) {
-      toast.error("请输入面板地址");
-      return;
-    }
-    if (!validatePanelAddress(newAddress.trim())) {
+    const name = newName.trim();
+    const addr = newAddress.trim();
+    if (!validatePanelAddress(addr)) {
       toast.error("面板地址格式不正确（需以 http:// 或 https:// 开头）");
       return;
     }
-    const addr = new URL(newAddress.trim()).origin;
-    savePanelAddress(newName.trim(), addr);
+    const normalized = new URL(addr).origin;
+    savePanelAddress(name, normalized);
     if (addresses.length === 0) {
       setCurrentPanelAddress(newName.trim());
     }

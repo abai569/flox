@@ -319,7 +319,8 @@ export default function IndexPage() {
                       type="button"
                       tabIndex={-1}
                       onClick={() => setShowPassword(!showPassword)}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      className="flex items-center justify-center bg-transparent p-0 border-0 outline-none cursor-pointer text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      aria-label={showPassword ? "隐藏密码" : "显示密码"}
                     >
                       {showPassword ? (
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
