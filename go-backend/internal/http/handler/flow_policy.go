@@ -396,6 +396,13 @@ func (h *Handler) ensureUserTunnelForwardAllowed(userID int64, tunnelID int64, n
 	if policy.ExpTime > 0 && policy.ExpTime <= now {
 		return errors.New("该隧道已过期")
 	}
+	if policy.Flow > 0 {
+		flowLimit := policy.Flow * bytesPerGB
+		current := policy.InFlow + policy.OutFlow
+		if flowLimit < current {
+			return errors.New("该隧道流量已超额")
+		}
+	}
 
 	return nil
 }
@@ -425,7 +432,17 @@ func shouldPauseUserTunnel(policy *userTunnelPolicy, now int64) bool {
 	if policy.ExpTime > 0 && policy.ExpTime <= now {
 		return true
 	}
-	return policy.Status != 1
+	if policy.Status != 1 {
+		return true
+	}
+	if policy.Flow > 0 {
+		flowLimit := policy.Flow * bytesPerGB
+		current := policy.InFlow + policy.OutFlow
+		if flowLimit < current {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) getUserTunnelPolicy(userTunnelID int64) (*userTunnelPolicy, error) {

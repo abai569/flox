@@ -3089,8 +3089,13 @@ export default function ForwardPage() {
   };
   const maskPublicIP = (ip: string): string => {
     if (!ip) return ip;
+    if (ip.includes(":")) {
+      const parts = ip.split(":");
+      if (parts.length >= 2) return `${parts.slice(0, -1).join(":")}:**`;
+      return ip;
+    }
     const parts = ip.split(".");
-    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.**`;
+    if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.**`;
     return ip;
   };
   // 复制所有地址

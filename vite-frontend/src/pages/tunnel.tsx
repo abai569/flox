@@ -374,6 +374,7 @@ export default function TunnelPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [diagnosisModalOpen, setDiagnosisModalOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
+  const [isCopy, setIsCopy] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
@@ -684,13 +685,19 @@ export default function TunnelPage() {
   };
   const maskPublicIP = (ip: string): string => {
     if (!ip) return ip;
+    if (ip.includes(":")) {
+      const parts = ip.split(":");
+      if (parts.length >= 2) return `${parts.slice(0, -1).join(":")}:**`;
+      return ip;
+    }
     const parts = ip.split(".");
-    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.**`;
+    if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.**`;
     return ip;
   };
   // 新增隧道
   const handleAdd = () => {
     setIsEdit(false);
+    setIsCopy(false);
     resetDraft();
     setErrors({});
     setModalOpen(true);
@@ -698,6 +705,7 @@ export default function TunnelPage() {
   // 编辑隧道 - 只能修改部分字段
   const handleEdit = (tunnel: Tunnel) => {
     setIsEdit(true);
+    setIsCopy(false);
     setForm({
       id: tunnel.id,
       name: tunnel.name,
@@ -715,6 +723,36 @@ export default function TunnelPage() {
         : "",
       ipPreference: tunnel.ipPreference || "",
       status: tunnel.status,
+      tunnelGroupId: tunnel.tunnelGroupId ?? null,
+      remark: tunnel.remark || "",
+      http: typeof tunnel.http === "number" ? tunnel.http : 0,
+      tls: typeof tunnel.tls === "number" ? tunnel.tls : 0,
+      socks: typeof tunnel.socks === "number" ? tunnel.socks : 0,
+      blockOther: typeof tunnel.blockOther === "number" ? tunnel.blockOther : 0,
+    });
+    setErrors({});
+    setModalOpen(true);
+  };
+  const handleCopy = (tunnel: Tunnel) => {
+    setIsEdit(false);
+    setIsCopy(true);
+    setForm({
+      id: 0,
+      name: tunnel.name,
+      type: tunnel.type,
+      inNodeId: tunnel.inNodeId || [],
+      outNodeId: tunnel.outNodeId || [],
+      chainNodes: tunnel.chainNodes || [],
+      flow: tunnel.flow,
+      trafficRatio: tunnel.trafficRatio,
+      inIp: tunnel.inIp
+        ? tunnel.inIp
+            .split(",")
+            .map((ip: string) => ip.trim())
+            .join("\n")
+        : "",
+      ipPreference: tunnel.ipPreference || "",
+      status: 1,
       tunnelGroupId: tunnel.tunnelGroupId ?? null,
       remark: tunnel.remark || "",
       http: typeof tunnel.http === "number" ? tunnel.http : 0,
@@ -1357,7 +1395,7 @@ export default function TunnelPage() {
 
       if (response.code === 0) {
         toast.success(isEdit ? "更新成功" : "创建成功");
-        if (!isEdit) {
+        if (!isEdit && !isCopy) {
           resetDraft();
         }
         setModalOpen(false);
@@ -2531,6 +2569,15 @@ export default function TunnelPage() {
                                     </Button>
                                     <Button
                                       className="min-h-7 px-2"
+                                      color="warning"
+                                      size="sm"
+                                      variant="flat"
+                                      onPress={() => handleCopy(tunnel)}
+                                    >
+                                      复制
+                                    </Button>
+                                    <Button
+                                      className="min-h-7 px-2"
                                       color="secondary"
                                       size="sm"
                                       variant="flat"
@@ -2837,6 +2884,15 @@ export default function TunnelPage() {
                                       color="warning"
                                       size="sm"
                                       variant="flat"
+                                      onPress={() => handleCopy(tunnel)}
+                                    >
+                                      复制
+                                    </Button>
+                                    <Button
+                                      className="flex-1 min-h-8"
+                                      color="secondary"
+                                      size="sm"
+                                      variant="flat"
                                       onPress={() => handleDiagnose(tunnel)}
                                     >
                                       诊断
@@ -2924,7 +2980,7 @@ export default function TunnelPage() {
         scrollBehavior="inside"
         size="xl"
         onOpenChange={(open) => {
-          if (!open && !isEdit) resetDraft();
+          if (!open && !isEdit && !isCopy) resetDraft();
           setModalOpen(open);
         }}
       >
@@ -2933,13 +2989,15 @@ export default function TunnelPage() {
             <>
               <ModalHeader className="flex flex-col gap-1">
                 <h2 className="text-xl font-bold">
-                  {isEdit ? "编辑隧道" : "新增隧道"}
+                  {isCopy ? "复制隧道" : isEdit ? "编辑隧道" : "新增隧道"}
                 </h2>
                 <p className="text-small text-default-500">
                   {
-                    isEdit
-                      ? "修改节点配置会中断现有连接，隧道类型不可修改"
-                      : "" /* "创建新的隧道配置" */
+                    isCopy
+                      ? "基于现有隧道配置创建新隧道"
+                      : isEdit
+                        ? "修改节点配置会中断现有连接，隧道类型不可修改"
+                        : ""
                   }
                 </p>
               </ModalHeader>

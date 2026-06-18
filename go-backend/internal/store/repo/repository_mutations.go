@@ -597,6 +597,15 @@ func (r *Repository) BuyTrafficPackageWithBalance(userID, packageID, now int64) 
 		return errors.New("repository not initialized")
 	}
 
+	groupIDs, err := r.GetPackageTunnelGroupIDs(packageID)
+	if err != nil {
+		return err
+	}
+	tunnelIDs, err := r.GetTunnelsInGroups(groupIDs)
+	if err != nil {
+		return err
+	}
+
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
 		if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
@@ -636,6 +645,12 @@ func (r *Repository) BuyTrafficPackageWithBalance(userID, packageID, now int64) 
 				"updated_time": sql.NullInt64{Int64: now, Valid: true},
 			}).Error; err != nil {
 			return err
+		}
+
+		if len(tunnelIDs) > 0 {
+			if err := addTrafficToUserTunnels(tx, userID, tunnelIDs, pkg.TrafficLimit, user.ExpTime, user.FlowResetTime); err != nil {
+				return err
+			}
 		}
 
 		buyLog := &model.UserTrafficBuyLog{
@@ -1712,6 +1727,11 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 				}).Error; err != nil {
 				return err
 			}
+			if len(tunnelIDs) > 0 {
+				if err := addTrafficToUserTunnels(tx, userID, tunnelIDs, trafficGB, user.ExpTime, user.FlowResetTime); err != nil {
+					return err
+				}
+			}
 		default: // subscription
 			// 4a. Deactivate old active subscriptions
 			if err := tx.Model(&model.PackageSubscription{}).
@@ -1970,21 +1990,64 @@ func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64
 	return nil
 }
 
-// DeliverTrafficPackageToUser applies a traffic package: adds flow to user.
-func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, price int64, trafficLimit int64, quantity int64) error {
+func addTrafficToUserTunnels(tx *gorm.DB, userID int64, tunnelIDs []int64, trafficGB int64, userExpTime int64, userFlowResetTime int64) error {
+	for _, tunnelID := range tunnelIDs {
+		var existing model.UserTunnel
+		err := tx.Select("id").Where("user_id = ? AND tunnel_id = ?", userID, tunnelID).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ut := model.UserTunnel{
+				UserID:        userID,
+				TunnelID:      tunnelID,
+				Flow:          trafficGB,
+				ExpTime:       userExpTime,
+				FlowResetTime: userFlowResetTime,
+				Status:        1,
+			}
+			if err := tx.Create(&ut).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		} else {
+			if err := tx.Model(&model.UserTunnel{}).Where("id = ?", existing.ID).
+				Update("flow", gorm.Expr("flow + ?", trafficGB)).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, price int64, trafficLimit int64, quantity int64, tunnelGroupIDs []int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 	totalGB := trafficGB * quantity
-	return r.db.Model(&model.User{}).
-		Where("id = ?", userID).
-		Updates(map[string]interface{}{
-			"flow":               gorm.Expr("flow + ?", totalGB),
-			"traffic_flow":       gorm.Expr("traffic_flow + ?", totalGB),
-			"buy_traffic_price":  price,
-			"buy_traffic_amount": totalGB,
-			"updated_time":       time.Now().UnixMilli(),
-		}).Error
+	tunnelIDs, err := r.GetTunnelsInGroups(tunnelGroupIDs)
+	if err != nil {
+		return err
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Updates(map[string]interface{}{
+				"flow":               gorm.Expr("flow + ?", totalGB),
+				"traffic_flow":       gorm.Expr("traffic_flow + ?", totalGB),
+				"buy_traffic_price":  price,
+				"buy_traffic_amount": totalGB,
+				"updated_time":       time.Now().UnixMilli(),
+			}).Error; err != nil {
+			return err
+		}
+		if len(tunnelIDs) == 0 {
+			return nil
+		}
+		var user model.User
+		if err := tx.Select("exp_time, flow_reset_time").Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+		return addTrafficToUserTunnels(tx, userID, tunnelIDs, totalGB, user.ExpTime, user.FlowResetTime)
+	})
 }
 
 // GetPackageSubscriptionByOrderID returns the PackageSubscription linked to an order.
