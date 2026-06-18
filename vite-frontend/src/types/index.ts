@@ -18,6 +18,7 @@ export interface User {
   createdTime?: number; // 创建时间戳
   inFlow?: number; // 下载流量 (字节)
   outFlow?: number; // 上传流量 (字节)
+  roleId?: number; // 角色ID (0=管理员, 1=普通用户)
   dailyQuotaGB?: number;
   monthlyQuotaGB?: number;
   dailyUsedBytes?: number;
@@ -56,6 +57,7 @@ export interface UserForm {
   renewalAmount?: number;
   balance?: number;
   autoRenew?: number;
+  roleId?: number;
 }
 
 export interface UserTunnel {

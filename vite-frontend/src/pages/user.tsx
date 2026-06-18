@@ -199,6 +199,7 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
       (item as any).autoBuyTrafficThreshold ?? 10,
     ),
     baseFlow: Number(item.baseFlow ?? 0),
+    roleId: Number((item as any).roleId ?? 1),
     quotaHistory: [],
     showHistory: false,
   } as UserWithHistory;
@@ -279,6 +280,7 @@ export default function UserPage() {
       autoBuyTrafficPackageId: 0,
       autoBuyTrafficThreshold: 10,
       autoBuyTrafficPackageType: "custom",
+      roleId: 1,
     } as {
       id?: number;
       user: string;
@@ -301,10 +303,12 @@ export default function UserPage() {
       autoBuyTrafficPackageId: number;
       autoBuyTrafficThreshold: number;
       autoBuyTrafficPackageType: "package" | "custom";
+      roleId: number;
     },
   );
   const [flowInput, setFlowInput] = useState("");
   const [numInput, setNumInput] = useState("");
+  const [usedFlowInput, setUsedFlowInput] = useState("");
   const [userFormLoading, setUserFormLoading] = useState(false);
   const [autoBuyPackages, setAutoBuyPackages] = useState<
     { id: number; name: string; trafficLimit: number; price: number }[]
@@ -1052,6 +1056,8 @@ export default function UserPage() {
     } catch {}
     setFlowInput(String(user.flow));
     setNumInput(String(user.num));
+    const totalUsedBytes = (user.inFlow || 0) + (user.outFlow || 0);
+    setUsedFlowInput((totalUsedBytes / (1024 * 1024 * 1024)).toFixed(2));
     setUserForm({
       id: user.id,
       name: user.name || "",
@@ -1079,6 +1085,7 @@ export default function UserPage() {
       ),
       autoBuyTrafficPackageType:
         ((user as any).autoBuyTrafficPackageId ?? 0) > 0 ? "package" : "custom",
+      roleId: (user as any).roleId ?? 1,
     });
     if (((user as any).autoBuyTrafficPackageId ?? 0) > 0) {
       loadAutoBuyPackages();
@@ -1122,6 +1129,9 @@ export default function UserPage() {
     }
     setUserFormLoading(true);
     try {
+      const usedFlowBytes = Math.round(
+        (parseFloat(usedFlowInput) || 0) * 1024 * 1024 * 1024,
+      );
       const submitData: any = {
         ...userForm,
         balance: Math.round(userForm.balance * 100),
@@ -1130,6 +1140,8 @@ export default function UserPage() {
         expTime:
           userForm.expTime instanceof Date ? userForm.expTime.getTime() : 0,
         groupIds: userForm.groupIds ?? [],
+        inFlow: usedFlowBytes,
+        outFlow: 0,
       };
 
       if (userForm.autoBuyTrafficPackageType === "package") {
@@ -2726,6 +2738,19 @@ export default function UserPage() {
         <ModalContent>
           <ModalHeader>{isEdit ? "编辑用户" : "新增用户"}</ModalHeader>
           <ModalBody>
+            <div className="rounded-xl border border-default-200 bg-default-50/60 p-4 mb-2">
+              <Switch
+                isSelected={userForm.roleId === 0}
+                onValueChange={(isSelected) =>
+                  setUserForm((prev) => ({
+                    ...prev,
+                    roleId: isSelected ? 0 : 1,
+                  }))
+                }
+              >
+                管理员
+              </Switch>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <Input
                 isRequired
@@ -2783,7 +2808,7 @@ export default function UserPage() {
                 />
               </DatePicker>
               <Input
-                label="流量限制(GB)"
+                label="可用流量"
                 max="99999"
                 min="0"
                 placeholder="选填"
@@ -2799,6 +2824,18 @@ export default function UserPage() {
                       : Math.min(Math.max(Number(raw) || 0, 0), 99999);
 
                   setUserForm((prev) => ({ ...prev, flow: num }));
+                }}
+              />
+              <Input
+                label="已用流量"
+                min="0"
+                placeholder="选填"
+                type="number"
+                value={usedFlowInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+
+                  setUsedFlowInput(raw);
                 }}
               />
               <Input

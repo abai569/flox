@@ -119,10 +119,21 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("续费金额和余额不能小于 0"))
 		return
 	}
-	roleID := 1
+	createRoleID := asInt(req["roleId"], 1)
+	if createRoleID < 0 || createRoleID > 1 {
+		response.WriteJSON(w, response.ErrDefault("角色ID无效"))
+		return
+	}
+	if createRoleID == 0 {
+		_, operatorRoleID, err := userRoleFromRequest(r)
+		if err != nil || operatorRoleID != 0 {
+			response.WriteJSON(w, response.ErrDefault("无权限创建管理员"))
+			return
+		}
+	}
 	now := time.Now().UnixMilli()
 
-	userID, err := h.repo.CreateUser(username, security.MD5(pwd), roleID, expTime, flow, flowResetTime, num, status, now, renewalAmount, balance, int64(autoRenew))
+	userID, err := h.repo.CreateUser(username, security.MD5(pwd), createRoleID, expTime, flow, flowResetTime, num, status, now, renewalAmount, balance, int64(autoRenew))
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -229,6 +240,11 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	renewalAmount := asInt64(req["renewalAmount"], 0)
 	balance := asInt64(req["balance"], 0)
 	autoRenew := asInt(req["autoRenew"], 0)
+	newRoleID := asInt(req["roleId"], 1)
+	_, hasInFlow := req["inFlow"]
+	_, hasOutFlow := req["outFlow"]
+	inFlowVal := asInt64(req["inFlow"], 0)
+	outFlowVal := asInt64(req["outFlow"], 0)
 	autoBuyTraffic, hasAutoBuyTraffic := 0, false
 	buyTrafficAmount, buyTrafficPrice := int64(0), int64(0)
 	autoBuyTrafficPackageID, autoBuyTrafficThreshold := int64(0), int64(0)
@@ -248,6 +264,18 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("续费金额和余额不能小于 0"))
 		return
 	}
+	if newRoleID < 0 || newRoleID > 1 {
+		response.WriteJSON(w, response.ErrDefault("角色ID无效"))
+		return
+	}
+	if newRoleID == 0 {
+		operatorUserID, operatorRoleID, err := userRoleFromRequest(r)
+		if err != nil || operatorRoleID != 0 {
+			response.WriteJSON(w, response.ErrDefault("无权限设置管理员"))
+			return
+		}
+		_ = operatorUserID
+	}
 	now := time.Now().UnixMilli()
 
 	// 到期时间在未来，自动启用用户
@@ -261,20 +289,21 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	pwd := asString(req["pwd"])
 
 	if strings.TrimSpace(pwd) == "" {
-		// 在参数里增加了 name
-		if err := h.repo.UpdateUserWithoutPassword(id, username, name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew)); err != nil {
+		if err := h.repo.UpdateUserWithoutPassword(id, username, name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew), newRoleID, inFlowVal, outFlowVal); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
 	} else {
-		// 在参数里增加了 name
-		if err := h.repo.UpdateUserWithPassword(id, username, security.MD5(pwd), name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew)); err != nil {
+		if err := h.repo.UpdateUserWithPassword(id, username, security.MD5(pwd), name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew), newRoleID, inFlowVal, outFlowVal); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
 	}
 
 	h.repo.PropagateUserFlowToTunnels(id, flow, num, expTime, flowResetTime, status)
+	if hasInFlow || hasOutFlow {
+		h.repo.UpdateUserUsedFlow(id, inFlowVal, outFlowVal)
+	}
 	// 根据用户状态同步 Forward 规则状态
 	_ = h.repo.UpdateUserForwardsStatus(id, status, now)
 	if hasDailyQuota || hasMonthlyQuota {

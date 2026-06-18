@@ -79,14 +79,13 @@ func (r *Repository) GetUserRoleID(userID int64) (int, error) {
 	return user.RoleID, nil
 }
 
-func (r *Repository) UpdateUserWithPassword(id int64, username, pwdHash, name string, flow int64, num int, expTime, flowResetTime int64, status int, now int64, renewalAmount, balance, autoRenew int64) error {
+func (r *Repository) UpdateUserWithPassword(id int64, username, pwdHash, name string, flow int64, num int, expTime, flowResetTime int64, status int, now int64, renewalAmount, balance, autoRenew int64, roleID int, inFlow, outFlow int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	// 使用 Select 强制更新所有字段，包括零值
 	return r.db.Model(&model.User{}).
 		Where("id = ?", id).
-		Select("user", "name", "pwd", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew").
+		Select("user", "name", "pwd", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew", "role_id", "in_flow", "out_flow").
 		Updates(map[string]interface{}{
 			"user":            username,
 			"name":            name,
@@ -100,17 +99,19 @@ func (r *Repository) UpdateUserWithPassword(id int64, username, pwdHash, name st
 			"renewal_amount":  renewalAmount,
 			"balance":         balance,
 			"auto_renew":      autoRenew,
+			"role_id":         roleID,
+			"in_flow":         inFlow,
+			"out_flow":        outFlow,
 		}).Error
 }
 
-func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, flow int64, num int, expTime, flowResetTime int64, status int, now int64, renewalAmount, balance, autoRenew int64) error {
+func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, flow int64, num int, expTime, flowResetTime int64, status int, now int64, renewalAmount, balance, autoRenew int64, roleID int, inFlow, outFlow int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	// 使用 Select 强制更新所有字段，包括零值
 	return r.db.Model(&model.User{}).
 		Where("id = ?", id).
-		Select("user", "name", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew").
+		Select("user", "name", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew", "role_id", "in_flow", "out_flow").
 		Updates(map[string]interface{}{
 			"user":            username,
 			"name":            name,
@@ -123,7 +124,31 @@ func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, 
 			"renewal_amount":  renewalAmount,
 			"balance":         balance,
 			"auto_renew":      autoRenew,
+			"role_id":         roleID,
+			"in_flow":         inFlow,
+			"out_flow":        outFlow,
 		}).Error
+}
+
+func (r *Repository) UpdateUserUsedFlow(userID int64, inFlow, outFlow int64) {
+	if r == nil || r.db == nil {
+		return
+	}
+	tx := r.db.Begin()
+	defer func() { tx.Rollback() }()
+	_ = tx.Model(&model.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"in_flow":  inFlow,
+			"out_flow": outFlow,
+		}).Error
+	_ = tx.Model(&model.UserTunnel{}).
+		Where("user_id = ?", userID).
+		Updates(map[string]interface{}{
+			"in_flow":  inFlow,
+			"out_flow": outFlow,
+		}).Error
+	tx.Commit()
 }
 
 func (r *Repository) PropagateUserFlowToTunnels(userID int64, flow int64, num int, expTime, flowResetTime int64, status int) {

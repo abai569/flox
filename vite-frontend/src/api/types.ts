@@ -352,6 +352,9 @@ export interface UserMutationPayload {
   dailyQuotaGB?: number;
   monthlyQuotaGB?: number;
   tunnelFlow?: number;
+  roleId?: number;
+  inFlow?: number;
+  outFlow?: number;
 }
 
 export interface NodeMutationPayload {
