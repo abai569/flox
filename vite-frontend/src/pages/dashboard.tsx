@@ -1298,6 +1298,7 @@ export default function DashboardPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-[420px] rounded-xl",
         }}
         isOpen={autoBuySettingsModalOpen}
+        isDismissable={false}
         placement="center"
         onOpenChange={setAutoBuySettingsModalOpen}
       >

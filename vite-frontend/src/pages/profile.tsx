@@ -319,6 +319,7 @@ export default function ProfilePage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={isOpen}
+        isDismissable={false}
         placement="center"
         scrollBehavior="outside"
         size="2xl"

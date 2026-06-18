@@ -676,6 +676,7 @@ export default function PanelSharingPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={createShareOpen}
+        isDismissable={false}
         scrollBehavior="inside"
         onClose={() => setCreateShareOpen(false)}
       >
@@ -786,6 +787,7 @@ export default function PanelSharingPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={editShareOpen}
+        isDismissable={false}
         scrollBehavior="inside"
         onClose={() => setEditShareOpen(false)}
       >
@@ -896,6 +898,7 @@ export default function PanelSharingPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={importNodeOpen}
+        isDismissable={false}
         onClose={() => setImportNodeOpen(false)}
       >
         <ModalContent>

@@ -2717,6 +2717,7 @@ export default function UserPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl",
         }}
         isOpen={isUserModalOpen}
+        isDismissable={false}
         placement="center"
         scrollBehavior="outside"
         size="md"

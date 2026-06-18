@@ -493,6 +493,7 @@ export default function LimitPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={modalOpen}
+        isDismissable={false}
         placement="center"
         scrollBehavior="outside"
         size="md"

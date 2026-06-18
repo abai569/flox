@@ -947,6 +947,7 @@ export default function GroupPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={tunnelGroupModalOpen}
+        isDismissable={false}
         onOpenChange={onTunnelGroupModalChange}
       >
         <ModalContent>
@@ -996,6 +997,7 @@ export default function GroupPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={userGroupModalOpen}
+        isDismissable={false}
         onOpenChange={onUserGroupModalChange}
       >
         <ModalContent>
