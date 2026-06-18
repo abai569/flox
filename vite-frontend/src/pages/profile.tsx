@@ -306,8 +306,8 @@ export default function ProfilePage() {
         classNames={{
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
-        isOpen={isOpen}
         isDismissable={false}
+        isOpen={isOpen}
         placement="center"
         scrollBehavior="inside"
         size="2xl"

@@ -492,8 +492,8 @@ export default function LimitPage() {
         classNames={{
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
-        isOpen={modalOpen}
         isDismissable={false}
+        isOpen={modalOpen}
         placement="center"
         scrollBehavior="inside"
         size="md"

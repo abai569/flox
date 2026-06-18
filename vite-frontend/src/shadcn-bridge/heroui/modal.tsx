@@ -163,7 +163,9 @@ export function ModalContent({
       )}
       showCloseButton={false}
       onEscapeKeyDown={!dismissable ? (e) => e.preventDefault() : undefined}
-      onPointerDownOutside={!dismissable ? (e) => e.preventDefault() : undefined}
+      onPointerDownOutside={
+        !dismissable ? (e) => e.preventDefault() : undefined
+      }
       {...props}
     >
       {renderedChildren}

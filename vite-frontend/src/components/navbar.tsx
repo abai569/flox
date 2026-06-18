@@ -98,7 +98,11 @@ export const Navbar = () => {
             variant="light"
             onPress={() => setMode(effectiveMode === "dark" ? "light" : "dark")}
           >
-            {effectiveMode === "dark" ? <SunFilledIcon size={16} /> : <MoonFilledIcon size={16} />}
+            {effectiveMode === "dark" ? (
+              <SunFilledIcon size={16} />
+            ) : (
+              <MoonFilledIcon size={16} />
+            )}
           </Button>
           {/* 监控入口图标 */}
           {showMonitorLink && (

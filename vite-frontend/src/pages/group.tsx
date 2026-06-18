@@ -946,8 +946,8 @@ export default function GroupPage() {
         classNames={{
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
-        isOpen={tunnelGroupModalOpen}
         isDismissable={false}
+        isOpen={tunnelGroupModalOpen}
         onOpenChange={onTunnelGroupModalChange}
       >
         <ModalContent>
@@ -996,8 +996,8 @@ export default function GroupPage() {
         classNames={{
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
-        isOpen={userGroupModalOpen}
         isDismissable={false}
+        isOpen={userGroupModalOpen}
         onOpenChange={onUserGroupModalChange}
       >
         <ModalContent>

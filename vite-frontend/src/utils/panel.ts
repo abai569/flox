@@ -6,6 +6,7 @@ export function requestPanelAddresses(): Promise<PanelAddress[]> {
       delete (window as any)[callbackName];
       resolve([]);
     }, 5000);
+
     (window as any)[callbackName] = (addresses: PanelAddress[]) => {
       clearTimeout(timeout);
       delete (window as any)[callbackName];
@@ -95,6 +96,7 @@ export function validatePanelAddress(address: string): boolean {
   }
   try {
     const url = new URL(address);
+
     return !!url.hostname;
   } catch {
     return false;

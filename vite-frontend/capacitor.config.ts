@@ -1,15 +1,15 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: 'com.flox.app',
-  appName: 'FLOX',
-  webDir: 'dist',
+  appId: "com.flox.app",
+  appName: "FLOX",
+  webDir: "dist",
   server: {
-    androidScheme: 'http',
+    androidScheme: "http",
     cleartext: true,
   },
   android: {
-    backgroundColor: '#f7f9fc',
+    backgroundColor: "#f7f9fc",
   },
 };
 

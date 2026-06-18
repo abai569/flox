@@ -36,6 +36,7 @@ export default function AdminPanelAddressPage() {
     if (!ready) return;
     if (!isWebView) {
       navigate("/dashboard", { replace: true });
+
       return;
     }
     loadAddresses();
@@ -45,6 +46,7 @@ export default function AdminPanelAddressPage() {
     setLoading(true);
     try {
       const list = await requestPanelAddresses();
+
       setAddresses(list || []);
     } catch {
       toast.error("获取面板地址失败");
@@ -56,11 +58,14 @@ export default function AdminPanelAddressPage() {
   const handleAdd = async () => {
     const name = newName.trim();
     const addr = newAddress.trim();
+
     if (!validatePanelAddress(addr)) {
       toast.error("面板地址格式不正确（需以 http:// 或 https:// 开头）");
+
       return;
     }
     const normalized = new URL(addr).origin;
+
     savePanelAddress(name, normalized);
     if (addresses.length === 0) {
       setCurrentPanelAddress(newName.trim());
@@ -118,9 +123,24 @@ export default function AdminPanelAddressPage() {
           </div>
         ) : addresses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
-            <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} />
-              <path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} />
+            <svg
+              className="w-12 h-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+              />
+              <path
+                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+              />
             </svg>
             <p className="text-sm">暂无已保存的面板地址</p>
             <p className="text-xs">点击右上角"添加地址"开始配置</p>
@@ -163,9 +183,9 @@ export default function AdminPanelAddressPage() {
                       </Button>
                     )}
                     <Button
+                      color="danger"
                       size="sm"
                       variant="flat"
-                      color="danger"
                       onPress={() => handleDelete(addr.name)}
                     >
                       删除

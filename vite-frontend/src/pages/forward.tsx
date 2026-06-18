@@ -234,6 +234,7 @@ const EMPTY_BATCH_RESULT_MODAL_STATE: BatchResultModalState = {
   summary: "",
   title: "",
 };
+
 type ForwardGroupOrderMap = Record<string, string[]>;
 type ForwardGroupCollapsedMap = Record<string, boolean>;
 const UNKNOWN_FORWARD_USER_NAME = "未知用户";
@@ -874,6 +875,11 @@ const SortableTableRow = ({
               sdw
             </span>
           )}
+          {forward.mode === "mimic" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+              wgm
+            </span>
+          )}
         </span>
       </TableCell>
       <TableCell className={rowBg}>
@@ -1206,6 +1212,11 @@ const SortableCompactTableRow = ({
           {forward.mode === "sdwan" && (
             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-800">
               sdw
+            </span>
+          )}
+          {forward.mode === "mimic" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+              wgm
             </span>
           )}
         </span>
@@ -2012,23 +2023,21 @@ export default function ForwardPage() {
   };
   const modeBtnConfig = getModeButtonConfig();
   // 切换精简模式
-  const applyForwardList = useCallback(
-    async (items: Forward[]) => {
-      const normalized = normalizeForwardItems(items);
-      setForwards(normalized);
-      const currentUserId = JwtUtil.getUserIdFromToken();
-      const { order, fromDatabase } = buildForwardOrder(
-        normalized,
-        currentUserId,
-      );
+  const applyForwardList = useCallback(async (items: Forward[]) => {
+    const normalized = normalizeForwardItems(items);
 
-      setForwardOrder(order);
-      if (fromDatabase) {
-        saveOrder(FORWARD_ORDER_KEY, order);
-      }
-    },
-    [],
-  );
+    setForwards(normalized);
+    const currentUserId = JwtUtil.getUserIdFromToken();
+    const { order, fromDatabase } = buildForwardOrder(
+      normalized,
+      currentUserId,
+    );
+
+    setForwardOrder(order);
+    if (fromDatabase) {
+      saveOrder(FORWARD_ORDER_KEY, order);
+    }
+  }, []);
   const refreshForwardList = useCallback(
     async (lod = true) => {
       if (lod) setLoading(true);
@@ -2099,8 +2108,8 @@ export default function ForwardPage() {
 
   useEffect(() => {
     const handleConfigUpdated = (event: Event) => {
-      const changedKeys = (event as CustomEvent<{ changedKeys?: string[] }>).detail
-        ?.changedKeys;
+      const changedKeys = (event as CustomEvent<{ changedKeys?: string[] }>)
+        .detail?.changedKeys;
 
       if (
         changedKeys &&
@@ -2126,6 +2135,7 @@ export default function ForwardPage() {
       if (batchTargetMode !== "gost") {
         setBatchTargetMode("gost");
       }
+
       return;
     }
     if (form.mode === "nftables" && !nftEnabled) {
@@ -2146,7 +2156,15 @@ export default function ForwardPage() {
     if (batchTargetMode === "sdwan" && !sdwEnabled) {
       setBatchTargetMode("gost");
     }
-  }, [batchTargetMode, form.mode, isFreeTier, nftEnabled, flcEnabled, sdwEnabled, setForm]);
+  }, [
+    batchTargetMode,
+    form.mode,
+    isFreeTier,
+    nftEnabled,
+    flcEnabled,
+    sdwEnabled,
+    setForm,
+  ]);
 
   usePullToRefresh(loadData);
   // 定时刷新连接数（每5秒）
@@ -2904,11 +2922,15 @@ export default function ForwardPage() {
     if (!ip) return ip;
     if (ip.includes(":")) {
       const parts = ip.split(":").filter(Boolean);
+
       if (parts.length <= 3) return ip;
+
       return "::" + parts.slice(-3).join(":");
     }
     const parts = ip.split(".");
+
     if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.**`;
+
     return ip;
   };
   // 复制所有地址
@@ -4332,6 +4354,11 @@ export default function ForwardPage() {
                     sdw
                   </span>
                 )}
+                {forward.mode === "mimic" && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 flex-shrink-0">
+                    wgm
+                  </span>
+                )}
               </div>
               <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 bg-danger-500/10 text-danger-600 dark:text-danger-400">
                 {formatExpiryTime(forward.expiryTime)}
@@ -5331,8 +5358,8 @@ export default function ForwardPage() {
         classNames={{
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
-        isOpen={modalOpen}
         isDismissable={false}
+        isOpen={modalOpen}
         placement="center"
         scrollBehavior="inside"
         size="lg"
@@ -5523,7 +5550,8 @@ export default function ForwardPage() {
                     </Select>
                     {form.mode === "sdwan" && (
                       <div className="col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary-700 dark:text-primary-300">
-                        使用 SDWAN 模式请先到节点高级设置里一键签发证书，然后到组网里面把对应节点加入组网
+                        使用 SDWAN
+                        模式请先到节点高级设置里一键签发证书，然后到组网里面把对应节点加入组网
                       </div>
                     )}
                   </div>
@@ -6419,9 +6447,16 @@ export default function ForwardPage() {
                                                 <span
                                                   className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
                                                   title={result.targetIp}
-                                                  onClick={() => copyToClipboard(result.targetIp, "目标IP")}
+                                                  onClick={() =>
+                                                    copyToClipboard(
+                                                      result.targetIp,
+                                                      "目标IP",
+                                                    )
+                                                  }
                                                 >
-                                                  {maskPublicIP(result.targetIp)}
+                                                  {maskPublicIP(
+                                                    result.targetIp,
+                                                  )}
                                                 </span>
                                                 :{result.targetPort}
                                               </div>
@@ -6514,9 +6549,17 @@ export default function ForwardPage() {
                             {/* SDWAN Overlay 状态 */}
                             {(() => {
                               const sdwanItems = diagnosisResult.results
-                                .filter((r: any) => r.sdwanRunning !== undefined)
-                                .sort((a: any, b: any) => (a.fromChainType || 0) - (b.fromChainType || 0));
+                                .filter(
+                                  (r: any) => r.sdwanRunning !== undefined,
+                                )
+                                .sort(
+                                  (a: any, b: any) =>
+                                    (a.fromChainType || 0) -
+                                    (b.fromChainType || 0),
+                                );
+
                               if (sdwanItems.length === 0) return null;
+
                               return (
                                 <div className="border border-divider rounded-lg overflow-hidden bg-white dark:bg-gray-800">
                                   <div className="bg-violet-500/10 dark:bg-violet-500/20 px-3 py-2 border-b border-divider">
@@ -6524,28 +6567,65 @@ export default function ForwardPage() {
                                       🌐 SDWAN Overlay 状态
                                     </h3>
                                   </div>
-                                  {sdwanItems.map((item: any, index: number) => (
-                                    <div key={index} className="p-3 border-b border-divider last:border-b-0">
-                                      <div className="flex items-center gap-2 mb-2">
-                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${item.success ? "bg-success text-white" : "bg-danger text-white"}`}>
-                                          {item.success ? "✓" : "✗"}
-                                        </span>
-                                        <span className="font-medium">{item.description}</span>
-                                        <span className={`text-xs px-2 py-0.5 rounded ${item.sdwanRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}>
-                                          {item.sdwanRunning ? "运行中" : "已停止"}
-                                        </span>
+                                  {sdwanItems.map(
+                                    (item: any, index: number) => (
+                                      <div
+                                        key={index}
+                                        className="p-3 border-b border-divider last:border-b-0"
+                                      >
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <span
+                                            className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${item.success ? "bg-success text-white" : "bg-danger text-white"}`}
+                                          >
+                                            {item.success ? "✓" : "✗"}
+                                          </span>
+                                          <span className="font-medium">
+                                            {item.description}
+                                          </span>
+                                          <span
+                                            className={`text-xs px-2 py-0.5 rounded ${item.sdwanRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
+                                          >
+                                            {item.sdwanRunning
+                                              ? "运行中"
+                                              : "已停止"}
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-default-600">
+                                          <div>
+                                            VPN IP:{" "}
+                                            <span className="font-mono font-medium">
+                                              {item.sdwanVpnIP || "-"}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            网络:{" "}
+                                            <span className="font-mono font-medium">
+                                              {item.sdwanNetwork || "-"}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            证书掩码:{" "}
+                                            <span className="font-medium">
+                                              {item.sdwanCertMask != null
+                                                ? `/${item.sdwanCertMask}`
+                                                : "-"}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            缓存实例:{" "}
+                                            <span className="font-medium">
+                                              {item.sdwanCacheCount ?? 0}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        {item.message && (
+                                          <div className="mt-1 text-xs text-default-500">
+                                            {item.message}
+                                          </div>
+                                        )}
                                       </div>
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-default-600">
-                                        <div>VPN IP: <span className="font-mono font-medium">{item.sdwanVpnIP || "-"}</span></div>
-                                        <div>网络: <span className="font-mono font-medium">{item.sdwanNetwork || "-"}</span></div>
-                                        <div>证书掩码: <span className="font-medium">{item.sdwanCertMask != null ? `/${item.sdwanCertMask}` : "-"}</span></div>
-                                        <div>缓存实例: <span className="font-medium">{item.sdwanCacheCount ?? 0}</span></div>
-                                      </div>
-                                      {item.message && (
-                                        <div className="mt-1 text-xs text-default-500">{item.message}</div>
-                                      )}
-                                    </div>
-                                  ))}
+                                    ),
+                                  )}
                                 </div>
                               );
                             })()}
@@ -6634,7 +6714,12 @@ export default function ForwardPage() {
                                           <span
                                             className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
                                             title={result.targetIp}
-                                            onClick={() => copyToClipboard(result.targetIp, "目标IP")}
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                result.targetIp,
+                                                "目标IP",
+                                              )
+                                            }
                                           >
                                             {maskPublicIP(result.targetIp)}
                                           </span>
@@ -6737,9 +6822,17 @@ export default function ForwardPage() {
                             {/* SDWAN Overlay 状态 */}
                             {(() => {
                               const sdwanItems = diagnosisResult.results
-                                .filter((r: any) => r.sdwanRunning !== undefined)
-                                .sort((a: any, b: any) => (a.fromChainType || 0) - (b.fromChainType || 0));
+                                .filter(
+                                  (r: any) => r.sdwanRunning !== undefined,
+                                )
+                                .sort(
+                                  (a: any, b: any) =>
+                                    (a.fromChainType || 0) -
+                                    (b.fromChainType || 0),
+                                );
+
                               if (sdwanItems.length === 0) return null;
+
                               return (
                                 <div className="space-y-2">
                                   <div className="px-2 py-1.5 bg-violet-500/10 dark:bg-violet-500/20 rounded-lg border border-violet-500/30">
@@ -6747,32 +6840,69 @@ export default function ForwardPage() {
                                       🌐 SDWAN Overlay 状态
                                     </h3>
                                   </div>
-                                  {sdwanItems.map((item: any, index: number) => (
-                                    <div key={index} className={`border rounded-lg p-3 ${item.success ? "border-divider bg-white dark:bg-gray-800" : "border-danger-200 dark:border-danger-300/30 bg-danger-50 dark:bg-danger-900/30"}`}>
-                                      <div className="flex items-start gap-2 mb-2">
-                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${item.success ? "bg-success text-white" : "bg-danger text-white"}`}>
-                                          {item.success ? "✓" : "✗"}
-                                        </span>
-                                        <div className="flex-1 min-w-0">
-                                          <div className="font-semibold text-sm text-foreground break-words">
-                                            {item.description}
+                                  {sdwanItems.map(
+                                    (item: any, index: number) => (
+                                      <div
+                                        key={index}
+                                        className={`border rounded-lg p-3 ${item.success ? "border-divider bg-white dark:bg-gray-800" : "border-danger-200 dark:border-danger-300/30 bg-danger-50 dark:bg-danger-900/30"}`}
+                                      >
+                                        <div className="flex items-start gap-2 mb-2">
+                                          <span
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${item.success ? "bg-success text-white" : "bg-danger text-white"}`}
+                                          >
+                                            {item.success ? "✓" : "✗"}
+                                          </span>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="font-semibold text-sm text-foreground break-words">
+                                              {item.description}
+                                            </div>
+                                          </div>
+                                          <span
+                                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${item.sdwanRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
+                                          >
+                                            {item.sdwanRunning
+                                              ? "运行中"
+                                              : "已停止"}
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-xs text-default-600 mt-2 pt-2 border-t border-divider">
+                                          <div>
+                                            VPN IP:{" "}
+                                            <span className="font-mono font-medium">
+                                              {item.sdwanVpnIP || "-"}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            网络:{" "}
+                                            <span className="font-mono font-medium">
+                                              {item.sdwanNetwork || "-"}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            证书掩码:{" "}
+                                            <span className="font-medium">
+                                              {item.sdwanCertMask != null
+                                                ? `/${item.sdwanCertMask}`
+                                                : "-"}
+                                            </span>
+                                          </div>
+                                          <div>
+                                            缓存实例:{" "}
+                                            <span className="font-medium">
+                                              {item.sdwanCacheCount ?? 0}
+                                            </span>
                                           </div>
                                         </div>
-                                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${item.sdwanRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}>
-                                          {item.sdwanRunning ? "运行中" : "已停止"}
-                                        </span>
+                                        {item.message && (
+                                          <div
+                                            className={`text-xs mt-2 ${item.success ? "text-default-500" : "text-danger"}`}
+                                          >
+                                            {item.message}
+                                          </div>
+                                        )}
                                       </div>
-                                      <div className="grid grid-cols-2 gap-2 text-xs text-default-600 mt-2 pt-2 border-t border-divider">
-                                        <div>VPN IP: <span className="font-mono font-medium">{item.sdwanVpnIP || "-"}</span></div>
-                                        <div>网络: <span className="font-mono font-medium">{item.sdwanNetwork || "-"}</span></div>
-                                        <div>证书掩码: <span className="font-medium">{item.sdwanCertMask != null ? `/${item.sdwanCertMask}` : "-"}</span></div>
-                                        <div>缓存实例: <span className="font-medium">{item.sdwanCacheCount ?? 0}</span></div>
-                                      </div>
-                                      {item.message && (
-                                        <div className={`text-xs mt-2 ${item.success ? "text-default-500" : "text-danger"}`}>{item.message}</div>
-                                      )}
-                                    </div>
-                                  ))}
+                                    ),
+                                  )}
                                 </div>
                               );
                             })()}
@@ -7287,6 +7417,7 @@ export default function ForwardPage() {
         onOpenChange={(open) => {
           if (open) {
             setBatchResultModal((prev) => ({ ...prev, open: true }));
+
             return;
           }
           setBatchResultModal(EMPTY_BATCH_RESULT_MODAL_STATE);

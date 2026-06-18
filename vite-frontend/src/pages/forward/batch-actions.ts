@@ -1,7 +1,4 @@
-import type {
-  BatchOperationFailure,
-  BatchOperationResult,
-} from "@/api/types";
+import type { BatchOperationFailure, BatchOperationResult } from "@/api/types";
 
 import {
   batchChangeModeForwards,

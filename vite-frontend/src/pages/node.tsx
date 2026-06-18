@@ -280,6 +280,7 @@ const mergeSDWANConfig = (
   if (Object.keys(parsed).length > 0) {
     return JSON.stringify(parsed);
   }
+
   return raw.trim() ? raw : "";
 };
 
@@ -2386,7 +2387,9 @@ export default function NodePage() {
                     // IPv6 地址只显示前缀
                     if (v6Val.includes(":")) {
                       const parts = v6Val.split(":").filter(Boolean);
+
                       if (parts.length <= 3) return v6Val;
+
                       return "::" + parts.slice(-3).join(":");
                     }
                     // 域名显示前两段
@@ -3183,8 +3186,8 @@ export default function NodePage() {
         classNames={{
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
-        isOpen={dialogVisible}
         isDismissable={false}
+        isOpen={dialogVisible}
         placement="center"
         scrollBehavior="inside"
         size="xl"
@@ -3196,555 +3199,575 @@ export default function NodePage() {
         <ModalContent>
           {(onClose) => (
             <>
-          <ModalHeader>{dialogTitle}</ModalHeader>
-          <ModalBody>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  description=""
-                  errorMessage={errors.name}
-                  isInvalid={!!errors.name}
-                  label="节点名称"
-                  placeholder="请输入节点名称"
-                  value={form.name}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                />
-                <Textarea
-                  classNames={{
-                    inputWrapper: "!min-h-[20px] py-1.5",
-                    input: "!min-h-[20px]",
-                  }}
-                  description=""
-                  label="备注"
-                  placeholder="例如: 搬瓦工年付，2026-12 续费，日本中转"
-                  rows={1}
-                  value={form.remark}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, remark: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select
-                  description="将节点分配到指定分组（可选）"
-                  label="分组"
-                  placeholder="选择分组"
-                  selectedKeys={
-                    form.groupId && form.groupId > 0
-                      ? [String(form.groupId)]
-                      : []
-                  }
-                  variant="bordered"
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys)[0] as string | undefined;
-
-                    setForm((prev) => ({
-                      ...prev,
-                      groupId:
-                        selected && selected !== "" ? parseInt(selected) : null,
-                    }));
-                  }}
-                >
-                  <SelectItem key="" textValue="未分组">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-gray-300" />
-                      <span>未分组</span>
-                    </div>
-                  </SelectItem>
-                  {nodeGroups.map((group) => (
-                    <SelectItem key={group.id} textValue={group.name}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: group.color }}
-                        />
-                        <span>{group.name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </Select>
-                <FieldContainer
-                  description="节点密钥，用于 Agent 加密通信"
-                  label="密钥"
-                >
-                  <div className="flex items-center gap-2">
-                    <BaseInput
-                      className="flex-1"
-                      placeholder="输入密钥或点击随机生成"
-                      value={form.secret}
+              <ModalHeader>{dialogTitle}</ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      description=""
+                      errorMessage={errors.name}
+                      isInvalid={!!errors.name}
+                      label="节点名称"
+                      placeholder="请输入节点名称"
+                      value={form.name}
+                      variant="bordered"
                       onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          secret: e.target.value,
-                        }))
+                        setForm((prev) => ({ ...prev, name: e.target.value }))
                       }
                     />
-                    <Button
-                      color="primary"
-                      size="sm"
-                      variant="flat"
-                      onClick={handleRegenerateSecret}
-                    >
-                      随机生成
-                    </Button>
-                  </div>
-                </FieldContainer>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Select
-                  description="支持月、季、半年、年四种周期"
-                  label="续费周期"
-                  placeholder="选择续费周期"
-                  selectedKeys={form.renewalCycle ? [form.renewalCycle] : []}
-                  variant="bordered"
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys)[0] as
-                      | NodeRenewalCycle
-                      | undefined;
-
-                    setForm((prev) => ({
-                      ...prev,
-                      renewalCycle: selected || "",
-                    }));
-                  }}
-                >
-                  <SelectItem key="month" textValue="月">
-                    月付
-                  </SelectItem>
-                  <SelectItem key="quarter" textValue="季">
-                    季付
-                  </SelectItem>
-                  <SelectItem key="halfYear" textValue="半年">
-                    半年付
-                  </SelectItem>
-                  <SelectItem key="year" textValue="年">
-                    年付
-                  </SelectItem>
-                </Select>
-                <DatePicker
-                  showMonthAndYearPickers
-                  description="系统会自动按周期同日推算下次续费时间"
-                  errorMessage={errors.expiryTime}
-                  isInvalid={!!errors.expiryTime}
-                  label="续费基准时间"
-                  permanentLabel="系统会自动按周期同日推算下次续费时间"
-                  value={timestampToCalendarDate(
-                    form.expiryTime > 0 ? form.expiryTime : null,
-                  )}
-                  onChange={(date) => {
-                    const timestamp = calendarDateToTimestamp(date, false) || 0;
-
-                    setForm((prev) => ({
-                      ...prev,
-                      expiryTime: timestamp,
-                    }));
-                  }}
-                >
-                  <DatePresets
-                    onChange={(timestamp) => {
-                      setForm((prev) => ({
-                        ...prev,
-                        expiryTime: timestamp,
-                      }));
-                    }}
-                  />
-                </DatePicker>
-                <Select
-                  description="每月几号自动归零周期流量"
-                  label="流量归零日期"
-                  placeholder="选择归零日期"
-                  selectedKeys={
-                    form.flowResetTime > 0
-                      ? [String(form.flowResetTime)]
-                      : ["0"]
-                  }
-                  variant="bordered"
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys)[0] as string | undefined;
-
-                    setForm((prev) => ({
-                      ...prev,
-                      flowResetTime: selected ? parseInt(selected) : 1,
-                    }));
-                  }}
-                >
-                  <SelectItem key="0" textValue="不归零">
-                    不归零
-                  </SelectItem>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                    <SelectItem key={String(day)} textValue={`${day}号`}>
-                      每月{day}号
-                    </SelectItem>
-                  ))}
-                </Select>
-                <Input
-                  description="该节点总流量配额，0表示不限制"
-                  label="流量限额(GB)"
-                  min={0}
-                  placeholder="0 = 不限制"
-                  type="number"
-                  value={String(form.trafficLimit)}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      trafficLimit: parseInt(e.target.value) || 0,
-                    }))
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  description="可选：建议填写公网IPv4或对应解析域名，可留空"
-                  errorMessage={errors.serverIpV4}
-                  isInvalid={!!errors.serverIpV4}
-                  label="域名/公网IPv4地址"
-                  placeholder="例如：test.example.com 8.8.8.8"
-                  value={form.serverIpV4}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, serverIpV4: e.target.value }))
-                  }
-                />
-                <Input
-                  classNames={{
-                    input: "font-medium",
-                  }}
-                  description="支持单个端口(80)、多个端口(80,443)或端口范围(10000-65535)，多个范围可用逗号分隔"
-                  errorMessage={errors.port}
-                  isInvalid={!!errors.port}
-                  label="可用端口"
-                  placeholder="例如：80,443,10000-65535"
-                  value={form.port}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, port: e.target.value }))
-                  }
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  description="可选：建议填写内网IPv4或对应解析域名，可留空"
-                  errorMessage={errors.intranetIp}
-                  isInvalid={!!errors.intranetIp}
-                  label="域名/内网IPv4地址"
-                  placeholder="例如：10.0.0.1 192.168.1.1"
-                  value={form.intranetIp}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, intranetIp: e.target.value }))
-                  }
-                />
-                <Input
-                  description="可选：建议填写公网IPv6或对应解析域名，可留空"
-                  errorMessage={errors.serverIpV6}
-                  isInvalid={!!errors.serverIpV6}
-                  label="域名/公网IPv6地址"
-                  placeholder="例如：2001:db8::10"
-                  value={form.serverIpV6}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, serverIpV6: e.target.value }))
-                  }
-                />
-              </div>
-              <Accordion variant="bordered">
-                <AccordionItem
-                  key="advanced"
-                  aria-label="高级配置"
-                  title="高级配置"
-                >
-                  <div className="space-y-4 pb-2 px-[12px]">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
-                        errorMessage={errors.interfaceName}
-                        isInvalid={!!errors.interfaceName}
-                        label="出口网卡名或IP"
-                        placeholder="请输入出口网卡名或IP"
-                        value={form.interfaceName}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            interfaceName: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="多IP服务器可填写额外IP地址，逗号分隔"
-                        label="额外IP地址"
-                        placeholder="例如: 192.168.1.100, 10.0.0.5"
-                        value={form.extraIPs}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            extraIPs: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="SDWAN/Nebula 本机配置文件路径，留空走 agent 默认路径"
-                        label="SDWAN 配置路径"
-                        placeholder="例如: /etc/flox_agent/sdwan/config.yml"
-                        value={form.sdwanConfigPath}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanConfigPath: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
                     <Textarea
-                      description="可直接粘贴该节点使用的 Nebula YAML；填写后优先于配置路径"
-                      label="SDWAN 配置 YAML"
-                      maxRows={8}
-                      minRows={4}
-                      placeholder="例如: pki:\n  ca: /etc/flox_agent/sdwan/ca.crt\n..."
-                      value={form.sdwanConfigYAML}
+                      classNames={{
+                        inputWrapper: "!min-h-[20px] py-1.5",
+                        input: "!min-h-[20px]",
+                      }}
+                      description=""
+                      label="备注"
+                      placeholder="例如: 搬瓦工年付，2026-12 续费，日本中转"
+                      rows={1}
+                      value={form.remark}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, remark: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select
+                      description="将节点分配到指定分组（可选）"
+                      label="分组"
+                      placeholder="选择分组"
+                      selectedKeys={
+                        form.groupId && form.groupId > 0
+                          ? [String(form.groupId)]
+                          : []
+                      }
+                      variant="bordered"
+                      onSelectionChange={(keys) => {
+                        const selected = Array.from(keys)[0] as
+                          | string
+                          | undefined;
+
+                        setForm((prev) => ({
+                          ...prev,
+                          groupId:
+                            selected && selected !== ""
+                              ? parseInt(selected)
+                              : null,
+                        }));
+                      }}
+                    >
+                      <SelectItem key="" textValue="未分组">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-gray-300" />
+                          <span>未分组</span>
+                        </div>
+                      </SelectItem>
+                      {nodeGroups.map((group) => (
+                        <SelectItem key={group.id} textValue={group.name}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: group.color }}
+                            />
+                            <span>{group.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </Select>
+                    <FieldContainer
+                      description="节点密钥，用于 Agent 加密通信"
+                      label="密钥"
+                    >
+                      <div className="flex items-center gap-2">
+                        <BaseInput
+                          className="flex-1"
+                          placeholder="输入密钥或点击随机生成"
+                          value={form.secret}
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              secret: e.target.value,
+                            }))
+                          }
+                        />
+                        <Button
+                          color="primary"
+                          size="sm"
+                          variant="flat"
+                          onClick={handleRegenerateSecret}
+                        >
+                          随机生成
+                        </Button>
+                      </div>
+                    </FieldContainer>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select
+                      description="支持月、季、半年、年四种周期"
+                      label="续费周期"
+                      placeholder="选择续费周期"
+                      selectedKeys={
+                        form.renewalCycle ? [form.renewalCycle] : []
+                      }
+                      variant="bordered"
+                      onSelectionChange={(keys) => {
+                        const selected = Array.from(keys)[0] as
+                          | NodeRenewalCycle
+                          | undefined;
+
+                        setForm((prev) => ({
+                          ...prev,
+                          renewalCycle: selected || "",
+                        }));
+                      }}
+                    >
+                      <SelectItem key="month" textValue="月">
+                        月付
+                      </SelectItem>
+                      <SelectItem key="quarter" textValue="季">
+                        季付
+                      </SelectItem>
+                      <SelectItem key="halfYear" textValue="半年">
+                        半年付
+                      </SelectItem>
+                      <SelectItem key="year" textValue="年">
+                        年付
+                      </SelectItem>
+                    </Select>
+                    <DatePicker
+                      showMonthAndYearPickers
+                      description="系统会自动按周期同日推算下次续费时间"
+                      errorMessage={errors.expiryTime}
+                      isInvalid={!!errors.expiryTime}
+                      label="续费基准时间"
+                      permanentLabel="系统会自动按周期同日推算下次续费时间"
+                      value={timestampToCalendarDate(
+                        form.expiryTime > 0 ? form.expiryTime : null,
+                      )}
+                      onChange={(date) => {
+                        const timestamp =
+                          calendarDateToTimestamp(date, false) || 0;
+
+                        setForm((prev) => ({
+                          ...prev,
+                          expiryTime: timestamp,
+                        }));
+                      }}
+                    >
+                      <DatePresets
+                        onChange={(timestamp) => {
+                          setForm((prev) => ({
+                            ...prev,
+                            expiryTime: timestamp,
+                          }));
+                        }}
+                      />
+                    </DatePicker>
+                    <Select
+                      description="每月几号自动归零周期流量"
+                      label="流量归零日期"
+                      placeholder="选择归零日期"
+                      selectedKeys={
+                        form.flowResetTime > 0
+                          ? [String(form.flowResetTime)]
+                          : ["0"]
+                      }
+                      variant="bordered"
+                      onSelectionChange={(keys) => {
+                        const selected = Array.from(keys)[0] as
+                          | string
+                          | undefined;
+
+                        setForm((prev) => ({
+                          ...prev,
+                          flowResetTime: selected ? parseInt(selected) : 1,
+                        }));
+                      }}
+                    >
+                      <SelectItem key="0" textValue="不归零">
+                        不归零
+                      </SelectItem>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(
+                        (day) => (
+                          <SelectItem key={String(day)} textValue={`${day}号`}>
+                            每月{day}号
+                          </SelectItem>
+                        ),
+                      )}
+                    </Select>
+                    <Input
+                      description="该节点总流量配额，0表示不限制"
+                      label="流量限额(GB)"
+                      min={0}
+                      placeholder="0 = 不限制"
+                      type="number"
+                      value={String(form.trafficLimit)}
                       variant="bordered"
                       onChange={(e) =>
                         setForm((prev) => ({
                           ...prev,
-                          sdwanConfigYAML: e.target.value,
+                          trafficLimit: parseInt(e.target.value) || 0,
                         }))
                       }
                     />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        description="Nebula CA 证书路径"
-                        label="SDWAN CA 路径"
-                        placeholder="例如: /etc/flox_agent/sdwan/ca.crt"
-                        value={form.sdwanCAPath}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanCAPath: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="Nebula 主机证书路径"
-                        label="SDWAN Cert 路径"
-                        placeholder="例如: /etc/flox_agent/sdwan/host.crt"
-                        value={form.sdwanCertPath}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanCertPath: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="Nebula 主机私钥路径"
-                        label="SDWAN Key 路径"
-                        placeholder="例如: /etc/flox_agent/sdwan/host.key"
-                        value={form.sdwanKeyPath}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanKeyPath: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="中心节点的 Nebula VPN IP"
-                        label="SDWAN 中心节点 VPN IP"
-                        placeholder="例如: 192.168.100.1"
-                        value={form.sdwanLighthouseVPNIP}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanLighthouseVPNIP: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="当前节点在 SDWAN 中的 Nebula VPN IP；留空时签发证书会自动分配"
-                        label="SDWAN 节点 VPN IP"
-                        placeholder="例如: 192.168.100.10"
-                        value={form.sdwanNodeVPNIP}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanNodeVPNIP: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    {isEdit && (
-                      <div className="flex justify-end">
-                        <Button
-                          color="primary"
-                          variant="flat"
-                          onPress={handleIssueSDWANCert}
-                        >
-                          一键签发 SDWAN 证书
-                        </Button>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Textarea
-                        description="可直接粘贴 Nebula CA PEM，填写后优先于 CA 路径"
-                        label="SDWAN CA PEM"
-                        maxRows={6}
-                        minRows={3}
-                        value={form.sdwanCAPEM}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanCAPEM: e.target.value,
-                          }))
-                        }
-                      />
-                      <Textarea
-                        description="可直接粘贴 Nebula 主机证书 PEM，填写后优先于 Cert 路径"
-                        label="SDWAN Cert PEM"
-                        maxRows={6}
-                        minRows={3}
-                        value={form.sdwanCertPEM}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanCertPEM: e.target.value,
-                          }))
-                        }
-                      />
-                      <Textarea
-                        description="可直接粘贴 Nebula 主机私钥 PEM，填写后优先于 Key 路径"
-                        label="SDWAN Key PEM"
-                        maxRows={6}
-                        minRows={3}
-                        value={form.sdwanKeyPEM}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanKeyPEM: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="中心节点的公网地址:端口"
-                        label="SDWAN 中心节点公网地址"
-                        placeholder="例如: 1.2.3.4:4242"
-                        value={form.sdwanLighthouseAddr}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanLighthouseAddr: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="Nebula UDP 监听地址，默认 0.0.0.0"
-                        label="SDWAN 监听地址"
-                        placeholder="例如: 0.0.0.0"
-                        value={form.sdwanListenHost}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanListenHost: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        description="Nebula UDP 监听端口，默认 4242"
-                        label="SDWAN 监听端口"
-                        placeholder="例如: 4242"
-                        value={form.sdwanListenPort}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            sdwanListenPort: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Input
-                        errorMessage={errors.tcpListenAddr}
-                        isInvalid={!!errors.tcpListenAddr}
-                        label="TCP监听地址"
-                        placeholder="请输入TCP监听地址"
-                        startContent={
-                          <div className="pointer-events-none flex items-center">
-                            <span className="text-default-400 text-small">
-                              TCP
-                            </span>
-                          </div>
-                        }
-                        value={form.tcpListenAddr}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            tcpListenAddr: e.target.value,
-                          }))
-                        }
-                      />
-                      <Input
-                        errorMessage={errors.udpListenAddr}
-                        isInvalid={!!errors.udpListenAddr}
-                        label="UDP监听地址"
-                        placeholder="请输入UDP监听地址"
-                        startContent={
-                          <div className="pointer-events-none flex items-center">
-                            <span className="text-default-400 text-small">
-                              UDP
-                            </span>
-                          </div>
-                        }
-                        value={form.udpListenAddr}
-                        variant="bordered"
-                        onChange={(e) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            udpListenAddr: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
                   </div>
-                </AccordionItem>
-              </Accordion>
-              <Alert
-                className="mt-4"
-                color="primary"
-                description="节点ip地址是你要添加的入口/出口的ip地址，不是面板的ip地址。"
-                variant="flat"
-              />
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onPress={onClose}>
-              取消
-            </Button>
-            <Button
-              color="primary"
-              isLoading={submitLoading}
-              onPress={handleSubmit}
-            >
-              {isEdit ? "保存" : "创建"}
-            </Button>
-          </ModalFooter>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      description="可选：建议填写公网IPv4或对应解析域名，可留空"
+                      errorMessage={errors.serverIpV4}
+                      isInvalid={!!errors.serverIpV4}
+                      label="域名/公网IPv4地址"
+                      placeholder="例如：test.example.com 8.8.8.8"
+                      value={form.serverIpV4}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          serverIpV4: e.target.value,
+                        }))
+                      }
+                    />
+                    <Input
+                      classNames={{
+                        input: "font-medium",
+                      }}
+                      description="支持单个端口(80)、多个端口(80,443)或端口范围(10000-65535)，多个范围可用逗号分隔"
+                      errorMessage={errors.port}
+                      isInvalid={!!errors.port}
+                      label="可用端口"
+                      placeholder="例如：80,443,10000-65535"
+                      value={form.port}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, port: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      description="可选：建议填写内网IPv4或对应解析域名，可留空"
+                      errorMessage={errors.intranetIp}
+                      isInvalid={!!errors.intranetIp}
+                      label="域名/内网IPv4地址"
+                      placeholder="例如：10.0.0.1 192.168.1.1"
+                      value={form.intranetIp}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          intranetIp: e.target.value,
+                        }))
+                      }
+                    />
+                    <Input
+                      description="可选：建议填写公网IPv6或对应解析域名，可留空"
+                      errorMessage={errors.serverIpV6}
+                      isInvalid={!!errors.serverIpV6}
+                      label="域名/公网IPv6地址"
+                      placeholder="例如：2001:db8::10"
+                      value={form.serverIpV6}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          serverIpV6: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  <Accordion variant="bordered">
+                    <AccordionItem
+                      key="advanced"
+                      aria-label="高级配置"
+                      title="高级配置"
+                    >
+                      <div className="space-y-4 pb-2 px-[12px]">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
+                            errorMessage={errors.interfaceName}
+                            isInvalid={!!errors.interfaceName}
+                            label="出口网卡名或IP"
+                            placeholder="请输入出口网卡名或IP"
+                            value={form.interfaceName}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                interfaceName: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="多IP服务器可填写额外IP地址，逗号分隔"
+                            label="额外IP地址"
+                            placeholder="例如: 192.168.1.100, 10.0.0.5"
+                            value={form.extraIPs}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                extraIPs: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="SDWAN/Nebula 本机配置文件路径，留空走 agent 默认路径"
+                            label="SDWAN 配置路径"
+                            placeholder="例如: /etc/flox_agent/sdwan/config.yml"
+                            value={form.sdwanConfigPath}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanConfigPath: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <Textarea
+                          description="可直接粘贴该节点使用的 Nebula YAML；填写后优先于配置路径"
+                          label="SDWAN 配置 YAML"
+                          maxRows={8}
+                          minRows={4}
+                          placeholder="例如: pki:\n  ca: /etc/flox_agent/sdwan/ca.crt\n..."
+                          value={form.sdwanConfigYAML}
+                          variant="bordered"
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              sdwanConfigYAML: e.target.value,
+                            }))
+                          }
+                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            description="Nebula CA 证书路径"
+                            label="SDWAN CA 路径"
+                            placeholder="例如: /etc/flox_agent/sdwan/ca.crt"
+                            value={form.sdwanCAPath}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanCAPath: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="Nebula 主机证书路径"
+                            label="SDWAN Cert 路径"
+                            placeholder="例如: /etc/flox_agent/sdwan/host.crt"
+                            value={form.sdwanCertPath}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanCertPath: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="Nebula 主机私钥路径"
+                            label="SDWAN Key 路径"
+                            placeholder="例如: /etc/flox_agent/sdwan/host.key"
+                            value={form.sdwanKeyPath}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanKeyPath: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="中心节点的 Nebula VPN IP"
+                            label="SDWAN 中心节点 VPN IP"
+                            placeholder="例如: 192.168.100.1"
+                            value={form.sdwanLighthouseVPNIP}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanLighthouseVPNIP: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="当前节点在 SDWAN 中的 Nebula VPN IP；留空时签发证书会自动分配"
+                            label="SDWAN 节点 VPN IP"
+                            placeholder="例如: 192.168.100.10"
+                            value={form.sdwanNodeVPNIP}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanNodeVPNIP: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        {isEdit && (
+                          <div className="flex justify-end">
+                            <Button
+                              color="primary"
+                              variant="flat"
+                              onPress={handleIssueSDWANCert}
+                            >
+                              一键签发 SDWAN 证书
+                            </Button>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Textarea
+                            description="可直接粘贴 Nebula CA PEM，填写后优先于 CA 路径"
+                            label="SDWAN CA PEM"
+                            maxRows={6}
+                            minRows={3}
+                            value={form.sdwanCAPEM}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanCAPEM: e.target.value,
+                              }))
+                            }
+                          />
+                          <Textarea
+                            description="可直接粘贴 Nebula 主机证书 PEM，填写后优先于 Cert 路径"
+                            label="SDWAN Cert PEM"
+                            maxRows={6}
+                            minRows={3}
+                            value={form.sdwanCertPEM}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanCertPEM: e.target.value,
+                              }))
+                            }
+                          />
+                          <Textarea
+                            description="可直接粘贴 Nebula 主机私钥 PEM，填写后优先于 Key 路径"
+                            label="SDWAN Key PEM"
+                            maxRows={6}
+                            minRows={3}
+                            value={form.sdwanKeyPEM}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanKeyPEM: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="中心节点的公网地址:端口"
+                            label="SDWAN 中心节点公网地址"
+                            placeholder="例如: 1.2.3.4:4242"
+                            value={form.sdwanLighthouseAddr}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanLighthouseAddr: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="Nebula UDP 监听地址，默认 0.0.0.0"
+                            label="SDWAN 监听地址"
+                            placeholder="例如: 0.0.0.0"
+                            value={form.sdwanListenHost}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanListenHost: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            description="Nebula UDP 监听端口，默认 4242"
+                            label="SDWAN 监听端口"
+                            placeholder="例如: 4242"
+                            value={form.sdwanListenPort}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                sdwanListenPort: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Input
+                            errorMessage={errors.tcpListenAddr}
+                            isInvalid={!!errors.tcpListenAddr}
+                            label="TCP监听地址"
+                            placeholder="请输入TCP监听地址"
+                            startContent={
+                              <div className="pointer-events-none flex items-center">
+                                <span className="text-default-400 text-small">
+                                  TCP
+                                </span>
+                              </div>
+                            }
+                            value={form.tcpListenAddr}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                tcpListenAddr: e.target.value,
+                              }))
+                            }
+                          />
+                          <Input
+                            errorMessage={errors.udpListenAddr}
+                            isInvalid={!!errors.udpListenAddr}
+                            label="UDP监听地址"
+                            placeholder="请输入UDP监听地址"
+                            startContent={
+                              <div className="pointer-events-none flex items-center">
+                                <span className="text-default-400 text-small">
+                                  UDP
+                                </span>
+                              </div>
+                            }
+                            value={form.udpListenAddr}
+                            variant="bordered"
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                udpListenAddr: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    </AccordionItem>
+                  </Accordion>
+                  <Alert
+                    className="mt-4"
+                    color="primary"
+                    description="节点ip地址是你要添加的入口/出口的ip地址，不是面板的ip地址。"
+                    variant="flat"
+                  />
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="flat" onPress={onClose}>
+                  取消
+                </Button>
+                <Button
+                  color="primary"
+                  isLoading={submitLoading}
+                  onPress={handleSubmit}
+                >
+                  {isEdit ? "保存" : "创建"}
+                </Button>
+              </ModalFooter>
             </>
           )}
         </ModalContent>

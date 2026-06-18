@@ -687,11 +687,15 @@ export default function TunnelPage() {
     if (!ip) return ip;
     if (ip.includes(":")) {
       const parts = ip.split(":").filter(Boolean);
+
       if (parts.length <= 3) return ip;
+
       return "::" + parts.slice(-3).join(":");
     }
     const parts = ip.split(".");
+
     if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.**`;
+
     return ip;
   };
   // 新增隧道
@@ -2974,8 +2978,8 @@ export default function TunnelPage() {
         classNames={{
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
-        isOpen={modalOpen}
         isDismissable={false}
+        isOpen={modalOpen}
         placement="center"
         scrollBehavior="inside"
         size="xl"
@@ -2992,13 +2996,11 @@ export default function TunnelPage() {
                   {isCopy ? "复制隧道" : isEdit ? "编辑隧道" : "新增隧道"}
                 </h2>
                 <p className="text-small text-default-500">
-                  {
-                    isCopy
-                      ? "基于现有隧道配置创建新隧道"
-                      : isEdit
-                        ? "修改节点配置会中断现有连接，隧道类型不可修改"
-                        : ""
-                  }
+                  {isCopy
+                    ? "基于现有隧道配置创建新隧道"
+                    : isEdit
+                      ? "修改节点配置会中断现有连接，隧道类型不可修改"
+                      : ""}
                 </p>
               </ModalHeader>
               <ModalBody>
@@ -4604,18 +4606,30 @@ export default function TunnelPage() {
                                                 {result.description}
                                               </div>
                                               <div className="text-xs text-default-500 truncate">
-                                                {result.actualTarget
-                                                  ? <>{result.actualTarget}:{result.targetPort}</>
-                                                  : <>
-                                                      <span
-                                                        className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
-                                                        title={result.targetIp}
-                                                        onClick={() => copyToClipboard(result.targetIp, "目标IP")}
-                                                      >
-                                                        {maskPublicIP(result.targetIp)}
-                                                      </span>
-                                                      :{result.targetPort}
-                                                    </>}
+                                                {result.actualTarget ? (
+                                                  <>
+                                                    {result.actualTarget}:
+                                                    {result.targetPort}
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <span
+                                                      className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                                      title={result.targetIp}
+                                                      onClick={() =>
+                                                        copyToClipboard(
+                                                          result.targetIp,
+                                                          "目标IP",
+                                                        )
+                                                      }
+                                                    >
+                                                      {maskPublicIP(
+                                                        result.targetIp,
+                                                      )}
+                                                    </span>
+                                                    :{result.targetPort}
+                                                  </>
+                                                )}
                                               </div>
                                             </div>
                                           </div>
@@ -4784,18 +4798,28 @@ export default function TunnelPage() {
                                           {result.description}
                                         </div>
                                         <div className="text-xs text-default-500 mt-0.5">
-                                          {result.actualTarget
-                                            ? <>{result.actualTarget}:{result.targetPort}</>
-                                            : <>
-                                                <span
-                                                  className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
-                                                  title={result.targetIp}
-                                                  onClick={() => copyToClipboard(result.targetIp, "目标IP")}
-                                                >
-                                                  {maskPublicIP(result.targetIp)}
-                                                </span>
-                                                :{result.targetPort}
-                                              </>}
+                                          {result.actualTarget ? (
+                                            <>
+                                              {result.actualTarget}:
+                                              {result.targetPort}
+                                            </>
+                                          ) : (
+                                            <>
+                                              <span
+                                                className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                                title={result.targetIp}
+                                                onClick={() =>
+                                                  copyToClipboard(
+                                                    result.targetIp,
+                                                    "目标IP",
+                                                  )
+                                                }
+                                              >
+                                                {maskPublicIP(result.targetIp)}
+                                              </span>
+                                              :{result.targetPort}
+                                            </>
+                                          )}
                                         </div>
                                       </div>
                                       <div
