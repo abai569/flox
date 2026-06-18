@@ -686,9 +686,9 @@ export default function TunnelPage() {
   const maskPublicIP = (ip: string): string => {
     if (!ip) return ip;
     if (ip.includes(":")) {
-      const parts = ip.split(":");
-      if (parts.length >= 2) return `${parts.slice(0, -1).join(":")}:**`;
-      return ip;
+      const parts = ip.split(":").filter(Boolean);
+      if (parts.length <= 3) return ip;
+      return "::" + parts.slice(-3).join(":");
     }
     const parts = ip.split(".");
     if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.**`;

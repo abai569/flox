@@ -2385,9 +2385,9 @@ export default function NodePage() {
                     if (!v6Val) return "暂无";
                     // IPv6 地址只显示前缀
                     if (v6Val.includes(":")) {
-                      const parts = v6Val.split(":");
-
-                      return parts.slice(0, 3).join(":") + "::";
+                      const parts = v6Val.split(":").filter(Boolean);
+                      if (parts.length <= 3) return v6Val;
+                      return "::" + parts.slice(-3).join(":");
                     }
                     // 域名显示前两段
                     if (v6Val.includes(".")) {
