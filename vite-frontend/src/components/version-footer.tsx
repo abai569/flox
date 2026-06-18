@@ -136,7 +136,8 @@ export function VersionFooter({
         return;
       }
 
-      const hasUpdate = version ? hasVersionUpdate(version, latestVersion) : false;
+      const displayVersion = realVersion || version;
+      const hasUpdate = displayVersion ? hasVersionUpdate(displayVersion, latestVersion) : false;
 
       setUpdateAvailable(hasUpdate);
       setLatestUpdateVersion(hasUpdate ? latestVersion : null);
@@ -150,7 +151,7 @@ export function VersionFooter({
       active = false;
       clearInterval(interval);
     };
-  }, [channel, version]);
+  }, [channel, version, realVersion]);
 
   useEffect(() => {
     if (updateAvailable && showUpdateInfo && !isUpgradeDismissedToday()) {
