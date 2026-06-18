@@ -391,9 +391,7 @@ get_config_params() {
 # 将旧服务名映射到新 flox_agent 名称，保留数字后缀
 legacy_target_service_name() {
   local name="$1"
-  if [[ "$name" == flux_agent* ]]; then
-    echo "flox_agent${name#flux_agent}"
-  elif [[ "$name" == flvx_agent* ]]; then
+  if [[ "$name" == flvx_agent* ]]; then
     echo "flox_agent${name#flvx_agent}"
   else
     echo "$name"
@@ -402,7 +400,7 @@ legacy_target_service_name() {
 
 is_legacy_agent_service() {
   local name="$1"
-  [[ "$name" == flux_agent* || "$name" == flvx_agent* ]]
+  [[ "$name" == flvx_agent* ]]
 }
 
 rewrite_agent_service_file() {
@@ -516,11 +514,11 @@ start_service_with_rollback() {
   return 1
 }
 
-# 安装默认 flox_agent 时，提示迁移旧 flux_agent/flvx_agent 配置
+# 安装默认 flox_agent 时，提示迁移旧 flvx_agent 配置
 migrate_legacy_config() {
   local candidate target
 
-  for candidate in flux_agent flvx_agent; do
+  for candidate in flvx_agent; do
     target=$(legacy_target_service_name "$candidate")
     [[ "$SERVICE_NAME" != "$target" ]] && continue
     [[ ! -f "/etc/${candidate}/config.json" ]] && continue
@@ -543,7 +541,7 @@ install_service() {
 
   check_and_install_tcpkill
 
-  # 如果是新默认名称且检测到旧 flux_agent/flvx_agent，执行迁移
+  # 如果是新默认名称且检测到旧 flvx_agent，执行迁移
   migrate_legacy_config
   
   mkdir -p "$INSTALL_DIR"
@@ -698,7 +696,7 @@ update_service() {
     return 1
   fi
 
-  # 从旧的 flux_agent*/flvx_agent* 自动迁移到 flox_agent*
+  # 从旧的 flvx_agent* 自动迁移到 flox_agent*
   if is_legacy_agent_service "$SERVICE_NAME"; then
     local old_name="$SERVICE_NAME"
     local new_name
