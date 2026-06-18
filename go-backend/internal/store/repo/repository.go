@@ -246,6 +246,7 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.SubscriptionPackage{},
 		&model.SubscriptionPackageTunnelGroup{},
 		&model.PackageSubscription{},
+		&model.MimicConfig{},
 	}
 
 	if db.Dialector.Name() != "sqlite" {

@@ -146,7 +146,7 @@ interface Forward {
   speedLimit?: number;
   inSpeed?: number; // 新增：实时上行速度 (bytes/s)
   outSpeed?: number; // 新增：实时下行速度 (bytes/s)
-  mode?: "gost" | "nftables" | "floxcore" | "sdwan";
+  mode?: "gost" | "nftables" | "floxcore" | "sdwan" | "mimic";
 }
 interface Tunnel {
   id: number;
@@ -185,7 +185,7 @@ interface ForwardForm {
   expiryTime: number | null;
   speedLimitEnabled: boolean;
   speedLimit: number;
-  mode: "gost" | "nftables" | "floxcore" | "sdwan";
+  mode: "gost" | "nftables" | "floxcore" | "sdwan" | "mimic";
 }
 const createForwardFormDefaults = (): ForwardForm => ({
   name: "",
@@ -5502,7 +5502,8 @@ export default function ForwardPage() {
                             | "gost"
                             | "nftables"
                             | "floxcore"
-                            | "sdwan",
+                            | "sdwan"
+                            | "mimic",
                         }));
                       }}
                     >
@@ -5515,6 +5516,9 @@ export default function ForwardPage() {
                       )}
                       {!isFreeTier && sdwEnabled && (
                         <SelectItem key="sdwan">SDWAN 模式</SelectItem>
+                      )}
+                      {!isFreeTier && (
+                        <SelectItem key="mimic">WGMimic</SelectItem>
                       )}
                     </Select>
                     {form.mode === "sdwan" && (
@@ -7173,6 +7177,9 @@ export default function ForwardPage() {
                   )}
                   {!isFreeTier && sdwEnabled && (
                     <SelectItem key="sdwan">SDWAN 模式</SelectItem>
+                  )}
+                  {!isFreeTier && (
+                    <SelectItem key="mimic">WGMimic</SelectItem>
                   )}
                 </Select>
               </ModalBody>

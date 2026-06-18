@@ -2048,6 +2048,9 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 				meta["sdwanIsLighthouse"] = isLighthouse
 			}
 		}
+		if strings.EqualFold(forward.Mode, forwardModeMimic) {
+			meta["mimicRole"] = "client"
+		}
 		if len(meta) > 0 {
 			service["metadata"] = meta
 		}
