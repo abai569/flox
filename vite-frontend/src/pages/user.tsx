@@ -2738,20 +2738,21 @@ export default function UserPage() {
         <ModalContent>
           <ModalHeader>{isEdit ? "编辑用户" : "新增用户"}</ModalHeader>
           <ModalBody>
-            <div className="rounded-xl border border-default-200 bg-default-50/60 p-4 mb-2">
-              <Switch
-                isSelected={userForm.roleId === 0}
-                onValueChange={(isSelected) =>
-                  setUserForm((prev) => ({
-                    ...prev,
-                    roleId: isSelected ? 0 : 1,
-                  }))
-                }
-              >
-                管理员
-              </Switch>
-            </div>
             <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <Switch
+                    isSelected={userForm.roleId === 0}
+                    onValueChange={(isSelected) =>
+                      setUserForm((prev) => ({
+                        ...prev,
+                        roleId: isSelected ? 0 : 1,
+                      }))
+                    }
+                  />
+                  <span className="text-sm font-medium">管理员</span>
+                </label>
+              </div>
               <Input
                 isRequired
                 label="用户名"
