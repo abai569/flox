@@ -5334,7 +5334,7 @@ export default function ForwardPage() {
         isOpen={modalOpen}
         isDismissable={false}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="lg"
         onOpenChange={(open) => {
           if (!open && !isEdit) resetDraft();
@@ -5717,7 +5717,7 @@ export default function ForwardPage() {
         }}
         isOpen={deleteModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onOpenChange={setDeleteModalOpen}
       >
@@ -5761,7 +5761,7 @@ export default function ForwardPage() {
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
         }}
         isOpen={addressModalOpen}
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onClose={() => setAddressModalOpen(false)}
       >
@@ -5834,7 +5834,7 @@ export default function ForwardPage() {
         }}
         isOpen={exportModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onClose={() => {
           setExportModalOpen(false);

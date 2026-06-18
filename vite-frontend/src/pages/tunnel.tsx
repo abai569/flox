@@ -4219,7 +4219,7 @@ export default function TunnelPage() {
         }}
         isOpen={deleteModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="xl"
         onOpenChange={handleDeleteModalOpenChange}
       >
@@ -4399,7 +4399,7 @@ export default function TunnelPage() {
         }}
         isOpen={diagnosisModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="2xl"
         onOpenChange={(open) => {
           setDiagnosisModalOpen(open);

@@ -3186,7 +3186,7 @@ export default function NodePage() {
         isOpen={dialogVisible}
         isDismissable={false}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="xl"
         onOpenChange={(open) => {
           if (!open && !isEdit) resetDraft();
@@ -3757,7 +3757,7 @@ export default function NodePage() {
         }}
         isOpen={deleteModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onOpenChange={setDeleteModalOpen}
       >
@@ -3851,7 +3851,7 @@ export default function NodePage() {
         }}
         isOpen={installCommandModal}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="2xl"
         onClose={() => setInstallCommandModal(false)}
       >
@@ -4082,7 +4082,7 @@ export default function NodePage() {
         }}
         isOpen={upgradeModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onOpenChange={setUpgradeModalOpen}
       >
@@ -4199,7 +4199,7 @@ export default function NodePage() {
         }}
         isOpen={batchResetTrafficModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onOpenChange={setBatchResetTrafficModalOpen}
       >
@@ -4259,7 +4259,7 @@ export default function NodePage() {
         }}
         isOpen={nodeTrafficLogModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onOpenChange={setNodeTrafficLogModalOpen}
       >
@@ -4373,7 +4373,7 @@ export default function NodePage() {
         }}
         isOpen={isResetTrafficModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onOpenChange={(open) => {
           if (!open) {
@@ -4450,7 +4450,7 @@ export default function NodePage() {
         }}
         isOpen={batchDeleteModalOpen}
         placement="center"
-        scrollBehavior="outside"
+        scrollBehavior="inside"
         size="md"
         onOpenChange={setBatchDeleteModalOpen}
       >
