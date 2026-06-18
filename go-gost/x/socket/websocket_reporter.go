@@ -3299,41 +3299,103 @@ func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
 }
 
 func autoInstallMimic() error {
+	// 1. 检查 mimic 是否已安装
 	if _, err := exec.LookPath("mimic"); err == nil {
+		fmt.Println("[mimic] mimic binary already installed")
 		return nil
 	}
-	exec.Command("modprobe", "mimic").Run()
-	if _, err := exec.LookPath("mimic"); err == nil {
+
+	// 2. 尝试加载内核模块（可能已安装但未加载）
+	fmt.Println("[mimic] loading kernel module...")
+	if out, err := exec.Command("modprobe", "mimic").CombinedOutput(); err == nil {
+		fmt.Println("[mimic] kernel module loaded successfully")
 		return nil
+	} else {
+		fmt.Printf("[mimic] modprobe failed: %v\n", string(out))
 	}
-	fmt.Println("[mimic] mimic not found, starting auto-install...")
+
+	// 3. 检查 wireguard-tools
+	fmt.Println("[mimic] checking wireguard-tools...")
+	if _, err := exec.LookPath("wg"); err != nil {
+		fmt.Println("[mimic] wireguard-tools not found, installing...")
+		if _, aptErr := exec.LookPath("apt-get"); aptErr == nil {
+			fmt.Println("[mimic] running apt-get update...")
+			if out, err := exec.Command("apt-get", "update").CombinedOutput(); err != nil {
+				fmt.Printf("[mimic] apt-get update failed: %v\n%s\n", err, string(out))
+			}
+			fmt.Println("[mimic] installing wireguard-tools...")
+			if out, err := exec.Command("apt-get", "install", "-y", "wireguard-tools").CombinedOutput(); err != nil {
+				fmt.Printf("[mimic] wireguard-tools install failed: %v\n%s\n", err, string(out))
+				return fmt.Errorf("wireguard-tools 安装失败: %w", err)
+			}
+			fmt.Println("[mimic] wireguard-tools installed")
+		} else {
+			return fmt.Errorf("不支持的包管理器，请手动安装 wireguard-tools")
+		}
+	} else {
+		fmt.Println("[mimic] wireguard-tools already installed")
+	}
+
+	// 4. 安装 mimic
+	fmt.Println("[mimic] starting mimic installation...")
 	out, _ := exec.Command("uname", "-r").Output()
 	kr := strings.TrimSpace(string(out))
 	fmt.Printf("[mimic] kernel: %s\n", kr)
+
 	if _, err := exec.LookPath("apt-get"); err == nil {
-		exec.Command("apt-get", "update").Run()
-		exec.Command("apt-get", "install", "-y", "linux-headers-"+kr, "dkms", "curl").Run()
+		fmt.Println("[mimic] installing dependencies...")
+		if out, err := exec.Command("apt-get", "install", "-y", "linux-headers-"+kr, "dkms", "curl", "git", "make", "gcc").CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] dependencies install failed: %v\n%s\n", err, string(out))
+		}
+
+		// 尝试下载 deb 包
+		fmt.Println("[mimic] downloading mimic-dkms.deb...")
 		dl := exec.Command("curl", "-fsSL",
 			"https://github.com/hack3ric/mimic/releases/latest/download/mimic-dkms.deb",
 			"-o", "/tmp/mimic-dkms.deb")
-		if dl.Run() == nil {
-			if pkg := exec.Command("dpkg", "-i", "/tmp/mimic-dkms.deb"); pkg.Run() == nil {
-				exec.Command("modprobe", "mimic").Run()
-				fmt.Println("[mimic] installed via deb package")
+		if out, err := dl.CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] download failed: %v\n%s\n", err, string(out))
+		} else {
+			fmt.Println("[mimic] installing deb package...")
+			if out, err := exec.Command("dpkg", "-i", "/tmp/mimic-dkms.deb").CombinedOutput(); err == nil {
+				fmt.Println("[mimic] deb package installed successfully")
+				if out, err := exec.Command("modprobe", "mimic").CombinedOutput(); err != nil {
+					fmt.Printf("[mimic] modprobe after install failed: %v\n%s\n", err, string(out))
+				}
 				return nil
+			} else {
+				fmt.Printf("[mimic] dpkg install failed: %v\n%s\n", err, string(out))
 			}
 		}
-		fmt.Println("[mimic] deb install failed, falling back to dkms build...")
-		exec.Command("apt-get", "install", "-y", "git", "make", "gcc").Run()
-		exec.Command("git", "clone", "--depth", "1",
-			"https://github.com/hack3ric/mimic.git", "/tmp/mimic-src").Run()
-		exec.Command("make", "-C", "/tmp/mimic-src").Run()
-		exec.Command("make", "-C", "/tmp/mimic-src", "install").Run()
-		exec.Command("modprobe", "mimic").Run()
-		fmt.Println("[mimic] installed via dkms build")
+
+		// 回退到 DKMS 编译
+		fmt.Println("[mimic] falling back to dkms build...")
+		exec.Command("rm", "-rf", "/tmp/mimic-src").Run()
+		if out, err := exec.Command("git", "clone", "--depth", "1",
+			"https://github.com/hack3ric/mimic.git", "/tmp/mimic-src").CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] git clone failed: %v\n%s\n", err, string(out))
+			return fmt.Errorf("mimic 安装失败: git clone 失败")
+		}
+		fmt.Println("[mimic] building from source...")
+		if out, err := exec.Command("make", "-C", "/tmp/mimic-src").CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] make failed: %v\n%s\n", err, string(out))
+			return fmt.Errorf("mimic 编译失败")
+		}
+		fmt.Println("[mimic] installing...")
+		if out, err := exec.Command("make", "-C", "/tmp/mimic-src", "install").CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] make install failed: %v\n%s\n", err, string(out))
+			return fmt.Errorf("mimic 安装失败")
+		}
+		fmt.Println("[mimic] loading kernel module...")
+		if out, err := exec.Command("modprobe", "mimic").CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] modprobe failed: %v\n%s\n", err, string(out))
+			return fmt.Errorf("mimic 内核模块加载失败")
+		}
+		fmt.Println("[mimic] installed via dkms build successfully")
 		return nil
 	}
-	return fmt.Errorf("unsupported package manager, install mimic manually")
+
+	return fmt.Errorf("不支持的包管理器，请手动安装 mimic")
 }
 
 func (w *WebSocketReporter) handleMimicUninstall(data interface{}) error {
@@ -3357,20 +3419,21 @@ func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 	if wgIF == "" {
 		wgIF = "wg0"
 	}
+	fmt.Printf("[mimic] setting up WireGuard interface %s (role=%s)...\n", wgIF, req.Role)
+
 	confPath := fmt.Sprintf("/etc/wireguard/%s.conf", wgIF)
 	if _, err := os.Stat(confPath); err == nil {
+		fmt.Printf("[mimic] WireGuard config %s already exists, skipping\n", confPath)
 		return nil
 	}
+
 	var b strings.Builder
 	b.WriteString("[Interface]\n")
 	b.WriteString(fmt.Sprintf("Address = %s\n", req.WgAddress))
 	b.WriteString(fmt.Sprintf("PrivateKey = %s\n", req.WgPrivateKey))
-	b.WriteString(fmt.Sprintf("ListenPort = %d\n", 51820+func() int {
-		if wgIF == "wg0" {
-			return 0
-		}
-		return 1
-	}()))
+	b.WriteString(fmt.Sprintf("ListenPort = %d\n", 51820))
+	b.WriteString("SaveConfig = true\n")
+
 	if req.Role == "client" && req.ServerPublicKey != "" {
 		b.WriteString("\n[Peer]\n")
 		b.WriteString(fmt.Sprintf("PublicKey = %s\n", req.ServerPublicKey))
@@ -3383,28 +3446,72 @@ func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 		b.WriteString(fmt.Sprintf("AllowedIPs = %s\n", req.WgAllowedIPs))
 		b.WriteString("PersistentKeepalive = 15\n")
 	}
+
+	fmt.Printf("[mimic] writing WireGuard config to %s\n", confPath)
+	if err := os.MkdirAll("/etc/wireguard", 0755); err != nil {
+		return fmt.Errorf("创建 /etc/wireguard 目录失败: %w", err)
+	}
 	if err := os.WriteFile(confPath, []byte(b.String()), 0600); err != nil {
 		return fmt.Errorf("写 WG 配置失败: %w", err)
 	}
-	if err := exec.Command("wg-quick", "up", wgIF).Run(); err != nil {
-		return fmt.Errorf("启动 WG 失败: %w", err)
+
+	fmt.Printf("[mimic] starting wg-quick up %s...\n", wgIF)
+	if out, err := exec.Command("wg-quick", "up", wgIF).CombinedOutput(); err != nil {
+		return fmt.Errorf("启动 WG 失败: %w\n输出: %s", err, string(out))
 	}
-	fmt.Printf("[mimic] wireguard %s started (%s, port=%d)\n", wgIF, req.Role, req.MimicPort)
+	fmt.Printf("[mimic] WireGuard %s started successfully (role=%s, port=%d)\n", wgIF, req.Role, req.MimicPort)
 	return nil
 }
 
 func (w *WebSocketReporter) setupMimicNftables(req mimicInstallRequest) error {
 	if req.MimicPort <= 0 {
+		fmt.Println("[mimic] skipping nftables setup (invalid port)")
 		return nil
 	}
-	exec.Command("nft", "add", "table", "inet", "wgmimic_filter").Run()
-	exec.Command("nft", "add", "chain", "inet", "wgmimic_filter", "input", `{ type filter hook input priority -100\; policy accept\; }`).Run()
-	exec.Command("nft", "add", "rule", "inet", "wgmimic_filter", "input", fmt.Sprintf("tcp dport %d accept", req.MimicPort)).Run()
-	exec.Command("nft", "add", "rule", "inet", "wgmimic_filter", "input", fmt.Sprintf("udp dport %d accept", req.MimicPort)).Run()
-	if req.Role == "server" {
-		exec.Command("nft", "add", "table", "inet", "wgmimic_nat").Run()
-		exec.Command("nft", "add", "chain", "inet", "wgmimic_nat", "postrouting", `{ type nat hook postrouting priority srcnat\; policy accept\; }`).Run()
-		exec.Command("nft", "add", "rule", "inet", "wgmimic_nat", "postrouting", fmt.Sprintf("ip saddr %s masquerade", strings.Split(req.WgAddress, "/")[0]+"/24")).Run()
+	fmt.Printf("[mimic] setting up nftables rules for port %d...\n", req.MimicPort)
+
+	// 创建 wgmimic_filter 表
+	fmt.Println("[mimic] creating wgmimic_filter table...")
+	if out, err := exec.Command("nft", "add", "table", "inet", "wgmimic_filter").CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] create filter table failed: %v\n%s\n", err, string(out))
 	}
+
+	// 创建 input chain
+	fmt.Println("[mimic] creating input chain...")
+	if out, err := exec.Command("nft", "add", "chain", "inet", "wgmimic_filter", "input",
+		"{ type filter hook input priority -100; policy accept; }").CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] create input chain failed: %v\n%s\n", err, string(out))
+	}
+
+	// 放行 Mimic 端口
+	fmt.Printf("[mimic] allowing TCP/UDP port %d...\n", req.MimicPort)
+	if out, err := exec.Command("nft", "add", "rule", "inet", "wgmimic_filter", "input",
+		fmt.Sprintf("tcp dport %d accept", req.MimicPort)).CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] allow tcp failed: %v\n%s\n", err, string(out))
+	}
+	if out, err := exec.Command("nft", "add", "rule", "inet", "wgmimic_filter", "input",
+		fmt.Sprintf("udp dport %d accept", req.MimicPort)).CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] allow udp failed: %v\n%s\n", err, string(out))
+	}
+
+	// 服务端需要 MASQUERADE
+	if req.Role == "server" {
+		fmt.Println("[mimic] setting up MASQUERADE for server...")
+		if out, err := exec.Command("nft", "add", "table", "inet", "wgmimic_nat").CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] create nat table failed: %v\n%s\n", err, string(out))
+		}
+		if out, err := exec.Command("nft", "add", "chain", "inet", "wgmimic_nat", "postrouting",
+			"{ type nat hook postrouting priority srcnat; policy accept; }").CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] create postrouting chain failed: %v\n%s\n", err, string(out))
+		}
+		wgSubnet := strings.Split(req.WgAddress, "/")[0] + "/24"
+		fmt.Printf("[mimic] adding MASQUERADE rule for %s...\n", wgSubnet)
+		if out, err := exec.Command("nft", "add", "rule", "inet", "wgmimic_nat", "postrouting",
+			fmt.Sprintf("ip saddr %s masquerade", wgSubnet)).CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] add masquerade rule failed: %v\n%s\n", err, string(out))
+		}
+	}
+
+	fmt.Println("[mimic] nftables setup completed")
 	return nil
 }
