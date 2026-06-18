@@ -5508,17 +5508,17 @@ export default function ForwardPage() {
                       }}
                     >
                       <SelectItem key="gost">Gost 模式</SelectItem>
-                      {!isFreeTier && nftEnabled && (
-                        <SelectItem key="nftables">NFtables 模式</SelectItem>
-                      )}
                       {!isFreeTier && flcEnabled && (
                         <SelectItem key="floxcore">FloxCore 模式</SelectItem>
                       )}
-                      {!isFreeTier && sdwEnabled && (
-                        <SelectItem key="sdwan">SDWAN 模式</SelectItem>
+                      {!isFreeTier && nftEnabled && (
+                        <SelectItem key="nftables">NFtables 模式</SelectItem>
                       )}
                       {!isFreeTier && (
-                        <SelectItem key="mimic">WGMimic</SelectItem>
+                        <SelectItem key="mimic">WGMimic 模式</SelectItem>
+                      )}
+                      {!isFreeTier && sdwEnabled && (
+                        <SelectItem key="sdwan">SDWAN 模式</SelectItem>
                       )}
                     </Select>
                     {form.mode === "sdwan" && (
@@ -7169,17 +7169,17 @@ export default function ForwardPage() {
                   }}
                 >
                   <SelectItem key="gost">Gost 模式</SelectItem>
-                  {!isFreeTier && nftEnabled && (
-                    <SelectItem key="nftables">NFtables 模式</SelectItem>
-                  )}
                   {!isFreeTier && flcEnabled && (
                     <SelectItem key="floxcore">FloxCore 模式</SelectItem>
                   )}
-                  {!isFreeTier && sdwEnabled && (
-                    <SelectItem key="sdwan">SDWAN 模式</SelectItem>
+                  {!isFreeTier && nftEnabled && (
+                    <SelectItem key="nftables">NFtables 模式</SelectItem>
                   )}
                   {!isFreeTier && (
-                    <SelectItem key="mimic">WGMimic</SelectItem>
+                    <SelectItem key="mimic">WGMimic 模式</SelectItem>
+                  )}
+                  {!isFreeTier && sdwEnabled && (
+                    <SelectItem key="sdwan">SDWAN 模式</SelectItem>
                   )}
                 </Select>
               </ModalBody>
