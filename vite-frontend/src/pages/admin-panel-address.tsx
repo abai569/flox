@@ -66,7 +66,8 @@ export default function AdminPanelAddressPage() {
       toast.error("面板地址格式不正确（需以 http:// 或 https:// 开头）");
       return;
     }
-    savePanelAddress(newName.trim(), newAddress.trim());
+    const addr = new URL(newAddress.trim()).origin;
+    savePanelAddress(newName.trim(), addr);
     if (addresses.length === 0) {
       setCurrentPanelAddress(newName.trim());
     }

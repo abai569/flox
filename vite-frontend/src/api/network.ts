@@ -16,7 +16,7 @@ interface PanelAddress {
 const setPanelAddressesFunc = (newAddress: PanelAddress[]) => {
   newAddress.forEach((item) => {
     if (item.inx) {
-      baseURL = `${item.address}/api/v1/`;
+      baseURL = `${new URL(item.address).origin}/api/v1/`;
       axios.defaults.baseURL = baseURL;
     }
   });
