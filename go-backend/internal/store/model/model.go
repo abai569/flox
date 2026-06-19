@@ -132,6 +132,9 @@ type Node struct {
 	TrafficLimit                 int64          `gorm:"column:traffic_limit;default:0"`
 	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
 	FlowResetTime                int            `gorm:"column:flow_reset_time;not null;default:1"`
+	MimicStatus                  string         `gorm:"column:mimic_status;type:varchar(50);default:''"`
+	MimicError                   string         `gorm:"column:mimic_error;type:text;default:''"`
+	MimicUpdatedAt               int64          `gorm:"column:mimic_updated_at;default:0"`
 }
 
 func (Node) TableName() string { return "node" }

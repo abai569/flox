@@ -848,6 +848,29 @@ func (r *Repository) UpdateNodeServiceName(nodeID int64, serviceName string) err
 	}).Error
 }
 
+// UpdateNodeMimicStatus 更新节点 Mimic 安装状态
+func (r *Repository) UpdateNodeMimicStatus(nodeID int64, status, errMsg string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
+		"mimic_status":    status,
+		"mimic_error":     errMsg,
+		"mimic_updated_at": unixMilliNow(),
+		"updated_time":    unixMilliNow(),
+	}).Error
+}
+
+// ListNodesWithMimicFailures 返回所有 Mimic 状态异常的节点
+func (r *Repository) ListNodesWithMimicFailures() ([]model.Node, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var nodes []model.Node
+	err := r.db.Where("mimic_status != '' AND mimic_status != 'ok' AND mimic_status != 'deps_ready'").Find(&nodes).Error
+	return nodes, err
+}
+
 // ─── Flow ─────────────────────────────────────────────────────────────
 
 func (r *Repository) AddFlow(forwardID, userID int64, userTunnelID int64, inFlow, outFlow int64) error {

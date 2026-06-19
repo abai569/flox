@@ -509,6 +509,28 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 			case "UpgradeProgress":
 				s.broadcastTyped(nodeID, "upgrade_progress", msg)
 				continue
+			case "ReportMimicStatus":
+				// 节点上报 Mimic 安装状态
+				var envelope struct {
+					Data struct {
+						Status string `json:"status"`
+						Error  string `json:"error"`
+						NodeID int64  `json:"nodeId"`
+					} `json:"data"`
+				}
+				if err := json.Unmarshal([]byte(msg), &envelope); err == nil {
+					status := envelope.Data.Status
+					errMsg := envelope.Data.Error
+					fmt.Printf("[ws.mimic] node %d reported mimic status: %s (err=%s)\n", nodeID, status, errMsg)
+					if s.repo != nil {
+						if err := s.repo.UpdateNodeMimicStatus(nodeID, status, errMsg); err != nil {
+							fmt.Printf("[ws.mimic] failed to update node %d mimic status: %v\n", nodeID, err)
+						}
+					}
+					// 广播给前端
+					s.broadcastTyped(nodeID, "mimic_status", msg)
+				}
+				continue
 			default:
 				// Unknown typed messages still get broadcast so future
 				// agent message types are not silently lost.

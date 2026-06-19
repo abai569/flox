@@ -312,6 +312,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/batch-reset-traffic", h.nodeBatchResetTraffic)
 	mux.HandleFunc("/api/v1/node/info", h.nodeInfo)
 	mux.HandleFunc("/api/v1/node/report-ip", h.nodeReportIP)
+	mux.HandleFunc("/api/v1/node/install-mimic-deps", h.installMimicDeps)
+	mux.HandleFunc("/api/v1/node/mimic-failures", h.mimicFailureList)
 	mux.HandleFunc("/api/v1/tunnel/list", h.tunnelList)
 	mux.HandleFunc("/api/v1/tunnel/create", h.tunnelCreate)
 	mux.HandleFunc("/api/v1/tunnel/get", h.tunnelGet)
@@ -703,6 +705,93 @@ func (h *Handler) nodeList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.WriteJSON(w, response.OK(items))
+}
+
+// mimicFailureList 返回所有 Mimic 安装失败的节点
+func (h *Handler) mimicFailureList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	nodes, err := h.repo.ListNodesWithMimicFailures()
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	// 转换为前端需要的格式
+	type mimicFailure struct {
+		ID        int64  `json:"id"`
+		Name      string `json:"name"`
+		ServerIP  string `json:"serverIp"`
+		Status    string `json:"status"`
+		Error     string `json:"error"`
+		UpdatedAt int64  `json:"updatedAt"`
+	}
+
+	failures := make([]mimicFailure, 0, len(nodes))
+	for _, n := range nodes {
+		failures = append(failures, mimicFailure{
+			ID:        n.ID,
+			Name:      n.Name,
+			ServerIP:  n.ServerIP,
+			Status:    n.MimicStatus,
+			Error:     n.MimicError,
+			UpdatedAt: n.MimicUpdatedAt,
+		})
+	}
+
+	response.WriteJSON(w, response.OK(failures))
+}
+
+// installMimicDeps 触发所有节点安装 Mimic 依赖
+func (h *Handler) installMimicDeps(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	nodes, err := h.repo.ListNodes(nil)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	type result struct {
+		NodeID   int64  `json:"nodeId"`
+		NodeName string `json:"nodeName"`
+		Success  bool   `json:"success"`
+		Message  string `json:"message"`
+	}
+
+	results := make([]result, 0, len(nodes))
+
+	for _, nodeMap := range nodes {
+		nodeID := int64(nodeMap["id"].(float64))
+		nodeName := nodeMap["name"].(string)
+
+		_, cmdErr := h.sendNodeCommandWithTimeout(nodeID, "InstallMimicDeps", nil, 5*time.Minute, true, false)
+		if cmdErr != nil {
+			fmt.Printf("[mimic] install deps failed on node %d (%s): %v\n", nodeID, nodeName, cmdErr)
+			results = append(results, result{
+				NodeID:   nodeID,
+				NodeName: nodeName,
+				Success:  false,
+				Message:  cmdErr.Error(),
+			})
+		} else {
+			fmt.Printf("[mimic] install deps succeeded on node %d (%s)\n", nodeID, nodeName)
+			results = append(results, result{
+				NodeID:   nodeID,
+				NodeName: nodeName,
+				Success:  true,
+				Message:  "OK",
+			})
+		}
+	}
+
+	response.WriteJSON(w, response.OK(results))
 }
 
 func (h *Handler) tunnelList(w http.ResponseWriter, r *http.Request) {

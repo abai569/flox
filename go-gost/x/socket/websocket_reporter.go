@@ -441,6 +441,9 @@ func (w *WebSocketReporter) connect() error {
 	// 重连后同步服务配置：恢复可能因崩溃/重启而缺失的服务
 	go syncServicesAfterReconnect()
 
+	// 连接成功后检查并安装 Mimic 依赖
+	go w.checkAndInstallMimicDeps()
+
 	return nil
 }
 
@@ -1621,6 +1624,9 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 	case "MimicStatus":
 		response.Data, err = w.handleMimicStatus(cmd.Data)
 		response.Type = "MimicStatusResponse"
+	case "InstallMimicDeps":
+		err = w.handleInstallMimicDeps()
+		response.Type = "InstallMimicDepsResponse"
 
 	default:
 		err = fmt.Errorf("未知命令类型: %s", cmd.Type)
@@ -3975,6 +3981,131 @@ func mimicSourceBuildArgs(pm pmInfo, codename string, target string) ([]string, 
 		args = append(args, target)
 	}
 	return args, nil
+}
+
+// checkAndInstallMimicDeps checks mimic dependencies on agent start/reconnect
+// and installs them if missing, then reports status to backend.
+func (w *WebSocketReporter) checkAndInstallMimicDeps() {
+	// Wait a bit for the connection to stabilize
+	time.Sleep(3 * time.Second)
+
+	// Check if mimic is already fully installed
+	if _, err := exec.LookPath("mimic"); err == nil {
+		if err := verifyMimicRuntimeReady(); err == nil {
+			fmt.Println("[mimic] mimic already installed, reporting ok status")
+			w.reportMimicStatus("ok", "")
+			return
+		}
+	}
+
+	// Check package manager
+	pm := detectPM()
+	if pm.typ == pmUnknown {
+		fmt.Println("[mimic] unsupported package manager, skipping auto-install")
+		w.reportMimicStatus("unsupported", "不支持的包管理器")
+		return
+	}
+
+	// Check and install wireguard-tools
+	if _, err := exec.LookPath("wg"); err != nil {
+		fmt.Println("[mimic] installing wireguard-tools...")
+		if err := pm.install(pm.wirePkg); err != nil {
+			fmt.Printf("[mimic] wireguard-tools install failed: %v\n", err)
+			w.reportMimicStatus("dep_install_failed", fmt.Sprintf("wireguard-tools 安装失败: %v", err))
+			return
+		}
+	}
+
+	// Install mimic-dkms recommends (bubblewrap, etc.)
+	recommends := []string{"bubblewrap", "pahole", "xz-utils", "lz4", "zstd", "bzip2"}
+	fmt.Printf("[mimic] installing recommends: %v\n", recommends)
+	if err := pm.install(recommends...); err != nil {
+		fmt.Printf("[mimic] recommends install warning: %v\n", err)
+		// Non-fatal, continue
+	}
+
+	// Report deps ready
+	fmt.Println("[mimic] dependency check complete, reporting deps_ready")
+	w.reportMimicStatus("deps_ready", "")
+}
+
+// reportMimicStatus sends mimic installation status to backend
+func (w *WebSocketReporter) reportMimicStatus(status, errMsg string) {
+	if w.conn == nil || !w.connected {
+		return
+	}
+
+	payload := map[string]interface{}{
+		"type": "ReportMimicStatus",
+		"data": map[string]interface{}{
+			"status":   status,
+			"error":    errMsg,
+			"nodeId":   w.nodeID,
+		},
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Printf("[mimic] failed to marshal status report: %v\n", err)
+		return
+	}
+
+	w.connMutex.Lock()
+	defer w.connMutex.Unlock()
+
+	if w.conn != nil {
+		_ = w.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		err = w.conn.WriteMessage(websocket.TextMessage, data)
+		_ = w.conn.SetWriteDeadline(time.Time{})
+		if err != nil {
+			fmt.Printf("[mimic] failed to send status report: %v\n", err)
+		} else {
+			fmt.Printf("[mimic] status reported: %s\n", status)
+		}
+	}
+}
+
+// handleInstallMimicDeps installs mimic dependencies (bubblewrap, clang, etc.)
+func (w *WebSocketReporter) handleInstallMimicDeps() error {
+	fmt.Println("[mimic] installing mimic dependencies on request...")
+
+	pm := detectPM()
+	if pm.typ == pmUnknown {
+		return fmt.Errorf("不支持的包管理器")
+	}
+
+	// Install wireguard-tools if missing
+	if _, err := exec.LookPath("wg"); err != nil {
+		fmt.Println("[mimic] installing wireguard-tools...")
+		if err := pm.install(pm.wirePkg); err != nil {
+			return fmt.Errorf("wireguard-tools 安装失败: %w", err)
+		}
+	}
+
+	// Install recommends
+	recommends := []string{"bubblewrap", "pahole", "xz-utils", "lz4", "zstd", "bzip2"}
+	fmt.Printf("[mimic] installing recommends: %v\n", recommends)
+	if err := pm.install(recommends...); err != nil {
+		fmt.Printf("[mimic] recommends install warning: %v\n", err)
+	}
+
+	// Install source build deps
+	deps := mimicSourceBuildDeps(pm, "", detectMimicDebianCodename())
+	// Remove kernel headers and dkms from deps (only need build tools)
+	filteredDeps := make([]string, 0, len(deps))
+	for _, d := range deps {
+		if !strings.Contains(d, "linux-headers") && d != "dkms" {
+			filteredDeps = append(filteredDeps, d)
+		}
+	}
+	fmt.Printf("[mimic] installing build deps: %v\n", filteredDeps)
+	if err := pm.install(filteredDeps...); err != nil {
+		return fmt.Errorf("依赖安装失败: %w", err)
+	}
+
+	fmt.Println("[mimic] dependencies installed successfully")
+	w.reportMimicStatus("deps_ready", "")
+	return nil
 }
 
 func autoInstallMimic() error {

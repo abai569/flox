@@ -2826,7 +2826,7 @@ func (h *Handler) syncMimicForward(forward *forwardRecord, tunnel *tunnelRecord,
 				"serverPublicKey": cfg.ServerPublicKey,
 			}
 			fmt.Printf("[mimic.debug] sending server MimicInstall node=%d payload=%v\n", exitNodeID, serverReq)
-			if _, cmdErr := h.sendNodeCommand(exitNodeID, "MimicInstall", serverReq, true, false); cmdErr != nil {
+			if _, cmdErr := h.sendNodeCommandWithTimeout(exitNodeID, "MimicInstall", serverReq, 10*time.Minute, true, false); cmdErr != nil {
 				fmt.Printf("[mimic] server install on exit node %d failed: %v\n", exitNodeID, cmdErr)
 				return fmt.Errorf("出口节点 %d MimicInstall 失败: %w", exitNodeID, cmdErr)
 			}
@@ -2865,7 +2865,7 @@ func (h *Handler) syncMimicForward(forward *forwardRecord, tunnel *tunnelRecord,
 		}
 		fmt.Printf("[mimic.debug] sending client MimicInstall node=%d payload=%v\n", fp.NodeID, clientReq)
 
-		if _, cmdErr := h.sendNodeCommand(fp.NodeID, "MimicInstall", clientReq, true, false); cmdErr != nil {
+		if _, cmdErr := h.sendNodeCommandWithTimeout(fp.NodeID, "MimicInstall", clientReq, 10*time.Minute, true, false); cmdErr != nil {
 			fmt.Printf("[mimic] client install on entry node %d failed: %v\n", fp.NodeID, cmdErr)
 			return fmt.Errorf("入口节点 %d MimicInstall 失败: %w", fp.NodeID, cmdErr)
 		}
