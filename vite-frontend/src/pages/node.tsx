@@ -1680,6 +1680,8 @@ export default function NodePage() {
   function getMimicFixCommand(errMsg: string): string {
     if (errMsg.includes("404") || errMsg.includes("Failed to fetch"))
       return "apt-get update";
+    if (errMsg.includes("已安装"))
+      return "reboot";
     if (errMsg.includes("linux-headers") || errMsg.includes("头文件") || errMsg.includes("已不存在"))
       return "apt-get install -y linux-image-amd64 linux-headers-amd64 && reboot";
     if (errMsg.includes("BUILD_EXCLUSIVE") || errMsg.includes("DKMS") || errMsg.includes("被 DKMS 拒绝"))

@@ -991,6 +991,9 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"trafficLimit":            n.TrafficLimit,
 			"flowResetTime":           n.FlowResetTime,
 			"periodTraffic":           pt,
+			"mimic_status":            n.MimicStatus,
+			"mimic_error":             n.MimicError,
+			"mimic_updated_at":        n.MimicUpdatedAt,
 		})
 	}
 	return items, nil
