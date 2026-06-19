@@ -737,43 +737,40 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
 
       {/* 侧边滑动 Drawer */}
       <aside
-        className={`fixed ${!mobileMenuVisible ? "-translate-x-full" : "translate-x-0"} w-[40%] min-w-[140px] bg-white dark:bg-black shadow-2xl border-r border-gray-200 dark:border-gray-600 z-50 transition-transform duration-300 ease-in-out flex flex-col h-[100dvh] top-0 left-0`}
+        className={`fixed top-0 bottom-0 left-0 z-50 flex flex-col bg-white dark:bg-black shadow-2xl border-r border-gray-200 dark:border-gray-600 transition-transform duration-300 ease-in-out ${!mobileMenuVisible ? "-translate-x-full" : "translate-x-0"}`}
+        style={{ width: "40%", minWidth: "140px" }}
       >
+        {/* 1. 顶部 Header */}
         <div className="px-5 h-14 flex items-center overflow-hidden whitespace-nowrap box-border border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
-          {/* 注释掉侧边栏顶部 logo  */}
           <div className="flex-shrink-0 flex items-center justify-center w-10">
             <BrandLogo size={24} />
           </div>
           <div className="flex items-center opacity-100 ml-2">
-            {/* 注释掉侧边栏顶部 svg 图标 
-            <svg className="w-5 h-5 mr-1.5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>*/}
             <span className="text-md font-bold text-gray-700 dark:text-gray-300">
               导航
             </span>
           </div>
         </div>
 
-        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+        {/* 2. 中间滚动菜单 */}
+        <nav className="flex-1 px-3 py-2 overflow-y-auto overscroll-contain">
           <ul className="space-y-1">
             {filteredMenuItems.map((item) => {
               const isActive = location.pathname === item.path;
               const isStoreBlocked = item.path === "/shop" && !storeEnabled;
-              const isRestrictedBlocked =
-                restricted && !item.restrictedAccessible;
+              const isRestrictedBlocked = restricted && !item.restrictedAccessible;
               const isBlocked = isStoreBlocked || isRestrictedBlocked;
 
               return (
-                <li key={item.path}>
+                <li key={item.path} className="flex-shrink-0">
                   <button
-                    className={`w-full flex items-center p-1 rounded-lg text-left relative min-h-[20px] overflow-hidden transition-colors ${isBlocked ? "opacity-40 cursor-not-allowed" : ""} ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : isBlocked ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
+                    className={`w-full h-8.5 flex items-center px-2 rounded-lg text-left relative overflow-hidden transition-colors ${isBlocked ? "opacity-40 cursor-not-allowed" : ""} ${isActive ? "text-primary-600 dark:text-primary-300 bg-primary-100 dark:bg-primary-600/20" : isBlocked ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-900"}`}
                     onClick={() => handleMenuClick(item)}
                   >
                     <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center relative z-10">
                       {item.icon}
                     </div>
-                    <div className="flex items-center opacity-100 ml-3">
+                    <div className="flex items-center opacity-100 ml-2">
                       <span className="font-medium text-sm relative z-10 whitespace-nowrap">
                         {item.label}
                       </span>
@@ -785,8 +782,9 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
 
-        {/* 底部版权信息 */}
-        <div className="px-5 py-4 mt-auto flex-shrink-0 flex items-center overflow-hidden whitespace-nowrap box-border">
+        {/* 3. 底部版本信息 */}
+        {/* 核心修复 3：去掉固定高度，给底部加上 pb-8 的超大内边距，强行把字顶上来，绝不可能再被手机黑条截断！ */}
+        <div className="px-5 pt-4 pb-8 flex-shrink-0 flex items-center overflow-hidden whitespace-nowrap box-border border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-black">
           <VersionFooter
             isAdmin={isAdmin}
             poweredClassName="text-xs text-gray-600 dark:text-white"
@@ -797,7 +795,6 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
           />
         </div>
       </aside>
-
       {/* 主内容区域 */}
       <main
         className="flex-1 bg-gray-100 dark:bg-black relative pb-8 pt-14 overflow-y-auto"
