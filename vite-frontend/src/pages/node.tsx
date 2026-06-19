@@ -367,6 +367,10 @@ const mergeNodeRealtimeState = (
       existingNode?.expiryReminderDismissedUntil ??
       incomingNode.expiryReminderDismissedUntil ??
       null,
+    mimicStatus:
+      existingNode?.mimicStatus ?? incomingNode.mimicStatus ?? "",
+    mimicError:
+      existingNode?.mimicError ?? incomingNode.mimicError ?? "",
   } as Node;
 };
 const SortableItem = ({
