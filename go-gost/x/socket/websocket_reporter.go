@@ -3542,17 +3542,39 @@ func autoInstallMimic() error {
 		fmt.Println("[mimic] installing dependencies...")
 		if out, err := exec.Command("apt-get", "install", "-y", "linux-headers-"+kr, "dkms", "curl", "git", "make", "gcc").CombinedOutput(); err != nil {
 			fmt.Printf("[mimic] dependencies install failed: %v\n%s\n", err, string(out))
+			// P1-14: Kernel headers not found — install generic kernel
+			fmt.Println("[mimic] current kernel headers not available, installing generic kernel...")
+			exec.Command("apt-get", "install", "-y", "linux-image-amd64", "linux-headers-amd64").Run()
+			return fmt.Errorf("当前内核 %s 的头文件不可用，已安装通用内核，请重启后重试", kr)
 		}
 
+		// P1-13: Download mimic deb (direct → proxy fallback)
+		mimicDebURL := "https://github.com/hack3ric/mimic/releases/latest/download/mimic-dkms.deb"
+		mimicDebPath := "/tmp/mimic-dkms.deb"
+		downloaded := false
+
 		fmt.Println("[mimic] downloading mimic-dkms.deb...")
-		dl := exec.Command("curl", "-fsSL",
-			"https://github.com/hack3ric/mimic/releases/latest/download/mimic-dkms.deb",
-			"-o", "/tmp/mimic-dkms.deb")
-		if out, err := dl.CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] download failed: %v\n%s\n", err, string(out))
+		if out, err := exec.Command("curl", "-fsSL", mimicDebURL, "-o", mimicDebPath).CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] direct download failed: %v\n%s\n", err, string(out))
+			// Fallback to GitHub proxy
+			proxyPrefix := "https://gh-proxy.com/"
+			if p := os.Getenv("MIMIC_GITHUB_PROXY"); p != "" {
+				proxyPrefix = p
+			}
+			proxyURL := proxyPrefix + mimicDebURL
+			fmt.Printf("[mimic] trying proxy: %s\n", proxyURL)
+			if out, err := exec.Command("curl", "-fsSL", proxyURL, "-o", mimicDebPath).CombinedOutput(); err != nil {
+				fmt.Printf("[mimic] proxy download also failed: %v\n%s\n", err, string(out))
+			} else {
+				downloaded = true
+			}
 		} else {
+			downloaded = true
+		}
+
+		if downloaded {
 			fmt.Println("[mimic] installing deb package...")
-			if out, err := exec.Command("dpkg", "-i", "/tmp/mimic-dkms.deb").CombinedOutput(); err == nil {
+			if out, err := exec.Command("dpkg", "-i", mimicDebPath).CombinedOutput(); err == nil {
 				fmt.Println("[mimic] deb package installed successfully")
 				if out, err := exec.Command("modprobe", "mimic").CombinedOutput(); err != nil {
 					fmt.Printf("[mimic] modprobe after install failed: %v\n%s\n", err, string(out))
@@ -3626,6 +3648,15 @@ func (w *WebSocketReporter) handleMimicUninstall(data interface{}) error {
 	return nil
 }
 
+// calcMimicMTU returns the recommended WG MTU for a mimic tunnel.
+// Mimic TCP encapsulation adds ~40 bytes; inner WG adds ~60 bytes.
+func calcMimicMTU(serverIP string) int {
+	if strings.Contains(serverIP, ":") {
+		return 1380 // IPv6: 1500 - 120
+	}
+	return 1400 // IPv4: 1500 - 100
+}
+
 func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 	wgIF := req.WgInterface
 	if wgIF == "" {
@@ -3640,18 +3671,22 @@ func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 	confPath := fmt.Sprintf("/etc/wireguard/%s.conf", wgIF)
 	if _, err := os.Stat(confPath); err == nil {
 		fmt.Printf("[mimic] WireGuard config %s already exists, skipping\n", confPath)
-		// Still ensure the interface is up (reuse existing config)
 		if out, err := exec.Command("wg-quick", "up", wgIF).CombinedOutput(); err != nil {
 			fmt.Printf("[mimic] wg-quick up %s warning: %v\n%s\n", wgIF, err, string(out))
 		}
+		// P1-9: Ensure auto-start on boot
+		enableWGQuick(wgIF)
 		return nil
 	}
+
+	mtu := calcMimicMTU(req.ServerPublicIP)
 
 	var b strings.Builder
 	b.WriteString("[Interface]\n")
 	b.WriteString(fmt.Sprintf("Address = %s\n", req.WgAddress))
 	b.WriteString(fmt.Sprintf("PrivateKey = %s\n", req.WgPrivateKey))
 	b.WriteString(fmt.Sprintf("ListenPort = %d\n", 51820))
+	b.WriteString(fmt.Sprintf("MTU = %d\n", mtu))
 	b.WriteString("SaveConfig = true\n")
 
 	if req.Role == "client" && req.ServerPublicKey != "" {
@@ -3667,7 +3702,7 @@ func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 		b.WriteString("PersistentKeepalive = 15\n")
 	}
 
-	fmt.Printf("[mimic] writing WireGuard config to %s\n", confPath)
+	fmt.Printf("[mimic] writing WireGuard config to %s (MTU=%d)\n", confPath, mtu)
 	if err := os.WriteFile(confPath, []byte(b.String()), 0600); err != nil {
 		return fmt.Errorf("写 WG 配置失败: %w", err)
 	}
@@ -3676,8 +3711,21 @@ func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 	if out, err := exec.Command("wg-quick", "up", wgIF).CombinedOutput(); err != nil {
 		return fmt.Errorf("启动 WG 失败: %w\n输出: %s", err, string(out))
 	}
-	fmt.Printf("[mimic] WireGuard %s started successfully (role=%s, port=%d)\n", wgIF, req.Role, req.MimicPort)
+	// P1-9: Enable auto-start on boot
+	enableWGQuick(wgIF)
+	fmt.Printf("[mimic] WireGuard %s started successfully (role=%s, port=%d, mtu=%d)\n", wgIF, req.Role, req.MimicPort, mtu)
 	return nil
+}
+
+func enableWGQuick(wgIF string) {
+	if _, err := exec.LookPath("systemctl"); err != nil {
+		return
+	}
+	if out, err := exec.Command("systemctl", "enable", fmt.Sprintf("wg-quick@%s", wgIF)).CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] enable wg-quick@%s warning: %v\n%s\n", wgIF, err, string(out))
+	} else {
+		fmt.Printf("[mimic] wg-quick@%s enabled for auto-start\n", wgIF)
+	}
 }
 
 // setupMimicNftables configures nftables rules for the mimic tunnel port.
