@@ -312,7 +312,14 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 				fmt.Printf("[nft.debug] applyTunnelRuntime failed: %v\n", applyErr)
 			}
 		}
-		return nil, nil
+return nil, nil
+	}
+	// mimic mode branch - send MimicInstall then continue to GOST service deployment
+	if strings.EqualFold(forward.Mode, forwardModeMimic) {
+		fmt.Printf("[mimic] syncForwardServicesWithWarnings: mimic mode branch, forwardID=%d\n", forward.ID)
+		if err := h.syncMimicForward(forward, tunnel, ports, userTunnelID, speed); err != nil {
+			return nil, err
+		}
 	}
 	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
 		return nil, ensureForwardModeAllowedForTier(tier, forward.Mode)
@@ -411,14 +418,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	// Keep paused forwards paused after UpdateService/AddService, since agent-side UpdateService
 	// always restarts services.
 	if forward.Status != 1 {
-	// mimic mode branch
-	if strings.EqualFold(forward.Mode, forwardModeMimic) {
-		fmt.Printf("[mimic] syncForwardServicesWithWarnings: mimic mode branch, forwardID=%d\n", forward.ID)
-		if err := h.syncMimicForward(forward, tunnel, ports, userTunnelID, speed); err != nil {
-			return nil, err
-		}
-	}
-	if strings.EqualFold(forward.Mode, "nftables") {
+		if strings.EqualFold(forward.Mode, "nftables") {
 			ports, _ := h.listForwardPorts(forward.ID)
 			if err := h.deleteNftablesRules(forward, ports); err != nil {
 				return warnings, fmt.Errorf("暂停nftables转发失败: %w", err)
