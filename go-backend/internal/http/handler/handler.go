@@ -771,6 +771,8 @@ func (h *Handler) installMimicDeps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make([]result, 0, len(nodes))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	for _, nodeMap := range nodes {
 		nodeID := asInt64(nodeMap["id"], 0)
@@ -790,25 +792,32 @@ func (h *Handler) installMimicDeps(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		_, cmdErr := h.sendNodeCommandWithTimeout(nodeID, "InstallMimicDeps", nil, 5*time.Minute, true, false)
-		if cmdErr != nil {
-			fmt.Printf("[mimic] install deps failed on node %d (%s): %v\n", nodeID, nodeName, cmdErr)
-			results = append(results, result{
-				NodeID:   nodeID,
-				NodeName: nodeName,
-				Success:  false,
-				Message:  cmdErr.Error(),
-			})
-		} else {
-			fmt.Printf("[mimic] install deps succeeded on node %d (%s)\n", nodeID, nodeName)
-			results = append(results, result{
-				NodeID:   nodeID,
-				NodeName: nodeName,
-				Success:  true,
-				Message:  "OK",
-			})
-		}
+		wg.Add(1)
+		go func(nid int64, nname string) {
+			defer wg.Done()
+			_, cmdErr := h.sendNodeCommandWithTimeout(nid, "InstallMimicDeps", nil, 5*time.Minute, true, false)
+			mu.Lock()
+			defer mu.Unlock()
+			if cmdErr != nil {
+				fmt.Printf("[mimic] install deps failed on node %d (%s): %v\n", nid, nname, cmdErr)
+				results = append(results, result{
+					NodeID:   nid,
+					NodeName: nname,
+					Success:  false,
+					Message:  cmdErr.Error(),
+				})
+			} else {
+				fmt.Printf("[mimic] install deps succeeded on node %d (%s)\n", nid, nname)
+				results = append(results, result{
+					NodeID:   nid,
+					NodeName: nname,
+					Success:  true,
+					Message:  "OK",
+				})
+			}
+		}(nodeID, nodeName)
 	}
+	wg.Wait()
 
 	response.WriteJSON(w, response.OK(results))
 }

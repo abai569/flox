@@ -263,20 +263,22 @@ function SortableTableRow({
           </svg>
         </div>
       </TableCell>
+      <TableCell className={`text-center ${rowBg}`}>
+        {(node as any).mimicStatus === "ok" || (node as any).mimicStatus === "deps_ready" ? (
+          <span className="text-green-500" title="WGM 就绪">✅</span>
+        ) : (node as any).mimicStatus ? (
+          <span
+            className="text-red-500 cursor-help"
+            title={(node as any).mimicError || "WGM 未就绪"}
+          >❌</span>
+        ) : null}
+      </TableCell>
       <TableCell className={`whitespace-nowrap ${rowBg}`}>
         <div className="flex items-center gap-2 min-w-0">
           <span
             className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${connectionStatusMeta.color === "success" ? "bg-emerald-500" : "bg-rose-500"}`}
             title={connectionStatusMeta.text}
           />
-          {(node as any).mimicStatus && (node as any).mimicStatus !== "ok" && (node as any).mimicStatus !== "deps_ready" && (
-            <span
-              className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-              title={(node as any).mimicError || "WGM 依赖未就绪"}
-            >
-              WGM
-            </span>
-          )}
           <span
             className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
             title={node.name}
@@ -843,6 +845,9 @@ export function NodeListView({
               ))}
             </Select>
           </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[60px] text-center">
+            WGM
+          </TableColumn>
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[200px] text-left">
             地址
           </TableColumn>
@@ -903,7 +908,7 @@ export function NodeListView({
         <TableBody>
           {displayNodes.length === 0 ? (
             <TableRow>
-              <TableCell className="py-16 text-center" colSpan={12}>
+              <TableCell className="py-16 text-center" colSpan={13}>
                 <div className="flex flex-col items-center justify-center">
                   <h3 className="text-base font-medium text-foreground mb-1">
                     未找到匹配的节点

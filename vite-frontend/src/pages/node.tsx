@@ -1681,6 +1681,14 @@ export default function NodePage() {
       toast.error("请选择节点");
       return;
     }
+
+    // 存下名字，万一 API 失败也能在弹窗里显示
+    const nameMap = new Map<number, string>();
+    selectedLocalIds.forEach((id) => {
+      const node = nodeList.find((n) => n.id === id);
+      if (node) nameMap.set(id, node.name);
+    });
+
     setBatchMimicLoading(true);
     try {
       const res = await installMimicDeps(selectedLocalIds);
@@ -1688,11 +1696,25 @@ export default function NodePage() {
       if (res.code === 0) {
         setMimicResults((res.data as any[]) || []);
       } else {
-        setMimicResults(selectedLocalIds.map((id) => ({ nodeId: id, nodeName: "", success: false, message: res.msg || "请求失败" })));
+        setMimicResults(
+          selectedLocalIds.map((id) => ({
+            nodeId: id,
+            nodeName: nameMap.get(id) || "",
+            success: false,
+            message: res.msg || "请求失败",
+          })),
+        );
       }
       setMimicResultModalOpen(true);
     } catch {
-      setMimicResults([]);
+      setMimicResults(
+        selectedLocalIds.map((id) => ({
+          nodeId: id,
+          nodeName: nameMap.get(id) || "",
+          success: false,
+          message: "请求超时",
+        })),
+      );
       setMimicResultModalOpen(true);
     } finally {
       setBatchMimicLoading(false);
@@ -2221,6 +2243,15 @@ export default function NodePage() {
                     <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
                   </svg>
                 </div>
+                {/* WGM 状态 */}
+                {node.mimicStatus === "ok" || node.mimicStatus === "deps_ready" ? (
+                  <span className="text-green-500 text-sm" title="WGM 就绪">✅</span>
+                ) : node.mimicStatus ? (
+                  <span
+                    className="text-red-500 text-sm cursor-help"
+                    title={node.mimicError || "WGM 未就绪"}
+                  >❌</span>
+                ) : null}
               </div>
               {node.groupId && node.groupId > 0 ? (
                 (() => {
@@ -2330,15 +2361,6 @@ export default function NodePage() {
                 }`}
                 title={connectionStatusMeta.text}
               />
-              {/* Mimic 状态标签 */}
-              {node.mimicStatus && node.mimicStatus !== "ok" && node.mimicStatus !== "deps_ready" && (
-                <span
-                  className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                  title={node.mimicError || "WGM 依赖未就绪"}
-                >
-                  WGM
-                </span>
-              )}
               {/* 这里加上 title 属性 */}
               <h3
                 className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
