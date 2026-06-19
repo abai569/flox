@@ -5452,7 +5452,7 @@ export default function ForwardPage() {
                   )}
                   */}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
                     {/* 选择隧道 */}
                     <Select
                       description={
@@ -5516,7 +5516,6 @@ export default function ForwardPage() {
                     </Select>
                     {/* 转发模式选择 */}
                     <Select
-                      description="NFtables模式协议阻断暂不可用，不会用勿选"
                       label="转发模式"
                       selectedKeys={[form.mode]}
                       variant="bordered"
@@ -5548,10 +5547,30 @@ export default function ForwardPage() {
                         <SelectItem key="sdwan">SDWAN 模式</SelectItem>
                       )}
                     </Select>
+                    {/* 根据转发模式显示不同提示 */}
+                    {form.mode === "gost" && (
+                      <div className="col-span-2 rounded-lg border border-default-200 bg-default-50 px-3 py-2 text-xs text-default-600 dark:text-default-400">
+                        基础转发模式，稳定通用
+                      </div>
+                    )}
+                    {form.mode === "floxcore" && (
+                      <div className="col-span-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-xs text-success-700 dark:text-success-300">
+                        高性能内核转发（需系统设置开启）
+                      </div>
+                    )}
+                    {form.mode === "nftables" && (
+                      <div className="col-span-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning-700 dark:text-warning-300">
+                        NFtables模式协议阻断暂不可用，不会用勿选
+                      </div>
+                    )}
+                    {form.mode === "mimic" && (
+                      <div className="col-span-2 rounded-lg border border-secondary/30 bg-secondary/10 px-3 py-2 text-xs text-secondary-700 dark:text-secondary-300">
+                        WireGuard 伪装转发，自动分配端口
+                      </div>
+                    )}
                     {form.mode === "sdwan" && (
                       <div className="col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary-700 dark:text-primary-300">
-                        使用 SDWAN
-                        模式请先到节点高级设置里一键签发证书，然后到组网里面把对应节点加入组网
+                        使用 SDWAN 模式请先到节点高级设置里一键签发证书，然后到组网里面把对应节点加入组网
                       </div>
                     )}
                   </div>
