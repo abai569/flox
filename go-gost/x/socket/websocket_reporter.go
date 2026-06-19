@@ -4167,9 +4167,48 @@ func salvageDkmsForRunningKernel() error {
 	return nil
 }
 
+// quickCheckMimicDeps checks if essential mimic dependencies are already installed.
+func quickCheckMimicDeps() bool {
+	bins := []string{"wg", "bubblewrap", "pahole", "bpftool"}
+	for _, b := range bins {
+		if _, err := exec.LookPath(b); err != nil {
+			fmt.Printf("[mimic] quick check: missing %s\n", b)
+			return false
+		}
+	}
+	if _, err := exec.LookPath("clang-16"); err != nil {
+		if _, err := exec.LookPath("clang"); err != nil {
+			fmt.Println("[mimic] quick check: missing clang/clang-16")
+			return false
+		}
+	}
+	if _, err := os.Stat("/usr/include/bpf/bpf.h"); err != nil {
+		fmt.Println("[mimic] quick check: missing libbpf-dev headers")
+		return false
+	}
+	fmt.Println("[mimic] quick check: all deps present")
+	return true
+}
+
 // handleInstallMimicDeps installs mimic dependencies (bubblewrap, clang, etc.)
 func (w *WebSocketReporter) handleInstallMimicDeps() error {
 	fmt.Println("[mimic] installing mimic dependencies on request...")
+
+	// Quick skip: already fully installed
+	if _, err := exec.LookPath("mimic"); err == nil {
+		if err := verifyMimicRuntimeReady(); err == nil {
+			fmt.Println("[mimic] mimic already fully installed, skipping")
+			w.reportMimicStatus("deps_ready", "")
+			return nil
+		}
+	}
+
+	// Quick skip: deps already present
+	if quickCheckMimicDeps() {
+		fmt.Println("[mimic] deps already installed, skipping")
+		w.reportMimicStatus("deps_ready", "")
+		return nil
+	}
 
 	pm := detectPM()
 	if pm.typ == pmUnknown {

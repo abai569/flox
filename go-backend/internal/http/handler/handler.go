@@ -745,12 +745,17 @@ func (h *Handler) mimicFailureList(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(failures))
 }
 
-// installMimicDeps 触发所有节点安装 Mimic 依赖
+// installMimicDeps 触发指定节点（或全部）安装 Mimic 依赖
 func (h *Handler) installMimicDeps(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))
 		return
 	}
+
+	var req struct {
+		IDs []int64 `json:"ids"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
 
 	nodes, err := h.repo.ListNodes(nil)
 	if err != nil {
@@ -768,8 +773,22 @@ func (h *Handler) installMimicDeps(w http.ResponseWriter, r *http.Request) {
 	results := make([]result, 0, len(nodes))
 
 	for _, nodeMap := range nodes {
-		nodeID := int64(nodeMap["id"].(float64))
-		nodeName := nodeMap["name"].(string)
+		nodeID := asInt64(nodeMap["id"], 0)
+		nodeName := asString(nodeMap["name"])
+
+		// 如果指定了 ids，只处理选中的节点
+		if len(req.IDs) > 0 {
+			found := false
+			for _, id := range req.IDs {
+				if id == nodeID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
 
 		_, cmdErr := h.sendNodeCommandWithTimeout(nodeID, "InstallMimicDeps", nil, 5*time.Minute, true, false)
 		if cmdErr != nil {
