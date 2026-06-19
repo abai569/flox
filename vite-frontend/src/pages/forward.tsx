@@ -5550,19 +5550,19 @@ export default function ForwardPage() {
                       </Select>
                       {/* 根据转发模式显示不同提示 */}
                       {form.mode === "gost" && (
-                        <span className="text-xs text-default-500">基础转发模式，稳定通用</span>
+                        <span className="text-xs text-primary-60">基础转发模式，稳定通用</span>
                       )}
                       {form.mode === "floxcore" && (
-                        <span className="text-xs text-success-600">高性能内核转发（需系统设置开启）</span>
+                        <span className="text-xs text-success-600">高性能自研内核转发协义</span>
                       )}
                       {form.mode === "nftables" && (
                         <span className="text-xs text-warning-600">NFtables模式协议阻断暂不可用，不会用勿选</span>
                       )}
                       {form.mode === "mimic" && (
-                        <span className="text-xs text-secondary-600">WireGuard 伪装转发，自动分配端口</span>
+                        <span className="text-xs text-secondary-600">把UDP伪装成tcp转发，降低GFW风控几率</span>
                       )}
                       {form.mode === "sdwan" && (
-                        <span className="text-xs text-primary-600">先到组网里新建分组，才能使用这个转发模式</span>
+                        <span className="text-xs text-green-600">先到组网里新建分组，才能使用这个转发模式</span>
                       )}
                     </div>
                   </div>
