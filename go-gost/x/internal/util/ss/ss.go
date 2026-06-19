@@ -3,6 +3,7 @@ package ss
 import (
 	"bytes"
 	"net"
+	"strings"
 
 	"github.com/shadowsocks/go-shadowsocks2/core"
 	ss "github.com/shadowsocks/shadowsocks-go/shadowsocks"
@@ -23,6 +24,11 @@ func (c *shadowCipher) PacketConn(conn net.PacketConn) net.PacketConn {
 func ShadowCipher(method, password string, key string) (core.Cipher, error) {
 	if method == "" || password == "" {
 		return nil, nil
+	}
+
+	// ss-2022 密码套件
+	if strings.HasPrefix(strings.ToLower(method), "2022-blake3") {
+		return newSS2022Cipher(method, password)
 	}
 
 	c, _ := ss.NewCipher(method, password)
