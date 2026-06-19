@@ -391,10 +391,10 @@ const SortableItem = ({
   const style: React.CSSProperties = {
     transform: transform
       ? CSS.Transform.toString({
-          ...transform,
-          x: Math.round(transform.x),
-          y: Math.round(transform.y),
-        })
+        ...transform,
+        x: Math.round(transform.x),
+        y: Math.round(transform.y),
+      })
       : undefined,
     transition: isDragging ? undefined : transition || undefined,
     opacity: isDragging ? 0.5 : 1,
@@ -593,7 +593,7 @@ export default function NodePage() {
   const [batchUpgradeLoading, setBatchUpgradeLoading] = useState(false);
   const [batchMimicLoading, setBatchMimicLoading] = useState(false);
   const [mimicResultModalOpen, setMimicResultModalOpen] = useState(false);
-  const [mimicResults, setMimicResults] = useState<Array<{nodeId: number; nodeName: string; success: boolean; message: string}>>([]);
+  const [mimicResults, setMimicResults] = useState<Array<{ nodeId: number; nodeName: string; success: boolean; message: string }>>([]);
   const [batchResetTrafficLoading, setBatchResetTrafficLoading] =
     useState(false);
   const [batchResetTrafficModalOpen, setBatchResetTrafficModalOpen] =
@@ -682,7 +682,7 @@ export default function NodePage() {
 
         if (inFlow > 0 || outFlow > 0) {
           recordNodeOfflineLog(nodeId, inFlow, outFlow, "节点离线").catch(
-            () => {},
+            () => { },
           );
         }
 
@@ -927,7 +927,7 @@ export default function NodePage() {
             });
           }
         }
-      } catch {}
+      } catch { }
     } else if (type === "panel_upgrade_progress") {
       try {
         const progressData =
@@ -947,7 +947,7 @@ export default function NodePage() {
             }),
           );
         }
-      } catch {}
+      } catch { }
     } else if (type === "mimic_status") {
       try {
         const statusData =
@@ -960,15 +960,15 @@ export default function NodePage() {
             prev.map((n) =>
               n.id === nodeId
                 ? {
-                    ...n,
-                    mimicStatus: statusData.data.status || "",
-                    mimicError: statusData.data.error || "",
-                  }
+                  ...n,
+                  mimicStatus: statusData.data.status || "",
+                  mimicError: statusData.data.error || "",
+                }
                 : n,
             ),
           );
         }
-      } catch {}
+      } catch { }
     } else if (type === "metric") {
       clearOfflineTimer(nodeId);
       const metric =
@@ -981,27 +981,27 @@ export default function NodePage() {
             ...prev[nodeId],
             uploadTraffic: Number(
               metric.netOutBytes ??
-                metric.bytes_transmitted ??
-                prev[nodeId]?.uploadTraffic ??
-                0,
+              metric.bytes_transmitted ??
+              prev[nodeId]?.uploadTraffic ??
+              0,
             ),
             downloadTraffic: Number(
               metric.netInBytes ??
-                metric.bytes_received ??
-                prev[nodeId]?.downloadTraffic ??
-                0,
+              metric.bytes_received ??
+              prev[nodeId]?.downloadTraffic ??
+              0,
             ),
             // 周期流量（新字段）
             periodTraffic:
               metric.period_bytes_received !== undefined ||
-              metric.period_bytes_transmitted !== undefined
+                metric.period_bytes_transmitted !== undefined
                 ? {
-                    rx: Number(metric.period_bytes_received ?? 0),
-                    tx: Number(metric.period_bytes_transmitted ?? 0),
-                    since: metric.baseline_recorded_at || 0,
-                    nextReset: metric.next_reset_at || 0,
-                    cycle: metric.renewal_cycle || "",
-                  }
+                  rx: Number(metric.period_bytes_received ?? 0),
+                  tx: Number(metric.period_bytes_transmitted ?? 0),
+                  since: metric.baseline_recorded_at || 0,
+                  nextReset: metric.next_reset_at || 0,
+                  cycle: metric.renewal_cycle || "",
+                }
                 : prev[nodeId]?.periodTraffic,
           },
         };
@@ -1458,7 +1458,7 @@ export default function NodePage() {
           setOverseasCommand(res.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [overseasModalOpen, overseasNodeId, overseasChannel, overseasVersion]);
   const copyToClipboard = (text: string, label: string) => {
     try {
@@ -1878,30 +1878,30 @@ export default function NodePage() {
             prev.map((n) =>
               n.id === form.id
                 ? ({
-                    ...n,
-                    name: form.name,
-                    remark: form.remark.trim(),
-                    expiryTime: form.expiryTime,
-                    renewalCycle: form.renewalCycle,
-                    groupId: form.groupId,
-                    intranetIp: form.intranetIp?.trim(),
-                    serverIpV4: form.serverIpV4,
-                    serverIpV6: form.serverIpV6,
-                    port: form.port,
-                    tcpListenAddr: form.tcpListenAddr,
-                    udpListenAddr: form.udpListenAddr,
-                    interfaceName: form.interfaceName,
-                    remoteConfig: nextRemoteConfig,
-                    secret: form.secret || n.secret,
-                    http: form.http,
-                    tls: form.tls,
-                    socks: form.socks,
-                    trafficLimit: form.trafficLimit,
-                    flowResetTime: form.flowResetTime,
-                    expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
-                    expiryReminderDismissedUntil:
-                      n.expiryReminderDismissedUntil ?? null,
-                  } as Node)
+                  ...n,
+                  name: form.name,
+                  remark: form.remark.trim(),
+                  expiryTime: form.expiryTime,
+                  renewalCycle: form.renewalCycle,
+                  groupId: form.groupId,
+                  intranetIp: form.intranetIp?.trim(),
+                  serverIpV4: form.serverIpV4,
+                  serverIpV6: form.serverIpV6,
+                  port: form.port,
+                  tcpListenAddr: form.tcpListenAddr,
+                  udpListenAddr: form.udpListenAddr,
+                  interfaceName: form.interfaceName,
+                  remoteConfig: nextRemoteConfig,
+                  secret: form.secret || n.secret,
+                  http: form.http,
+                  tls: form.tls,
+                  socks: form.socks,
+                  trafficLimit: form.trafficLimit,
+                  flowResetTime: form.flowResetTime,
+                  expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
+                  expiryReminderDismissedUntil:
+                    n.expiryReminderDismissedUntil ?? null,
+                } as Node)
                 : n,
             ),
           );
@@ -2135,12 +2135,12 @@ export default function NodePage() {
     const groupFiltered =
       filterGroupId !== null
         ? keywordFiltered.filter((node) => {
-            if (filterGroupId === -1) {
-              return !node.groupId || node.groupId === 0;
-            }
+          if (filterGroupId === -1) {
+            return !node.groupId || node.groupId === 0;
+          }
 
-            return node.groupId === filterGroupId;
-          })
+          return node.groupId === filterGroupId;
+        })
         : keywordFiltered;
 
     if (nodeFilterMode === "all") {
@@ -2218,11 +2218,11 @@ export default function NodePage() {
     const hasRemark = Boolean(node.remark?.trim());
     const hasExpiryInfo = Boolean(
       node.expiryTime &&
-        node.expiryTime > 0 &&
-        node.renewalCycle &&
-        (node.expiryReminderDismissed !== 1 ||
-          (node.expiryReminderDismissedUntil &&
-            node.expiryReminderDismissedUntil * 1000 < Date.now())),
+      node.expiryTime > 0 &&
+      node.renewalCycle &&
+      (node.expiryReminderDismissed !== 1 ||
+        (node.expiryReminderDismissedUntil &&
+          node.expiryReminderDismissedUntil * 1000 < Date.now())),
     );
     const hasInfoTrigger = hasRemark || hasExpiryInfo;
     const infoPlacement = infoPopoverPlacement[node.id] ?? "left";
@@ -2230,9 +2230,8 @@ export default function NodePage() {
     return (
       <Card
         key={node.id}
-        className={`group relative overflow-visible shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 h-full flex flex-col ${
-          node.expiryReminderDismissed ? "" : expiryMeta.accentClassName
-        }`}
+        className={`group relative overflow-visible shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 h-full flex flex-col ${node.expiryReminderDismissed ? "" : expiryMeta.accentClassName
+          }`}
         data-node-card="true"
       >
         <CardHeader className="pb-3 md:pb-3">
@@ -2369,11 +2368,10 @@ export default function NodePage() {
             </div>
             <div className="flex items-center gap-2">
               <span
-                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${
-                  connectionStatusMeta.color === "success"
+                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${connectionStatusMeta.color === "success"
                     ? "bg-emerald-500"
                     : "bg-rose-500"
-                }`}
+                  }`}
                 title={connectionStatusMeta.text}
               />
               {/* 这里加上 title 属性 */}
@@ -2577,9 +2575,9 @@ export default function NodePage() {
               <span className="font-medium text-sm text-danger-600 dark:text-danger-400">
                 {realtimeNodeMetrics[node.id]
                   ? formatTraffic(
-                      (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
-                        (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
-                    )
+                    (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
+                    (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
+                  )
                   : "-"}
               </span>
             </div>
@@ -2787,15 +2785,14 @@ export default function NodePage() {
               {hasExpiryInfo && (
                 <div className="flex items-center text-xs ml-auto flex-shrink-0">
                   <span
-                    className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${
-                      expiryMeta.tone === "danger"
+                    className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${expiryMeta.tone === "danger"
                         ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
                         : expiryMeta.tone === "warning"
                           ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
                           : expiryMeta.tone === "success"
                             ? "bg-success-500/10 text-success-600 dark:text-success-400"
                             : "bg-default-500/10 text-default-500"
-                    }`}
+                      }`}
                   >
                     {expiryMeta.label}
                   </span>
@@ -2952,19 +2949,19 @@ export default function NodePage() {
                 {(nodeFilterMode !== "all" ||
                   filterGroupId !== null ||
                   localSearchKeyword.trim()) && (
-                  <Button
-                    color="warning"
-                    size="sm"
-                    variant="flat"
-                    onPress={() => {
-                      resetNodeFilterMode();
-                      setFilterGroupId(null);
-                      setLocalSearchKeyword("");
-                    }}
-                  >
-                    重置
-                  </Button>
-                )}
+                    <Button
+                      color="warning"
+                      size="sm"
+                      variant="flat"
+                      onPress={() => {
+                        resetNodeFilterMode();
+                        setFilterGroupId(null);
+                        setLocalSearchKeyword("");
+                      }}
+                    >
+                      重置
+                    </Button>
+                  )}
               </>
             )}
           </div>
@@ -3584,6 +3581,9 @@ export default function NodePage() {
                       }
                     />
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                    <span className="text-[14px] text-warning-600">节点ip地址是你要添加的入口/出口的ip地址，不是面板的ip地址</span>
+                  </div>
                   <Accordion variant="bordered">
                     <AccordionItem
                       key="advanced"
@@ -3857,12 +3857,6 @@ export default function NodePage() {
                       </div>
                     </AccordionItem>
                   </Accordion>
-                  <Alert
-                    className="mt-4"
-                    color="primary"
-                    description="节点ip地址是你要添加的入口/出口的ip地址，不是面板的ip地址。"
-                    variant="flat"
-                  />
                 </div>
               </ModalBody>
               <ModalFooter>
@@ -4467,7 +4461,7 @@ export default function NodePage() {
                                 总{" "}
                                 {formatTraffic(
                                   (log.inFlowBefore || 0) +
-                                    (log.outFlowBefore || 0),
+                                  (log.outFlowBefore || 0),
                                 )}
                               </span>
                             </div>
@@ -4650,11 +4644,10 @@ export default function NodePage() {
                       {mimicResults.map((r) => (
                         <div
                           key={r.nodeId}
-                          className={`flex items-start gap-2 p-2 rounded ${
-                            r.success
+                          className={`flex items-start gap-2 p-2 rounded ${r.success
                               ? "bg-success-50 dark:bg-success-900/20"
                               : "bg-danger-50 dark:bg-danger-900/20"
-                          }`}
+                            }`}
                         >
                           <span className="text-lg">{r.success ? "✅" : "❌"}</span>
                           <div className="flex-1 min-w-0">
