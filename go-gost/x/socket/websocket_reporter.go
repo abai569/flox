@@ -3911,20 +3911,37 @@ func installMimicRecommends(pm pmInfo) error {
 }
 
 func installMimicDebs(pm pmInfo, paths ...string) error {
-	// Install Recommends first (dpkg -i does not handle Recommends)
+	// Install Recommends first (apt-get doesn't always pull them in via dpkg -i path,
+	// but using apt-get install for local debs handles it automatically)
 	if pm.typ == pmAptGet {
 		installMimicRecommends(pm)
 	}
 
+	// Use apt-get install for local .deb files — handles Depends + Recommends automatically
+	if err := installDebsWithApt(paths...); err == nil {
+		// Check if DKMS built the module for current kernel
+		kr := strings.TrimSpace(string(func() []byte {
+			out, _ := exec.Command("uname", "-r").Output()
+			return out
+		}()))
+		if _, modErr := exec.Command("modinfo", "-k", kr, "mimic").CombinedOutput(); modErr != nil {
+			fmt.Printf("[mimic] mimic module not found for kernel %s, attempting salvage...\n", kr)
+			if salvageErr := salvageDkmsForRunningKernel(); salvageErr != nil {
+				return fmt.Errorf("DKMS_SALVAGE_FAILED: %w", salvageErr)
+			}
+		}
+		return nil
+	}
+
+	// Fallback: use dpkg -i + apt-get install -f
 	args := append([]string{"-i"}, paths...)
 	out, err := exec.Command("dpkg", args...).CombinedOutput()
 	if err == nil {
-		fmt.Println("[mimic] deb packages installed successfully")
+		fmt.Println("[mimic] deb packages installed via dpkg")
 		return nil
 	}
 	fmt.Printf("[mimic] dpkg install failed: %v\n%s\n", err, string(out))
 
-	// Check for specific failure types
 	output := string(out)
 	if strings.Contains(output, "BUILD_EXCLUSIVE") || strings.Contains(output, "does not match") || strings.Contains(output, "should not be built") {
 		return fmt.Errorf("DKMS_BUILD_EXCLUSIVE: %s", output)
@@ -4065,6 +4082,91 @@ func (w *WebSocketReporter) reportMimicStatus(status, errMsg string) {
 	}
 }
 
+// cleanupBrokenMimicState purges mimic packages stuck in broken dpkg state.
+// This must run before any install attempt, otherwise apt-get will fail
+// trying to auto-configure the broken packages.
+func cleanupBrokenMimicState() {
+	for _, pkg := range []string{"mimic", "mimic-dkms"} {
+		out, _ := exec.Command("dpkg-query", "-W", "-f=${db:Status-Abbrev}", pkg).Output()
+		status := strings.TrimSpace(string(out))
+		if status == "" || status == "ii" {
+			continue
+		}
+		fmt.Printf("[mimic] detected broken state for %s (status=%s), purging...\n", pkg, status)
+		exec.Command("dpkg", "--purge", "--force-all", pkg).Run()
+	}
+	exec.Command("dkms", "remove", "-m", "mimic", "--all").Run()
+	exec.Command("rm", "-rf", "/var/lib/dkms/mimic", "/usr/src/mimic-*").Run()
+}
+
+// ensureKernelBuildTools detects if the running kernel was built with clang
+// and installs LLVM toolchain if needed. Mimic DKMS needs clang/llvm/lld
+// when the kernel is clang-built (e.g. Xanmod, Liquorix, some cloud kernels).
+func ensureKernelBuildTools(pm pmInfo) {
+	needClang := false
+	out, _ := exec.Command("cat", "/proc/version").Output()
+	if strings.Contains(strings.ToLower(string(out)), "clang version") {
+		needClang = true
+	}
+	if !needClang {
+		return
+	}
+	var missing []string
+	if _, err := exec.LookPath("clang"); err != nil {
+		missing = append(missing, "clang")
+	}
+	if _, err := exec.LookPath("ld.lld"); err != nil {
+		missing = append(missing, "lld")
+	}
+	if _, err := exec.LookPath("llvm-ar"); err != nil {
+		missing = append(missing, "llvm")
+	}
+	if len(missing) > 0 {
+		fmt.Printf("[mimic] clang-built kernel detected, installing LLVM: %v\n", missing)
+		pm.install(missing...)
+	}
+}
+
+// installDebsWithApt installs local .deb files using apt-get (handles Depends + Recommends).
+func installDebsWithApt(paths ...string) error {
+	args := append([]string{"install", "-y"}, paths...)
+	out, err := exec.Command("apt-get", args...).CombinedOutput()
+	if err == nil {
+		fmt.Println("[mimic] deb packages installed via apt-get")
+		return nil
+	}
+	return fmt.Errorf("apt-get install failed: %v\n%s", err, string(out))
+}
+
+// salvageDkmsForRunningKernel retries DKMS build only for the running kernel
+// after a full DKMS build has failed. This is a last-resort fallback.
+func salvageDkmsForRunningKernel() error {
+	unameOut, _ := exec.Command("uname", "-r").Output()
+	kr := strings.TrimSpace(string(unameOut))
+	// Find mimic source version
+	out, _ := exec.Command("sh", "-c", "find /usr/src -maxdepth 1 -type d -name 'mimic-*' | sed 's|.*/mimic-||' | sort -V | tail -n1").Output()
+	ver := strings.TrimSpace(string(out))
+	if ver == "" {
+		return fmt.Errorf("找不到 /usr/src/mimic-*")
+	}
+	fmt.Printf("[mimic] DKMS salvage: trying mimic/%s for kernel %s only\n", ver, kr)
+	exec.Command("rm", "-f", "/var/crash/mimic-dkms*.crash").Run()
+	exec.Command("dkms", "remove", "-m", "mimic", "-v", ver, "--all").Run()
+	// Limit DKMS to current kernel only
+	dkmsConf := fmt.Sprintf("BUILD_EXCLUSIVE_KERNEL=\"^%s$\"\n", kr)
+	if err := os.MkdirAll("/etc/dkms", 0755); err != nil {
+		return err
+	}
+	os.WriteFile("/etc/dkms/mimic.conf", []byte(dkmsConf), 0644)
+	salvageOut, salvageErr := exec.Command("dkms", "install", "-m", "mimic", "-v", ver, "-k", kr, "--force").CombinedOutput()
+	if salvageErr != nil {
+		fmt.Printf("[mimic] salvage dkms install failed: %v\n%s\n", salvageErr, string(salvageOut))
+		return fmt.Errorf("DKMS salvage 失败: %w", salvageErr)
+	}
+	exec.Command("depmod", kr).Run()
+	return nil
+}
+
 // handleInstallMimicDeps installs mimic dependencies (bubblewrap, clang, etc.)
 func (w *WebSocketReporter) handleInstallMimicDeps() error {
 	fmt.Println("[mimic] installing mimic dependencies on request...")
@@ -4074,7 +4176,13 @@ func (w *WebSocketReporter) handleInstallMimicDeps() error {
 		return fmt.Errorf("不支持的包管理器")
 	}
 
-	// Install wireguard-tools if missing
+	// 1. Cleanup broken state first
+	cleanupBrokenMimicState()
+
+	// 2. Update package lists
+	pm.update()
+
+	// 3. Install wireguard-tools if missing
 	if _, err := exec.LookPath("wg"); err != nil {
 		fmt.Println("[mimic] installing wireguard-tools...")
 		if err := pm.install(pm.wirePkg); err != nil {
@@ -4082,24 +4190,23 @@ func (w *WebSocketReporter) handleInstallMimicDeps() error {
 		}
 	}
 
-	// Install recommends
+	// 4. Install recommends (bubblewrap is critical for DKMS build sandbox)
 	recommends := []string{"bubblewrap", "pahole", "xz-utils", "lz4", "zstd", "bzip2"}
 	fmt.Printf("[mimic] installing recommends: %v\n", recommends)
 	if err := pm.install(recommends...); err != nil {
-		fmt.Printf("[mimic] recommends install warning: %v\n", err)
+		return fmt.Errorf("Recommends 安装失败: %w", err)
 	}
 
-	// Install source build deps
-	deps := mimicSourceBuildDeps(pm, "", detectMimicDebianCodename())
-	// Remove kernel headers and dkms from deps (only need build tools)
-	filteredDeps := make([]string, 0, len(deps))
-	for _, d := range deps {
-		if !strings.Contains(d, "linux-headers") && d != "dkms" {
-			filteredDeps = append(filteredDeps, d)
-		}
-	}
-	fmt.Printf("[mimic] installing build deps: %v\n", filteredDeps)
-	if err := pm.install(filteredDeps...); err != nil {
+	// 5. Detect clang-built kernel and install LLVM if needed
+	ensureKernelBuildTools(pm)
+
+	// 6. Install build deps (headers, dkms, bpftool, clang, libbpf-dev, etc.)
+	codename := detectMimicDebianCodename()
+	unameOut, _ := exec.Command("uname", "-r").Output()
+	kr := strings.TrimSpace(string(unameOut))
+	deps := mimicSourceBuildDeps(pm, kr, codename)
+	fmt.Printf("[mimic] installing build deps: %v\n", deps)
+	if err := pm.install(deps...); err != nil {
 		return fmt.Errorf("依赖安装失败: %w", err)
 	}
 
@@ -4143,6 +4250,12 @@ func autoInstallMimic() error {
 	codename := detectMimicDebianCodename()
 	arch := detectMimicDebianArch()
 	fmt.Printf("[mimic] kernel=%s codename=%s arch=%s\n", kr, codename, arch)
+
+	// Clean up broken mimic state from previous failed installs
+	cleanupBrokenMimicState()
+
+	// Detect and install clang if kernel was built with it
+	ensureKernelBuildTools(pm)
 
 	packageDeps := []string{pm.headerPkg(kr), pm.dkmsPkg, "curl"}
 	fmt.Printf("[mimic] installing package prerequisites: %v\n", packageDeps)

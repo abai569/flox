@@ -319,6 +319,10 @@ export const getNodeReleases = (channel: ReleaseChannel = "stable") =>
 export const rollbackNode = (id: number) =>
   Network.post("/node/rollback", { id });
 
+// Mimic 依赖安装
+export const installMimicDeps = (ids?: number[]) =>
+  Network.post("/node/install-mimic-deps", ids ? { ids } : {}, { timeout: 10 * 60 * 1000 });
+
 // 隧道CRUD操作 - 全部使用POST请求
 export const createTunnel = (data: TunnelMutationPayload) =>
   Network.post("/tunnel/create", data);

@@ -86,6 +86,7 @@ import {
   getNodeTrafficResetLogs,
   deleteNodeTrafficResetLog,
   getConfigByName,
+  installMimicDeps,
   type ReleaseChannel,
 } from "@/api";
 import { compareVersions } from "@/utils/version-update";
@@ -584,6 +585,7 @@ export default function NodePage() {
   const [releaseChannel, setReleaseChannel] = useState<ReleaseChannel>("dev");
   const [selectedVersion, setSelectedVersion] = useState("");
   const [batchUpgradeLoading, setBatchUpgradeLoading] = useState(false);
+  const [batchMimicLoading, setBatchMimicLoading] = useState(false);
   const [batchResetTrafficLoading, setBatchResetTrafficLoading] =
     useState(false);
   const [batchResetTrafficModalOpen, setBatchResetTrafficModalOpen] =
@@ -1643,6 +1645,40 @@ export default function NodePage() {
       } finally {
         setBatchUpgradeLoading(false);
       }
+    }
+  };
+  const handleBatchMimicDeps = async () => {
+    const selectedLocalIds = Array.from(selectedIds);
+
+    if (selectedLocalIds.length === 0) {
+      toast.error("请选择节点");
+      return;
+    }
+    setBatchMimicLoading(true);
+    try {
+      const res = await installMimicDeps(selectedLocalIds);
+
+      if (res.code === 0) {
+        const results = (res.data as any[]) || [];
+        const successCount = results.filter((r) => r.success).length;
+        const failCount = results.length - successCount;
+        if (failCount > 0) {
+          toast(
+            `WGM依赖安装完成：${successCount} 成功，${failCount} 失败`,
+            { icon: "⚠️", duration: 6000 },
+          );
+        } else {
+          toast.success(
+            `WGM依赖安装命令已发送到 ${selectedLocalIds.length} 个节点`,
+          );
+        }
+      } else {
+        toast.error(res.msg || "WGM依赖安装失败");
+      }
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setBatchMimicLoading(false);
     }
   };
   const handleBatchResetTraffic = async () => {
@@ -2760,6 +2796,16 @@ export default function NodePage() {
                   onPress={handleBatchBootstrapSDWAN}
                 >
                   组网
+                </Button>
+                <Button
+                  className="bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/45"
+                  isDisabled={selectedIds.size === 0}
+                  isLoading={batchMimicLoading}
+                  size="sm"
+                  variant="flat"
+                  onPress={handleBatchMimicDeps}
+                >
+                  WGM
                 </Button>
                 <Button
                   color="warning"
