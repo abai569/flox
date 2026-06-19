@@ -1613,16 +1613,13 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		err = w.handleCleanStaleNftRules(rawData)
 		response.Type = "CleanStaleNftRulesResponse"
 	case "MimicInstall":
-		rawData, _ := json.Marshal(cmd.Data)
-		err = w.handleMimicInstall(rawData)
+		err = w.handleMimicInstall(cmd.Data)
 		response.Type = "MimicInstallResponse"
 	case "MimicUninstall":
-		rawData, _ := json.Marshal(cmd.Data)
-		err = w.handleMimicUninstall(rawData)
+		err = w.handleMimicUninstall(cmd.Data)
 		response.Type = "MimicUninstallResponse"
 	case "MimicStatus":
-		rawData, _ := json.Marshal(cmd.Data)
-		response.Data, err = w.handleMimicStatus(rawData)
+		response.Data, err = w.handleMimicStatus(cmd.Data)
 		response.Type = "MimicStatusResponse"
 
 	default:
@@ -3659,14 +3656,45 @@ func findMimicBPF() string {
 
 // ── Core handlers ──
 
-func (w *WebSocketReporter) handleMimicStatus(data interface{}) (*mimicStatusResponse, error) {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return nil, fmt.Errorf("序列化数据失败: %v", err)
+func decodeMimicCommandData(data interface{}, dst interface{}) error {
+	if data == nil {
+		return fmt.Errorf("data is nil")
 	}
+	fmt.Printf("[mimic.debug] decodeMimicCommandData: input type=%T\n", data)
+	switch v := data.(type) {
+	case map[string]interface{}:
+		jsonData, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Errorf("marshal map failed: %w", err)
+		}
+		if err := json.Unmarshal(jsonData, dst); err != nil {
+			return fmt.Errorf("unmarshal from map failed: %w", err)
+		}
+		return nil
+	case []byte:
+		if err := json.Unmarshal(v, dst); err != nil {
+			return fmt.Errorf("unmarshal from bytes failed: %w", err)
+		}
+		return nil
+	case string:
+		if err := json.Unmarshal([]byte(v), dst); err != nil {
+			return fmt.Errorf("unmarshal from string failed: %w", err)
+		}
+		return nil
+	case json.RawMessage:
+		if err := json.Unmarshal(v, dst); err != nil {
+			return fmt.Errorf("unmarshal from RawMessage failed: %w", err)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported data type: %T", data)
+	}
+}
+
+func (w *WebSocketReporter) handleMimicStatus(data interface{}) (*mimicStatusResponse, error) {
 	var req mimicStatusRequest
-	if err := json.Unmarshal(jsonData, &req); err != nil {
-		return nil, fmt.Errorf("解析 MimicStatus 请求失败: %v", err)
+	if err := decodeMimicCommandData(data, &req); err != nil {
+		return nil, fmt.Errorf("解析 MimicStatus 请求失败: %w", err)
 	}
 	wgIF := req.WgInterface
 	if wgIF == "" {
@@ -3710,13 +3738,9 @@ func (w *WebSocketReporter) handleMimicStatus(data interface{}) (*mimicStatusRes
 }
 
 func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("序列化数据失败: %v", err)
-	}
 	var req mimicInstallRequest
-	if err := json.Unmarshal(jsonData, &req); err != nil {
-		return fmt.Errorf("解析 MimicInstall 请求失败: %v", err)
+	if err := decodeMimicCommandData(data, &req); err != nil {
+		return fmt.Errorf("解析 MimicInstall 请求失败: %w", err)
 	}
 	fmt.Printf("[mimic] installing mimic tunnel: role=%s port=%d\n", req.Role, req.MimicPort)
 	fmt.Printf("[mimic.debug] request role=%s wgIF=%s wgAddr=%s allowedIPs=%s serverIP=%s clientIP=%s\n", req.Role, req.WgInterface, req.WgAddress, req.WgAllowedIPs, req.ServerPublicIP, req.ClientPublicIP)
@@ -3878,13 +3902,9 @@ func autoInstallMimic() error {
 }
 
 func (w *WebSocketReporter) handleMimicUninstall(data interface{}) error {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("序列化数据失败: %v", err)
-	}
 	var req mimicInstallRequest
-	if err := json.Unmarshal(jsonData, &req); err != nil {
-		return fmt.Errorf("解析 MimicUninstall 请求失败: %v", err)
+	if err := decodeMimicCommandData(data, &req); err != nil {
+		return fmt.Errorf("解析 MimicUninstall 请求失败: %w", err)
 	}
 	fmt.Printf("[mimic] uninstalling mimic tunnel: role=%s interface=%s port=%d\n", req.Role, req.WgInterface, req.MimicPort)
 
