@@ -1204,6 +1204,11 @@ const SortableCompactTableRow = ({
           onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
           {forward.name}
+          {forward.mode === "gost" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800">
+              gos
+            </span>
+          )}
           {forward.mode === "nftables" && (
             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
               nft
@@ -4344,6 +4349,11 @@ export default function ForwardPage() {
                 >
                   {forward.name}
                 </h3>
+                {forward.mode === "gost" && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 flex-shrink-0">
+                    gos
+                  </span>
+                )}
                 {forward.mode === "nftables" && (
                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 flex-shrink-0">
                     nft
