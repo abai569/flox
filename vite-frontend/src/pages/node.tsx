@@ -1674,6 +1674,17 @@ export default function NodePage() {
       }
     }
   };
+  function getMimicFixCommand(errMsg: string): string {
+    if (errMsg.includes("404") || errMsg.includes("Failed to fetch"))
+      return "apt-get update";
+    if (errMsg.includes("linux-headers") || errMsg.includes("头文件") || errMsg.includes("已不存在"))
+      return "apt-get install -y linux-image-amd64 linux-headers-amd64 && reboot";
+    if (errMsg.includes("BUILD_EXCLUSIVE") || errMsg.includes("DKMS") || errMsg.includes("被 DKMS 拒绝"))
+      return "apt-get install -y linux-image-cloud-amd64 linux-headers-cloud-amd64 && reboot";
+    if (errMsg.includes("不支持的包管理器"))
+      return "请手动安装：bubblewrap pahole clang-16 bpftool libbpf-dev libffi-dev";
+    return "apt-get install -f -y && systemctl restart flox_agent1";
+  }
   const handleBatchMimicDeps = async () => {
     const selectedLocalIds = Array.from(selectedIds);
 
@@ -4649,6 +4660,28 @@ export default function NodePage() {
                             <div className="text-xs text-default-500 break-all">
                               {r.message || (r.success ? "安装成功" : "安装失败")}
                             </div>
+                            {!r.success && (
+                              <div className="mt-1 flex items-center gap-1">
+                                <code className="text-[11px] bg-default-100 px-1.5 py-0.5 rounded break-all">
+                                  📋 {getMimicFixCommand(r.message)}
+                                </code>
+                                <Button
+                                  className="h-6 w-6 min-w-0 p-0"
+                                  size="sm"
+                                  variant="light"
+                                  onPress={() =>
+                                    copyToClipboard(
+                                      getMimicFixCommand(r.message),
+                                      "修复命令",
+                                    )
+                                  }
+                                >
+                                  <svg aria-hidden="true" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                  </svg>
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
