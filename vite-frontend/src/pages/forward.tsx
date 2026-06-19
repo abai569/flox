@@ -860,9 +860,9 @@ const SortableTableRow = ({
           onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
           {forward.name}
-          {forward.mode === "nftables" && (
-            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-              nft
+          {forward.mode === "gost" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800">
+              gos
             </span>
           )}
           {forward.mode === "floxcore" && (
@@ -870,14 +870,19 @@ const SortableTableRow = ({
               flc
             </span>
           )}
-          {forward.mode === "sdwan" && (
-            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-800">
-              sdw
+          {forward.mode === "nftables" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              nft
             </span>
           )}
           {forward.mode === "mimic" && (
             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
               wgm
+            </span>
+          )}
+          {forward.mode === "sdwan" && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-800">
+              sdw
             </span>
           )}
         </span>
