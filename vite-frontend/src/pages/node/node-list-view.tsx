@@ -778,6 +778,9 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[40px] text-center">
             排序
           </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[60px] text-center">
+            WGM
+          </TableColumn>
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
             节点名称
             <span className="text-xs text-primary-500 font-normal">
@@ -844,9 +847,6 @@ export function NodeListView({
                 </SelectItem>
               ))}
             </Select>
-          </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[60px] text-center">
-            WGM
           </TableColumn>
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[200px] text-left">
             地址
