@@ -222,6 +222,8 @@ export const updateSDWANGroup = (data: {
 }) => Network.post("/sdwan/group/update", data);
 export const deleteSDWANGroup = (groupId: string) =>
   Network.post("/sdwan/group/delete", { groupId });
+export const reissueSDWANGroupCerts = (groupId: string) =>
+  Network.post("/sdwan/group/reissue-certs", { groupId });
 export const getSDWANSettings = () =>
   Network.post<{
     networkCIDR: string;

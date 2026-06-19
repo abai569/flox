@@ -296,6 +296,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/sdwan/group/create", h.sdwanGroupCreate)
 	mux.HandleFunc("/api/v1/sdwan/group/update", h.sdwanGroupUpdate)
 	mux.HandleFunc("/api/v1/sdwan/group/delete", h.sdwanGroupDelete)
+	mux.HandleFunc("/api/v1/sdwan/group/reissue-certs", h.sdwanGroupReissueCerts)
 	mux.HandleFunc("/api/v1/node/delete", h.nodeDelete)
 	mux.HandleFunc("/api/v1/node/install-domestic", h.nodeInstallDomestic)
 	mux.HandleFunc("/api/v1/node/install-overseas", h.nodeInstallOverseas)
