@@ -3894,7 +3894,22 @@ func downloadMimicAsset(url, dst string) error {
 	return fmt.Errorf("download asset failed: %w", lastErr)
 }
 
-func installMimicDebs(paths ...string) error {
+func installMimicRecommends(pm pmInfo) error {
+	// mimic-dkms Debian package Recommends (from debian/control)
+	recommends := []string{"bubblewrap", "pahole", "xz-utils", "lz4", "zstd", "bzip2"}
+	fmt.Printf("[mimic] installing mimic-dkms recommends: %v\n", recommends)
+	if err := pm.install(recommends...); err != nil {
+		fmt.Printf("[mimic] recommends install warning (non-fatal): %v\n", err)
+	}
+	return nil
+}
+
+func installMimicDebs(pm pmInfo, paths ...string) error {
+	// Install Recommends first (dpkg -i does not handle Recommends)
+	if pm.typ == pmAptGet {
+		installMimicRecommends(pm)
+	}
+
 	args := append([]string{"-i"}, paths...)
 	out, err := exec.Command("dpkg", args...).CombinedOutput()
 	if err == nil {
@@ -3902,9 +3917,19 @@ func installMimicDebs(paths ...string) error {
 		return nil
 	}
 	fmt.Printf("[mimic] dpkg install failed: %v\n%s\n", err, string(out))
+
+	// Check for specific failure types
+	output := string(out)
+	if strings.Contains(output, "BUILD_EXCLUSIVE") || strings.Contains(output, "does not match") || strings.Contains(output, "should not be built") {
+		return fmt.Errorf("DKMS_BUILD_EXCLUSIVE: %s", output)
+	}
+	if strings.Contains(output, "bwrap") || strings.Contains(output, "bubblewrap") || strings.Contains(output, "No such file or directory") {
+		return fmt.Errorf("DKMS_MISSING_DEPENDENCY: %s", output)
+	}
+
 	fixOut, fixErr := exec.Command("apt-get", "install", "-f", "-y").CombinedOutput()
 	if fixErr != nil {
-		return fmt.Errorf("dpkg failed: %v\n%s\napt-get -f failed: %v\n%s", err, string(out), fixErr, string(fixOut))
+		return fmt.Errorf("dpkg failed: %v\n%s\napt-get -f failed: %v\n%s", err, output, fixErr, string(fixOut))
 	}
 	fmt.Printf("[mimic] apt-get install -f succeeded\n%s\n", string(fixOut))
 	return nil
@@ -3992,9 +4017,14 @@ func autoInstallMimic() error {
 	fmt.Printf("[mimic] installing package prerequisites: %v\n", packageDeps)
 	if err := pm.install(packageDeps...); err != nil {
 		fmt.Printf("[mimic] package prerequisites install failed: %v\n", err)
-		fmt.Println("[mimic] current kernel headers not available, installing generic kernel...")
-		pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
-		return fmt.Errorf("当前内核 %s 的头文件不可用，已安装通用内核，请重启后重试", kr)
+		// Check if it's specifically a headers issue or general dependency issue
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "linux-headers") && (strings.Contains(errMsg, "Unable to locate") || strings.Contains(errMsg, "not found")) {
+			fmt.Println("[mimic] kernel headers not available, installing generic kernel...")
+			pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
+			return fmt.Errorf("当前内核 %s 的头文件不可用，已安装通用内核，请重启后重试", kr)
+		}
+		return fmt.Errorf("mimic 前置依赖安装失败: %w", err)
 	}
 
 	if pm.typ == pmAptGet && codename != "" && arch != "" {
@@ -4011,13 +4041,17 @@ func autoInstallMimic() error {
 				fmt.Printf("[mimic] dkms package download failed: %v\n", err)
 			} else {
 				fmt.Println("[mimic] installing Debian packages...")
-				if err := installMimicDebs(cliPath, dkmsPath); err != nil {
+				if err := installMimicDebs(pm, cliPath, dkmsPath); err != nil {
 					fmt.Printf("[mimic] package installation failed: %v\n", err)
 					output := err.Error()
-					if strings.Contains(output, "BUILD_EXCLUSIVE") || strings.Contains(output, "does not match") || strings.Contains(output, "should not be built") {
+					if strings.Contains(output, "DKMS_BUILD_EXCLUSIVE") || strings.Contains(output, "BUILD_EXCLUSIVE") || strings.Contains(output, "does not match") || strings.Contains(output, "should not be built") {
 						fmt.Println("[mimic] DKMS rejected current kernel — installing generic kernel...")
 						pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
 						return fmt.Errorf("当前内核 %s 被 DKMS 拒绝，已安装通用内核，请重启后重试", kr)
+					}
+					if strings.Contains(output, "DKMS_MISSING_DEPENDENCY") {
+						fmt.Println("[mimic] DKMS missing dependency (e.g. bubblewrap) — please install manually and retry")
+						return fmt.Errorf("mimic-dkms 编译依赖缺失，请手动安装 bubblewrap 等包后重试")
 					}
 				} else if err := verifyMimicRuntimeReady(); err == nil {
 					fmt.Println("[mimic] mimic Debian packages installed successfully")
