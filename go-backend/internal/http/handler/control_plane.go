@@ -3,13 +3,14 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +20,8 @@ import (
 	"go-backend/internal/middleware"
 	"go-backend/internal/store/model"
 	"go-backend/internal/ws"
+
+	"golang.org/x/crypto/curve25519"
 )
 
 var errForwardNotFound = errors.New("forward not found")
@@ -2872,22 +2875,24 @@ func (h *Handler) syncMimicForward(forward *forwardRecord, tunnel *tunnelRecord,
 	return nil
 }
 
-// generateWGKeyPair generates a WireGuard key pair by shelling out to wg(8).
 func generateWGKeyPair() (privKey, pubKey string, err error) {
-	privBytes, execErr := exec.Command("wg", "genkey").Output()
-	if execErr != nil {
-		return "", "", execErr
+	var private [32]byte
+	if _, err := rand.Read(private[:]); err != nil {
+		return "", "", fmt.Errorf("generate private key: %w", err)
 	}
-	privKey = strings.TrimSpace(string(privBytes))
 
-	cmd := exec.Command("wg", "pubkey")
-	cmd.Stdin = strings.NewReader(privKey)
-	pubBytes, execErr := cmd.Output()
-	if execErr != nil {
-		return "", "", execErr
+	private[0] &= 248
+	private[31] &= 127
+	private[31] |= 64
+
+	public, err := curve25519.X25519(private[:], curve25519.Basepoint)
+	if err != nil {
+		return "", "", fmt.Errorf("derive public key: %w", err)
 	}
-	pubKey = strings.TrimSpace(string(pubBytes))
-	return
+
+	return base64.StdEncoding.EncodeToString(private[:]),
+		base64.StdEncoding.EncodeToString(public),
+		nil
 }
 
 // resolveNodePublicIP returns the best available public IP for a node.
