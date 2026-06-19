@@ -47,6 +47,7 @@ require (
 	github.com/xtaci/tcpraw v1.2.25
 	github.com/yl2chen/cidranger v1.0.2
 	github.com/zalando/go-keyring v0.2.4
+	github.com/zeebo/blake3 v0.2.4
 	golang.org/x/crypto v0.31.0
 	golang.org/x/exp v0.0.0-20241210194714-1829a127f884
 	golang.org/x/net v0.33.0
