@@ -3005,7 +3005,7 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	now := time.Now().UnixMilli()
-	inx := h.repo.NextIndex("forward")
+	inx := 0
 	userName := h.repo.GetUsernameByID(userID)
 	if userName == "" {
 		userName = "user"

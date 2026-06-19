@@ -3765,7 +3765,7 @@ export default function ForwardPage() {
       // 添加不在排序列表中的规则（新添加的）
       filteredForwards.forEach((forward) => {
         if (!forwardOrder.includes(forward.id)) {
-          localSortedForwards.push(forward);
+          localSortedForwards.unshift(forward);
         }
       });
 
