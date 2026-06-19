@@ -5515,64 +5515,56 @@ export default function ForwardPage() {
                       })}
                     </Select>
                     {/* 转发模式选择 */}
-                    <Select
-                      label="转发模式"
-                      selectedKeys={[form.mode]}
-                      variant="bordered"
-                      onSelectionChange={(keys) => {
-                        const selectedKey = Array.from(keys)[0] as string;
+                    <div className="flex flex-col gap-0.5">
+                      <Select
+                        label="转发模式"
+                        selectedKeys={[form.mode]}
+                        variant="bordered"
+                        onSelectionChange={(keys) => {
+                          const selectedKey = Array.from(keys)[0] as string;
 
-                        setForm((prev) => ({
-                          ...prev,
-                          mode: selectedKey as
-                            | "gost"
-                            | "nftables"
-                            | "floxcore"
-                            | "sdwan"
-                            | "mimic",
-                        }));
-                      }}
-                    >
-                      <SelectItem key="gost">Gost 模式</SelectItem>
-                      {!isFreeTier && flcEnabled && (
-                        <SelectItem key="floxcore">FloxCore 模式</SelectItem>
+                          setForm((prev) => ({
+                            ...prev,
+                            mode: selectedKey as
+                              | "gost"
+                              | "nftables"
+                              | "floxcore"
+                              | "sdwan"
+                              | "mimic",
+                          }));
+                        }}
+                      >
+                        <SelectItem key="gost">Gost 模式</SelectItem>
+                        {!isFreeTier && flcEnabled && (
+                          <SelectItem key="floxcore">FloxCore 模式</SelectItem>
+                        )}
+                        {!isFreeTier && nftEnabled && (
+                          <SelectItem key="nftables">NFtables 模式</SelectItem>
+                        )}
+                        {!isFreeTier && (
+                          <SelectItem key="mimic">WGMimic 模式</SelectItem>
+                        )}
+                        {!isFreeTier && sdwEnabled && (
+                          <SelectItem key="sdwan">SDWAN 模式</SelectItem>
+                        )}
+                      </Select>
+                      {/* 根据转发模式显示不同提示 */}
+                      {form.mode === "gost" && (
+                        <span className="text-xs text-default-500">基础转发模式，稳定通用</span>
                       )}
-                      {!isFreeTier && nftEnabled && (
-                        <SelectItem key="nftables">NFtables 模式</SelectItem>
+                      {form.mode === "floxcore" && (
+                        <span className="text-xs text-success-600">高性能内核转发（需系统设置开启）</span>
                       )}
-                      {!isFreeTier && (
-                        <SelectItem key="mimic">WGMimic 模式</SelectItem>
+                      {form.mode === "nftables" && (
+                        <span className="text-xs text-warning-600">NFtables模式协议阻断暂不可用，不会用勿选</span>
                       )}
-                      {!isFreeTier && sdwEnabled && (
-                        <SelectItem key="sdwan">SDWAN 模式</SelectItem>
+                      {form.mode === "mimic" && (
+                        <span className="text-xs text-secondary-600">WireGuard 伪装转发，自动分配端口</span>
                       )}
-                    </Select>
-                    {/* 根据转发模式显示不同提示 */}
-                    {form.mode === "gost" && (
-                      <div className="col-span-2 rounded-lg border border-default-200 bg-default-50 px-3 py-2 text-xs text-default-600 dark:text-default-400">
-                        基础转发模式，稳定通用
-                      </div>
-                    )}
-                    {form.mode === "floxcore" && (
-                      <div className="col-span-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-xs text-success-700 dark:text-success-300">
-                        高性能内核转发（需系统设置开启）
-                      </div>
-                    )}
-                    {form.mode === "nftables" && (
-                      <div className="col-span-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning-700 dark:text-warning-300">
-                        NFtables模式协议阻断暂不可用，不会用勿选
-                      </div>
-                    )}
-                    {form.mode === "mimic" && (
-                      <div className="col-span-2 rounded-lg border border-secondary/30 bg-secondary/10 px-3 py-2 text-xs text-secondary-700 dark:text-secondary-300">
-                        WireGuard 伪装转发，自动分配端口
-                      </div>
-                    )}
-                    {form.mode === "sdwan" && (
-                      <div className="col-span-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary-700 dark:text-primary-300">
-                        使用 SDWAN 模式请先到节点高级设置里一键签发证书，然后到组网里面把对应节点加入组网
-                      </div>
-                    )}
+                      {form.mode === "sdwan" && (
+                        <span className="text-xs text-primary-600">先到组网里新建分组，才能使用这个转发模式</span>
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-4 pb-4">
                     <Textarea
