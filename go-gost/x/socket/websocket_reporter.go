@@ -1617,6 +1617,10 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		rawData, _ := json.Marshal(cmd.Data)
 		err = w.handleMimicUninstall(rawData)
 		response.Type = "MimicUninstallResponse"
+	case "MimicStatus":
+		rawData, _ := json.Marshal(cmd.Data)
+		response.Data, err = w.handleMimicStatus(rawData)
+		response.Type = "MimicStatusResponse"
 
 	default:
 		err = fmt.Errorf("未知命令类型: %s", cmd.Type)
@@ -3277,6 +3281,19 @@ type mimicInstallRequest struct {
 	ServerPublicKey string `json:"serverPublicKey"`
 }
 
+type mimicStatusRequest struct {
+	WgInterface string `json:"wgInterface"`
+}
+
+type mimicStatusResponse struct {
+	WgRunning     bool   `json:"wgRunning"`
+	LastHandshake string `json:"lastHandshake,omitempty"`
+	BytesReceived int64  `json:"bytesReceived,omitempty"`
+	BytesSent     int64  `json:"bytesSent,omitempty"`
+	MimicRunning  bool   `json:"mimicRunning"`
+	MimicPort     int    `json:"mimicPort,omitempty"`
+}
+
 const (
 	mimicNFTDir    = "/etc/nftables.d"
 	mimicNFTConf   = "/etc/nftables.d/wgmimic.conf"
@@ -3469,6 +3486,56 @@ func findMimicBPF() string {
 
 // ── Core handlers ──
 
+func (w *WebSocketReporter) handleMimicStatus(data interface{}) (*mimicStatusResponse, error) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("序列化数据失败: %v", err)
+	}
+	var req mimicStatusRequest
+	if err := json.Unmarshal(jsonData, &req); err != nil {
+		return nil, fmt.Errorf("解析 MimicStatus 请求失败: %v", err)
+	}
+	wgIF := req.WgInterface
+	if wgIF == "" {
+		wgIF = "wg0"
+	}
+
+	resp := &mimicStatusResponse{}
+
+	// Check WG state
+	if out, err := exec.Command("wg", "show", wgIF, "transfer").CombinedOutput(); err == nil {
+		resp.WgRunning = true
+		// Parse transfer output: "rx bytes, tx bytes"
+		parts := strings.Fields(string(out))
+		if len(parts) >= 2 {
+			rx, _ := strconv.ParseInt(parts[0], 10, 64)
+			tx, _ := strconv.ParseInt(parts[1], 10, 64)
+			resp.BytesReceived = rx
+			resp.BytesSent = tx
+		}
+	} else {
+		resp.WgRunning = false
+	}
+
+	// Check last handshake
+	if out, err := exec.Command("wg", "show", wgIF, "latest-handshakes").CombinedOutput(); err == nil {
+		parts := strings.Fields(string(out))
+		if len(parts) >= 2 {
+			hs, _ := strconv.ParseInt(parts[len(parts)-1], 10, 64)
+			if hs > 0 {
+				resp.LastHandshake = time.Unix(hs, 0).Format(time.RFC3339)
+			}
+		}
+	}
+
+	// Check if mimic process is running
+	if out, err := exec.Command("pgrep", "-x", "mimic").CombinedOutput(); err == nil && len(out) > 0 {
+		resp.MimicRunning = true
+	}
+
+	return resp, nil
+}
+
 func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -3494,6 +3561,24 @@ func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
 	}
 	if err := w.setupMimicNftables(req); err != nil {
 		return fmt.Errorf("nftables 配置失败: %w", err)
+	}
+
+	// P2-16: Security group notice
+	serverIP := req.ServerPublicIP
+	if serverIP == "" {
+		serverIP = req.ClientPublicIP
+	}
+	if serverIP != "" {
+		fmt.Printf("\n")
+		fmt.Println("  ╔══════════════════════════════════════════════╗")
+		fmt.Println("  ║  云安全组放行以下端口:                        ║")
+		fmt.Printf("  ║  入站 TCP: %-41d║\n", req.MimicPort)
+		fmt.Printf("  ║  入站 UDP: %-41d║\n", req.MimicPort)
+		fmt.Printf("  ║  出站 TCP: %-41d║\n", req.MimicPort)
+		fmt.Printf("  ║  出站 UDP: %-41d║\n", req.MimicPort)
+		fmt.Printf("  ║  节点 IP: %-42s║\n", serverIP)
+		fmt.Println("  ╚══════════════════════════════════════════════╝")
+		fmt.Printf("\n")
 	}
 	return nil
 }
@@ -3582,6 +3667,13 @@ func autoInstallMimic() error {
 				return nil
 			} else {
 				fmt.Printf("[mimic] dpkg install failed: %v\n%s\n", err, string(out))
+				// P2-19: Check for DKMS BUILD_EXCLUSIVE rejection
+				output := string(out)
+				if strings.Contains(output, "BUILD_EXCLUSIVE") || strings.Contains(output, "does not match") || strings.Contains(output, "should not be built") {
+					fmt.Println("[mimic] DKMS rejected current kernel — installing generic kernel...")
+					exec.Command("apt-get", "install", "-y", "linux-image-amd64", "linux-headers-amd64").Run()
+					return fmt.Errorf("当前内核 %s 被 DKMS 拒绝，已安装通用内核，请重启后重试", kr)
+				}
 			}
 		}
 
@@ -3631,6 +3723,19 @@ func (w *WebSocketReporter) handleMimicUninstall(data interface{}) error {
 			fmt.Printf("[mimic] wg-quick down warning: %v\n%s\n", err, string(out))
 		}
 		confPath := fmt.Sprintf("/etc/wireguard/%s.conf", req.WgInterface)
+
+		// P2-17: Backup before removal
+		backupDir := fmt.Sprintf("/root/wgmimic-uninstall-backup-%d", time.Now().Unix())
+		os.MkdirAll(backupDir, 0700)
+		if data, err := os.ReadFile(confPath); err == nil {
+			os.WriteFile(filepath.Join(backupDir, fmt.Sprintf("%s.conf", req.WgInterface)), data, 0600)
+			fmt.Printf("[mimic] backed up %s to %s\n", confPath, backupDir)
+		}
+		nftBackup, _ := os.ReadFile(mimicNFTConf)
+		if nftBackup != nil {
+			os.WriteFile(filepath.Join(backupDir, "wgmimic.conf"), nftBackup, 0600)
+		}
+
 		if err := os.Remove(confPath); err != nil && !os.IsNotExist(err) {
 			fmt.Printf("[mimic] remove WG config warning: %v\n", err)
 		}
