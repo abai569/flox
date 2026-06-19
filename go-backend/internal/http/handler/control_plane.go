@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -410,7 +411,14 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	// Keep paused forwards paused after UpdateService/AddService, since agent-side UpdateService
 	// always restarts services.
 	if forward.Status != 1 {
-		if strings.EqualFold(forward.Mode, "nftables") {
+	// mimic mode branch
+	if strings.EqualFold(forward.Mode, forwardModeMimic) {
+		fmt.Printf("[mimic] syncForwardServicesWithWarnings: mimic mode branch, forwardID=%d\n", forward.ID)
+		if err := h.syncMimicForward(forward, tunnel, ports, userTunnelID, speed); err != nil {
+			return nil, err
+		}
+	}
+	if strings.EqualFold(forward.Mode, "nftables") {
 			ports, _ := h.listForwardPorts(forward.ID)
 			if err := h.deleteNftablesRules(forward, ports); err != nil {
 				return warnings, fmt.Errorf("暂停nftables转发失败: %w", err)
@@ -2734,6 +2742,226 @@ func filterRulesByNodeID(rules []NftablesRulePayload, nodeID int64) []NftablesRu
 		}
 	}
 	return filtered
+}
+
+// syncMimicForward deploys mimic tunnel on entry/exit nodes
+func (h *Handler) syncMimicForward(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, userTunnelID int64, speedLimit *int) error {
+	if h == nil || forward == nil {
+		return errors.New("invalid mimic sync context")
+	}
+	fmt.Printf("[mimic] syncMimicForward: forwardID=%d tunnelType=%d\n", forward.ID, tunnelTypeDisplay(tunnel))
+
+	// 1. Get or create MimicConfig with WG key pairs
+	cfg, err := h.repo.GetMimicConfig(forward.ID)
+	if err != nil {
+		mimicPort, _ := h.repo.GetNextMimicPort()
+		wgSubnet, _ := h.repo.GetNextWgSubnet()
+
+		clientPriv, clientPub, genErr := generateWGKeyPair()
+		if genErr != nil {
+			return fmt.Errorf("生成客户端 WG 密钥失败: %w", genErr)
+		}
+		serverPriv, serverPub, genErr := generateWGKeyPair()
+		if genErr != nil {
+			return fmt.Errorf("生成服务端 WG 密钥失败: %w", genErr)
+		}
+
+		serverWgAddr := strings.Replace(wgSubnet, ".0/24", ".1/24", 1)
+		clientWgAddr := strings.Replace(wgSubnet, ".0/24", ".2/24", 1)
+
+		cfg = &model.MimicConfig{
+			ForwardID:        forward.ID,
+			MimicPort:        mimicPort,
+			WgInterface:      "wg0",
+			WgAddress:        clientWgAddr,
+			WgPrivateKey:     clientPriv,
+			WgPublicKey:      clientPub,
+			ServerPrivateKey: serverPriv,
+			ServerPublicKey:  serverPub,
+			ServerWgAddress:  serverWgAddr,
+			ClientPublicKey:  clientPub,
+			Status:           0,
+		}
+		if createErr := h.repo.CreateMimicConfig(cfg); createErr != nil {
+			return fmt.Errorf("创建 MimicConfig 失败: %w", createErr)
+		}
+		fmt.Printf("[mimic] created config: forwardID=%d port=%d subnet=%s\n", forward.ID, mimicPort, wgSubnet)
+	}
+
+	// 2. For type-2 chain tunnels: deploy to exit node as server first
+	var exitNodeID int64
+	var exitNodeIP string
+
+	if tunnel != nil && tunnel.Type == 2 {
+		chainNodes, listErr := h.listChainNodesForTunnel(forward.TunnelID)
+		if listErr == nil {
+			for _, cn := range chainNodes {
+				if cn.ChainType == 3 {
+					exitNodeID = cn.NodeID
+					if node, nodeErr := h.getNodeRecord(cn.NodeID); nodeErr == nil && node != nil {
+						exitNodeIP = resolveNodePublicIP(node)
+					}
+					break
+				}
+			}
+		}
+
+		if exitNodeID > 0 && exitNodeIP != "" {
+			if cfg.ServerPublicIP != exitNodeIP {
+				cfg.ServerPublicIP = exitNodeIP
+				h.repo.UpdateMimicConfig(cfg)
+			}
+
+			serverReq := map[string]interface{}{
+				"role":            "server",
+				"mimicPort":       cfg.MimicPort,
+				"wgInterface":     cfg.WgInterface,
+				"wgAddress":       cfg.ServerWgAddress,
+				"wgPrivateKey":    cfg.ServerPrivateKey,
+				"wgAllowedIPs":    clientWGIP(cfg.WgAddress) + "/32",
+				"clientPublicIP":  exitNodeIP,
+				"clientPublicKey": cfg.ClientPublicKey,
+				"serverPublicIP":  exitNodeIP,
+				"serverPublicKey": cfg.ServerPublicKey,
+			}
+			if _, cmdErr := h.sendNodeCommand(exitNodeID, "MimicInstall", serverReq, true, false); cmdErr != nil {
+				fmt.Printf("[mimic] server install on exit node %d failed: %v\n", exitNodeID, cmdErr)
+			} else {
+				fmt.Printf("[mimic] server install succeeded on exit node %d\n", exitNodeID)
+			}
+		}
+	}
+
+	// 3. Deploy to entry nodes as client
+	clientServerIP := exitNodeIP
+	if clientServerIP == "" && forward.RemoteAddr != "" {
+		if host, _, splitErr := net.SplitHostPort(forward.RemoteAddr); splitErr == nil {
+			clientServerIP = host
+		} else {
+			clientServerIP = forward.RemoteAddr
+		}
+	}
+
+	for _, fp := range ports {
+		node, nodeErr := h.getNodeRecord(fp.NodeID)
+		if nodeErr != nil {
+			fmt.Printf("[mimic] skip entry node %d: %v\n", fp.NodeID, nodeErr)
+			continue
+		}
+
+		clientReq := map[string]interface{}{
+			"role":            "client",
+			"mimicPort":       cfg.MimicPort,
+			"wgInterface":     cfg.WgInterface,
+			"wgAddress":       cfg.WgAddress,
+			"wgPrivateKey":    cfg.WgPrivateKey,
+			"wgAllowedIPs":    mimicWGSubnet(cfg.WgAddress),
+			"clientPublicIP":  resolveNodePublicIP(node),
+			"clientPublicKey": cfg.ClientPublicKey,
+			"serverPublicIP":  clientServerIP,
+			"serverPublicKey": cfg.ServerPublicKey,
+		}
+
+		if _, cmdErr := h.sendNodeCommand(fp.NodeID, "MimicInstall", clientReq, true, false); cmdErr != nil {
+			fmt.Printf("[mimic] client install on entry node %d failed: %v\n", fp.NodeID, cmdErr)
+		} else {
+			fmt.Printf("[mimic] client install succeeded on entry node %d\n", fp.NodeID)
+		}
+	}
+
+	return nil
+}
+
+// generateWGKeyPair generates a WireGuard key pair by shelling out to wg(8).
+func generateWGKeyPair() (privKey, pubKey string, err error) {
+	privBytes, execErr := exec.Command("wg", "genkey").Output()
+	if execErr != nil {
+		return "", "", execErr
+	}
+	privKey = strings.TrimSpace(string(privBytes))
+
+	cmd := exec.Command("wg", "pubkey")
+	cmd.Stdin = strings.NewReader(privKey)
+	pubBytes, execErr := cmd.Output()
+	if execErr != nil {
+		return "", "", execErr
+	}
+	pubKey = strings.TrimSpace(string(pubBytes))
+	return
+}
+
+// resolveNodePublicIP returns the best available public IP for a node.
+func resolveNodePublicIP(node *nodeRecord) string {
+	if node.ServerIPv4 != "" {
+		return node.ServerIPv4
+	}
+	if node.ServerIP != "" {
+		return node.ServerIP
+	}
+	if node.ServerIPv6 != "" {
+		return node.ServerIPv6
+	}
+	return node.IntranetIP
+}
+
+// clientWGIP extracts the IP from a WG address (e.g. "10.66.0.2/24" → "10.66.0.2").
+func clientWGIP(addr string) string {
+	return strings.Split(addr, "/")[0]
+}
+
+// mimicWGSubnet converts a client WG address to the subnet (e.g. "10.66.0.2/24" → "10.66.0.0/24").
+func mimicWGSubnet(addr string) string {
+	if addr == "" {
+		return "10.66.0.0/24"
+	}
+	parts := strings.Split(addr, "/")
+	if len(parts) != 2 {
+		return "10.66.0.0/24"
+	}
+	ipParts := strings.Split(parts[0], ".")
+	if len(ipParts) != 4 {
+		return "10.66.0.0/24"
+	}
+	return fmt.Sprintf("%s.%s.%s.0/24", ipParts[0], ipParts[1], ipParts[2])
+}
+
+// tunnelTypeDisplay returns a readable tunnel type string.
+func tunnelTypeDisplay(tunnel *tunnelRecord) int {
+	if tunnel == nil {
+		return 0
+	}
+	return tunnel.Type
+}
+
+// uninstallMimicForward sends MimicUninstall to all nodes involved in a mimic forward.
+func (h *Handler) uninstallMimicForward(forward *forwardRecord) {
+	if forward == nil {
+		return
+	}
+	fmt.Printf("[mimic] uninstalling mimic forward %d\n", forward.ID)
+
+	cfg, err := h.repo.GetMimicConfig(forward.ID)
+	if err != nil {
+		fmt.Printf("[mimic] no config found for forward %d: %v\n", forward.ID, err)
+		return
+	}
+
+	// Find all entry nodes from forward ports
+	ports, listErr := h.listForwardPorts(forward.ID)
+	if listErr == nil {
+		for _, fp := range ports {
+			uninstallReq := map[string]interface{}{
+				"wgInterface": cfg.WgInterface,
+			}
+			if _, cmdErr := h.sendNodeCommand(fp.NodeID, "MimicUninstall", uninstallReq, false, true); cmdErr != nil {
+				fmt.Printf("[mimic] uninstall failed on node %d: %v\n", fp.NodeID, cmdErr)
+			} else {
+				fmt.Printf("[mimic] uninstalled mimic on entry node %d\n", fp.NodeID)
+			}
+		}
+	}
+
+	h.repo.DeleteMimicConfig(forward.ID)
 }
 
 // buildTunnelStateForNftRelay builds a tunnelCreateState from existing chain data

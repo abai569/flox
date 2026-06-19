@@ -3385,6 +3385,13 @@ func (h *Handler) forwardDelete(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	} else if strings.EqualFold(forward.Mode, forwardModeMimic) {
+		fmt.Printf("[mimic] cleaning up mimic forward %d\n", forward.ID)
+		h.uninstallMimicForward(forward)
+		if err := h.controlForwardServices(forward, "DeleteService", true); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
 	} else {
 		if err := h.controlForwardServices(forward, "DeleteService", true); err != nil {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
@@ -3430,6 +3437,9 @@ func (h *Handler) forwardForceDelete(w http.ResponseWriter, r *http.Request) {
 		if err := h.deleteNftablesRules(&forwardRecord{ID: id}, ports); err != nil {
 			fmt.Printf("️ forceDelete nftables规则清理异常: %v\n", err)
 		}
+	} else if forward != nil && strings.EqualFold(forward.Mode, forwardModeMimic) {
+		fmt.Printf("[mimic] force delete: cleaning up mimic forward %d\n", forward.ID)
+		h.uninstallMimicForward(forward)
 	}
 	if err := h.deleteForwardByID(id); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -4802,7 +4812,7 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 	if state.Type != 2 {
 		return createdChains, createdServices, nil
 	}
-	if strings.EqualFold(state.Mode, forwardModeSDWAN) {
+	if strings.EqualFold(state.Mode, forwardModeSDWAN) || strings.EqualFold(state.Mode, forwardModeMimic) {
 		return createdChains, createdServices, nil
 	}
 
