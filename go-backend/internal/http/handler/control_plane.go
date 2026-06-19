@@ -2951,17 +2951,40 @@ func (h *Handler) uninstallMimicForward(forward *forwardRecord) {
 		return
 	}
 
-	// Find all entry nodes from forward ports
+	// 1. Uninstall from entry nodes
 	ports, listErr := h.listForwardPorts(forward.ID)
 	if listErr == nil {
 		for _, fp := range ports {
 			uninstallReq := map[string]interface{}{
 				"wgInterface": cfg.WgInterface,
+				"mimicPort":   cfg.MimicPort,
+				"wgAddress":   cfg.WgAddress,
+				"role":        "client",
 			}
 			if _, cmdErr := h.sendNodeCommand(fp.NodeID, "MimicUninstall", uninstallReq, false, true); cmdErr != nil {
-				fmt.Printf("[mimic] uninstall failed on node %d: %v\n", fp.NodeID, cmdErr)
+				fmt.Printf("[mimic] uninstall failed on entry node %d: %v\n", fp.NodeID, cmdErr)
 			} else {
 				fmt.Printf("[mimic] uninstalled mimic on entry node %d\n", fp.NodeID)
+			}
+		}
+	}
+
+	// 2. Uninstall from exit/chain nodes (chain_type=3)
+	chainNodes, chainErr := h.listChainNodesForTunnel(forward.TunnelID)
+	if chainErr == nil {
+		for _, cn := range chainNodes {
+			if cn.ChainType == 3 {
+				uninstallReq := map[string]interface{}{
+					"wgInterface": cfg.WgInterface,
+					"mimicPort":   cfg.MimicPort,
+					"wgAddress":   cfg.ServerWgAddress,
+					"role":        "server",
+				}
+				if _, cmdErr := h.sendNodeCommand(cn.NodeID, "MimicUninstall", uninstallReq, false, true); cmdErr != nil {
+					fmt.Printf("[mimic] uninstall failed on exit node %d: %v\n", cn.NodeID, cmdErr)
+				} else {
+					fmt.Printf("[mimic] uninstalled mimic on exit node %d\n", cn.NodeID)
+				}
 			}
 		}
 	}

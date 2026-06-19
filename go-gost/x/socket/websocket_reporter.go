@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -3276,6 +3277,198 @@ type mimicInstallRequest struct {
 	ServerPublicKey string `json:"serverPublicKey"`
 }
 
+const (
+	mimicNFTDir    = "/etc/nftables.d"
+	mimicNFTConf   = "/etc/nftables.d/wgmimic.conf"
+	mimicNFTSvc    = "wgmimic-nft-restore.service"
+	mimicNFTSvcDir = "/etc/systemd/system"
+)
+
+// mimicWGSubnet converts a client WG address to the subnet CIDR.
+func mimicWGSubnet(addr string) string {
+	if addr == "" {
+		return "10.66.0.0/24"
+	}
+	parts := strings.Split(addr, "/")
+	if len(parts) != 2 {
+		return "10.66.0.0/24"
+	}
+	ipParts := strings.Split(parts[0], ".")
+	if len(ipParts) != 4 {
+		return "10.66.0.0/24"
+	}
+	return fmt.Sprintf("%s.%s.%s.0/24", ipParts[0], ipParts[1], ipParts[2])
+}
+
+// detectContainer checks if we are running inside a container (Docker/LXC).
+func detectContainer() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	data, err := os.ReadFile("/proc/1/cgroup")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(data), "docker") ||
+		strings.Contains(string(data), "lxc") ||
+		strings.Contains(string(data), "containerd")
+}
+
+// persistNftables dumps the current nftables ruleset to a file for boot-time restore.
+func persistNftables() error {
+	if err := os.MkdirAll(mimicNFTDir, 0755); err != nil {
+		return fmt.Errorf("create %s: %w", mimicNFTDir, err)
+	}
+	out, err := exec.Command("nft", "list", "ruleset").Output()
+	if err != nil {
+		return fmt.Errorf("list nftables ruleset: %w", err)
+	}
+	if err := os.WriteFile(mimicNFTConf, out, 0644); err != nil {
+		return fmt.Errorf("write %s: %w", mimicNFTConf, err)
+	}
+	return nil
+}
+
+// ensureNftRestoreService creates the systemd oneshot unit that restores nftables on boot.
+func ensureNftRestoreService() error {
+	svcPath := filepath.Join(mimicNFTSvcDir, mimicNFTSvc)
+	if _, err := os.Stat(svcPath); err == nil {
+		return nil
+	}
+	unit := fmt.Sprintf(`[Unit]
+Description=Restore WGMimic nftables rules
+Before=nftables.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f %s
+
+[Install]
+WantedBy=multi-user.target
+`, mimicNFTConf)
+
+	if err := os.MkdirAll(mimicNFTSvcDir, 0755); err != nil {
+		return fmt.Errorf("create systemd dir: %w", err)
+	}
+	if err := os.WriteFile(svcPath, []byte(unit), 0644); err != nil {
+		return fmt.Errorf("write systemd unit: %w", err)
+	}
+
+	exec.Command("systemctl", "daemon-reload").Run()
+	exec.Command("systemctl", "enable", mimicNFTSvc).Run()
+	fmt.Printf("[mimic] nftables restore service %s created and enabled\n", mimicNFTSvc)
+	return nil
+}
+
+// removeNftablesPortRules removes filter rules for a given port and MASQUERADE for the subnet.
+func removeNftablesPortRules(port int, wgSubnet string) {
+	if port <= 0 {
+		return
+	}
+	// Remove TCP/UDP filter rules for this port
+	out, _ := exec.Command("nft", "-a", "list", "chain", "inet", "wgmimic_filter", "input").CombinedOutput()
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.Contains(line, fmt.Sprintf("dport %d", port)) || !strings.Contains(line, "accept") {
+			continue
+		}
+		parts := strings.Fields(line)
+		for i, p := range parts {
+			if p == "handle" && i+1 < len(parts) {
+				exec.Command("nft", "delete", "rule", "inet", "wgmimic_filter", "input", "handle", parts[i+1]).Run()
+				break
+			}
+		}
+	}
+	// Remove MASQUERADE rule for this subnet
+	if wgSubnet == "" {
+		return
+	}
+	out, _ = exec.Command("nft", "-a", "list", "chain", "inet", "wgmimic_nat", "postrouting").CombinedOutput()
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.Contains(line, wgSubnet) || !strings.Contains(line, "masquerade") {
+			continue
+		}
+		parts := strings.Fields(line)
+		for i, p := range parts {
+			if p == "handle" && i+1 < len(parts) {
+				exec.Command("nft", "delete", "rule", "inet", "wgmimic_nat", "postrouting", "handle", parts[i+1]).Run()
+				break
+			}
+		}
+	}
+}
+
+// cleanupStaleMimicState detaches XDP, kills orphan mimic processes, and removes lock files.
+func cleanupStaleMimicState(publicIF string) {
+	if runtime.GOOS != "linux" || publicIF == "" {
+		return
+	}
+	// Detach stale XDP
+	exec.Command("ip", "link", "set", "dev", publicIF, "xdp", "off").Run()
+
+	// Kill orphan mimic processes for this interface
+	out, _ := exec.Command("pgrep", "-x", "mimic").Output()
+	for _, pid := range strings.Fields(string(out)) {
+		cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%s/cmdline", pid))
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(cmdline), publicIF) {
+			exec.Command("kill", pid).Run()
+		}
+	}
+
+	// Remove stale lock files
+	ifindexOut, _ := os.ReadFile(fmt.Sprintf("/sys/class/net/%s/ifindex", publicIF))
+	ifindex := strings.TrimSpace(string(ifindexOut))
+	if ifindex != "" {
+		matches, _ := filepath.Glob(fmt.Sprintf("/run/mimic/*_%s.lock", ifindex))
+		for _, m := range matches {
+			os.Remove(m)
+		}
+	}
+}
+
+// setupMimicXDP attempts to attach the mimic BPF object, with native→skb fallback.
+func setupMimicXDP(publicIF string) error {
+	if runtime.GOOS != "linux" || publicIF == "" {
+		return nil
+	}
+	bpfObj := findMimicBPF()
+	if bpfObj == "" {
+		return nil
+	}
+	if out, err := exec.Command("ip", "link", "set", "dev", publicIF, "xdp", "obj", bpfObj).CombinedOutput(); err == nil {
+		return nil
+	} else {
+		fmt.Printf("[mimic] native XDP failed, trying skb mode: %v\n", string(out))
+	}
+	if out, err := exec.Command("ip", "link", "set", "dev", publicIF, "xdpgeneric", "obj", bpfObj).CombinedOutput(); err != nil {
+		return fmt.Errorf("XDP skb fallback also failed: %v\n%s", err, string(out))
+	}
+	fmt.Println("[mimic] XDP attached in skb mode (fallback)")
+	return nil
+}
+
+func findMimicBPF() string {
+	for _, p := range []string{
+		"/usr/lib/mimic/mimic_bpf.o",
+		"/usr/local/lib/mimic/mimic_bpf.o",
+		"/usr/src/mimic/src/mimic_bpf.o",
+	} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+// ── Core handlers ──
+
 func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -3286,6 +3479,13 @@ func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
 		return fmt.Errorf("解析 MimicInstall 请求失败: %v", err)
 	}
 	fmt.Printf("[mimic] installing mimic tunnel: role=%s port=%d\n", req.Role, req.MimicPort)
+
+	if detectContainer() {
+		return fmt.Errorf("不支持在容器中运行 Mimic，请在宿主机上安装")
+	}
+
+	cleanupStaleMimicState(req.ServerPublicIP)
+
 	if err := autoInstallMimic(); err != nil {
 		return fmt.Errorf("Mimic 自动安装失败: %w", err)
 	}
@@ -3299,13 +3499,11 @@ func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
 }
 
 func autoInstallMimic() error {
-	// 1. 检查 mimic 是否已安装
 	if _, err := exec.LookPath("mimic"); err == nil {
 		fmt.Println("[mimic] mimic binary already installed")
 		return nil
 	}
 
-	// 2. 尝试加载内核模块（可能已安装但未加载）
 	fmt.Println("[mimic] loading kernel module...")
 	if out, err := exec.Command("modprobe", "mimic").CombinedOutput(); err == nil {
 		fmt.Println("[mimic] kernel module loaded successfully")
@@ -3314,7 +3512,6 @@ func autoInstallMimic() error {
 		fmt.Printf("[mimic] modprobe failed: %v\n", string(out))
 	}
 
-	// 3. 检查 wireguard-tools
 	fmt.Println("[mimic] checking wireguard-tools...")
 	if _, err := exec.LookPath("wg"); err != nil {
 		fmt.Println("[mimic] wireguard-tools not found, installing...")
@@ -3336,7 +3533,6 @@ func autoInstallMimic() error {
 		fmt.Println("[mimic] wireguard-tools already installed")
 	}
 
-	// 4. 安装 mimic
 	fmt.Println("[mimic] starting mimic installation...")
 	out, _ := exec.Command("uname", "-r").Output()
 	kr := strings.TrimSpace(string(out))
@@ -3348,7 +3544,6 @@ func autoInstallMimic() error {
 			fmt.Printf("[mimic] dependencies install failed: %v\n%s\n", err, string(out))
 		}
 
-		// 尝试下载 deb 包
 		fmt.Println("[mimic] downloading mimic-dkms.deb...")
 		dl := exec.Command("curl", "-fsSL",
 			"https://github.com/hack3ric/mimic/releases/latest/download/mimic-dkms.deb",
@@ -3368,7 +3563,6 @@ func autoInstallMimic() error {
 			}
 		}
 
-		// 回退到 DKMS 编译
 		fmt.Println("[mimic] falling back to dkms build...")
 		exec.Command("rm", "-rf", "/tmp/mimic-src").Run()
 		if out, err := exec.Command("git", "clone", "--depth", "1",
@@ -3407,10 +3601,28 @@ func (w *WebSocketReporter) handleMimicUninstall(data interface{}) error {
 	if err := json.Unmarshal(jsonData, &req); err != nil {
 		return fmt.Errorf("解析 MimicUninstall 请求失败: %v", err)
 	}
-	fmt.Printf("[mimic] uninstalling mimic tunnel: role=%s interface=%s\n", req.Role, req.WgInterface)
+	fmt.Printf("[mimic] uninstalling mimic tunnel: role=%s interface=%s port=%d\n", req.Role, req.WgInterface, req.MimicPort)
+
 	if req.WgInterface != "" {
-		exec.Command("wg-quick", "down", req.WgInterface).Run()
+		fmt.Printf("[mimic] bringing down wg-quick %s...\n", req.WgInterface)
+		if out, err := exec.Command("wg-quick", "down", req.WgInterface).CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] wg-quick down warning: %v\n%s\n", err, string(out))
+		}
+		confPath := fmt.Sprintf("/etc/wireguard/%s.conf", req.WgInterface)
+		if err := os.Remove(confPath); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("[mimic] remove WG config warning: %v\n", err)
+		}
 	}
+
+	if req.MimicPort > 0 {
+		removeNftablesPortRules(req.MimicPort, mimicWGSubnet(req.WgAddress))
+	}
+
+	if err := persistNftables(); err != nil {
+		fmt.Printf("[mimic] re-persist nftables warning: %v\n", err)
+	}
+
+	fmt.Println("[mimic] mimic tunnel uninstalled")
 	return nil
 }
 
@@ -3421,9 +3633,17 @@ func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 	}
 	fmt.Printf("[mimic] setting up WireGuard interface %s (role=%s)...\n", wgIF, req.Role)
 
+	if err := os.MkdirAll("/etc/wireguard", 0700); err != nil {
+		return fmt.Errorf("创建 /etc/wireguard 目录失败: %w", err)
+	}
+
 	confPath := fmt.Sprintf("/etc/wireguard/%s.conf", wgIF)
 	if _, err := os.Stat(confPath); err == nil {
 		fmt.Printf("[mimic] WireGuard config %s already exists, skipping\n", confPath)
+		// Still ensure the interface is up (reuse existing config)
+		if out, err := exec.Command("wg-quick", "up", wgIF).CombinedOutput(); err != nil {
+			fmt.Printf("[mimic] wg-quick up %s warning: %v\n%s\n", wgIF, err, string(out))
+		}
 		return nil
 	}
 
@@ -3448,9 +3668,6 @@ func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 	}
 
 	fmt.Printf("[mimic] writing WireGuard config to %s\n", confPath)
-	if err := os.MkdirAll("/etc/wireguard", 0755); err != nil {
-		return fmt.Errorf("创建 /etc/wireguard 目录失败: %w", err)
-	}
 	if err := os.WriteFile(confPath, []byte(b.String()), 0600); err != nil {
 		return fmt.Errorf("写 WG 配置失败: %w", err)
 	}
@@ -3463,6 +3680,9 @@ func (w *WebSocketReporter) setupMimicWireGuard(req mimicInstallRequest) error {
 	return nil
 }
 
+// setupMimicNftables configures nftables rules for the mimic tunnel port.
+// It returns errors instead of swallowing them (P0-2), removes stale rules first (P0-7),
+// and persists the ruleset for reboot recovery (P0-1).
 func (w *WebSocketReporter) setupMimicNftables(req mimicInstallRequest) error {
 	if req.MimicPort <= 0 {
 		fmt.Println("[mimic] skipping nftables setup (invalid port)")
@@ -3470,46 +3690,50 @@ func (w *WebSocketReporter) setupMimicNftables(req mimicInstallRequest) error {
 	}
 	fmt.Printf("[mimic] setting up nftables rules for port %d...\n", req.MimicPort)
 
-	// 创建 wgmimic_filter 表
-	fmt.Println("[mimic] creating wgmimic_filter table...")
+	// Create table and chain (idempotent)
 	if out, err := exec.Command("nft", "add", "table", "inet", "wgmimic_filter").CombinedOutput(); err != nil {
-		fmt.Printf("[mimic] create filter table failed: %v\n%s\n", err, string(out))
+		return fmt.Errorf("create wgmimic_filter table: %v\n%s", err, string(out))
 	}
-
-	// 创建 input chain
-	fmt.Println("[mimic] creating input chain...")
 	if out, err := exec.Command("nft", "add", "chain", "inet", "wgmimic_filter", "input",
 		"{ type filter hook input priority -100; policy accept; }").CombinedOutput(); err != nil {
-		fmt.Printf("[mimic] create input chain failed: %v\n%s\n", err, string(out))
+		return fmt.Errorf("create input chain: %v\n%s", err, string(out))
 	}
 
-	// 放行 Mimic 端口
-	fmt.Printf("[mimic] allowing TCP/UDP port %d...\n", req.MimicPort)
+	// Remove existing rules for this port (P0-7 idempotent)
+	removeNftablesPortRules(req.MimicPort, mimicWGSubnet(req.WgAddress))
+
+	// Add fresh rules
 	if out, err := exec.Command("nft", "add", "rule", "inet", "wgmimic_filter", "input",
 		fmt.Sprintf("tcp dport %d accept", req.MimicPort)).CombinedOutput(); err != nil {
-		fmt.Printf("[mimic] allow tcp failed: %v\n%s\n", err, string(out))
+		return fmt.Errorf("allow tcp port %d: %v\n%s", req.MimicPort, err, string(out))
 	}
 	if out, err := exec.Command("nft", "add", "rule", "inet", "wgmimic_filter", "input",
 		fmt.Sprintf("udp dport %d accept", req.MimicPort)).CombinedOutput(); err != nil {
-		fmt.Printf("[mimic] allow udp failed: %v\n%s\n", err, string(out))
+		return fmt.Errorf("allow udp port %d: %v\n%s", req.MimicPort, err, string(out))
 	}
 
-	// 服务端需要 MASQUERADE
+	// Server MASQUERADE
 	if req.Role == "server" {
-		fmt.Println("[mimic] setting up MASQUERADE for server...")
 		if out, err := exec.Command("nft", "add", "table", "inet", "wgmimic_nat").CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] create nat table failed: %v\n%s\n", err, string(out))
+			return fmt.Errorf("create wgmimic_nat table: %v\n%s", err, string(out))
 		}
 		if out, err := exec.Command("nft", "add", "chain", "inet", "wgmimic_nat", "postrouting",
 			"{ type nat hook postrouting priority srcnat; policy accept; }").CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] create postrouting chain failed: %v\n%s\n", err, string(out))
+			return fmt.Errorf("create postrouting chain: %v\n%s", err, string(out))
 		}
-		wgSubnet := strings.Split(req.WgAddress, "/")[0] + "/24"
-		fmt.Printf("[mimic] adding MASQUERADE rule for %s...\n", wgSubnet)
+		wgSubnet := mimicWGSubnet(req.WgAddress)
 		if out, err := exec.Command("nft", "add", "rule", "inet", "wgmimic_nat", "postrouting",
 			fmt.Sprintf("ip saddr %s masquerade", wgSubnet)).CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] add masquerade rule failed: %v\n%s\n", err, string(out))
+			return fmt.Errorf("add masquerade for %s: %v\n%s", wgSubnet, err, string(out))
 		}
+	}
+
+	// P0-1: Persist rules and ensure restore service
+	if err := persistNftables(); err != nil {
+		fmt.Printf("[mimic] persist nftables warning: %v\n", err)
+	}
+	if err := ensureNftRestoreService(); err != nil {
+		fmt.Printf("[mimic] ensure restore service warning: %v\n", err)
 	}
 
 	fmt.Println("[mimic] nftables setup completed")
