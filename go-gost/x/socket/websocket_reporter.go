@@ -232,7 +232,9 @@ type WebSocketReporter struct {
 	nftablesConntrackPrev map[string]uint64       // "protocol:port" → last total conntrack bytes
 	nftConnPrev          map[int64]nftables.RuleConnInfo
 	nftablesPrevMu       sync.Mutex
-	nodeNetworkEnv       string // 节点网络环境永久缓存："domestic" | "overseas" | ""（未检测）
+	nodeNetworkEnv       string                // 节点网络环境永久缓存："domestic" | "overseas" | ""（未检测）
+	mimicDaemons         map[string]*exec.Cmd  // wgIF → mimic daemon cmd (P2-18)
+	mimicDaemonsMu       sync.Mutex
 }
 
 var wsDial = func(dialer *websocket.Dialer, rawURL string) (*websocket.Conn, *http.Response, error) {
@@ -265,6 +267,7 @@ func NewWebSocketReporter(serverURL string, secret string) *WebSocketReporter {
 		nftablesPrevCounters: make(map[string]uint64),
 		nftablesConntrackPrev: make(map[string]uint64),
 		nftConnPrev:          make(map[int64]nftables.RuleConnInfo),
+		mimicDaemons:         make(map[string]*exec.Cmd),
 	}
 }
 
@@ -3301,6 +3304,176 @@ const (
 	mimicNFTSvcDir = "/etc/systemd/system"
 )
 
+// ── Package manager abstraction (P1-11) ──
+
+type pmType int
+
+const (
+	pmUnknown pmType = iota
+	pmAptGet
+	pmDnf
+	pmYum
+	pmApk
+)
+
+type pmInfo struct {
+	typ     pmType
+	cmd     string   // install command
+	pkgCmd  string   // base command
+	updCmd  string   // update command
+	wirePkg string   // wireguard-tools package name
+	headerPkg func(kr string) string // kernel headers package
+	dkmsPkg string   // dkms package name
+	genericKernelPkg string
+	genericHeaderPkg string
+}
+
+func detectPM() pmInfo {
+	// Check for known package managers
+	if _, err := exec.LookPath("apt-get"); err == nil {
+		return pmInfo{
+			typ:     pmAptGet,
+			pkgCmd:  "apt-get",
+			updCmd:  "apt-get update",
+			wirePkg: "wireguard-tools",
+			headerPkg: func(kr string) string { return "linux-headers-" + kr },
+			dkmsPkg: "dkms",
+			genericKernelPkg: "linux-image-amd64",
+			genericHeaderPkg: "linux-headers-amd64",
+		}
+	}
+	if _, err := exec.LookPath("dnf"); err == nil {
+		return pmInfo{
+			typ:     pmDnf,
+			pkgCmd:  "dnf",
+			updCmd:  "dnf makecache",
+			wirePkg: "wireguard-tools",
+			headerPkg: func(kr string) string { return "kernel-devel" },
+			dkmsPkg: "dkms",
+			genericKernelPkg: "kernel",
+			genericHeaderPkg: "kernel-devel",
+		}
+	}
+	if _, err := exec.LookPath("yum"); err == nil {
+		return pmInfo{
+			typ:     pmYum,
+			pkgCmd:  "yum",
+			updCmd:  "yum makecache",
+			wirePkg: "wireguard-tools",
+			headerPkg: func(kr string) string { return "kernel-devel" },
+			dkmsPkg: "dkms",
+			genericKernelPkg: "kernel",
+			genericHeaderPkg: "kernel-devel",
+		}
+	}
+	if _, err := exec.LookPath("apk"); err == nil {
+		return pmInfo{
+			typ:     pmApk,
+			pkgCmd:  "apk",
+			updCmd:  "apk update",
+			wirePkg: "wireguard-tools",
+			headerPkg: func(kr string) string { return "linux-headers" },
+			dkmsPkg: "dkms",
+			genericKernelPkg: "linux-lts",
+			genericHeaderPkg: "linux-lts-dev",
+		}
+	}
+	return pmInfo{typ: pmUnknown}
+}
+
+func (pm pmInfo) install(pkgs ...string) error {
+	args := []string{"install", "-y"}
+	args = append(args, pkgs...)
+	if out, err := exec.Command(pm.pkgCmd, args...).CombinedOutput(); err != nil {
+		return fmt.Errorf("%s install failed: %v\n%s", pm.pkgCmd, err, string(out))
+	}
+	return nil
+}
+
+func (pm pmInfo) update() error {
+	if pm.typ == pmApk {
+		if out, err := exec.Command("apk", "update").CombinedOutput(); err != nil {
+			return fmt.Errorf("apk update failed: %v\n%s", err, string(out))
+		}
+		return nil
+	}
+	if out, err := exec.Command(pm.pkgCmd, "update").CombinedOutput(); err != nil {
+		return fmt.Errorf("%s update failed: %v\n%s", pm.pkgCmd, err, string(out))
+	}
+	return nil
+}
+
+// ── Mimic daemon management (P2-18) ──
+
+func (w *WebSocketReporter) startMimicDaemon(wgIF string, mimicPort int, publicIF string) error {
+	if runtime.GOOS != "linux" {
+		return nil
+	}
+	if _, err := exec.LookPath("mimic"); err != nil {
+		return fmt.Errorf("mimic binary not found: %w", err)
+	}
+	if publicIF == "" {
+		publicIF = detectPublicIF()
+	}
+	if publicIF == "" {
+		return fmt.Errorf("无法确定公网接口")
+	}
+
+	w.mimicDaemonsMu.Lock()
+	defer w.mimicDaemonsMu.Unlock()
+
+	// Stop existing daemon for this interface if any
+	if old, ok := w.mimicDaemons[wgIF]; ok {
+		old.Process.Kill()
+		old.Wait()
+		delete(w.mimicDaemons, wgIF)
+	}
+
+	portStr := strconv.Itoa(mimicPort)
+	cmd := exec.Command("mimic",
+		"--interface", publicIF,
+		"--port", portStr,
+		"--keepalive", "15")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("启动 mimic 守护进程失败: %w", err)
+	}
+	w.mimicDaemons[wgIF] = cmd
+	fmt.Printf("[mimic] daemon started: interface=%s port=%d publicIF=%s pid=%d\n", wgIF, mimicPort, publicIF, cmd.Process.Pid)
+	return nil
+}
+
+func (w *WebSocketReporter) stopMimicDaemon(wgIF string) {
+	w.mimicDaemonsMu.Lock()
+	defer w.mimicDaemonsMu.Unlock()
+
+	cmd, ok := w.mimicDaemons[wgIF]
+	if !ok {
+		return
+	}
+	fmt.Printf("[mimic] stopping daemon for %s (pid=%d)\n", wgIF, cmd.Process.Pid)
+	cmd.Process.Kill()
+	cmd.Wait()
+	delete(w.mimicDaemons, wgIF)
+}
+
+func detectPublicIF() string {
+	// Try to find the default route interface
+	out, err := exec.Command("ip", "route").Output()
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		parts := strings.Fields(line)
+		if len(parts) >= 5 && parts[0] == "default" {
+			return parts[4]
+		}
+	}
+	return ""
+}
+
 // mimicWGSubnet converts a client WG address to the subnet CIDR.
 func mimicWGSubnet(addr string) string {
 	if addr == "" {
@@ -3563,6 +3736,11 @@ func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
 		return fmt.Errorf("nftables 配置失败: %w", err)
 	}
 
+	// P2-18: Start mimic daemon with keepalive
+	if daemonErr := w.startMimicDaemon(req.WgInterface, req.MimicPort, req.ServerPublicIP); daemonErr != nil {
+		fmt.Printf("[mimic] daemon start warning (non-fatal): %v\n", daemonErr)
+	}
+
 	// P2-16: Security group notice
 	serverIP := req.ServerPublicIP
 	if serverIP == "" {
@@ -3597,23 +3775,22 @@ func autoInstallMimic() error {
 		fmt.Printf("[mimic] modprobe failed: %v\n", string(out))
 	}
 
+	pm := detectPM()
+	if pm.typ == pmUnknown {
+		return fmt.Errorf("不支持的包管理器，请手动安装 wireguard-tools 和 mimic")
+	}
+
 	fmt.Println("[mimic] checking wireguard-tools...")
 	if _, err := exec.LookPath("wg"); err != nil {
 		fmt.Println("[mimic] wireguard-tools not found, installing...")
-		if _, aptErr := exec.LookPath("apt-get"); aptErr == nil {
-			fmt.Println("[mimic] running apt-get update...")
-			if out, err := exec.Command("apt-get", "update").CombinedOutput(); err != nil {
-				fmt.Printf("[mimic] apt-get update failed: %v\n%s\n", err, string(out))
-			}
-			fmt.Println("[mimic] installing wireguard-tools...")
-			if out, err := exec.Command("apt-get", "install", "-y", "wireguard-tools").CombinedOutput(); err != nil {
-				fmt.Printf("[mimic] wireguard-tools install failed: %v\n%s\n", err, string(out))
-				return fmt.Errorf("wireguard-tools 安装失败: %w", err)
-			}
-			fmt.Println("[mimic] wireguard-tools installed")
-		} else {
-			return fmt.Errorf("不支持的包管理器，请手动安装 wireguard-tools")
+		fmt.Println("[mimic] running package manager update...")
+		if updErr := pm.update(); updErr != nil {
+			fmt.Printf("[mimic] update warning: %v\n", updErr)
 		}
+		if err := pm.install(pm.wirePkg); err != nil {
+			return fmt.Errorf("wireguard-tools 安装失败: %w", err)
+		}
+		fmt.Println("[mimic] wireguard-tools installed")
 	} else {
 		fmt.Println("[mimic] wireguard-tools already installed")
 	}
@@ -3623,17 +3800,18 @@ func autoInstallMimic() error {
 	kr := strings.TrimSpace(string(out))
 	fmt.Printf("[mimic] kernel: %s\n", kr)
 
-	if _, err := exec.LookPath("apt-get"); err == nil {
-		fmt.Println("[mimic] installing dependencies...")
-		if out, err := exec.Command("apt-get", "install", "-y", "linux-headers-"+kr, "dkms", "curl", "git", "make", "gcc").CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] dependencies install failed: %v\n%s\n", err, string(out))
-			// P1-14: Kernel headers not found — install generic kernel
-			fmt.Println("[mimic] current kernel headers not available, installing generic kernel...")
-			exec.Command("apt-get", "install", "-y", "linux-image-amd64", "linux-headers-amd64").Run()
-			return fmt.Errorf("当前内核 %s 的头文件不可用，已安装通用内核，请重启后重试", kr)
-		}
+	deps := []string{pm.headerPkg(kr), pm.dkmsPkg, "curl", "git", "make", "gcc"}
+	fmt.Println("[mimic] installing dependencies...")
+	if err := pm.install(deps...); err != nil {
+		fmt.Printf("[mimic] dependencies install failed: %v\n", err)
+		// P1-14: Kernel headers not found
+		fmt.Println("[mimic] current kernel headers not available, installing generic kernel...")
+		pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
+		return fmt.Errorf("当前内核 %s 的头文件不可用，已安装通用内核，请重启后重试", kr)
+	}
 
-		// P1-13: Download mimic deb (direct → proxy fallback)
+	// Try Debian deb package for apt-based systems
+	if pm.typ == pmAptGet {
 		mimicDebURL := "https://github.com/hack3ric/mimic/releases/latest/download/mimic-dkms.deb"
 		mimicDebPath := "/tmp/mimic-dkms.deb"
 		downloaded := false
@@ -3641,14 +3819,11 @@ func autoInstallMimic() error {
 		fmt.Println("[mimic] downloading mimic-dkms.deb...")
 		if out, err := exec.Command("curl", "-fsSL", mimicDebURL, "-o", mimicDebPath).CombinedOutput(); err != nil {
 			fmt.Printf("[mimic] direct download failed: %v\n%s\n", err, string(out))
-			// Fallback to GitHub proxy
 			proxyPrefix := "https://gh-proxy.com/"
 			if p := os.Getenv("MIMIC_GITHUB_PROXY"); p != "" {
 				proxyPrefix = p
 			}
-			proxyURL := proxyPrefix + mimicDebURL
-			fmt.Printf("[mimic] trying proxy: %s\n", proxyURL)
-			if out, err := exec.Command("curl", "-fsSL", proxyURL, "-o", mimicDebPath).CombinedOutput(); err != nil {
+			if out, err := exec.Command("curl", "-fsSL", proxyPrefix+mimicDebURL, "-o", mimicDebPath).CombinedOutput(); err != nil {
 				fmt.Printf("[mimic] proxy download also failed: %v\n%s\n", err, string(out))
 			} else {
 				downloaded = true
@@ -3667,43 +3842,38 @@ func autoInstallMimic() error {
 				return nil
 			} else {
 				fmt.Printf("[mimic] dpkg install failed: %v\n%s\n", err, string(out))
-				// P2-19: Check for DKMS BUILD_EXCLUSIVE rejection
 				output := string(out)
 				if strings.Contains(output, "BUILD_EXCLUSIVE") || strings.Contains(output, "does not match") || strings.Contains(output, "should not be built") {
 					fmt.Println("[mimic] DKMS rejected current kernel — installing generic kernel...")
-					exec.Command("apt-get", "install", "-y", "linux-image-amd64", "linux-headers-amd64").Run()
+					pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
 					return fmt.Errorf("当前内核 %s 被 DKMS 拒绝，已安装通用内核，请重启后重试", kr)
 				}
 			}
 		}
-
-		fmt.Println("[mimic] falling back to dkms build...")
-		exec.Command("rm", "-rf", "/tmp/mimic-src").Run()
-		if out, err := exec.Command("git", "clone", "--depth", "1",
-			"https://github.com/hack3ric/mimic.git", "/tmp/mimic-src").CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] git clone failed: %v\n%s\n", err, string(out))
-			return fmt.Errorf("mimic 安装失败: git clone 失败")
-		}
-		fmt.Println("[mimic] building from source...")
-		if out, err := exec.Command("make", "-C", "/tmp/mimic-src").CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] make failed: %v\n%s\n", err, string(out))
-			return fmt.Errorf("mimic 编译失败")
-		}
-		fmt.Println("[mimic] installing...")
-		if out, err := exec.Command("make", "-C", "/tmp/mimic-src", "install").CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] make install failed: %v\n%s\n", err, string(out))
-			return fmt.Errorf("mimic 安装失败")
-		}
-		fmt.Println("[mimic] loading kernel module...")
-		if out, err := exec.Command("modprobe", "mimic").CombinedOutput(); err != nil {
-			fmt.Printf("[mimic] modprobe failed: %v\n%s\n", err, string(out))
-			return fmt.Errorf("mimic 内核模块加载失败")
-		}
-		fmt.Println("[mimic] installed via dkms build successfully")
-		return nil
 	}
 
-	return fmt.Errorf("不支持的包管理器，请手动安装 mimic")
+	// Fallback: build from source (works on all distros)
+	fmt.Println("[mimic] building from source...")
+	exec.Command("rm", "-rf", "/tmp/mimic-src").Run()
+	if out, err := exec.Command("git", "clone", "--depth", "1",
+		"https://github.com/hack3ric/mimic.git", "/tmp/mimic-src").CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] git clone failed: %v\n%s\n", err, string(out))
+		return fmt.Errorf("mimic 安装失败: git clone 失败")
+	}
+	if out, err := exec.Command("make", "-C", "/tmp/mimic-src").CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] make failed: %v\n%s\n", err, string(out))
+		return fmt.Errorf("mimic 编译失败")
+	}
+	if out, err := exec.Command("make", "-C", "/tmp/mimic-src", "install").CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] make install failed: %v\n%s\n", err, string(out))
+		return fmt.Errorf("mimic 安装失败")
+	}
+	if out, err := exec.Command("modprobe", "mimic").CombinedOutput(); err != nil {
+		fmt.Printf("[mimic] modprobe failed: %v\n%s\n", err, string(out))
+		return fmt.Errorf("mimic 内核模块加载失败")
+	}
+	fmt.Println("[mimic] mimic installed and kernel module loaded")
+	return nil
 }
 
 func (w *WebSocketReporter) handleMimicUninstall(data interface{}) error {
@@ -3716,6 +3886,9 @@ func (w *WebSocketReporter) handleMimicUninstall(data interface{}) error {
 		return fmt.Errorf("解析 MimicUninstall 请求失败: %v", err)
 	}
 	fmt.Printf("[mimic] uninstalling mimic tunnel: role=%s interface=%s port=%d\n", req.Role, req.WgInterface, req.MimicPort)
+
+	// P2-18: Stop mimic daemon
+	w.stopMimicDaemon(req.WgInterface)
 
 	if req.WgInterface != "" {
 		fmt.Printf("[mimic] bringing down wg-quick %s...\n", req.WgInterface)
