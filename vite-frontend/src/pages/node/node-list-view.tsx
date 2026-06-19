@@ -269,6 +269,14 @@ function SortableTableRow({
             className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${connectionStatusMeta.color === "success" ? "bg-emerald-500" : "bg-rose-500"}`}
             title={connectionStatusMeta.text}
           />
+          {(node as any).mimicStatus && (node as any).mimicStatus !== "ok" && (node as any).mimicStatus !== "deps_ready" && (
+            <span
+              className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+              title={(node as any).mimicError || "WGM 依赖未就绪"}
+            >
+              WGM
+            </span>
+          )}
           <span
             className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
             title={node.name}

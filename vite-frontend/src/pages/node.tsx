@@ -141,6 +141,8 @@ interface Node {
   socks?: number;
   status: number;
   connectionStatus: "online" | "offline";
+  mimicStatus?: string;
+  mimicError?: string;
   systemInfo?: NodeSystemInfo | null;
   copyLoading?: boolean;
   upgradeLoading?: boolean;
@@ -738,6 +740,8 @@ export default function NodePage() {
             : node.status === 1
               ? "online"
               : "offline",
+          mimicStatus: node.mimic_status || "",
+          mimicError: node.mimic_error || "",
           syncError: node.syncError || undefined,
           systemInfo: null,
           copyLoading: false,
@@ -937,6 +941,27 @@ export default function NodePage() {
                 error: progressData.data.error || false,
               },
             }),
+          );
+        }
+      } catch {}
+    } else if (type === "mimic_status") {
+      try {
+        const statusData =
+          typeof messageData === "string"
+            ? JSON.parse(messageData)
+            : messageData;
+
+        if (statusData?.data) {
+          setNodeList((prev) =>
+            prev.map((n) =>
+              n.id === nodeId
+                ? {
+                    ...n,
+                    mimicStatus: statusData.data.status || "",
+                    mimicError: statusData.data.error || "",
+                  }
+                : n,
+            ),
           );
         }
       } catch {}
@@ -2305,6 +2330,15 @@ export default function NodePage() {
                 }`}
                 title={connectionStatusMeta.text}
               />
+              {/* Mimic 状态标签 */}
+              {node.mimicStatus && node.mimicStatus !== "ok" && node.mimicStatus !== "deps_ready" && (
+                <span
+                  className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                  title={node.mimicError || "WGM 依赖未就绪"}
+                >
+                  WGM
+                </span>
+              )}
               {/* 这里加上 title 属性 */}
               <h3
                 className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"

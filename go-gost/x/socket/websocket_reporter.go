@@ -3385,12 +3385,31 @@ func detectPM() pmInfo {
 }
 
 func (pm pmInfo) install(pkgs ...string) error {
+	return pm.installWithRetry(false, pkgs...)
+}
+
+// installWithRetry attempts to install packages. If the first attempt fails
+// with an HTTP 404 / "Failed to fetch" error (stale apt cache), it runs
+// apt-get update and retries once.
+func (pm pmInfo) installWithRetry(allowRetry bool, pkgs ...string) error {
 	args := []string{"install", "-y"}
 	args = append(args, pkgs...)
-	if out, err := exec.Command(pm.pkgCmd, args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("%s install failed: %v\n%s", pm.pkgCmd, err, string(out))
+	out, err := exec.Command(pm.pkgCmd, args...).CombinedOutput()
+	if err == nil {
+		return nil
 	}
-	return nil
+	errMsg := string(out)
+	// Retry on stale cache errors
+	if allowRetry && pm.typ == pmAptGet && (strings.Contains(errMsg, "404 Not Found") || strings.Contains(errMsg, "Failed to fetch") || strings.Contains(errMsg, "Unable to fetch some archives")) {
+		fmt.Printf("[mimic] apt cache may be stale, retrying after update: %v\n%s\n", err, errMsg)
+		exec.Command("apt-get", "update").Run()
+		out2, err2 := exec.Command(pm.pkgCmd, args...).CombinedOutput()
+		if err2 == nil {
+			return nil
+		}
+		return fmt.Errorf("%s install failed after retry: %v\n%s\nfirst attempt: %v\n%s", pm.pkgCmd, err2, string(out2), err, errMsg)
+	}
+	return fmt.Errorf("%s install failed: %v\n%s", pm.pkgCmd, err, errMsg)
 }
 
 func (pm pmInfo) update() error {
@@ -4190,6 +4209,29 @@ func quickCheckMimicDeps() bool {
 	return true
 }
 
+// detectKernelVariant returns the kernel variant suffix: "cloud", "rt", or "generic".
+func detectKernelVariant(kr string) string {
+	if strings.Contains(kr, "cloud") {
+		return "cloud"
+	}
+	if strings.Contains(kr, "rt") {
+		return "rt"
+	}
+	return "generic"
+}
+
+// getKernelFallbackPackages returns (imagePkg, headerPkg) matching the kernel variant.
+func getKernelFallbackPackages(kr string, pm pmInfo) (string, string) {
+	switch detectKernelVariant(kr) {
+	case "cloud":
+		return "linux-image-cloud-amd64", "linux-headers-cloud-amd64"
+	case "rt":
+		return "linux-image-rt-amd64", "linux-headers-rt-amd64"
+	default:
+		return pm.genericKernelPkg, pm.genericHeaderPkg
+	}
+}
+
 // handleInstallMimicDeps installs mimic dependencies (bubblewrap, clang, etc.)
 func (w *WebSocketReporter) handleInstallMimicDeps() error {
 	fmt.Println("[mimic] installing mimic dependencies on request...")
@@ -4232,20 +4274,35 @@ func (w *WebSocketReporter) handleInstallMimicDeps() error {
 	// 4. Install recommends (bubblewrap is critical for DKMS build sandbox)
 	recommends := []string{"bubblewrap", "pahole", "xz-utils", "lz4", "zstd", "bzip2"}
 	fmt.Printf("[mimic] installing recommends: %v\n", recommends)
-	if err := pm.install(recommends...); err != nil {
+	if err := pm.installWithRetry(true, recommends...); err != nil {
 		return fmt.Errorf("Recommends 安装失败: %w", err)
 	}
 
 	// 5. Detect clang-built kernel and install LLVM if needed
 	ensureKernelBuildTools(pm)
 
-	// 6. Install build deps (headers, dkms, bpftool, clang, libbpf-dev, etc.)
+	// Read kernel info
 	codename := detectMimicDebianCodename()
 	unameOut, _ := exec.Command("uname", "-r").Output()
 	kr := strings.TrimSpace(string(unameOut))
+
+	// Check if kernel headers are available before attempting install
+	if pm.typ == pmAptGet {
+		policyOut, _ := exec.Command("apt-cache", "policy", pm.headerPkg(kr)).CombinedOutput()
+		policyStr := string(policyOut)
+		if !strings.Contains(policyStr, "Candidate:") || strings.Contains(policyStr, "(none)") && !strings.Contains(policyStr, "Candidate: (none)") {
+			// Headers are not in any repo — kernel too old
+			fallbackImg, fallbackHdr := getKernelFallbackPackages(kr, pm)
+			fmt.Printf("[mimic] kernel %s (%s) headers not found in repos, installing %s + %s...\n", kr, detectKernelVariant(kr), fallbackImg, fallbackHdr)
+			pm.install(fallbackImg, fallbackHdr)
+			return fmt.Errorf("当前内核 %s 在仓库中已不存在对应的头文件包，已安装匹配内核，请重启后重试", kr)
+		}
+	}
+
+	// 6. Install build deps (headers, dkms, bpftool, clang, libbpf-dev, etc.)
 	deps := mimicSourceBuildDeps(pm, kr, codename)
 	fmt.Printf("[mimic] installing build deps: %v\n", deps)
-	if err := pm.install(deps...); err != nil {
+	if err := pm.installWithRetry(true, deps...); err != nil {
 		return fmt.Errorf("依赖安装失败: %w", err)
 	}
 
@@ -4311,9 +4368,10 @@ func autoInstallMimic() error {
 			out, _ := exec.Command("apt-cache", "policy", pm.headerPkg(kr)).CombinedOutput()
 			policyOut := string(out)
 			if strings.Contains(errMsg, "linux-headers") || !strings.Contains(policyOut, "Candidate:") {
-				fmt.Printf("[mimic] kernel headers for %s not found in repos, installing latest generic kernel...\n", kr)
-				pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
-				return fmt.Errorf("当前内核 %s 在仓库中已不存在对应的头文件包，已安装通用内核，请重启后重试", kr)
+				fallbackImg, fallbackHdr := getKernelFallbackPackages(kr, pm)
+				fmt.Printf("[mimic] kernel %s (%s) headers not found in repos, installing %s + %s...\n", kr, detectKernelVariant(kr), fallbackImg, fallbackHdr)
+				pm.install(fallbackImg, fallbackHdr)
+				return fmt.Errorf("当前内核 %s 在仓库中已不存在对应的头文件包，已安装匹配内核，请重启后重试", kr)
 			}
 			return fmt.Errorf("mimic 前置依赖安装失败: %w", err)
 		}
@@ -4337,9 +4395,10 @@ func autoInstallMimic() error {
 					fmt.Printf("[mimic] package installation failed: %v\n", err)
 					output := err.Error()
 					if strings.Contains(output, "DKMS_BUILD_EXCLUSIVE") || strings.Contains(output, "BUILD_EXCLUSIVE") || strings.Contains(output, "does not match") || strings.Contains(output, "should not be built") {
-						fmt.Println("[mimic] DKMS rejected current kernel — installing generic kernel...")
-						pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
-						return fmt.Errorf("当前内核 %s 被 DKMS 拒绝，已安装通用内核，请重启后重试", kr)
+						fallbackImg, fallbackHdr := getKernelFallbackPackages(kr, pm)
+						fmt.Printf("[mimic] DKMS rejected current %s kernel — installing %s + %s...\n", detectKernelVariant(kr), fallbackImg, fallbackHdr)
+						pm.install(fallbackImg, fallbackHdr)
+						return fmt.Errorf("当前内核 %s 被 DKMS 拒绝，已安装匹配内核，请重启后重试", kr)
 					}
 					if strings.Contains(output, "DKMS_MISSING_DEPENDENCY") {
 						fmt.Println("[mimic] DKMS missing dependency (e.g. bubblewrap) — please install manually and retry")
