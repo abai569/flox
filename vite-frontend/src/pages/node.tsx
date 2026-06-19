@@ -586,6 +586,8 @@ export default function NodePage() {
   const [selectedVersion, setSelectedVersion] = useState("");
   const [batchUpgradeLoading, setBatchUpgradeLoading] = useState(false);
   const [batchMimicLoading, setBatchMimicLoading] = useState(false);
+  const [mimicResultModalOpen, setMimicResultModalOpen] = useState(false);
+  const [mimicResults, setMimicResults] = useState<Array<{nodeId: number; nodeName: string; success: boolean; message: string}>>([]);
   const [batchResetTrafficLoading, setBatchResetTrafficLoading] =
     useState(false);
   const [batchResetTrafficModalOpen, setBatchResetTrafficModalOpen] =
@@ -1659,24 +1661,14 @@ export default function NodePage() {
       const res = await installMimicDeps(selectedLocalIds);
 
       if (res.code === 0) {
-        const results = (res.data as any[]) || [];
-        const successCount = results.filter((r) => r.success).length;
-        const failCount = results.length - successCount;
-        if (failCount > 0) {
-          toast(
-            `WGM依赖安装完成：${successCount} 成功，${failCount} 失败`,
-            { icon: "⚠️", duration: 6000 },
-          );
-        } else {
-          toast.success(
-            `WGM依赖安装命令已发送到 ${selectedLocalIds.length} 个节点`,
-          );
-        }
+        setMimicResults((res.data as any[]) || []);
       } else {
-        toast.error(res.msg || "WGM依赖安装失败");
+        setMimicResults(selectedLocalIds.map((id) => ({ nodeId: id, nodeName: "", success: false, message: res.msg || "请求失败" })));
       }
+      setMimicResultModalOpen(true);
     } catch {
-      toast.error("网络错误，请重试");
+      setMimicResults([]);
+      setMimicResultModalOpen(true);
     } finally {
       setBatchMimicLoading(false);
     }
@@ -4552,6 +4544,69 @@ export default function NodePage() {
               </ModalFooter>
             </>
           )}
+        </ModalContent>
+      </Modal>
+      {/* WGM 依赖安装结果弹窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl overflow-hidden",
+        }}
+        isDismissable={false}
+        isOpen={mimicResultModalOpen}
+        placement="center"
+        scrollBehavior="inside"
+        size="md"
+        onOpenChange={(open) => { if (!open) setMimicResultModalOpen(false); }}
+      >
+        <ModalContent>
+          {(onClose) => {
+            const successResults = mimicResults.filter((r) => r.success);
+            const failResults = mimicResults.filter((r) => !r.success);
+            return (
+              <>
+                <ModalHeader className="flex flex-col gap-1">
+                  <h2 className="text-xl font-bold">WGM 依赖安装结果</h2>
+                  <p className="text-small text-default-500">
+                    {successResults.length} 成功{mimicResults.length > 0 ? `，${failResults.length} 失败` : ""}
+                  </p>
+                </ModalHeader>
+                <ModalBody>
+                  {mimicResults.length === 0 ? (
+                    <p className="text-danger">请求失败，请检查网络后重试</p>
+                  ) : (
+                    <div className="flex flex-col gap-2 max-h-64 overflow-auto">
+                      {mimicResults.map((r) => (
+                        <div
+                          key={r.nodeId}
+                          className={`flex items-start gap-2 p-2 rounded ${
+                            r.success
+                              ? "bg-success-50 dark:bg-success-900/20"
+                              : "bg-danger-50 dark:bg-danger-900/20"
+                          }`}
+                        >
+                          <span className="text-lg">{r.success ? "✅" : "❌"}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium">
+                              {r.nodeName || `节点 ${r.nodeId}`}
+                            </div>
+                            <div className="text-xs text-default-500 break-all">
+                              {r.message || (r.success ? "安装成功" : "安装失败")}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ModalBody>
+                <ModalFooter>
+                  <Button color="primary" variant="flat" onPress={onClose}>
+                    关闭
+                  </Button>
+                </ModalFooter>
+              </>
+            );
+          }}
         </ModalContent>
       </Modal>
       <Modal

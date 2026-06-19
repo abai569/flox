@@ -4290,24 +4290,33 @@ func autoInstallMimic() error {
 	arch := detectMimicDebianArch()
 	fmt.Printf("[mimic] kernel=%s codename=%s arch=%s\n", kr, codename, arch)
 
-	// Clean up broken mimic state from previous failed installs
-	cleanupBrokenMimicState()
+	// Fast path: deps already installed, skip to package install
+	depsReady := quickCheckMimicDeps()
 
-	// Detect and install clang if kernel was built with it
-	ensureKernelBuildTools(pm)
+	if depsReady {
+		fmt.Println("[mimic] deps already installed, skipping prerequisite install")
+	} else {
+		// Clean up broken mimic state from previous failed installs
+		cleanupBrokenMimicState()
 
-	packageDeps := []string{pm.headerPkg(kr), pm.dkmsPkg, "curl"}
-	fmt.Printf("[mimic] installing package prerequisites: %v\n", packageDeps)
-	if err := pm.install(packageDeps...); err != nil {
-		fmt.Printf("[mimic] package prerequisites install failed: %v\n", err)
-		// Check if it's specifically a headers issue or general dependency issue
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "linux-headers") && (strings.Contains(errMsg, "Unable to locate") || strings.Contains(errMsg, "not found")) {
-			fmt.Println("[mimic] kernel headers not available, installing generic kernel...")
-			pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
-			return fmt.Errorf("当前内核 %s 的头文件不可用，已安装通用内核，请重启后重试", kr)
+		// Detect and install clang if kernel was built with it
+		ensureKernelBuildTools(pm)
+
+		packageDeps := []string{pm.headerPkg(kr), pm.dkmsPkg, "curl"}
+		fmt.Printf("[mimic] installing package prerequisites: %v\n", packageDeps)
+		if err := pm.install(packageDeps...); err != nil {
+			fmt.Printf("[mimic] package prerequisites install failed: %v\n", err)
+			errMsg := err.Error()
+			// Check if the kernel-headers package specifically is missing from repos
+			out, _ := exec.Command("apt-cache", "policy", pm.headerPkg(kr)).CombinedOutput()
+			policyOut := string(out)
+			if strings.Contains(errMsg, "linux-headers") || !strings.Contains(policyOut, "Candidate:") {
+				fmt.Printf("[mimic] kernel headers for %s not found in repos, installing latest generic kernel...\n", kr)
+				pm.install(pm.genericKernelPkg, pm.genericHeaderPkg)
+				return fmt.Errorf("当前内核 %s 在仓库中已不存在对应的头文件包，已安装通用内核，请重启后重试", kr)
+			}
+			return fmt.Errorf("mimic 前置依赖安装失败: %w", err)
 		}
-		return fmt.Errorf("mimic 前置依赖安装失败: %w", err)
 	}
 
 	if pm.typ == pmAptGet && codename != "" && arch != "" {
