@@ -157,6 +157,8 @@ export function VersionFooter({
   useEffect(() => {
     if (updateAvailable && showUpdateInfo && !isUpgradeDismissedToday()) {
       setNotificationOpen(true);
+    } else {
+      setNotificationOpen(false);
     }
   }, [updateAvailable, showUpdateInfo]);
 
