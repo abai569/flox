@@ -206,12 +206,10 @@ func (s *Server) GetForwardCurrentConnections(nodeID int64, forwardID int64) int
 func (s *Server) GetForwardMetric(forwardID int64) *ForwardMetric {
 	s.forwardMetricsMu.RLock()
 	defer s.forwardMetricsMu.RUnlock()
-	
 	nodeMetrics, ok := s.forwardMetrics[forwardID]
 	if !ok || len(nodeMetrics) == 0 {
 		return nil
 	}
-	
 	// 汇总所有节点的带宽
 	var totalInSpeed, totalOutSpeed, totalConnections uint64
 	var firstMetric *ForwardMetric
@@ -229,11 +227,9 @@ func (s *Server) GetForwardMetric(forwardID int64) *ForwardMetric {
 		totalOutSpeed += fm.OutSpeed
 		totalConnections += uint64(fm.Connections)
 	}
-	
 	if firstMetric == nil {
 		return nil
 	}
-	
 	return &ForwardMetric{
 		ForwardID:   firstMetric.ForwardID,
 		UserID:      firstMetric.UserID,
@@ -604,6 +600,7 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 
 	requestID := fmt.Sprintf("%d_%d", nodeID, time.Now().UnixNano())
 	ch := make(chan CommandResult, 1)
+	debugMimic := strings.HasPrefix(strings.TrimSpace(cmdType), "Mimic")
 
 	s.mu.Lock()
 	s.pending[requestID] = pendingRequest{nodeID: nodeID, ch: ch}
@@ -627,6 +624,9 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 	if err != nil {
 		cleanup()
 		return CommandResult{}, err
+	}
+	if debugMimic {
+		log.Printf("[mimic.debug] send command node=%d type=%s requestId=%s payload=%s", nodeID, cmdType, requestID, string(rawCmd))
 	}
 
 	messageData := rawCmd
@@ -654,6 +654,9 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 	_ = ns.conn.conn.SetWriteDeadline(time.Time{})
 	ns.conn.mu.Unlock()
 	if err != nil {
+		if debugMimic {
+			log.Printf("[mimic.debug] write command failed node=%d type=%s requestId=%s err=%v", nodeID, cmdType, requestID, err)
+		}
 		cleanup()
 		return CommandResult{}, err
 	}
@@ -661,16 +664,28 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 	select {
 	case result, ok := <-ch:
 		if !ok {
+			if debugMimic {
+				log.Printf("[mimic.debug] command channel closed node=%d type=%s requestId=%s", nodeID, cmdType, requestID)
+			}
 			return CommandResult{}, errors.New("命令通道已关闭")
 		}
 		if !result.Success {
 			if strings.TrimSpace(result.Message) == "" {
 				result.Message = "命令执行失败"
 			}
+			if debugMimic {
+				log.Printf("[mimic.debug] command failed node=%d type=%s requestId=%s msg=%s", nodeID, cmdType, requestID, result.Message)
+			}
 			return result, errors.New(result.Message)
+		}
+		if debugMimic {
+			log.Printf("[mimic.debug] command succeeded node=%d type=%s requestId=%s", nodeID, cmdType, requestID)
 		}
 		return result, nil
 	case <-time.After(timeout):
+		if debugMimic {
+			log.Printf("[mimic.debug] command timeout node=%d type=%s requestId=%s timeout=%s", nodeID, cmdType, requestID, timeout)
+		}
 		cleanup()
 		return CommandResult{}, errors.New("等待节点响应超时")
 	}

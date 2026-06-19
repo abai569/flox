@@ -229,11 +229,11 @@ type WebSocketReporter struct {
 	serviceName          string                   // 服务名
 	nftablesMgr          NftablesManagerInterface // nftables manager (platform-specific)
 	nftablesPrevCounters map[string]uint64        // "forwardID_protocol" → last total bytes
-	nftablesConntrackPrev map[string]uint64       // "protocol:port" → last total conntrack bytes
+	nftablesConntrackPrev map[string]uint64        // "protocol:port" → last total conntrack bytes
 	nftConnPrev          map[int64]nftables.RuleConnInfo
 	nftablesPrevMu       sync.Mutex
-	nodeNetworkEnv       string                // 节点网络环境永久缓存："domestic" | "overseas" | ""（未检测）
-	mimicDaemons         map[string]*exec.Cmd  // wgIF → mimic daemon cmd (P2-18)
+	nodeNetworkEnv       string               // 节点网络环境永久缓存："domestic" | "overseas" | ""（未检测）
+	mimicDaemons         map[string]*exec.Cmd // wgIF → mimic daemon cmd (P2-18)
 	mimicDaemonsMu       sync.Mutex
 }
 
@@ -3719,6 +3719,7 @@ func (w *WebSocketReporter) handleMimicInstall(data interface{}) error {
 		return fmt.Errorf("解析 MimicInstall 请求失败: %v", err)
 	}
 	fmt.Printf("[mimic] installing mimic tunnel: role=%s port=%d\n", req.Role, req.MimicPort)
+	fmt.Printf("[mimic.debug] request role=%s wgIF=%s wgAddr=%s allowedIPs=%s serverIP=%s clientIP=%s\n", req.Role, req.WgInterface, req.WgAddress, req.WgAllowedIPs, req.ServerPublicIP, req.ClientPublicIP)
 
 	if detectContainer() {
 		return fmt.Errorf("不支持在容器中运行 Mimic，请在宿主机上安装")

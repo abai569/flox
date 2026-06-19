@@ -16,8 +16,37 @@ import (
 
 // parseService routes to the appropriate kernel based on metadata.kernel.
 func parseService(cfg *config.ServiceConfig) (service.Service, error) {
+	kernel := ""
+	handlerType := ""
+	serviceName := ""
+	serviceAddr := ""
+	if cfg != nil {
+		serviceName = strings.TrimSpace(cfg.Name)
+		serviceAddr = strings.TrimSpace(cfg.Addr)
+		if cfg.Metadata != nil {
+			if v, ok := cfg.Metadata["kernel"]; ok {
+				if s, ok := v.(string); ok {
+					kernel = strings.TrimSpace(strings.ToLower(s))
+				}
+			}
+		}
+		if cfg.Handler != nil {
+			handlerType = strings.TrimSpace(strings.ToLower(cfg.Handler.Type))
+		}
+	}
+	if kernel != "" {
+		fmt.Printf("[kernel.debug] parseService dispatch name=%s addr=%s handler=%s kernel=%s\n", serviceName, serviceAddr, handlerType, kernel)
+	}
 	if svc, err := parseFloxService(cfg); svc != nil || err != nil {
+		if err != nil {
+			fmt.Printf("[kernel.debug] parseService specialized parse failed name=%s kernel=%s err=%v\n", serviceName, kernel, err)
+		} else {
+			fmt.Printf("[kernel.debug] parseService specialized parse succeeded name=%s kernel=%s\n", serviceName, kernel)
+		}
 		return svc, err
+	}
+	if kernel != "" {
+		fmt.Printf("[kernel.debug] parseService fell back to gost parser name=%s kernel=%s\n", serviceName, kernel)
 	}
 	return parser.ParseService(cfg)
 }

@@ -315,7 +315,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 				fmt.Printf("[nft.debug] applyTunnelRuntime failed: %v\n", applyErr)
 			}
 		}
-return nil, nil
+		return nil, nil
 	}
 	// mimic mode branch - send MimicInstall then continue to GOST service deployment
 	if strings.EqualFold(forward.Mode, forwardModeMimic) {
@@ -2339,8 +2339,6 @@ func (h *Handler) upsertLimiterOnNode(nodeID int64, limiterID int64, speed int) 
 	return nil
 }
 
-
-
 // NftablesRulePayload nftables rule payload (matches agent side)
 type NftablesRulePayload struct {
 	ForwardID    int64  `json:"forward_id"`
@@ -2827,11 +2825,12 @@ func (h *Handler) syncMimicForward(forward *forwardRecord, tunnel *tunnelRecord,
 				"serverPublicIP":  exitNodeIP,
 				"serverPublicKey": cfg.ServerPublicKey,
 			}
+			fmt.Printf("[mimic.debug] sending server MimicInstall node=%d payload=%v\n", exitNodeID, serverReq)
 			if _, cmdErr := h.sendNodeCommand(exitNodeID, "MimicInstall", serverReq, true, false); cmdErr != nil {
 				fmt.Printf("[mimic] server install on exit node %d failed: %v\n", exitNodeID, cmdErr)
-			} else {
-				fmt.Printf("[mimic] server install succeeded on exit node %d\n", exitNodeID)
+				return fmt.Errorf("出口节点 %d MimicInstall 失败: %w", exitNodeID, cmdErr)
 			}
+			fmt.Printf("[mimic] server install succeeded on exit node %d\n", exitNodeID)
 		}
 	}
 
@@ -2864,12 +2863,13 @@ func (h *Handler) syncMimicForward(forward *forwardRecord, tunnel *tunnelRecord,
 			"serverPublicIP":  clientServerIP,
 			"serverPublicKey": cfg.ServerPublicKey,
 		}
+		fmt.Printf("[mimic.debug] sending client MimicInstall node=%d payload=%v\n", fp.NodeID, clientReq)
 
 		if _, cmdErr := h.sendNodeCommand(fp.NodeID, "MimicInstall", clientReq, true, false); cmdErr != nil {
 			fmt.Printf("[mimic] client install on entry node %d failed: %v\n", fp.NodeID, cmdErr)
-		} else {
-			fmt.Printf("[mimic] client install succeeded on entry node %d\n", fp.NodeID)
+			return fmt.Errorf("入口节点 %d MimicInstall 失败: %w", fp.NodeID, cmdErr)
 		}
+		fmt.Printf("[mimic] client install succeeded on entry node %d\n", fp.NodeID)
 	}
 
 	return nil
