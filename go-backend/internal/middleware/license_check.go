@@ -124,7 +124,7 @@ func (v *LicenseVerifier) Verify(ctx context.Context) (*VerifyResponse, error) {
 	}
 
 	if !VerifyResponseSignature(&result, ObscuredHMACKey()) {
-		return nil, fmt.Errorf("invalid response signature")
+		return nil, fmt.Errorf("HMAC密钥校验失败（请检查Flox密钥是否正确）")
 	}
 
 	return &result, nil
@@ -364,6 +364,9 @@ func GetLicenseTier() (TierType, string) {
 		case "体验已到期":
 			return TierFree, "体验已到期，已降级为免费版"
 		default:
+			if strings.Contains(globalLicenseState.reason, "HMAC密钥校验失败") {
+				return TierBlocked, "授权无效：Flox密钥不匹配"
+			}
 			return TierFree, "验证服务不可达，已降级为免费版"
 		}
 	}
