@@ -212,6 +212,7 @@ export const createSDWANGroup = (data: {
   networkCIDR?: string;
   lighthouseNodeId: number;
   memberNodeIds: number[];
+  listenPort?: number;
 }) => Network.post("/sdwan/group/create", data);
 export const updateSDWANGroup = (data: {
   groupId: string;
@@ -219,6 +220,7 @@ export const updateSDWANGroup = (data: {
   networkCIDR?: string;
   lighthouseNodeId?: number;
   memberNodeIds?: number[];
+  listenPort?: number;
 }) => Network.post("/sdwan/group/update", data);
 export const deleteSDWANGroup = (groupId: string) =>
   Network.post("/sdwan/group/delete", { groupId });
