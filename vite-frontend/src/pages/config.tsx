@@ -1389,14 +1389,14 @@ export default function ConfigPage() {
                 </label>
                 <Input
                   classNames={{ input: "text-sm" }}
-                  placeholder="联系管理员获取（flox_ 开头）"
+                  placeholder="flox_ 开头 首次留空自动获取"
                   size="md"
                   value={hmacKey}
                   variant="bordered"
                   onChange={(e) => setHmacKey(e.target.value)}
                 />
                 <p className="text-xs text-gray-400">
-                  必填，请联系管理员获取 Flox 密钥
+                  后续授权失败 请联系管理员获取
                 </p>
               </div>
             </div>

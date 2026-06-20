@@ -5574,7 +5574,7 @@ export default function ForwardPage() {
                         <span className="text-xs text-warning-600">NFtables模式协议阻断暂不可用，不会用勿选</span>
                       )}
                       {form.mode === "mimic" && (
-                        <span className="text-xs text-secondary-600">把UDP伪装成tcp转发，降低GFW风控几率</span>
+                        <span className="text-xs text-secondary-600">把UDP伪装成tcp转发，节点页面批量安装WGM</span>
                       )}
                       {form.mode === "sdwan" && (
                         <span className="text-xs text-green-600">先到组网里新建分组，才能使用这个转发模式</span>
