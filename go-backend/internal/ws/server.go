@@ -178,9 +178,14 @@ func (s *Server) GetForwardCurrentConnections(nodeID int64, forwardID int64) int
 			total += fm.Connections
 		}
 		s.forwardMetricsMu.RUnlock()
-		return total
+		if total > 0 {
+			return total
+		}
+		// 某些转发模式（例如短连接或未显式上报连接数）可能出现带宽有值但 forwardMetrics.Connections 为 0，
+		// 这时回退到 serviceConnections，避免前端长期显示 0/暂无。
+	} else {
+		s.forwardMetricsMu.RUnlock()
 	}
-	s.forwardMetricsMu.RUnlock()
 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
