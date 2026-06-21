@@ -183,6 +183,7 @@ const getInitialConfigs = (): Record<string, string> => {
     "forward_mode_nft_enabled",
     "forward_mode_flc_enabled",
     "forward_mode_sdw_enabled",
+    "forward_mode_mimic_enabled",
     "ghfast_url",
     "domestic_download_host",
     "ip",
@@ -1503,6 +1504,11 @@ export default function ConfigPage() {
                     key: "forward_mode_sdw_enabled",
                     label: "SDWAN 模式",
                     desc: "SDWAN 组网转发",
+                  },
+                  {
+                    key: "forward_mode_mimic_enabled",
+                    label: "WGM 模式",
+                    desc: "WGMimic 伪装转发",
                   },
                 ] as const
               ).map((item) => (

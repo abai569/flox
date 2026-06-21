@@ -115,6 +115,7 @@ const getForwardModeEnabledState = () => ({
   nft: configCache.get("forward_mode_nft_enabled") !== "false",
   flc: configCache.get("forward_mode_flc_enabled") !== "false",
   sdw: configCache.get("forward_mode_sdw_enabled") !== "false",
+  wgm: configCache.get("forward_mode_mimic_enabled") !== "false",
 });
 
 interface Forward {
@@ -1625,6 +1626,7 @@ export default function ForwardPage() {
   const nftEnabled = forwardModeEnabled.nft;
   const flcEnabled = forwardModeEnabled.flc;
   const sdwEnabled = forwardModeEnabled.sdw;
+  const wgmEnabled = forwardModeEnabled.wgm;
   const [batchRedeployLoading, setBatchRedeployLoading] = useState(false);
   const [batchPauseLoading, setBatchPauseLoading] = useState(false);
   const [batchResumeLoading, setBatchResumeLoading] = useState(false);
@@ -2157,6 +2159,9 @@ export default function ForwardPage() {
     if (form.mode === "sdwan" && !sdwEnabled) {
       setForm((prev) => ({ ...prev, mode: "gost" }));
     }
+    if (form.mode === "mimic" && !wgmEnabled) {
+      setForm((prev) => ({ ...prev, mode: "gost" }));
+    }
     if (batchTargetMode === "nftables" && !nftEnabled) {
       setBatchTargetMode("gost");
     }
@@ -2166,6 +2171,9 @@ export default function ForwardPage() {
     if (batchTargetMode === "sdwan" && !sdwEnabled) {
       setBatchTargetMode("gost");
     }
+    if (batchTargetMode === "mimic" && !wgmEnabled) {
+      setBatchTargetMode("gost");
+    }
   }, [
     batchTargetMode,
     form.mode,
@@ -2173,6 +2181,7 @@ export default function ForwardPage() {
     nftEnabled,
     flcEnabled,
     sdwEnabled,
+    wgmEnabled,
     setForm,
   ]);
 
@@ -5556,7 +5565,7 @@ export default function ForwardPage() {
                         {!isFreeTier && nftEnabled && (
                           <SelectItem key="nftables">NFtables 模式</SelectItem>
                         )}
-                        {!isFreeTier && (
+                        {!isFreeTier && wgmEnabled && (
                           <SelectItem key="mimic">WGMimic 模式</SelectItem>
                         )}
                         {!isFreeTier && sdwEnabled && (
@@ -7331,7 +7340,7 @@ export default function ForwardPage() {
                   {!isFreeTier && nftEnabled && (
                     <SelectItem key="nftables">NFtables 模式</SelectItem>
                   )}
-                  {!isFreeTier && (
+                  {!isFreeTier && wgmEnabled && (
                     <SelectItem key="mimic">WGMimic 模式</SelectItem>
                   )}
                   {!isFreeTier && sdwEnabled && (
