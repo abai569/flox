@@ -1131,7 +1131,8 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		if c.ChainType == 3 {
 			continue
 		}
-		key := fmt.Sprintf("%d_%s", c.ForwardID, c.Protocol)
+		// 用 ChainType 区分不同 hook 的规则，防止共享 prev key 互覆盖导致 delta 虚高
+		key := fmt.Sprintf("%d_%s_%d", c.ForwardID, c.Protocol, c.ChainType)
 		total := c.Bytes
 		prev, exists := w.nftablesPrevCounters[key]
 		if exists {

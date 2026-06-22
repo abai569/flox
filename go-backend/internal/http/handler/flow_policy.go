@@ -87,12 +87,8 @@ func (h *Handler) scaleFlowByTunnel(forwardID int64, inFlow int64, outFlow int64
 		return inFlow, outFlow
 	}
 
-	flowMode := tunnel.Flow
-	if flowMode <= 0 {
-		flowMode = 1
-	}
-	scaledIn := int64(float64(inFlow) * tunnel.TrafficRatio * float64(flowMode))
-	scaledOut := int64(float64(outFlow) * tunnel.TrafficRatio * float64(flowMode))
+	scaledIn := int64(float64(inFlow) * tunnel.TrafficRatio)
+	scaledOut := int64(float64(outFlow) * tunnel.TrafficRatio)
 	return scaledIn, scaledOut
 }
 
