@@ -478,6 +478,61 @@ func TestBuildForwardServiceConfigs_IPv6BindIP(t *testing.T) {
 	}
 }
 
+func TestBuildForwardServiceConfigsPreservesDomainTargetsForServiceBackedModes(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+	}{
+		{name: "gost", mode: forwardModeGost},
+		{name: "floxcore", mode: forwardModeFloxcore},
+		{name: "sdwan", mode: forwardModeSDWAN},
+		{name: "mimic", mode: forwardModeMimic},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			forward := &forwardRecord{RemoteAddr: "dynamic.example.com:443", Strategy: "fifo", TunnelID: 7, Mode: tt.mode}
+			node := &nodeRecord{TCPListenAddr: "0.0.0.0", UDPListenAddr: "0.0.0.0"}
+			services := buildForwardServiceConfigs("1_2_0", forward, nil, node, 22000, "", nil, false)
+
+			assertForwarderNodeAddr(t, services, "dynamic.example.com:443")
+		})
+	}
+}
+
+func TestBuildSDWANExitServiceConfigsPreservesDomainTargets(t *testing.T) {
+	h := &Handler{}
+	forward := &forwardRecord{RemoteAddr: "dynamic.example.com:443", Strategy: "fifo", TunnelID: 7, Mode: forwardModeSDWAN}
+	node := &nodeRecord{}
+	services, err := h.buildSDWANExitServiceConfigs("1_2_0_tcp", "tcp", node, 22000, forward)
+	if err != nil {
+		t.Fatalf("buildSDWANExitServiceConfigs returned error: %v", err)
+	}
+
+	assertForwarderNodeAddr(t, services, "dynamic.example.com:443")
+}
+
+func assertForwarderNodeAddr(t *testing.T, services []map[string]interface{}, want string) {
+	t.Helper()
+	if len(services) == 0 {
+		t.Fatalf("expected services")
+	}
+	for _, service := range services {
+		forwarder, ok := service["forwarder"].(map[string]interface{})
+		if !ok {
+			t.Fatalf("service %v missing forwarder", service["name"])
+		}
+		nodes, ok := forwarder["nodes"].([]map[string]interface{})
+		if !ok || len(nodes) != 1 {
+			t.Fatalf("service %v expected 1 forwarder node, got %#v", service["name"], forwarder["nodes"])
+		}
+		addr, _ := nodes[0]["addr"].(string)
+		if addr != want {
+			t.Fatalf("service %v expected target %q, got %q", service["name"], want, addr)
+		}
+	}
+}
+
 func TestProcessServerAddress_StripsURLSchemeAndPath(t *testing.T) {
 	tests := []struct {
 		name string
