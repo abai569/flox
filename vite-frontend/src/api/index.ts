@@ -1054,7 +1054,7 @@ export const cancelOrder = (id: number) =>
   Network.post("/order/cancel", { id });
 
 export const getOrderStatus = (orderId: number) =>
-  Network.post("/order/status", { order_id: orderId });
+  Network.post<{ status: number }>("/order/status", { order_id: orderId });
 
 export const deleteOrder = (id: number, force?: boolean) =>
   Network.post("/order/admin/delete", { id, force });
