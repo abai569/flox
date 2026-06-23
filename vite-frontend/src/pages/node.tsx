@@ -2366,7 +2366,7 @@ export default function NodePage() {
                   IPv4/域名
                 </span>
                 <span
-                  className="font-medium text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto"
+                  className={`font-medium text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto ${!node.serverIpV4?.trim() ? "text-default-300" : ""}`}
                   title={node.serverIpV4?.trim() || "暂无"}
                   onClick={(e) => {
                     e.stopPropagation();

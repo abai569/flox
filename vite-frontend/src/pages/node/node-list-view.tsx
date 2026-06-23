@@ -325,7 +325,7 @@ function SortableTableRow({
               IPv4/域名
             </span>
             <span
-              className="font-medium text-xs cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto text-right max-w-[130px]"
+              className={`font-medium text-xs cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto text-right max-w-[130px] ${!node.serverIpV4?.trim() ? "text-default-300" : ""}`}
               title={node.serverIpV4?.trim() || "暂无"}
               onClick={(e) => {
                 e.stopPropagation();
