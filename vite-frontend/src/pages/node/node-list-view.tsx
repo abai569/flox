@@ -326,30 +326,16 @@ function SortableTableRow({
             </span>
             <span
               className="font-medium text-xs cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto text-right max-w-[130px]"
-              title={
-                node.serverIpV4?.trim() ||
-                (node.serverIp?.trim() && !node.serverIp.includes(":")
-                  ? node.serverIp.trim()
-                  : undefined) ||
-                "暂无"
-              }
+              title={node.serverIpV4?.trim() || "暂无"}
               onClick={(e) => {
                 e.stopPropagation();
-                const val =
-                  node.serverIpV4?.trim() ||
-                  (node.serverIp?.trim() && !node.serverIp.includes(":")
-                    ? node.serverIp.trim()
-                    : undefined);
+                const val = node.serverIpV4?.trim();
 
                 if (val) copyToClipboard(val, "IPv4/域名");
               }}
             >
               {(() => {
-                const val =
-                  node.serverIpV4?.trim() ||
-                  (node.serverIp?.trim() && !node.serverIp.includes(":")
-                    ? node.serverIp.trim()
-                    : undefined);
+                const val = node.serverIpV4?.trim();
 
                 if (!val) return "暂无";
                 // 域名显示前两段
