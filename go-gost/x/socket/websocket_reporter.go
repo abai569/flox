@@ -1066,7 +1066,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		}
 		var deltas []deltaEntry
 		for _, c := range bytesResults {
-			key := fmt.Sprintf("%s:%d", c.Protocol, c.Port)
+			key := fmt.Sprintf("%d_%s:%d", c.ForwardID, c.Protocol, c.Port)
 			total := c.Bytes
 			prev, exists := w.nftablesConntrackPrev[key]
 			if exists {

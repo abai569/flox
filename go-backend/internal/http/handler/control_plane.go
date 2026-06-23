@@ -299,6 +299,19 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		speed = utSpeed
 	}
 
+	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
+		return nil, ensureForwardModeAllowedForTier(tier, forward.Mode)
+	}
+	if err := ensureForwardModeEnabled(func(key string) (string, bool) {
+		cfg, _ := h.repo.GetConfigByName(key)
+		if cfg == nil {
+			return "", false
+		}
+		return cfg.Value, true
+	}, forward.Mode); err != nil {
+		return nil, err
+	}
+
 	// nftables mode branch
 	if strings.EqualFold(forward.Mode, "nftables") {
 		fmt.Printf("[nft.debug] syncForwardServicesWithWarnings: nft mode branch, forwardID=%d\n", forward.ID)
@@ -323,18 +336,6 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		if err := h.syncMimicForward(forward, tunnel, ports, userTunnelID, speed); err != nil {
 			return nil, err
 		}
-	}
-	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
-		return nil, ensureForwardModeAllowedForTier(tier, forward.Mode)
-	}
-	if err := ensureForwardModeEnabled(func(key string) (string, bool) {
-		cfg, _ := h.repo.GetConfigByName(key)
-		if cfg == nil {
-			return "", false
-		}
-		return cfg.Value, true
-	}, forward.Mode); err != nil {
-		return nil, err
 	}
 	if strings.EqualFold(forward.Mode, forwardModeSDWAN) && tunnel != nil && tunnel.Type == 2 {
 		return h.syncSDWANChainForwardServicesWithWarnings(forward, tunnel, ports, userTunnelID)
@@ -1938,6 +1939,9 @@ func compactErrorMessage(msg string) string {
 
 func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel *tunnelRecord, node *nodeRecord, port int, bindIP string, limiterID *int64, tunnelTLSProtocol bool) []map[string]interface{} {
 	protocols := []string{"tcp", "udp"}
+	if strings.EqualFold(forward.Mode, forwardModeMimic) {
+		protocols = []string{"tcp"}
+	}
 	services := make([]map[string]interface{}, 0, 2)
 	targets := splitRemoteTargets(forward.RemoteAddr)
 	strategy := strings.TrimSpace(forward.Strategy)

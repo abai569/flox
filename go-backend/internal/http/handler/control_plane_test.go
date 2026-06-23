@@ -500,6 +500,31 @@ func TestBuildForwardServiceConfigsPreservesDomainTargetsForServiceBackedModes(t
 	}
 }
 
+func TestBuildForwardServiceConfigsMimicIsTCPOnly(t *testing.T) {
+	forward := &forwardRecord{RemoteAddr: "dynamic.example.com:443", Strategy: "fifo", TunnelID: 7, Mode: forwardModeMimic}
+	node := &nodeRecord{TCPListenAddr: "0.0.0.0", UDPListenAddr: "0.0.0.0"}
+	services := buildForwardServiceConfigs("1_2_0", forward, nil, node, 22000, "", nil, false)
+
+	if len(services) != 1 {
+		t.Fatalf("expected 1 service, got %d", len(services))
+	}
+	service := services[0]
+	handler, ok := service["handler"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("service missing handler: %#v", service)
+	}
+	if handler["type"] != "tcp" {
+		t.Fatalf("expected tcp handler, got %#v", handler["type"])
+	}
+	metadata, ok := service["metadata"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("service missing metadata: %#v", service)
+	}
+	if metadata["kernel"] != forwardModeMimic {
+		t.Fatalf("expected mimic kernel, got %#v", metadata["kernel"])
+	}
+}
+
 func TestBuildSDWANExitServiceConfigsPreservesDomainTargets(t *testing.T) {
 	h := &Handler{}
 	forward := &forwardRecord{RemoteAddr: "dynamic.example.com:443", Strategy: "fifo", TunnelID: 7, Mode: forwardModeSDWAN}
