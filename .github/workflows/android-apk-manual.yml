@@ -68,7 +68,6 @@ jobs:
         run: chmod +x android/gradlew
 
       - name: Prepare release signing
-        id: signing
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -76,23 +75,20 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
-            mkdir -p android/app/keystore
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/keystore/release.jks
-            echo "build_type=release" >> "$GITHUB_OUTPUT"
-          else
-            echo "build_type=debug" >> "$GITHUB_OUTPUT"
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing required secret: ${name}"
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
           fi
-
-      - name: Generate fixed debug keystore
-        if: steps.signing.outputs.build_type != 'release'
-        working-directory: vite-frontend/android
-        run: |
-          mkdir -p app/keystore
-          keytool -genkey -v -keystore app/keystore/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Debug,O=Android,C=US"
+          mkdir -p android/app/keystore
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/keystore/release.jks
 
       - name: Build release APK
-        if: steps.signing.outputs.build_type == 'release'
         working-directory: vite-frontend/android
         env:
           ANDROID_KEYSTORE_FILE: keystore/release.jks
@@ -102,27 +98,12 @@ jobs:
           ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
         run: ./gradlew assembleRelease
 
-      - name: Build debug APK
-        if: steps.signing.outputs.build_type != 'release'
-        working-directory: vite-frontend/android
-        env:
-          ANDROID_KEYSTORE_FILE: keystore/debug.keystore
-          ANDROID_KEYSTORE_PASSWORD: android
-          ANDROID_KEY_ALIAS: androiddebugkey
-          ANDROID_KEY_PASSWORD: android
-          ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
-        run: ./gradlew assembleDebug
-
       - name: Rename APK
         shell: bash
         run: |
           ANDROID_VERSION="${{ steps.version.outputs.android_version }}"
           mkdir -p dist
-          if [[ -f android/app/build/outputs/apk/release/app-release.apk ]]; then
-            cp android/app/build/outputs/apk/release/app-release.apk "dist/flox-android-${ANDROID_VERSION}.apk"
-          else
-            cp android/app/build/outputs/apk/debug/app-debug.apk "dist/flox-android-${ANDROID_VERSION}-debug.apk"
-          fi
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/flox-android-${ANDROID_VERSION}.apk"
 
       - name: Upload APK as artifact
         uses: actions/upload-artifact@v4
@@ -139,9 +120,5 @@ jobs:
           VERSION="${{ github.event.inputs.upload_to_release }}"
           ANDROID_VERSION="${{ steps.version.outputs.android_version }}"
           REPO="${{ github.repository }}"
-          if [[ -f vite-frontend/dist/flox-android-${ANDROID_VERSION}.apk ]]; then
-            gh release upload "${VERSION}" "vite-frontend/dist/flox-android-${ANDROID_VERSION}.apk" --clobber --repo "${REPO}"
-          else
-            gh release upload "${VERSION}" "vite-frontend/dist/flox-android-${ANDROID_VERSION}-debug.apk" --clobber --repo "${REPO}"
-          fi
+          gh release upload "${VERSION}" "vite-frontend/dist/flox-android-${ANDROID_VERSION}.apk" --clobber --repo "${REPO}"
           echo "✅ Android APK uploaded to release ${VERSION}"
