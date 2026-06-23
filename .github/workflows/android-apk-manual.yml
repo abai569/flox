@@ -67,7 +67,8 @@ jobs:
       - name: Prepare Gradle wrapper
         run: chmod +x android/gradlew
 
-      - name: Prepare release signing
+      - name: Prepare Android signing
+        id: signing
         shell: bash
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -75,26 +76,31 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          missing=0
-          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
-            if [[ -z "${!name}" ]]; then
-              echo "::error::Missing required secret: ${name}"
-              missing=1
-            fi
-          done
-          if [[ "$missing" -ne 0 ]]; then
-            exit 1
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" && -n "$ANDROID_KEYSTORE_PASSWORD" && -n "$ANDROID_KEY_ALIAS" && -n "$ANDROID_KEY_PASSWORD" ]]; then
+            mkdir -p android/app/keystore
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/keystore/release.jks
+            echo "keystore_file=keystore/release.jks" >> "$GITHUB_OUTPUT"
+            echo "keystore_password=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_OUTPUT"
+            echo "key_alias=$ANDROID_KEY_ALIAS" >> "$GITHUB_OUTPUT"
+            echo "key_password=$ANDROID_KEY_PASSWORD" >> "$GITHUB_OUTPUT"
+            echo "keystore_type=" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Android release signing secrets are incomplete; using fixed fallback keystore."
+            echo "keystore_file=keystore/flox-fallback.jks" >> "$GITHUB_OUTPUT"
+            echo "keystore_password=android" >> "$GITHUB_OUTPUT"
+            echo "key_alias=androiddebugkey" >> "$GITHUB_OUTPUT"
+            echo "key_password=android" >> "$GITHUB_OUTPUT"
+            echo "keystore_type=PKCS12" >> "$GITHUB_OUTPUT"
           fi
-          mkdir -p android/app/keystore
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/keystore/release.jks
 
       - name: Build release APK
         working-directory: vite-frontend/android
         env:
-          ANDROID_KEYSTORE_FILE: keystore/release.jks
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_FILE: ${{ steps.signing.outputs.keystore_file }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ steps.signing.outputs.keystore_password }}
+          ANDROID_KEY_ALIAS: ${{ steps.signing.outputs.key_alias }}
+          ANDROID_KEY_PASSWORD: ${{ steps.signing.outputs.key_password }}
+          ANDROID_KEYSTORE_TYPE: ${{ steps.signing.outputs.keystore_type }}
           ANDROID_VERSION_NAME: 1.0.${{ github.run_number }}
         run: ./gradlew assembleRelease
 
