@@ -3159,7 +3159,6 @@ export default function TunnelPage() {
                                 ),
                               ]
                         }
-                        dropdownPlacement="top"
                         errorMessage={errors.inNodeId}
                         isInvalid={!!errors.inNodeId}
                         label={`入口节点${form.inNodeId.length > 0 ? ` (已选 ${form.inNodeId.length} 个)` : ""}`}
@@ -3428,7 +3427,6 @@ export default function TunnelPage() {
                                                 .map((id) => id.toString()),
                                             ]
                                       }
-                                      dropdownPlacement="top"
                                       label={`节点选择${groupNodes.filter((ct) => ct.nodeId !== -1).length > 0 ? ` (已选 ${groupNodes.filter((ct) => ct.nodeId !== -1).length} 个)` : ""}`}
                                       placeholder="选择节点（可多选）"
                                       selectedKeys={groupNodes
@@ -3797,7 +3795,6 @@ export default function TunnelPage() {
                                           ),
                                         ]
                                   }
-                                  dropdownPlacement="top"
                                   errorMessage={errors.outNodeId}
                                   isInvalid={!!errors.outNodeId}
                                   label={`出口节点${form.outNodeId && form.outNodeId.filter((ct) => ct.nodeId !== -1).length > 0 ? ` (已选 ${form.outNodeId.filter((ct) => ct.nodeId !== -1).length} 个)` : ""}`}
