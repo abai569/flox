@@ -203,6 +203,8 @@ install_fresh_version() {
     # 停止并清理
     cd "$INSTALL_DIR" 2>/dev/null || cd /opt/flvx-svc 2>/dev/null || true
     $DOCKER_CMD down --volumes --remove-orphans 2>/dev/null || true
+    docker rm -f flox-svc-backend flox-svc-frontend flox-svc-postgres 2>/dev/null || true
+    docker rm -f flvx-svc-backend flvx-svc-frontend flvx-svc-postgres 2>/dev/null || true
 
     cd / && $SUDO_CMD rm -rf "$INSTALL_DIR" /opt/flvx-svc 2>/dev/null || true
 
@@ -364,6 +366,27 @@ download_compose_file() {
       return 0
     fi
   fi
+
+  return 1
+}
+
+get_installed_version() {
+  local env_file version
+
+  for env_file in /opt/flox-svc/.env /opt/flvx-svc/.env; do
+    if [[ -f "$env_file" ]]; then
+      version=$(get_env_var "FLOX_VERSION" "$env_file")
+      if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+      fi
+      version=$(get_env_var "FLUX_VERSION" "$env_file")
+      if [[ -n "$version" ]]; then
+        echo "$version"
+        return 0
+      fi
+    fi
+  done
 
   return 1
 }
@@ -1625,28 +1648,31 @@ main() {
     exit $?
   fi
 
-  # 指定版本时：根据与最新版的比较结果决定走更新还是全新安装
+  # 指定版本时：根据与当前已安装版本的比较结果决定走更新还是全新安装
   if [[ -n "$ARG_VERSION" ]]; then
-    echo "🔍 获取最新版本号..."
-    LATEST_VERSION=$(resolve_latest_release_tag) || {
-      echo "❌ 无法获取最新版本号，终止操作"
-      exit 1
-    }
-    echo "🆕 最新版本：$LATEST_VERSION，指定版本：$ARG_VERSION"
+    echo "🔍 获取当前已安装版本..."
+    CURRENT_INSTALLED_VERSION=$(get_installed_version || true)
+    if [[ -z "$CURRENT_INSTALLED_VERSION" ]]; then
+      echo "⚠️ 未能读取当前安装版本，将按更新流程处理"
+      update_panel
+      exit $?
+    fi
+
+    echo "🆕 当前已安装版本：$CURRENT_INSTALLED_VERSION，指定版本：$ARG_VERSION"
 
     local cmp_result
-    cmp_result=$(vercomp "$ARG_VERSION" "$LATEST_VERSION")
+    cmp_result=$(vercomp "$ARG_VERSION" "$CURRENT_INSTALLED_VERSION")
     if [[ "$cmp_result" == "0" ]] || [[ "$cmp_result" == "1" ]]; then
-      # ARG_VERSION == LATEST 或 ARG_VERSION > LATEST → 更新/升级
-      echo "🔄 版本不低于最新版，直接进入更新流程..."
+      # ARG_VERSION == CURRENT 或 ARG_VERSION > CURRENT → 更新/升级
+      echo "🔄 目标版本不低于当前已安装版本，直接进入更新流程..."
       if [[ ! -d "/opt/flox-svc" ]] && [[ ! -d "/opt/flvx-svc" ]]; then
         echo "❌ 未检测到面板安装，请先执行安装操作"
         exit 1
       fi
       update_panel
     else
-      # ARG_VERSION < LATEST → 全新安装（降级/旧版本）
-      echo "🔄 版本低于最新版，备份旧数据后执行全新安装..."
+      # ARG_VERSION < CURRENT → 全新安装（降级/回退）
+      echo "🔄 目标版本低于当前已安装版本，备份旧数据后执行全新安装..."
       install_fresh_version "$ARG_VERSION"
     fi
     exit $?
