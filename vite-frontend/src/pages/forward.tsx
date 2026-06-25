@@ -1047,7 +1047,7 @@ const SortableTableRow = ({
         <div className="flex justify-start gap-1.5 pl-2">
           <Button
             className="min-h-7 px-2"
-            color={forward.serviceRunning ? "success" : "warning"}
+            color={forward.serviceRunning ? "danger" : "success"}
             isLoading={togglingIds?.has(forward.id)}
             size="sm"
             title={forward.serviceRunning ? "暂停" : "启用"}
@@ -1402,7 +1402,7 @@ const SortableCompactTableRow = ({
         <div className="flex justify-start gap-1.5 pl-2">
           <Button
             className="min-h-7 px-2"
-            color={forward.serviceRunning ? "success" : "warning"}
+            color={forward.serviceRunning ? "danger" : "success"}
             isLoading={togglingIds?.has(forward.id)}
             size="sm"
             title={forward.serviceRunning ? "暂停" : "启用"}
@@ -3226,9 +3226,9 @@ export default function ForwardPage() {
       case 1:
         return { color: "success", text: "正常" };
       case 0:
-        return { color: "warning", text: "暂停" };
+        return { color: "danger", text: "暂停" };
       case -1:
-        return { color: "danger", text: "异常" };
+        return { color: "warning", text: "异常" };
       default:
         return { color: "default", text: "未知" };
     }
