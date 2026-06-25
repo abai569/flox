@@ -249,15 +249,26 @@ func (h *Handler) pauseUserTunnelForwards(userID int64, tunnelID int64, now int6
 func (h *Handler) pauseForwardRecords(forwards []forwardRecord, now int64) {
 	for i := range forwards {
 		forward := forwards[i]
+		success := false
 		if strings.EqualFold(forward.Mode, "nftables") {
 			ports, _ := h.listForwardPorts(forward.ID)
-			_ = h.deleteNftablesRules(&forward, ports)
+			if err := h.deleteNftablesRules(&forward, ports); err != nil {
+				log.Printf("pauseForwardRecords nftables %d failed: %v", forward.ID, err)
+				continue
+			}
+			success = true
 		} else {
-			_ = h.controlForwardServices(&forward, "PauseService", false)
+			if err := h.controlForwardServices(&forward, "PauseService", false); err != nil {
+				log.Printf("pauseForwardRecords PauseService %d failed: %v", forward.ID, err)
+				continue
+			}
 			_ = h.controlForwardServices(&forward, "TerminateConnections", false)
+			success = true
 		}
-		_ = h.repo.UpdateForwardStatus(forward.ID, 0, now)
-		h.wsServer.ClearForwardMetrics(forward.ID)
+		if success {
+			_ = h.repo.UpdateForwardStatus(forward.ID, 0, now)
+			h.wsServer.ClearForwardMetrics(forward.ID)
+		}
 	}
 }
 
@@ -455,19 +466,12 @@ func (h *Handler) pauseForward(forwardID int64, reason string) error {
 		return errors.New("invalid handler context")
 	}
 
-	// 更新数据库状态
-	now := time.Now().UnixMilli()
-	if err := h.repo.UpdateForwardStatus(forwardID, 0, now); err != nil {
-		return fmt.Errorf("update forward status: %w", err)
-	}
-
-	// 获取 Forward 信息
 	forward, err := h.getForwardRecord(forwardID)
 	if err != nil {
 		return fmt.Errorf("get forward record: %w", err)
 	}
 
-	// 复用 pauseForwardRecords 的完整逻辑（支持 nftables 和 GOST 模式）
+	now := time.Now().UnixMilli()
 	h.pauseForwardRecords([]forwardRecord{*forward}, now)
 
 	log.Printf("Forward %d paused: %s", forwardID, reason)

@@ -316,6 +316,17 @@ func (h *forwardHandler) Handle(ctx context.Context, conn net.Conn, opts ...hand
 		}
 		defer cc.Close()
 
+		stop := make(chan struct{})
+		defer close(stop)
+		go func() {
+			select {
+			case <-ctx.Done():
+				conn.Close()
+				cc.Close()
+			case <-stop:
+			}
+		}()
+
 		if err := xnet.Transport(conn, cc); err != nil {
 			if marker := target.Marker(); marker != nil {
 				marker.Mark()
