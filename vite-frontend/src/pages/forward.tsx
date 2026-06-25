@@ -4631,7 +4631,7 @@ export default function ForwardPage() {
                 variant="flat"
                 onPress={handleBatchPause}
               >
-                停用
+                暂停
               </Button>
               <Button
                 color="success"
