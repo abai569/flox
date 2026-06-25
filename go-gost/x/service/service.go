@@ -147,6 +147,7 @@ type defaultService struct {
 	options  options
 	maxConns int
 	conns    atomic.Int64
+	cancel   context.CancelFunc
 }
 
 func NewService(name string, ln listener.Listener, h handler.Handler, opts ...Option) service.Service {
@@ -196,6 +197,7 @@ func (s *defaultService) Serve() error {
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
 	defer cancel()
 
 	if s.status.Stats() != nil {
@@ -344,6 +346,9 @@ func (s *defaultService) Close() error {
 	s.execCmds("pre-down", s.options.preDown)
 	defer s.execCmds("post-down", s.options.postDown)
 
+	if s.cancel != nil {
+		s.cancel()
+	}
 	if closer, ok := s.handler.(io.Closer); ok {
 		closer.Close()
 	}
