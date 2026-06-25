@@ -1494,6 +1494,9 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		err = w.handleDeleteService(cmd.Data)
 		response.Type = "DeleteServiceResponse"
 		needSaveConfig = true
+	case "TerminateConnections":
+		err = w.handleTerminateConnections(cmd.Data)
+		response.Type = "TerminateConnectionsResponse"
 	case "PauseService":
 		err = w.handlePauseService(cmd.Data)
 		response.Type = "PauseServiceResponse"
@@ -1730,6 +1733,19 @@ func (w *WebSocketReporter) handlePauseService(data interface{}) error {
 	}
 
 	return pauseServices(req)
+}
+
+func (w *WebSocketReporter) handleTerminateConnections(data interface{}) error {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("序列化数据失败: %v", err)
+	}
+	var req pauseServicesRequest
+	if err := json.Unmarshal(jsonData, &req); err != nil {
+		return fmt.Errorf("解析断开连接请求失败: %v", err)
+	}
+	terminateServiceConnections(req)
+	return nil
 }
 
 func (w *WebSocketReporter) handleResumeService(data interface{}) error {

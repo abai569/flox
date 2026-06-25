@@ -908,7 +908,15 @@ func (h *Handler) forwardList(w http.ResponseWriter, r *http.Request) {
 	// 补充当前连接数和实时带宽
 	for i := range items {
 		forwardID := asInt64(items[i]["id"], 0)
+		status := asInt(items[i]["status"], 1)
 		if forwardID > 0 {
+			// 暂停状态的转发不展示实时指标
+			if status != 1 {
+				items[i]["currentConnections"] = 0
+				items[i]["inSpeed"] = 0
+				items[i]["outSpeed"] = 0
+				continue
+			}
 			// 获取转发的入口节点
 			ports, err := h.repo.ListForwardPorts(forwardID)
 			if err == nil && len(ports) > 0 {

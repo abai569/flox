@@ -364,6 +364,22 @@ func pauseServices(req pauseServicesRequest) error {
 	return nil
 }
 
+func terminateServiceConnections(req pauseServicesRequest) {
+	cfg := config.Global()
+	for _, serviceName := range req.Services {
+		name := strings.TrimSpace(serviceName)
+		if name == "" {
+			continue
+		}
+		for _, s := range cfg.Services {
+			if s.Name == name && s.Addr != "" {
+				_ = kill.ForceClosePortConnections(s.Addr)
+				break
+			}
+		}
+	}
+}
+
 func resumeServices(req resumeServicesRequest) error {
 	if len(req.Services) == 0 {
 		return errors.New("services list cannot be empty")

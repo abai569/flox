@@ -246,6 +246,13 @@ func (s *Server) GetForwardMetric(forwardID int64) *ForwardMetric {
 	}
 }
 
+// ClearForwardMetrics 清除指定转发的实时指标缓存，用于暂停/删除后立即清理前端展示
+func (s *Server) ClearForwardMetrics(forwardID int64) {
+	s.forwardMetricsMu.Lock()
+	defer s.forwardMetricsMu.Unlock()
+	delete(s.forwardMetrics, forwardID)
+}
+
 func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 	s := &Server{
 		repo:      repo,

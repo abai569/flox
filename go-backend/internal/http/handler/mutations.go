@@ -3491,6 +3491,7 @@ func (h *Handler) forwardPause(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	h.wsServer.ClearForwardMetrics(id)
 	response.WriteJSON(w, response.OKEmpty())
 }
 
@@ -3727,6 +3728,7 @@ func (h *Handler) forwardBatchPause(w http.ResponseWriter, r *http.Request) {
 			f++
 			failures = appendBatchFailure(failures, id, forward.Name, err)
 		} else {
+			h.wsServer.ClearForwardMetrics(id)
 			s++
 		}
 	}

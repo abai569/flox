@@ -257,6 +257,7 @@ func (h *Handler) pauseForwardRecords(forwards []forwardRecord, now int64) {
 			_ = h.controlForwardServices(&forward, "TerminateConnections", false)
 		}
 		_ = h.repo.UpdateForwardStatus(forward.ID, 0, now)
+		h.wsServer.ClearForwardMetrics(forward.ID)
 	}
 }
 
