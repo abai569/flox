@@ -614,8 +614,6 @@ func restartDeadServices() {
 			continue
 		}
 
-		fmt.Printf("⚠️ 检测到服务 %s 已停止，尝试自动重启...\n", name)
-
 		// Lookup the service config from global config.
 		cfg := config.Global()
 		var svcCfg *config.ServiceConfig
@@ -629,6 +627,15 @@ func restartDeadServices() {
 			fmt.Printf("❌ 无法找到服务 %s 的配置，跳过重启\n", name)
 			continue
 		}
+
+		// 跳过手动暂停的服务，不自动重启
+		if svcCfg.Metadata != nil {
+			if paused, ok := svcCfg.Metadata["paused"]; ok && paused == true {
+				continue
+			}
+		}
+
+		fmt.Printf("⚠️ 检测到服务 %s 已停止，尝试自动重启...\n", name)
 
 		// Use updateServices to rebuild (closes old, parses new, registers, starts).
 		if err := updateServices(updateServicesRequest{Data: []config.ServiceConfig{*svcCfg}}); err != nil {

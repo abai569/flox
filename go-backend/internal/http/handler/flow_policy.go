@@ -266,7 +266,9 @@ func (h *Handler) pauseForwardRecords(forwards []forwardRecord, now int64) {
 			success = true
 		}
 		if success {
-			_ = h.repo.UpdateForwardStatus(forward.ID, 0, now)
+			if err := h.repo.UpdateForwardStatus(forward.ID, 0, now); err != nil {
+				log.Printf("pauseForwardRecords UpdateForwardStatus %d failed: %v", forward.ID, err)
+			}
 			h.wsServer.ClearForwardMetrics(forward.ID)
 		}
 	}

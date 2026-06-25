@@ -466,6 +466,13 @@ func syncServicesAfterReconnect() {
 			continue
 		}
 
+		// 跳过手动暂停的服务，不自动重启
+		if svcCfg.Metadata != nil {
+			if paused, ok := svcCfg.Metadata["paused"]; ok && paused == true {
+				continue
+			}
+		}
+
 		existing := registry.ServiceRegistry().Get(name)
 		if existing == nil {
 			fmt.Printf("🔌 重连后检测到服务 %s 缺失，尝试恢复...\n", name)

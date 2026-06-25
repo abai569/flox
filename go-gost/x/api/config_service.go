@@ -547,6 +547,9 @@ func pauseService(ctx *gin.Context) {
 		}
 	}
 
+	// 先关闭服务，停止接受新连接
+	svc.Close()
+
 	// 强制断开端口的所有连接
 	if serviceAddr != "" {
 		_ = kill.ForceClosePortConnections(serviceAddr)
@@ -912,6 +915,9 @@ func pauseServices(ctx *gin.Context) {
 			writeError(ctx, NewError(http.StatusInternalServerError, ErrCodeFailed, fmt.Sprintf("service %s configuration not found", stp.name)))
 			return
 		}
+
+		// 先关闭服务，停止接受新连接
+		stp.service.Close()
 
 		// 强制断开端口的所有连接
 		if serviceConfig.Addr != "" {
