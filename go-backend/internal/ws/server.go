@@ -69,9 +69,9 @@ type CommandResult struct {
 }
 
 type Server struct {
-	repo         *repo.Repository
-	jwtSecret    string
-	upgrader     websocket.Upgrader
+	repo          *repo.Repository
+	jwtSecret     string
+	upgrader      websocket.Upgrader
 	onNodeOnline  func(nodeID int64)
 	onNodeOffline func(nodeID int64)
 	onNodeMetric  func(nodeID int64, info SystemInfo)
@@ -82,34 +82,34 @@ type Server struct {
 	nodes                 map[int64]*nodeSession
 	byConn                map[*websocket.Conn]*nodeSession
 	pending               map[string]pendingRequest
-	serviceConnections    map[int64]map[string]int          // nodeID -> serviceName -> connections
-	serviceConnUpdateTime map[int64]int64                   // nodeID -> last update time
+	serviceConnections    map[int64]map[string]int           // nodeID -> serviceName -> connections
+	serviceConnUpdateTime map[int64]int64                    // nodeID -> last update time
 	forwardMetrics        map[int64]map[int64]*ForwardMetric // forwardID -> nodeID -> metric
 	forwardMetricsMu      sync.RWMutex
 	nodeOfflineTime       map[int64]int64 // nodeID -> offline timestamp (seconds)
 }
 
 type SystemInfo struct {
-	Uptime                 uint64         `json:"uptime"`
-	BytesReceived          uint64         `json:"bytes_received"`
-	BytesTransmitted       uint64         `json:"bytes_transmitted"`
-	PeriodBytesReceived    uint64         `json:"period_bytes_received"`
-	PeriodBytesTransmitted uint64         `json:"period_bytes_transmitted"`
-	BaselineRecordedAt     int64          `json:"baseline_recorded_at"`
-	NextResetAt            int64          `json:"next_reset_at"`
-	RenewalCycle           string         `json:"renewal_cycle,omitempty"`
-	CPUUsage               float64        `json:"cpu_usage"`
-	MemoryUsage            float64        `json:"memory_usage"`
-	DiskUsage              float64        `json:"disk_usage"`
-	Load1                  float64        `json:"load1"`
-	Load5                  float64        `json:"load5"`
-	Load15                 float64        `json:"load15"`
-	TCPConns               int64          `json:"tcp_conns"`
-	UDPConns               int64          `json:"udp_conns"`
-	NetInSpeed             int64          `json:"net_in_speed"`
-	NetOutSpeed            int64          `json:"net_out_speed"`
-	ServiceName            string         `json:"service_name,omitempty"`
-	ServiceConnections     map[string]int `json:"serviceConnections"`
+	Uptime                 uint64          `json:"uptime"`
+	BytesReceived          uint64          `json:"bytes_received"`
+	BytesTransmitted       uint64          `json:"bytes_transmitted"`
+	PeriodBytesReceived    uint64          `json:"period_bytes_received"`
+	PeriodBytesTransmitted uint64          `json:"period_bytes_transmitted"`
+	BaselineRecordedAt     int64           `json:"baseline_recorded_at"`
+	NextResetAt            int64           `json:"next_reset_at"`
+	RenewalCycle           string          `json:"renewal_cycle,omitempty"`
+	CPUUsage               float64         `json:"cpu_usage"`
+	MemoryUsage            float64         `json:"memory_usage"`
+	DiskUsage              float64         `json:"disk_usage"`
+	Load1                  float64         `json:"load1"`
+	Load5                  float64         `json:"load5"`
+	Load15                 float64         `json:"load15"`
+	TCPConns               int64           `json:"tcp_conns"`
+	UDPConns               int64           `json:"udp_conns"`
+	NetInSpeed             int64           `json:"net_in_speed"`
+	NetOutSpeed            int64           `json:"net_out_speed"`
+	ServiceName            string          `json:"service_name,omitempty"`
+	ServiceConnections     map[string]int  `json:"serviceConnections"`
 	ForwardMetrics         []ForwardMetric `json:"forward_metrics,omitempty"`
 }
 
@@ -118,8 +118,8 @@ type ForwardMetric struct {
 	ForwardID   int64  `json:"forward_id"`
 	UserID      int64  `json:"user_id"`
 	TunnelID    int64  `json:"tunnel_id"`
-	NodeID      int64  `json:"node_id"`      // 新增：节点 ID
-	Port        int    `json:"port"`         // 新增：入口端口
+	NodeID      int64  `json:"node_id"` // 新增：节点 ID
+	Port        int    `json:"port"`    // 新增：入口端口
 	ServiceName string `json:"service_name"`
 	InSpeed     uint64 `json:"in_speed"`
 	OutSpeed    uint64 `json:"out_speed"`
@@ -268,7 +268,7 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		serviceConnections:    make(map[int64]map[string]int),
 		serviceConnUpdateTime: make(map[int64]int64),
 		forwardMetrics:        make(map[int64]map[int64]*ForwardMetric), // forwardID -> nodeID -> metric
-		nodeOfflineTime:       make(map[int64]int64), // nodeID -> offline timestamp
+		nodeOfflineTime:       make(map[int64]int64),                    // nodeID -> offline timestamp
 	}
 	// 启动后台清理任务（每 2 分钟清理一次过期数据）
 	go s.cleanupStaleMetrics(2 * time.Minute)
@@ -403,7 +403,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	delete(s.nodeOfflineTime, nodeID)
 	s.mu.Unlock()
 
-	_ = s.repo.UpdateNodeOnline(nodeID, 1, version)
+	if err := s.repo.UpdateNodeOnline(nodeID, 1, version); err != nil {
+		fmt.Printf("⚠️ 更新节点%d在线状态失败：%v\n", nodeID, err)
+	}
 	s.broadcastStatus(nodeID, 1)
 
 	s.mu.RLock()
@@ -428,7 +430,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		s.mu.Unlock()
 		if needOfflineBroadcast {
 			s.failPendingForNode(nodeID, "节点连接已断开")
-			_ = s.repo.UpdateNodeStatus(nodeID, 0)
+			if err := s.repo.UpdateNodeStatus(nodeID, 0); err != nil {
+				fmt.Printf("⚠️ 更新节点%d离线状态失败：%v\n", nodeID, err)
+			}
 			s.broadcastStatus(nodeID, 0)
 
 			s.mu.RLock()
@@ -844,7 +848,9 @@ func (s *Server) DisconnectNode(nodeID int64) {
 	s.mu.Unlock()
 
 	s.failPendingForNode(nodeID, "节点被面板踢下线")
-	_ = s.repo.UpdateNodeStatus(nodeID, 0)
+	if err := s.repo.UpdateNodeStatus(nodeID, 0); err != nil {
+		fmt.Printf("⚠️ 更新节点%d离线状态失败：%v\n", nodeID, err)
+	}
 	s.broadcastStatus(nodeID, 0)
 
 	s.mu.RLock()

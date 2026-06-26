@@ -397,12 +397,15 @@ func (h *Handler) listReleases(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(items))
 }
 
-const onlineCooldownMs = 60 * 1000    // 1 分钟
+const onlineCooldownMs = 60 * 1000      // 1 分钟
 const offlineCooldownMs = 2 * 60 * 1000 // 2 分钟
+const nodeNotifyDebounce = 15 * time.Second
 
 type nodeNotifyState struct {
 	onlineNotifiedAt  int64
 	offlineNotifiedAt int64
+	onlinePendingAt   int64
+	offlinePendingAt  int64
 	offlineSince      int64
 	stillOfflineDone  bool
 }
@@ -429,35 +432,33 @@ func getNodeNotifyState(nodeID int64) *nodeNotifyState {
 }
 
 func (h *Handler) notifyNodeOnline(nodeID int64) {
-	bot := h.TelegramBot()
-	if bot == nil || !bot.Enabled() || !bot.Running() {
-		return
-	}
-	tier, _ := middleware.GetLicenseTier()
-	if tier == middleware.TierFree {
-		return
-	}
-	node, err := h.repo.GetNodeByID(nodeID)
-	if err != nil || node == nil {
-		return
-	}
 	nowMs := time.Now().UnixMilli()
 	notifyStateMu.Lock()
 	state := getNodeNotifyState(nodeID)
-	shouldNotify := nowMs-state.onlineNotifiedAt >= onlineCooldownMs
-	if shouldNotify {
-		state.onlineNotifiedAt = nowMs
-		state.offlineNotifiedAt = 0
-		state.offlineSince = 0
-		state.stillOfflineDone = false
-	}
+	state.onlinePendingAt = nowMs
+	state.offlinePendingAt = 0
+	state.offlineSince = 0
+	state.stillOfflineDone = false
 	notifyStateMu.Unlock()
-	if shouldNotify {
-		bot.SendNodeOnline(node.Name)
-	}
+	go h.sendNodeOnlineIfStable(nodeID, nowMs)
 }
 
 func (h *Handler) notifyNodeOffline(nodeID int64) {
+	nowMs := time.Now().UnixMilli()
+	notifyStateMu.Lock()
+	state := getNodeNotifyState(nodeID)
+	state.offlinePendingAt = nowMs
+	state.offlineSince = nowMs
+	state.stillOfflineDone = false
+	notifyStateMu.Unlock()
+	go h.sendNodeOfflineIfStable(nodeID, nowMs)
+}
+
+func (h *Handler) sendNodeOnlineIfStable(nodeID int64, startedAt int64) {
+	select {
+	case <-time.After(nodeNotifyDebounce):
+	}
+
 	bot := h.TelegramBot()
 	if bot == nil || !bot.Enabled() || !bot.Running() {
 		return
@@ -467,23 +468,58 @@ func (h *Handler) notifyNodeOffline(nodeID int64) {
 		return
 	}
 	node, err := h.repo.GetNodeByID(nodeID)
-	if err != nil || node == nil {
+	if err != nil || node == nil || node.Status != 1 {
 		return
 	}
-	nowMs := time.Now().UnixMilli()
+
 	notifyStateMu.Lock()
-	state := getNodeNotifyState(nodeID)
-	shouldNotify := nowMs-state.offlineNotifiedAt >= offlineCooldownMs
-	if shouldNotify {
-		state.offlineNotifiedAt = nowMs
-		state.offlineSince = nowMs
-		state.stillOfflineDone = false
-		state.onlineNotifiedAt = 0
+	state := notifyStates[nodeID]
+	if state == nil || state.onlinePendingAt != startedAt || state.offlineSince > 0 {
+		notifyStateMu.Unlock()
+		return
 	}
+	if time.Now().UnixMilli()-state.onlineNotifiedAt < onlineCooldownMs {
+		notifyStateMu.Unlock()
+		return
+	}
+	state.onlineNotifiedAt = time.Now().UnixMilli()
 	notifyStateMu.Unlock()
-	if shouldNotify {
-		bot.SendNodeOffline(node.Name)
+
+	bot.SendNodeOnline(node.Name)
+}
+
+func (h *Handler) sendNodeOfflineIfStable(nodeID int64, startedAt int64) {
+	select {
+	case <-time.After(nodeNotifyDebounce):
 	}
+
+	bot := h.TelegramBot()
+	if bot == nil || !bot.Enabled() || !bot.Running() {
+		return
+	}
+	tier, _ := middleware.GetLicenseTier()
+	if tier == middleware.TierFree {
+		return
+	}
+	node, err := h.repo.GetNodeByID(nodeID)
+	if err != nil || node == nil || node.Status != 0 {
+		return
+	}
+
+	notifyStateMu.Lock()
+	state := notifyStates[nodeID]
+	if state == nil || state.offlinePendingAt != startedAt || state.offlineSince != startedAt {
+		notifyStateMu.Unlock()
+		return
+	}
+	if time.Now().UnixMilli()-state.offlineNotifiedAt < offlineCooldownMs {
+		notifyStateMu.Unlock()
+		return
+	}
+	state.offlineNotifiedAt = time.Now().UnixMilli()
+	notifyStateMu.Unlock()
+
+	bot.SendNodeOffline(node.Name)
 }
 
 func (h *Handler) resetNodeNotifyCooldown(nodeID int64) {
@@ -525,4 +561,3 @@ func (h *Handler) redeployNodeRuntime(nodeID int64) {
 		}
 	}
 }
-

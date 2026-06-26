@@ -783,17 +783,17 @@ func (h *Handler) runNodeNotifyCooldownLoop(ctx context.Context) {
 
 func (h *Handler) checkStillOfflineNotifications() {
 	notifyStateMu.RLock()
-	candidates := make(map[int64]*nodeNotifyState, len(notifyStates))
+	candidates := make(map[int64]nodeNotifyState, len(notifyStates))
 	for id, state := range notifyStates {
-		candidates[id] = state
+		if state == nil {
+			continue
+		}
+		candidates[id] = *state
 	}
 	notifyStateMu.RUnlock()
 	nowMs := time.Now().UnixMilli()
 	for nodeID, state := range candidates {
 		if state.stillOfflineDone {
-			continue
-		}
-		if nowMs-state.offlineNotifiedAt < offlineCooldownMs {
 			continue
 		}
 		node, err := h.repo.GetNodeByID(nodeID)
@@ -814,7 +814,20 @@ func (h *Handler) checkStillOfflineNotifications() {
 		if tier == middleware.TierFree {
 			continue
 		}
-		elapsedMin := (nowMs - state.offlineSince) / 60000
+		if state.offlineSince <= 0 {
+			notifyStateMu.Lock()
+			if ns := notifyStates[nodeID]; ns != nil && ns.offlineSince <= 0 {
+				ns.offlineSince = nowMs
+				ns.stillOfflineDone = false
+			}
+			notifyStateMu.Unlock()
+			continue
+		}
+		elapsedMs := nowMs - state.offlineSince
+		if elapsedMs < offlineCooldownMs {
+			continue
+		}
+		elapsedMin := elapsedMs / 60000
 		if elapsedMin < 2 {
 			elapsedMin = 2
 		}
