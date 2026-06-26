@@ -912,7 +912,8 @@ const SortableTableRow = ({
               copyToClipboard(inAddrNoPorts.split(",").join("\n"), "入口地址")
             }
           >
-            <span className="text-sm font-medium text-foreground truncate max-w-[80px] inline-block">
+            <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[80px] inline-block"
+              title={inAddrNoPorts}>
               {inAddrNoPorts.split(",").length > 1
                 ? inAddrNoPorts.split(",")[0].trim()
                 : inAddrNoPorts}
@@ -955,7 +956,7 @@ const SortableTableRow = ({
             <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
           </svg>
           <span
-            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate max-w-[100px] inline-block"
+            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[100px] inline-block"
             title={remoteAddrOnly}
             onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
           >
@@ -1047,7 +1048,7 @@ const SortableTableRow = ({
         <div className="flex justify-start gap-1.5 pl-2">
           <Button
             className="min-h-7 px-2"
-            color={forward.serviceRunning ? "danger" : "success"}
+            color={forward.serviceRunning ? "success" : "warning"}
             isLoading={togglingIds?.has(forward.id)}
             size="sm"
             title={forward.serviceRunning ? "暂停" : "启用"}
@@ -1267,7 +1268,8 @@ const SortableCompactTableRow = ({
               copyToClipboard(inAddrNoPorts.split(",").join("\n"), "入口地址")
             }
           >
-            <span className="text-sm font-medium text-foreground truncate max-w-[80px] inline-block">
+            <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[80px] inline-block"
+              title={inAddrNoPorts}>
               {inAddrNoPorts.split(",").length > 1
                 ? inAddrNoPorts.split(",")[0].trim()
                 : inAddrNoPorts}
@@ -1310,7 +1312,7 @@ const SortableCompactTableRow = ({
             <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
           </svg>
           <span
-            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate max-w-[100px] inline-block"
+            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[100px] inline-block"
             title={remoteAddrOnly}
             onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
           >
@@ -1402,7 +1404,7 @@ const SortableCompactTableRow = ({
         <div className="flex justify-start gap-1.5 pl-2">
           <Button
             className="min-h-7 px-2"
-            color={forward.serviceRunning ? "danger" : "success"}
+            color={forward.serviceRunning ? "success" : "warning"}
             isLoading={togglingIds?.has(forward.id)}
             size="sm"
             title={forward.serviceRunning ? "暂停" : "启用"}
@@ -3226,9 +3228,9 @@ export default function ForwardPage() {
       case 1:
         return { color: "success", text: "正常" };
       case 0:
-        return { color: "danger", text: "暂停" };
+        return { color: "warning", text: "暂停" };
       case -1:
-        return { color: "warning", text: "异常" };
+        return { color: "danger", text: "异常" };
       default:
         return { color: "default", text: "未知" };
     }
@@ -4445,7 +4447,10 @@ export default function ForwardPage() {
                         )
                       }
                     >
-                      <code className="text-xs font-medium text-foreground font-bold truncate block max-w-[80px]">
+                      <code
+                        className="text-xs font-medium text-foreground font-bold truncate shrink min-w-0 max-w-[80px]"
+                        title={inAddrNoPorts}
+                      >
                         {inAddrNoPorts.split(",").length > 1
                           ? inAddrNoPorts.split(",")[0].trim()
                           : (forward.inIp || "").replace(/:\d+$/, "") ||
@@ -4507,7 +4512,7 @@ export default function ForwardPage() {
                       <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                     </svg>
                     <code
-                      className="text-xs font-medium text-foreground font-bold truncate block flex-1 cursor-pointer max-w-[100px]"
+                      className="text-xs font-medium text-foreground font-bold truncate shrink min-w-0 max-w-[100px]"
                       title={forward.remoteAddr
                         .split(",")[0]
                         .replace(/:\d+$/, "")}
