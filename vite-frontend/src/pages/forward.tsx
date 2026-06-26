@@ -756,6 +756,31 @@ const SortableForwardCard = ({ forward, renderCard }: any) => {
     </div>
   );
 };
+
+// 地址脱敏：IPv4 显示 a.b.*.*，IPv6 显示 ::后3段，域名显示 a.b.*
+function maskAddress(addr: string): string {
+  if (!addr) return addr;
+  const trimmed = addr.trim();
+  // IPv4: a.b.*.*
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(trimmed)) {
+    const parts = trimmed.split(".");
+    return `${parts[0]}.${parts[1]}.*.*`;
+  }
+  // IPv6: ::后3段
+  if (trimmed.includes(":")) {
+    const parts = trimmed.split(":").filter(Boolean);
+    if (parts.length > 3) return "::" + parts.slice(-3).join(":");
+    return trimmed;
+  }
+  // 域名: a.b.*
+  if (trimmed.includes(".")) {
+    const parts = trimmed.split(".");
+    if (parts.length >= 2) return `${parts[0]}.${parts[1]}.*`;
+    return parts[0].length > 12 ? parts[0].slice(0, 12) + "..." : parts[0];
+  }
+  return trimmed.length > 15 ? trimmed.slice(0, 15) + "..." : trimmed;
+}
+
 // 可拖拽的表格行组件
 const SortableTableRow = ({
   copyToClipboard,
@@ -914,9 +939,9 @@ const SortableTableRow = ({
           >
             <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[80px] inline-block"
               title={inAddrNoPorts}>
-              {inAddrNoPorts.split(",").length > 1
+              {maskAddress(inAddrNoPorts.split(",").length > 1
                 ? inAddrNoPorts.split(",")[0].trim()
-                : inAddrNoPorts}
+                : inAddrNoPorts)}
             </span>
             {inAddrNoPorts.split(",").length > 1 && (
               <span
@@ -960,7 +985,7 @@ const SortableTableRow = ({
             title={remoteAddrOnly}
             onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
           >
-            {remoteAddrOnly}
+            {maskAddress(remoteAddrOnly)}
           </span>
           {forward.remoteAddr.includes(",") && (
             <span className="text-primary-400 ml-0.5">...</span>
@@ -1270,9 +1295,9 @@ const SortableCompactTableRow = ({
           >
             <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[80px] inline-block"
               title={inAddrNoPorts}>
-              {inAddrNoPorts.split(",").length > 1
+              {maskAddress(inAddrNoPorts.split(",").length > 1
                 ? inAddrNoPorts.split(",")[0].trim()
-                : inAddrNoPorts}
+                : inAddrNoPorts)}
             </span>
             {inAddrNoPorts.split(",").length > 1 && (
               <span
@@ -1316,7 +1341,7 @@ const SortableCompactTableRow = ({
             title={remoteAddrOnly}
             onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
           >
-            {remoteAddrOnly}
+            {maskAddress(remoteAddrOnly)}
           </span>
           {forward.remoteAddr.includes(",") && (
             <span className="text-primary-400 ml-0.5">...</span>
@@ -4451,10 +4476,10 @@ export default function ForwardPage() {
                         className="text-xs font-medium text-foreground font-bold truncate shrink min-w-0 max-w-[80px]"
                         title={inAddrNoPorts}
                       >
-                        {inAddrNoPorts.split(",").length > 1
+                        {maskAddress(inAddrNoPorts.split(",").length > 1
                           ? inAddrNoPorts.split(",")[0].trim()
                           : (forward.inIp || "").replace(/:\d+$/, "") ||
-                            "默认IP"}
+                            "默认IP")}
                       </code>
                       {inAddrNoPorts.split(",").length > 1 && (
                         <span
@@ -4523,7 +4548,7 @@ export default function ForwardPage() {
                         )
                       }
                     >
-                      {forward.remoteAddr.split(",")[0].replace(/:\d+$/, "")}
+                      {maskAddress(forward.remoteAddr.split(",")[0].replace(/:\d+$/, ""))}
                     </code>
                   </div>
                 </div>
