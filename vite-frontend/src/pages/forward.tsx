@@ -757,22 +757,17 @@ const SortableForwardCard = ({ forward, renderCard }: any) => {
   );
 };
 
-// 地址脱敏：IPv4 显示 a.b.*.*，IPv6 显示 ::后3段，域名显示 a.b.*
+// 地址脱敏：IPv4/域名显示 a.b.*，IPv6 显示 ::后3段
 function maskAddress(addr: string): string {
   if (!addr) return addr;
   const trimmed = addr.trim();
-  // IPv4: a.b.*.*
-  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(trimmed)) {
-    const parts = trimmed.split(".");
-    return `${parts[0]}.${parts[1]}.*.*`;
-  }
   // IPv6: ::后3段
   if (trimmed.includes(":")) {
     const parts = trimmed.split(":").filter(Boolean);
     if (parts.length > 3) return "::" + parts.slice(-3).join(":");
     return trimmed;
   }
-  // 域名: a.b.*
+  // IPv4 和域名统一: a.b.*
   if (trimmed.includes(".")) {
     const parts = trimmed.split(".");
     if (parts.length >= 2) return `${parts[0]}.${parts[1]}.*`;
@@ -937,7 +932,7 @@ const SortableTableRow = ({
               copyToClipboard(inAddrNoPorts.split(",").join("\n"), "入口地址")
             }
           >
-            <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[80px] inline-block"
+            <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[130px] inline-block"
               title={inAddrNoPorts}>
               {maskAddress(inAddrNoPorts.split(",").length > 1
                 ? inAddrNoPorts.split(",")[0].trim()
@@ -981,7 +976,7 @@ const SortableTableRow = ({
             <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
           </svg>
           <span
-            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[100px] inline-block"
+            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[130px] inline-block"
             title={remoteAddrOnly}
             onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
           >
@@ -1293,7 +1288,7 @@ const SortableCompactTableRow = ({
               copyToClipboard(inAddrNoPorts.split(",").join("\n"), "入口地址")
             }
           >
-            <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[80px] inline-block"
+            <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[130px] inline-block"
               title={inAddrNoPorts}>
               {maskAddress(inAddrNoPorts.split(",").length > 1
                 ? inAddrNoPorts.split(",")[0].trim()
@@ -1337,7 +1332,7 @@ const SortableCompactTableRow = ({
             <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
           </svg>
           <span
-            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[100px] inline-block"
+            className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[130px] inline-block"
             title={remoteAddrOnly}
             onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
           >
@@ -4473,7 +4468,7 @@ export default function ForwardPage() {
                       }
                     >
                       <code
-                        className="text-xs font-medium text-foreground font-bold truncate shrink min-w-0 max-w-[80px]"
+                        className="text-xs font-medium text-foreground font-bold truncate shrink min-w-0 max-w-[130px]"
                         title={inAddrNoPorts}
                       >
                         {maskAddress(inAddrNoPorts.split(",").length > 1
@@ -4537,7 +4532,7 @@ export default function ForwardPage() {
                       <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                     </svg>
                     <code
-                      className="text-xs font-medium text-foreground font-bold truncate shrink min-w-0 max-w-[100px]"
+                      className="text-xs font-medium text-foreground font-bold truncate shrink min-w-0 max-w-[130px]"
                       title={forward.remoteAddr
                         .split(",")[0]
                         .replace(/:\d+$/, "")}
