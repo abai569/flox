@@ -1473,6 +1473,12 @@ func (w *WebSocketReporter) handleReceivedMessage(messageType int, message []byt
 
 // routeCommand 路由命令到对应的处理函数
 func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("❌ routeCommand panic recovered: %v\n", r)
+		}
+	}()
+
 	jsonBytes, errs := json.Marshal(cmd)
 	if errs != nil {
 		fmt.Println("Error marshaling JSON:", errs)
