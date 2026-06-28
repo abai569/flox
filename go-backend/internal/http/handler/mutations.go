@@ -3536,10 +3536,6 @@ func (h *Handler) forwardResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 先更新状态为 1，避免 syncForwardServicesWithWarnings 末尾的暂停检查删除刚添加的规则
-	_ = h.repo.UpdateForwardStatus(id, 1, now)
-	forward.Status = 1
-
 	// nftables mode: re-sync rules to resume traffic
 	if strings.EqualFold(forward.Mode, "nftables") {
 		log.Printf("[nft.debug] forwardResume: nft mode, calling syncForwardServicesWithWarnings forwardID=%d", forward.ID)
@@ -3549,11 +3545,22 @@ func (h *Handler) forwardResume(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
+		// 先确保服务在节点上存在，再恢复
+		if err := h.syncForwardServices(forward, "UpdateService", true); err != nil {
+			response.WriteJSON(w, response.ErrDefault(fmt.Sprintf("恢复服务失败: %v", err)))
+			return
+		}
 		if err := h.controlForwardServices(forward, "ResumeService", false); err != nil {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
 			return
 		}
 	}
+
+	if err := h.repo.UpdateForwardStatus(id, 1, now); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	h.wsServer.ClearForwardMetrics(id)
 
 	response.WriteJSON(w, response.OKEmpty())
 }

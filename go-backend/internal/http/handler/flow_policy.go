@@ -301,6 +301,10 @@ func (h *Handler) resumePausedForwardsByUser(userID int64, now int64) {
 				continue
 			}
 		} else {
+			// 先确保服务在节点上存在，再恢复
+			if err := h.syncForwardServices(&forward, "UpdateService", true); err != nil {
+				continue
+			}
 			if err := h.controlForwardServices(&forward, "ResumeService", false); err != nil {
 				continue
 			}
