@@ -4007,6 +4007,71 @@ func installMimicDebs(pm pmInfo, paths ...string) error {
 	return nil
 }
 
+// installMimicDebianPackages downloads and installs both mimic CLI and DKMS packages.
+func installMimicDebianPackages(pm pmInfo) error {
+	codename := detectMimicDebianCodename()
+	arch := detectMimicDebianArch()
+
+	pickCn := codename
+	if pickCn == "" {
+		pickCn = "bookworm"
+	}
+	pickArch := arch
+	if pickArch == "" {
+		pickArch = "amd64"
+	}
+
+	apiURL := "https://api.github.com/repos/hack3ric/mimic/releases/latest"
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("fetch release: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var release struct {
+		Assets []struct {
+			Name string `json:"name"`
+			URL  string `json:"browser_download_url"`
+		} `json:"assets"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return fmt.Errorf("parse release: %w", err)
+	}
+
+	var cliURL, dkmsURL string
+	for _, a := range release.Assets {
+		if strings.Contains(a.Name, pickCn+"_mimic_") && strings.Contains(a.Name, "_"+pickArch+".deb") && !strings.Contains(a.Name, "dkms") && !strings.Contains(a.Name, "dbgsym") {
+			cliURL = a.URL
+		}
+		if strings.Contains(a.Name, pickCn+"_mimic-dkms_") && strings.Contains(a.Name, "_"+pickArch+".deb") && !strings.Contains(a.Name, "dbgsym") {
+			dkmsURL = a.URL
+		}
+	}
+	if cliURL == "" || dkmsURL == "" {
+		return fmt.Errorf("no matching .deb assets found for %s/%s", pickCn, pickArch)
+	}
+
+	cliPath := filepath.Join(os.TempDir(), filepath.Base(cliURL))
+	dkmsPath := filepath.Join(os.TempDir(), filepath.Base(dkmsURL))
+
+	fmt.Printf("[mimic] downloading CLI package from %s\n", cliURL)
+	if err := downloadMimicAsset(cliURL, cliPath); err != nil {
+		return fmt.Errorf("download CLI: %w", err)
+	}
+	fmt.Printf("[mimic] downloading DKMS package from %s\n", dkmsURL)
+	if err := downloadMimicAsset(dkmsURL, dkmsPath); err != nil {
+		return fmt.Errorf("download DKMS: %w", err)
+	}
+
+	fmt.Println("[mimic] installing deb packages...")
+	return installMimicDebs(pm, cliPath, dkmsPath)
+}
+
 func verifyMimicRuntimeReady() error {
 	if _, err := exec.LookPath("mimic"); err != nil {
 		return fmt.Errorf("mimic binary not found after install: %w", err)
@@ -4049,6 +4114,68 @@ func mimicSourceBuildArgs(pm pmInfo, codename string, target string) ([]string, 
 	return args, nil
 }
 
+// runMimicFullInstall performs the complete mimic installation flow:
+// cleanup → update → install wg/recommends/build-deps → install debs → verify.
+// Returns nil on success, or the first error encountered.
+func (w *WebSocketReporter) runMimicFullInstall(pm pmInfo) error {
+	// 1. Cleanup broken state first
+	cleanupBrokenMimicState()
+
+	// 2. Update package lists
+	pm.update()
+
+	// 3. Install wireguard-tools if missing
+	if _, err := exec.LookPath("wg"); err != nil {
+		fmt.Println("[mimic] installing wireguard-tools...")
+		if err := pm.install(pm.wirePkg); err != nil {
+			return fmt.Errorf("wireguard-tools 安装失败: %w", err)
+		}
+	}
+
+	// 4. Install recommends (bubblewrap is critical for DKMS build sandbox)
+	recommends := []string{"bubblewrap", "pahole", "xz-utils", "lz4", "zstd", "bzip2"}
+	fmt.Printf("[mimic] installing recommends: %v\n", recommends)
+	if err := pm.installWithRetry(true, recommends...); err != nil {
+		return fmt.Errorf("Recommends 安装失败: %w", err)
+	}
+
+	// 5. Detect clang-built kernel and install LLVM if needed
+	ensureKernelBuildTools(pm)
+
+	// Read kernel info
+	unameOut, _ := exec.Command("uname", "-r").Output()
+	kr := strings.TrimSpace(string(unameOut))
+	codename := detectMimicDebianCodename()
+
+	// 6. Check if kernel headers are available before attempting install
+	if pm.typ == pmAptGet {
+		policyOut, _ := exec.Command("apt-cache", "policy", pm.headerPkg(kr)).CombinedOutput()
+		policyStr := string(policyOut)
+		if !strings.Contains(policyStr, "Candidate:") || strings.Contains(policyStr, "(none)") && !strings.Contains(policyStr, "Candidate: (none)") {
+			// Headers are not in any repo — kernel too old
+			fallbackImg, fallbackHdr := getKernelFallbackPackages(kr, pm)
+			fmt.Printf("[mimic] kernel %s (%s) headers not found in repos, installing %s + %s...\n", kr, detectKernelVariant(kr), fallbackImg, fallbackHdr)
+			pm.install(fallbackImg, fallbackHdr)
+			return fmt.Errorf("当前内核 %s 在仓库中已不存在对应的头文件包，已安装匹配内核，请重启后重试", kr)
+		}
+	}
+
+	// 7. Install build deps (headers, dkms, bpftool, clang, libbpf-dev, etc.)
+	deps := mimicSourceBuildDeps(pm, kr, codename)
+	fmt.Printf("[mimic] installing build deps: %v\n", deps)
+	if err := pm.installWithRetry(true, deps...); err != nil {
+		return fmt.Errorf("依赖安装失败: %w", err)
+	}
+
+	// 8. Download and install mimic Debian packages
+	if err := installMimicDebianPackages(pm); err != nil {
+		return err
+	}
+
+	// 9. Verify
+	return verifyMimicRuntimeReady()
+}
+
 // checkAndInstallMimicDeps checks mimic dependencies on agent start/reconnect
 // and installs them if missing, then reports status to backend.
 func (w *WebSocketReporter) checkAndInstallMimicDeps() {
@@ -4072,27 +4199,22 @@ func (w *WebSocketReporter) checkAndInstallMimicDeps() {
 		return
 	}
 
-	// Check and install wireguard-tools
-	if _, err := exec.LookPath("wg"); err != nil {
-		fmt.Println("[mimic] installing wireguard-tools...")
-		if err := pm.install(pm.wirePkg); err != nil {
-			fmt.Printf("[mimic] wireguard-tools install failed: %v\n", err)
-			w.reportMimicStatus("dep_install_failed", fmt.Sprintf("wireguard-tools 安装失败: %v", err))
-			return
-		}
+	// Quick skip: deps already present
+	if quickCheckMimicDeps() {
+		fmt.Println("[mimic] deps already installed, skipping")
+		w.reportMimicStatus("ok", "")
+		return
 	}
 
-	// Install mimic-dkms recommends (bubblewrap, etc.)
-	recommends := []string{"bubblewrap", "pahole", "xz-utils", "lz4", "zstd", "bzip2"}
-	fmt.Printf("[mimic] installing recommends: %v\n", recommends)
-	if err := pm.install(recommends...); err != nil {
-		fmt.Printf("[mimic] recommends install warning: %v\n", err)
-		// Non-fatal, continue
+	// Run full installation flow
+	fmt.Println("[mimic] running full mimic installation...")
+	if err := w.runMimicFullInstall(pm); err != nil {
+		fmt.Printf("[mimic] auto-install failed: %v\n", err)
+		w.reportMimicStatus("dep_install_failed", err.Error())
+	} else {
+		fmt.Println("[mimic] auto-install complete, reporting ok")
+		w.reportMimicStatus("ok", "")
 	}
-
-	// Report deps ready
-	fmt.Println("[mimic] dependency check complete, reporting deps_ready")
-	w.reportMimicStatus("deps_ready", "")
 }
 
 // reportMimicStatus sends mimic installation status to backend
@@ -4270,7 +4392,7 @@ func (w *WebSocketReporter) handleInstallMimicDeps() error {
 	if _, err := exec.LookPath("mimic"); err == nil {
 		if err := verifyMimicRuntimeReady(); err == nil {
 			fmt.Println("[mimic] mimic already fully installed, skipping")
-			w.reportMimicStatus("deps_ready", "")
+			w.reportMimicStatus("ok", "")
 			return nil
 		}
 	}
@@ -4278,7 +4400,7 @@ func (w *WebSocketReporter) handleInstallMimicDeps() error {
 	// Quick skip: deps already present
 	if quickCheckMimicDeps() {
 		fmt.Println("[mimic] deps already installed, skipping")
-		w.reportMimicStatus("deps_ready", "")
+		w.reportMimicStatus("ok", "")
 		return nil
 	}
 
@@ -4287,57 +4409,14 @@ func (w *WebSocketReporter) handleInstallMimicDeps() error {
 		return fmt.Errorf("不支持的包管理器")
 	}
 
-	// 1. Cleanup broken state first
-	cleanupBrokenMimicState()
-
-	// 2. Update package lists
-	pm.update()
-
-	// 3. Install wireguard-tools if missing
-	if _, err := exec.LookPath("wg"); err != nil {
-		fmt.Println("[mimic] installing wireguard-tools...")
-		if err := pm.install(pm.wirePkg); err != nil {
-			return fmt.Errorf("wireguard-tools 安装失败: %w", err)
-		}
+	// Run full installation flow
+	fmt.Println("[mimic] running full mimic installation...")
+	if err := w.runMimicFullInstall(pm); err != nil {
+		return err
 	}
 
-	// 4. Install recommends (bubblewrap is critical for DKMS build sandbox)
-	recommends := []string{"bubblewrap", "pahole", "xz-utils", "lz4", "zstd", "bzip2"}
-	fmt.Printf("[mimic] installing recommends: %v\n", recommends)
-	if err := pm.installWithRetry(true, recommends...); err != nil {
-		return fmt.Errorf("Recommends 安装失败: %w", err)
-	}
-
-	// 5. Detect clang-built kernel and install LLVM if needed
-	ensureKernelBuildTools(pm)
-
-	// Read kernel info
-	codename := detectMimicDebianCodename()
-	unameOut, _ := exec.Command("uname", "-r").Output()
-	kr := strings.TrimSpace(string(unameOut))
-
-	// Check if kernel headers are available before attempting install
-	if pm.typ == pmAptGet {
-		policyOut, _ := exec.Command("apt-cache", "policy", pm.headerPkg(kr)).CombinedOutput()
-		policyStr := string(policyOut)
-		if !strings.Contains(policyStr, "Candidate:") || strings.Contains(policyStr, "(none)") && !strings.Contains(policyStr, "Candidate: (none)") {
-			// Headers are not in any repo — kernel too old
-			fallbackImg, fallbackHdr := getKernelFallbackPackages(kr, pm)
-			fmt.Printf("[mimic] kernel %s (%s) headers not found in repos, installing %s + %s...\n", kr, detectKernelVariant(kr), fallbackImg, fallbackHdr)
-			pm.install(fallbackImg, fallbackHdr)
-			return fmt.Errorf("当前内核 %s 在仓库中已不存在对应的头文件包，已安装匹配内核，请重启后重试", kr)
-		}
-	}
-
-	// 6. Install build deps (headers, dkms, bpftool, clang, libbpf-dev, etc.)
-	deps := mimicSourceBuildDeps(pm, kr, codename)
-	fmt.Printf("[mimic] installing build deps: %v\n", deps)
-	if err := pm.installWithRetry(true, deps...); err != nil {
-		return fmt.Errorf("依赖安装失败: %w", err)
-	}
-
-	fmt.Println("[mimic] dependencies installed successfully")
-	w.reportMimicStatus("deps_ready", "")
+	fmt.Println("[mimic] installation complete")
+	w.reportMimicStatus("ok", "")
 	return nil
 }
 
