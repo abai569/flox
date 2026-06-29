@@ -223,6 +223,55 @@ func TestHandleAutoBuyTrafficPackageDoesNotDeductStockWhenBalanceInsufficient(t 
 	}
 }
 
+func TestHandleAutoBuyTrafficCustomIncreasesUserTunnelFlow(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "jobs-auto-buy-custom-tunnel-flow.db")
+	r, err := repo.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+
+	h := New(r, "secret")
+	now := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
+	nowMs := now.UnixMilli()
+
+	if err := r.DB().Exec(`
+		INSERT INTO user(id, user, pwd, role_id, exp_time, flow, in_flow, out_flow, flow_reset_time, num, created_time, updated_time, status, balance, auto_buy_traffic, buy_traffic_amount, buy_traffic_price, auto_buy_traffic_threshold)
+		VALUES(2, 'auto_buy_custom_user', 'x', 1, 0, 100, ?, 0, 1, 1, ?, ?, 1, 2000, 1, 20, 1000, 10)
+	`, 95*int64(1024*1024*1024), nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+
+	if err := r.DB().Exec(`
+		INSERT INTO tunnel(id, name, traffic_ratio, type, protocol, flow, created_time, updated_time, status, in_ip, inx)
+		VALUES(1, 't1', 1.0, 1, 'tls', 1, ?, ?, 1, NULL, 0)
+	`, nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert tunnel: %v", err)
+	}
+
+	if err := r.DB().Exec(`
+		INSERT INTO user_tunnel(id, user_id, tunnel_id, speed_id, num, flow, in_flow, out_flow, flow_reset_time, exp_time, status)
+		VALUES(10, 2, 1, NULL, 1, 100, 0, 0, 1, 0, 1)
+	`).Error; err != nil {
+		t.Fatalf("insert user_tunnel: %v", err)
+	}
+
+	h.handleAutoBuyTraffic(nowMs)
+
+	userFlow := mustQueryInt(t, r, `SELECT flow FROM user WHERE id = 2`)
+	if userFlow != 120 {
+		t.Fatalf("expected user flow increased to 120, got %d", userFlow)
+	}
+	userTunnelFlow := mustQueryInt(t, r, `SELECT flow FROM user_tunnel WHERE id = 10`)
+	if userTunnelFlow != 120 {
+		t.Fatalf("expected user_tunnel flow increased to 120, got %d", userTunnelFlow)
+	}
+	balance := mustQueryInt(t, r, `SELECT balance FROM user WHERE id = 2`)
+	if balance != 1000 {
+		t.Fatalf("expected balance deducted to 1000, got %d", balance)
+	}
+}
+
 func TestRunResetAndExpiryJobAutoRenewsExpiredUser(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "jobs-auto-renew-success.db")
 	r, err := repo.Open(dbPath)

@@ -590,6 +590,13 @@ func (r *Repository) BuyTrafficWithBalance(userID, buyPrice, buyAmount, flowBefo
 		return err
 	}
 
+	err = tx.Model(&model.UserTunnel{}).
+		Where("user_id = ?", userID).
+		Update("flow", gorm.Expr("flow + ?", buyAmount)).Error
+	if err != nil {
+		return err
+	}
+
 	log := &model.UserTrafficBuyLog{
 		UserID:        userID,
 		UserName:      user.User,
