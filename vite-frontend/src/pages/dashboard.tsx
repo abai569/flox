@@ -743,8 +743,8 @@ export default function DashboardPage() {
               <MetricCard
                 bottomContent={
                   userInfo.expTime &&
-                  typeof userInfo.expTime === "number" &&
-                  Number(userInfo.expTime) > 0 ? (
+                    typeof userInfo.expTime === "number" &&
+                    Number(userInfo.expTime) > 0 ? (
                     <div className="mt-1 flex items-center gap-1">
                       <div
                         className={`w-1.5 h-1.5 rounded-full ${(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7 ? "bg-success" : "bg-warning"}`}
@@ -754,7 +754,7 @@ export default function DashboardPage() {
                       >
                         {Math.ceil(
                           (Number(userInfo.expTime) - Date.now()) /
-                            (1000 * 60 * 60 * 24),
+                          (1000 * 60 * 60 * 24),
                         )}{" "}
                         天后到期
                       </span>
@@ -780,12 +780,12 @@ export default function DashboardPage() {
                 value={
                   userInfo.expTime
                     ? new Date(userInfo.expTime)
-                        .toLocaleDateString("zh-CN", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                        })
-                        .replace(/\//g, "-")
+                      .toLocaleDateString("zh-CN", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                      })
+                      .replace(/\//g, "-")
                     : "永久"
                 }
               />
@@ -932,14 +932,14 @@ export default function DashboardPage() {
                   storeEnabled
                     ? (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1
                       ? (autoBuyPackageIdOverride ??
-                          userInfo.autoBuyTrafficPackageId ??
-                          0) > 0
+                        userInfo.autoBuyTrafficPackageId ??
+                        0) > 0
                         ? (autoBuyPackages.find(
-                            (p) =>
-                              p.id ===
-                              (autoBuyPackageIdOverride ??
-                                userInfo.autoBuyTrafficPackageId),
-                          )?.name ?? "套餐自动购买")
+                          (p) =>
+                            p.id ===
+                            (autoBuyPackageIdOverride ??
+                              userInfo.autoBuyTrafficPackageId),
+                        )?.name ?? "套餐自动购买")
                         : "点击设置相关内容"
                       : "禁用"
                     : userInfo.autoBuyTraffic === 1
@@ -963,7 +963,7 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between w-full">
               <div className="flex items-center gap-2">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+                {/* <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
                   <svg
                     aria-hidden="true"
                     className="h-5 w-5"
@@ -976,24 +976,28 @@ export default function DashboardPage() {
                       fillRule="evenodd"
                     />
                   </svg>
-                </div>
-                <div>
-                  <h2 className="text-lg lg:text-xl font-semibold text-foreground">
-                    节点到期提醒
-                  </h2>
-                  <p className="text-sm text-default-500">
-                    展示 7
-                    天内需要续费或已经逾期的节点，基于月付/季付/年付周期自动推算
+                </div> */}
+                <div className="w-full flex-1">
+                  {/* Replaced ml-auto on the child with gap-4 on the parent for consistent spacing */}
+                  <div className="flex w-full items-center gap-4">
+                    <h2 className="text-lg lg:text-xl font-semibold text-foreground">
+                      节点到期提醒
+                    </h2>
+
+                    <span className="inline-flex shrink-0 items-center rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200/80 dark:bg-white/5 dark:text-amber-300 dark:ring-amber-500/20">
+                      {nodeExpiryReminders.length} 个提醒
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-sm text-default-500">
+                    展示 7 天内需要续费或已经逾期的节点，基于月付/季付/年付周期自动推算
                   </p>
                 </div>
               </div>
-              <span className="inline-flex w-fit items-center rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200/80 dark:bg-white/5 dark:text-amber-300 dark:ring-amber-500/20">
-                {nodeExpiryReminders.length} 个提醒
-              </span>
             </div>
           </CardHeader>
           <CardBody className="pt-0">
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
               {nodeExpiryReminders.slice(0, 6).map(renderNodeExpiryCard)}
             </div>
             {nodeExpiryReminders.length > 6 && (
@@ -1173,7 +1177,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between w-full mb-2">
                       <span className="text-sm font-medium text-default-600">
                         {item.resetReason === "管理员手动归零" ||
-                        item.resetReason === "管理员手动重置"
+                          item.resetReason === "管理员手动重置"
                           ? "admin"
                           : "系统自动"}
                       </span>
