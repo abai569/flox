@@ -280,14 +280,9 @@ function SortableTableRow({
       <TableCell className={`whitespace-nowrap ${rowBg}`}>
         <div className="flex items-center gap-2 min-w-0">
           <span
-            className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${connectionStatusMeta.color === "success" ? "bg-emerald-500" : "bg-rose-500"}`}
-            title={connectionStatusMeta.text}
+            className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${node.paused ? "bg-yellow-500" : connectionStatusMeta.color === "success" ? "bg-emerald-500" : "bg-rose-500"}`}
+            title={node.paused ? "已暂停" : connectionStatusMeta.text}
           />
-          {node.paused === 1 && (
-            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400 flex-shrink-0">
-              暂停
-            </span>
-          )}
           <span
             className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
             title={node.name}
