@@ -61,6 +61,7 @@ interface Node {
   remoteUrl?: string;
   syncError?: string;
   connectionStatus: "online" | "offline";
+  paused?: number;
   systemInfo?: NodeSystemInfo | null;
   copyLoading?: boolean;
   upgradeLoading?: boolean;
@@ -98,6 +99,8 @@ interface NodeListViewProps {
   handleViewNodeTrafficLogs?: (node: Node) => void;
   // 新增：归零节点流量
   handleResetNodeTraffic?: (node: Node) => void;
+  // 新增：暂停/启用节点
+  handleTogglePause?: (node: Node) => void;
   nodeFilterMode?: any;
   setNodeFilterMode?: (mode: any) => void;
   nodeExpiryStats?: any;
@@ -120,6 +123,7 @@ function SortableTableRow({
   handleCopyAutoInstallCommand,
   handleViewNodeTrafficLogs,
   handleResetNodeTraffic,
+  handleTogglePause,
 }: any) {
   const [expiryPopoverOpen, setExpiryPopoverOpen] = useState(false);
   const expiryButtonRef = useRef<HTMLButtonElement>(null);
@@ -279,6 +283,11 @@ function SortableTableRow({
             className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${connectionStatusMeta.color === "success" ? "bg-emerald-500" : "bg-rose-500"}`}
             title={connectionStatusMeta.text}
           />
+          {node.paused === 1 && (
+            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400 flex-shrink-0">
+              暂停
+            </span>
+          )}
           <span
             className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
             title={node.name}
@@ -698,6 +707,15 @@ function SortableTableRow({
               >
                 归零
               </Button>
+              <Button
+                className="min-h-7 px-2"
+                color={node.paused ? "success" : "warning"}
+                size="sm"
+                variant="flat"
+                onPress={() => handleTogglePause(node)}
+              >
+                {node.paused ? "启用" : "暂停"}
+              </Button>
             </>
           )}
           <Button
@@ -738,6 +756,7 @@ export function NodeListView({
   nodeExpiryStats,
   handleViewNodeTrafficLogs,
   handleResetNodeTraffic,
+  handleTogglePause,
 }: NodeListViewProps) {
   const isAllSelected =
     displayNodes.length > 0 &&
@@ -940,6 +959,7 @@ export function NodeListView({
                   handleCopyAutoInstallCommand,
                   handleViewNodeTrafficLogs,
                   handleResetNodeTraffic,
+                  handleTogglePause,
                 }}
               />
             ))

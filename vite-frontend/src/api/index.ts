@@ -292,6 +292,10 @@ export const dismissNodeExpiryReminder = (id: number) =>
 
 export const refreshNodeExpiryReminder = (id: number) =>
   Network.post("/node/refresh-expiry-reminder", { id });
+export const pauseNode = (nodeId: number) =>
+  Network.post("/node/pause", { nodeId });
+export const resumeNode = (nodeId: number) =>
+  Network.post("/node/resume", { nodeId });
 export const checkNodeStatus = (nodeId?: number) => {
   const params = nodeId ? { nodeId } : {};
 

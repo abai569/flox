@@ -84,6 +84,8 @@ import {
   recordNodeOfflineLog,
   getNodeTrafficResetLogs,
   deleteNodeTrafficResetLog,
+  pauseNode,
+  resumeNode,
   getConfigByName,
   installMimicDeps,
   type ReleaseChannel,
@@ -140,6 +142,7 @@ interface Node {
   socks?: number;
   status: number;
   connectionStatus: "online" | "offline";
+  paused?: number;
   mimicStatus?: string;
   mimicError?: string;
   systemInfo?: NodeSystemInfo | null;
@@ -1322,6 +1325,25 @@ export default function NodePage() {
     setNodeToReset(node);
     onResetTrafficModalOpen();
   };
+  // 暂停/启用节点
+  const handleTogglePause = async (node: Node) => {
+    const isPaused = node.paused === 1;
+    try {
+      const res = isPaused ? await resumeNode(node.id) : await pauseNode(node.id);
+      if (res.code === 0) {
+        toast.success(isPaused ? "节点已启用" : "节点已暂停");
+        setNodeList((prev) =>
+          prev.map((n) =>
+            n.id === node.id ? { ...n, paused: isPaused ? 0 : 1 } : n,
+          ),
+        );
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("网络错误，操作失败");
+    }
+  };
   // 确认归零流量
   const handleConfirmResetTraffic = async () => {
     if (!nodeToReset) return;
@@ -2341,6 +2363,11 @@ export default function NodePage() {
                   }`}
                 title={connectionStatusMeta.text}
               />
+              {node.paused === 1 && (
+                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400 flex-shrink-0">
+                  暂停
+                </span>
+              )}
               {/* 这里加上 title 属性 */}
               <h3
                 className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
@@ -2684,7 +2711,7 @@ export default function NodePage() {
                 更新
               </Button>
             </div>
-            <div className="grid gap-2 grid-cols-3">
+            <div className="grid gap-2 grid-cols-4">
               <Button
                 className="min-h-8 w-full"
                 color="primary"
@@ -2702,6 +2729,15 @@ export default function NodePage() {
                 onPress={() => handleResetNodeTraffic(node)}
               >
                 归零
+              </Button>
+              <Button
+                className="min-h-8 w-full"
+                color={node.paused ? "success" : "warning"}
+                size="sm"
+                variant="flat"
+                onPress={() => handleTogglePause(node)}
+              >
+                {node.paused ? "启用" : "暂停"}
               </Button>
               <Button
                 className="min-h-8 w-full"
@@ -3143,6 +3179,9 @@ export default function NodePage() {
                                       handleResetNodeTraffic={
                                         handleResetNodeTraffic
                                       }
+                                      handleTogglePause={
+                                        handleTogglePause
+                                      }
                                       handleViewNodeTrafficLogs={
                                         handleViewNodeTrafficLogs
                                       }
@@ -3220,6 +3259,7 @@ export default function NodePage() {
                   handleDismissExpiryReminder={handleDismissExpiryReminder}
                   handleEdit={handleEdit}
                   handleResetNodeTraffic={handleResetNodeTraffic}
+                  handleTogglePause={handleTogglePause}
                   handleViewNodeTrafficLogs={handleViewNodeTrafficLogs}
                   nodeExpiryStats={nodeExpiryStats}
                   nodeFilterMode={nodeFilterMode}
