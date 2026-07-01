@@ -3696,11 +3696,13 @@ func (r *Repository) cleanupNodeTrafficResetLogs(nodeID int64) error {
 }
 
 type NodeTrafficLimitItem struct {
-	NodeID  int64
-	Name    string
-	LimitGB int64
-	Used    int64
-	Mask    int
+	NodeID       int64
+	Name         string
+	LimitGB      int64
+	Used         int64
+	Mask         int
+	TotalInFlow  int64
+	TotalOutFlow int64
 }
 
 func (r *Repository) ListNodesWithTrafficLimit() ([]NodeTrafficLimitItem, error) {
@@ -3710,17 +3712,11 @@ func (r *Repository) ListNodesWithTrafficLimit() ([]NodeTrafficLimitItem, error)
 	var items []NodeTrafficLimitItem
 	err := r.db.Raw(`
 		SELECT n.id, n.name, n.traffic_limit,
-		       COALESCE(latest.period_rx,0) + COALESCE(latest.period_tx,0) AS used,
-		       n.traffic_notified_mask
+		       n.total_in_flow + n.total_out_flow AS used,
+		       n.traffic_notified_mask,
+		       n.total_in_flow,
+		       n.total_out_flow
 		FROM node n
-		LEFT JOIN (
-		    SELECT nm1.node_id, nm1.period_rx, nm1.period_tx
-		    FROM node_metric nm1
-		    INNER JOIN (
-		        SELECT node_id, MAX(timestamp) AS max_ts
-		        FROM node_metric GROUP BY node_id
-		    ) nm2 ON nm1.node_id = nm2.node_id AND nm1.timestamp = nm2.max_ts
-		) latest ON latest.node_id = n.id
 		WHERE n.traffic_limit > 0
 	`).Scan(&items).Error
 	return items, err
@@ -3733,17 +3729,11 @@ func (r *Repository) GetNodeTrafficLimitInfo(nodeID int64) (*NodeTrafficLimitIte
 	var item NodeTrafficLimitItem
 	err := r.db.Raw(`
 		SELECT n.id, n.name, n.traffic_limit,
-		       COALESCE(latest.period_rx,0) + COALESCE(latest.period_tx,0) AS used,
-		       n.traffic_notified_mask
+		       n.total_in_flow + n.total_out_flow AS used,
+		       n.traffic_notified_mask,
+		       n.total_in_flow,
+		       n.total_out_flow
 		FROM node n
-		LEFT JOIN (
-		    SELECT nm1.node_id, nm1.period_rx, nm1.period_tx
-		    FROM node_metric nm1
-		    INNER JOIN (
-		        SELECT node_id, MAX(timestamp) AS max_ts
-		        FROM node_metric GROUP BY node_id
-		    ) nm2 ON nm1.node_id = nm2.node_id AND nm1.timestamp = nm2.max_ts
-		) latest ON latest.node_id = n.id
 		WHERE n.id = ?
 	`, nodeID).Scan(&item).Error
 	if err != nil {
@@ -3761,4 +3751,34 @@ func (r *Repository) UpdateNodeTrafficNotifiedMask(nodeID int64, mask int) error
 	}
 	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
 		Update("traffic_notified_mask", mask).Error
+}
+
+func (r *Repository) AddNodeTotalFlow(nodeID int64, rx, tx int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
+		Updates(map[string]interface{}{
+			"total_in_flow":  gorm.Expr("total_in_flow + ?", rx),
+			"total_out_flow": gorm.Expr("total_out_flow + ?", tx),
+		}).Error
+}
+
+func (r *Repository) ResetNodeTotalFlow(nodeID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
+		Updates(map[string]interface{}{
+			"total_in_flow":  0,
+			"total_out_flow": 0,
+		}).Error
+}
+
+func (r *Repository) SetNodePaused(nodeID int64, paused int) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
+		Update("paused", paused).Error
 }

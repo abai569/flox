@@ -131,6 +131,34 @@ func (h *Handler) maybeCheckNodeTraffic(nodeID int64, periodRx, periodTx uint64)
 	}
 }
 
+func (h *Handler) enforceNodeTrafficLimit(nodeID int64, periodRx, periodTx uint64) {
+	if h == nil || h.repo == nil || nodeID <= 0 {
+		return
+	}
+
+	info, err := h.repo.GetNodeTrafficLimitInfo(nodeID)
+	if err != nil || info == nil || info.LimitGB <= 0 {
+		return
+	}
+
+	if err := h.repo.AddNodeTotalFlow(nodeID, int64(periodRx), int64(periodTx)); err != nil {
+		log.Printf("ERROR: AddNodeTotalFlow node=%d failed: %v", nodeID, err)
+		return
+	}
+
+	totalUsed := info.TotalInFlow + info.TotalOutFlow + int64(periodRx) + int64(periodTx)
+	limitBytes := info.LimitGB * 1024 * 1024 * 1024
+
+	if totalUsed >= limitBytes {
+		log.Printf("Node %d 流量超限自动暂停: %.2f GB / %.2f GB", nodeID, float64(totalUsed)/1e9, float64(limitBytes)/1e9)
+		_, _ = h.sendNodeCommand(nodeID, "PauseNode", nil, false, false)
+		_ = h.repo.SetNodePaused(nodeID, 1)
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendNodeTrafficExceeded(info.Name)
+		})
+	}
+}
+
 // GetForwardConnections 获取指定转发的当前连接数
 func (h *Handler) GetForwardConnections(nodeID int64, forwardID int64) int {
 	if h.wsServer == nil {
@@ -226,6 +254,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		}
 		h.metrics.RecordNodeMetric(nodeID, metricInfo)
 		h.maybeCheckNodeTraffic(nodeID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
+		h.enforceNodeTrafficLimit(nodeID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
 	})
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)
@@ -311,6 +340,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/batch-upgrade", h.nodeBatchUpgrade)
 	mux.HandleFunc("/api/v1/node/releases", h.listReleases)
 	mux.HandleFunc("/api/v1/node/batch-reset-traffic", h.nodeBatchResetTraffic)
+	mux.HandleFunc("/api/v1/node/reset-total-flow", h.nodeResetTotalFlow)
+	mux.HandleFunc("/api/v1/node/pause", h.nodePause)
+	mux.HandleFunc("/api/v1/node/resume", h.nodeResume)
 	mux.HandleFunc("/api/v1/node/info", h.nodeInfo)
 	mux.HandleFunc("/api/v1/node/report-ip", h.nodeReportIP)
 	mux.HandleFunc("/api/v1/node/install-mimic-deps", h.installMimicDeps)

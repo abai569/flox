@@ -177,3 +177,140 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 
 	response.WriteJSON(w, response.OK(results))
 }
+
+type nodeResetTotalFlowRequest struct {
+	NodeID int64 `json:"nodeId"`
+}
+
+func (h *Handler) nodeResetTotalFlow(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	var req nodeResetTotalFlowRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, response.Err(-1, "无效的请求数据"))
+		return
+	}
+
+	if req.NodeID == 0 {
+		response.WriteJSON(w, response.Err(-1, "无效节点ID"))
+		return
+	}
+
+	actorUserID, _, err := userRoleFromRequest(r)
+	if err != nil {
+		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
+		return
+	}
+	_ = actorUserID
+
+	node, err := h.repo.GetNodeByID(req.NodeID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-1, "节点不存在"))
+		return
+	}
+
+	if err := h.repo.ResetNodeTotalFlow(req.NodeID); err != nil {
+		response.WriteJSON(w, response.Err(-1, "归零失败："+err.Error()))
+		return
+	}
+
+	_ = h.repo.UpdateNodeTrafficNotifiedMask(req.NodeID, 0)
+	h.nodeTrafficCache.Delete(req.NodeID)
+
+	h.sendBotNotification(func(bot *telegram.Bot) {
+		bot.SendNodeTrafficReset(node.Name, "管理员归零全量流量")
+	})
+
+	response.WriteJSON(w, response.OK(map[string]interface{}{
+		"nodeId":   req.NodeID,
+		"nodeName": node.Name,
+		"success":  true,
+	}))
+}
+
+type nodePauseRequest struct {
+	NodeID int64 `json:"nodeId"`
+}
+
+func (h *Handler) nodePause(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	var req nodePauseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, response.Err(-1, "无效的请求数据"))
+		return
+	}
+
+	if req.NodeID == 0 {
+		response.WriteJSON(w, response.Err(-1, "无效节点ID"))
+		return
+	}
+
+	node, err := h.repo.GetNodeByID(req.NodeID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-1, "节点不存在"))
+		return
+	}
+
+	_, err = h.sendNodeCommand(req.NodeID, "PauseNode", nil, false, false)
+	if err == nil && h.repo != nil {
+		_ = h.repo.SetNodePaused(req.NodeID, 1)
+	}
+
+	if err != nil {
+		response.WriteJSON(w, response.Err(-1, "暂停失败："+err.Error()))
+		return
+	}
+
+	response.WriteJSON(w, response.OK(map[string]interface{}{
+		"nodeId":   req.NodeID,
+		"nodeName": node.Name,
+		"success":  true,
+	}))
+}
+
+func (h *Handler) nodeResume(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	var req nodePauseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.WriteJSON(w, response.Err(-1, "无效的请求数据"))
+		return
+	}
+
+	if req.NodeID == 0 {
+		response.WriteJSON(w, response.Err(-1, "无效节点ID"))
+		return
+	}
+
+	node, err := h.repo.GetNodeByID(req.NodeID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-1, "节点不存在"))
+		return
+	}
+
+	_, err = h.sendNodeCommand(req.NodeID, "ResumeNode", nil, false, false)
+	if err == nil && h.repo != nil {
+		_ = h.repo.SetNodePaused(req.NodeID, 0)
+	}
+
+	if err != nil {
+		response.WriteJSON(w, response.Err(-1, "恢复失败："+err.Error()))
+		return
+	}
+
+	response.WriteJSON(w, response.OK(map[string]interface{}{
+		"nodeId":   req.NodeID,
+		"nodeName": node.Name,
+		"success":  true,
+	}))
+}

@@ -1645,6 +1645,15 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		err = w.handleInstallMimicDeps()
 		response.Type = "InstallMimicDepsResponse"
 
+	case "PauseNode":
+		err = w.handlePauseNode()
+		response.Type = "PauseNodeResponse"
+		needSaveConfig = true
+	case "ResumeNode":
+		err = w.handleResumeNode()
+		response.Type = "ResumeNodeResponse"
+		needSaveConfig = true
+
 	default:
 		err = fmt.Errorf("未知命令类型: %s", cmd.Type)
 		response.Type = "UnknownCommandResponse"
@@ -4414,9 +4423,86 @@ func (w *WebSocketReporter) handleInstallMimicDeps() error {
 	if err := w.runMimicFullInstall(pm); err != nil {
 		return err
 	}
-
-	fmt.Println("[mimic] installation complete")
+	fmt.Println("[mimic] installation completed successfully")
 	w.reportMimicStatus("ok", "")
+	return nil
+}
+
+func (w *WebSocketReporter) handlePauseNode() error {
+	cfg := config.Global()
+	if cfg == nil || len(cfg.Services) == 0 {
+		return nil
+	}
+
+	var names []string
+	for _, svc := range cfg.Services {
+		if svc.Name != "" {
+			names = append(names, svc.Name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+
+	conn := w.conn
+	if conn != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"PauseNodeResponse","success":true,"message":"暂停中..."}`))
+	}
+
+	os.WriteFile("gost.json.paused", mustMarshal(cfg), 0644)
+
+	err := deleteServices(deleteServicesRequest{Services: names})
+	if err != nil {
+		os.Remove("gost.json.paused")
+		return fmt.Errorf("暂停失败: %v", err)
+	}
+
+	fmt.Printf("✅ 节点已暂停，共停止 %d 个服务\n", len(names))
+	return nil
+}
+
+func mustMarshal(v interface{}) []byte {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return nil
+	}
+	return data
+}
+
+func (w *WebSocketReporter) handleResumeNode() error {
+	bak, err := os.ReadFile("gost.json.paused")
+	if err != nil {
+		return fmt.Errorf("未找到暂停备份文件 gost.json.paused")
+	}
+
+	var pausedCfg config.Config
+	if err := json.Unmarshal(bak, &pausedCfg); err != nil {
+		return fmt.Errorf("解析备份配置失败: %v", err)
+	}
+
+	if len(pausedCfg.Services) == 0 {
+		return fmt.Errorf("备份中没有服务，无法恢复")
+	}
+
+	conn := w.conn
+	if conn != nil {
+		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"ResumeNodeResponse","success":true,"message":"恢复中..."}`))
+	}
+
+	var services []config.ServiceConfig
+	for _, s := range pausedCfg.Services {
+		if s != nil {
+			services = append(services, *s)
+		}
+	}
+	err = createServices(createServicesRequest{Data: services})
+	if err != nil {
+		return fmt.Errorf("恢复服务失败: %v", err)
+	}
+
+	os.Remove("gost.json.paused")
+
+	fmt.Printf("✅ 节点已恢复，共启动 %d 个服务\n", len(pausedCfg.Services))
 	return nil
 }
 
