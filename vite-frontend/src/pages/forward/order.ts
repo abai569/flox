@@ -28,6 +28,25 @@ export const getUserScopedForwards = <T extends ForwardOrderItem>(
   return forwards.filter((item) => item.userId === currentUserId);
 };
 
+export const compareForwardOrder = <T extends ForwardOrderItem>(a: T, b: T): number => {
+  const aInx = typeof a.inx === "number" ? a.inx : 0;
+  const bInx = typeof b.inx === "number" ? b.inx : 0;
+  const aOrdered = aInx > 0;
+  const bOrdered = bInx > 0;
+
+  if (aOrdered !== bOrdered) {
+    return aOrdered ? 1 : -1;
+  }
+  if (!aOrdered && !bOrdered) {
+    return (b.id ?? 0) - (a.id ?? 0);
+  }
+  if (aInx !== bInx) {
+    return aInx - bInx;
+  }
+
+  return (a.id ?? 0) - (b.id ?? 0);
+};
+
 export const buildForwardOrder = <T extends ForwardOrderItem>(
   forwards: T[],
   currentUserId: number | null,
@@ -40,7 +59,7 @@ export const buildForwardOrder = <T extends ForwardOrderItem>(
 
   if (hasDbOrdering) {
     const dbOrder = [...userForwards]
-      .sort((a, b) => (a.inx ?? 0) - (b.inx ?? 0))
+      .sort(compareForwardOrder)
       .map((item) => item.id);
 
     return { order: dbOrder, fromDatabase: true };

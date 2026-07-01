@@ -3618,8 +3618,20 @@ func (h *Handler) forwardUpdateOrder(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
 		return
 	}
+	if len(req.Forwards) == 0 {
+		response.WriteJSON(w, response.ErrDefault("排序列表不能为空"))
+		return
+	}
+	now := time.Now().UnixMilli()
 	for _, f := range req.Forwards {
-		h.repo.UpdateForwardOrder(f.ID, f.Inx, time.Now().UnixMilli())
+		if f.ID <= 0 {
+			response.WriteJSON(w, response.ErrDefault("规则ID不能为空"))
+			return
+		}
+		if err := h.repo.UpdateForwardOrder(f.ID, f.Inx, now); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	response.WriteJSON(w, response.OKEmpty())
 }

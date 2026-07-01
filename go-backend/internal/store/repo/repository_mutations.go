@@ -1451,11 +1451,11 @@ func (r *Repository) UpdateForward(id int64, name string, tunnelID int64, remote
 		}).Error
 }
 
-func (r *Repository) UpdateForwardOrder(forwardID int64, inx int, now int64) {
+func (r *Repository) UpdateForwardOrder(forwardID int64, inx int, now int64) error {
 	if r == nil || r.db == nil {
-		return
+		return errors.New("repository not initialized")
 	}
-	_ = r.db.Model(&model.Forward{}).
+	return r.db.Model(&model.Forward{}).
 		Where("id = ?", forwardID).
 		Updates(map[string]interface{}{"inx": inx, "updated_time": now}).Error
 }

@@ -102,7 +102,11 @@ import {
   convertNyItemToForwardInput,
   parseNyFormatData,
 } from "@/pages/forward/import-format";
-import { buildForwardOrder, FORWARD_ORDER_KEY } from "@/pages/forward/order";
+import {
+  buildForwardOrder,
+  compareForwardOrder,
+  FORWARD_ORDER_KEY,
+} from "@/pages/forward/order";
 import { PageLoadingState } from "@/components/page-state";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 // import { useMobileBreakpoint } from "@/hooks/useMobileBreakpoint";
@@ -2061,10 +2065,9 @@ export default function ForwardPage() {
     const normalized = normalizeForwardItems(items);
 
     setForwards(normalized);
-    const currentUserId = JwtUtil.getUserIdFromToken();
     const { order, fromDatabase } = buildForwardOrder(
       normalized,
-      currentUserId,
+      null,
     );
 
     setForwardOrder(order);
@@ -3366,7 +3369,7 @@ export default function ForwardPage() {
       try {
         const forwardsToUpdate = newOrder.map((id, index) => ({
           id,
-          inx: index,
+          inx: index + 1,
         }));
         const response = await updateForwardOrder({
           forwards: forwardsToUpdate,
@@ -3765,17 +3768,8 @@ export default function ForwardPage() {
     if (!filteredForwards || filteredForwards.length === 0) {
       return [];
     }
-    // 优先使用数据库中的 inx 字段进行排序
-    const sortedByDb = [...filteredForwards].sort((a, b) => {
-      const aInx = a.inx ?? 0;
-      const bInx = b.inx ?? 0;
-
-      if (aInx !== bInx) {
-        return aInx - bInx;
-      }
-
-      return (a.id ?? 0) - (b.id ?? 0);
-    });
+    // 优先使用数据库中的 inx 字段进行排序，inx=0 表示新/未排序
+    const sortedByDb = [...filteredForwards].sort(compareForwardOrder);
 
     // 如果数据库中没有排序信息，则使用本地存储的顺序
     if (
@@ -3793,10 +3787,10 @@ export default function ForwardPage() {
           localSortedForwards.push(forward);
         }
       });
-      // 添加不在排序列表中的规则（新添加的）
+      // 添加不在排序列表中的规则（新添加的），追加以避免刷新后突然插队
       filteredForwards.forEach((forward) => {
         if (!forwardOrder.includes(forward.id)) {
-          localSortedForwards.unshift(forward);
+          localSortedForwards.push(forward);
         }
       });
 
@@ -4004,8 +3998,13 @@ export default function ForwardPage() {
   useEffect(() => {
     const maxPage = Math.ceil(forwardTotal / forwardPageSize);
 
-    if (forwardPage > maxPage && maxPage > 0) setForwardPage(1);
+    if (forwardPage > maxPage && maxPage > 0) setForwardPage(maxPage);
   }, [forwardTotal, forwardPageSize, forwardPage]);
+
+  useEffect(() => {
+    setForwardPage(1);
+    setGroupPage(1);
+  }, [compactMode, searchKeyword, searchParams, viewMode]);
 
   const paginationUI = (
     <div className="flex flex-wrap items-center justify-center gap-2 mt-4 mb-4">
@@ -4094,7 +4093,7 @@ export default function ForwardPage() {
   useEffect(() => {
     const maxPage = Math.ceil(groupTotal / groupPageSize);
 
-    if (groupPage > maxPage && maxPage > 0) setGroupPage(1);
+    if (groupPage > maxPage && maxPage > 0) setGroupPage(maxPage);
   }, [groupTotal, groupPageSize, groupPage]);
 
   const groupPaginationUI = (
@@ -4174,8 +4173,8 @@ export default function ForwardPage() {
   );
 
   const sortableForwardIds = useMemo(
-    () => sortedForwards.map((f) => f.id).filter((id) => id > 0),
-    [sortedForwards],
+    () => paginatedForwards.map((f) => f.id).filter((id) => id > 0),
+    [paginatedForwards],
   );
   const selectAll = () => {
     const allIds = sortedForwards.map((f) => f.id);
