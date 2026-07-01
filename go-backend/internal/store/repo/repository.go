@@ -989,6 +989,7 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"expiryReminderDismissed": n.ExpiryReminderDismissed,
 			"groupId":                 nullableInt64(n.GroupID),
 			"trafficLimit":            n.TrafficLimit,
+			"paused":                  n.Paused,
 			"flowResetTime":           n.FlowResetTime,
 			"periodTraffic":           pt,
 			"mimic_status":            n.MimicStatus,
