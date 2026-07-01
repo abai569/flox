@@ -781,10 +781,14 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now().UnixMilli()
+	secret := asString(req["secret"])
+	if secret == "" {
+		secret = randomToken(16)
+	}
 	inx := h.repo.NextIndex("node")
 	if err := h.repo.CreateNode(
 		name,
-		randomToken(16),
+		secret,
 		serverIP,
 		nullableText(asString(req["serverIpV4"])),
 		nullableText(asString(req["serverIpV6"])),
