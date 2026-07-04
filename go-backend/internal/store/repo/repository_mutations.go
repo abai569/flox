@@ -412,24 +412,24 @@ func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, ser
 		return errors.New("repository not initialized")
 	}
 	updates := map[string]interface{}{
-		"name":                      name,
-		"remark":                    nullStringFromInterface(remark),
-		"expiry_time":               nullInt64FromInterface(expiryTime),
-		"renewal_cycle":             nullStringFromInterface(renewalCycle),
-		"server_ip":                 serverIP,
-		"server_ip_v4":              nullStringFromInterface(serverIPV4),
-		"server_ip_v6":              nullStringFromInterface(serverIPV6),
-		"intranet_ip":               nullStringFromInterface(intranetIP),
-		"extra_ips":                 nullStringFromInterface(extraIPs),
-		"remote_config":             nullStringFromInterface(remoteConfig),
-		"port":                      stringFromInterface(port),
-		"interface_name":            nullStringFromInterface(interfaceName),
-		"http":                      httpFlag,
-		"tls":                       tlsFlag,
-		"socks":                     socksFlag,
-		"block_other":               blockOtherFlag,
-		"tcp_listen_addr":           tcpAddr,
-		"udp_listen_addr":           udpAddr,
+		"name":            name,
+		"remark":          nullStringFromInterface(remark),
+		"expiry_time":     nullInt64FromInterface(expiryTime),
+		"renewal_cycle":   nullStringFromInterface(renewalCycle),
+		"server_ip":       serverIP,
+		"server_ip_v4":    nullStringFromInterface(serverIPV4),
+		"server_ip_v6":    nullStringFromInterface(serverIPV6),
+		"intranet_ip":     nullStringFromInterface(intranetIP),
+		"extra_ips":       nullStringFromInterface(extraIPs),
+		"remote_config":   nullStringFromInterface(remoteConfig),
+		"port":            stringFromInterface(port),
+		"interface_name":  nullStringFromInterface(interfaceName),
+		"http":            httpFlag,
+		"tls":             tlsFlag,
+		"socks":           socksFlag,
+		"block_other":     blockOtherFlag,
+		"tcp_listen_addr": tcpAddr,
+		"udp_listen_addr": udpAddr,
 		"updated_time":    sql.NullInt64{Int64: now, Valid: true},
 		"traffic_limit":   trafficLimit,
 		"flow_reset_time": flowResetTime,
@@ -469,6 +469,18 @@ func (r *Repository) GetNodeName(nodeID int64) (string, error) {
 		return "", normalizeNotFoundErr(err)
 	}
 	return node.Name, nil
+}
+
+func (r *Repository) UpdateNodeWeight(nodeID int64, weight int, now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).
+		Where("id = ?", nodeID).
+		Updates(map[string]interface{}{
+			"weight":       weight,
+			"updated_time": sql.NullInt64{Int64: now, Valid: true},
+		}).Error
 }
 
 func (r *Repository) GetNodeNameTx(tx *gorm.DB, nodeID int64) (string, error) {

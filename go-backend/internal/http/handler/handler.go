@@ -343,6 +343,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/reset-total-flow", h.nodeResetTotalFlow)
 	mux.HandleFunc("/api/v1/node/pause", h.nodePause)
 	mux.HandleFunc("/api/v1/node/resume", h.nodeResume)
+	mux.HandleFunc("/api/v1/node/weight", h.nodeWeightUpdate)
 	mux.HandleFunc("/api/v1/node/info", h.nodeInfo)
 	mux.HandleFunc("/api/v1/node/report-ip", h.nodeReportIP)
 	mux.HandleFunc("/api/v1/node/install-mimic-deps", h.installMimicDeps)
@@ -446,6 +447,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/monitor/nodes/", h.monitorNodeMetricsHandler)
 	mux.HandleFunc("/api/v1/monitor/nodes", h.monitorNodeListHandler)
 	mux.HandleFunc("/api/v1/monitor/tunnels", h.monitorTunnelListHandler)
+	mux.HandleFunc("/api/v1/monitor/server-groups", h.monitorServerGroupsHandler)
 	mux.HandleFunc("/api/v1/monitor/tunnels/quality", h.monitorTunnelQualityHandler)
 	mux.HandleFunc("/api/v1/monitor/tunnels/", h.monitorTunnelMetrics)
 	mux.HandleFunc("/api/v1/monitor/services", h.monitorServiceListHandler)
@@ -2256,6 +2258,7 @@ func (h *Handler) nodeReportIP(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.Err(-1, fmt.Sprintf("更新 IP 失败：%v", err)))
 			return
 		}
+		clearMonitorResolvedIPCacheForNode(node.ID)
 		response.WriteJSON(w, response.OK(map[string]interface{}{
 			"node_id":      node.ID,
 			"public_ip_v4": req.PublicIPV4,
@@ -2267,6 +2270,7 @@ func (h *Handler) nodeReportIP(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.Err(-1, fmt.Sprintf("更新 IP 失败：%v", err)))
 			return
 		}
+		clearMonitorResolvedIPCacheForNode(node.ID)
 		response.WriteJSON(w, response.OK(map[string]interface{}{
 			"node_id":   node.ID,
 			"public_ip": req.PublicIP,

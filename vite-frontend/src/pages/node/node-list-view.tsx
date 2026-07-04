@@ -67,6 +67,7 @@ interface Node {
   upgradeLoading?: boolean;
   rollbackLoading?: boolean;
   groupId?: number | null;
+  onlineCount?: number;
 }
 interface NodeListViewProps {
   displayNodes: Node[];
@@ -509,6 +510,13 @@ function SortableTableRow({
         )}
       </TableCell>
       <TableCell className={`whitespace-nowrap ${rowBg}`}>
+        <div className="flex justify-end">
+          <span className="text-sm font-mono text-default-600 tabular-nums">
+            {node.connectionStatus === "online" ? (node.onlineCount ?? 0) : "-"}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className={`whitespace-nowrap ${rowBg}`}>
         <div className="flex items-center justify-end gap-1">
           <span className="text-sm text-danger-600 dark:text-danger-400">
             {realtimeNodeMetrics?.[node.id]
@@ -856,6 +864,9 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[90px] text-left">
             版本
           </TableColumn>
+          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-right">
+            在线数
+          </TableColumn>
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
             周期流量
           </TableColumn>
@@ -910,7 +921,7 @@ export function NodeListView({
         <TableBody>
           {displayNodes.length === 0 ? (
             <TableRow>
-              <TableCell className="py-16 text-center" colSpan={13}>
+              <TableCell className="py-16 text-center" colSpan={14}>
                 <div className="flex flex-col items-center justify-center">
                   <h3 className="text-base font-medium text-foreground mb-1">
                     未找到匹配的节点

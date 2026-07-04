@@ -854,10 +854,10 @@ func (r *Repository) UpdateNodeMimicStatus(nodeID int64, status, errMsg string) 
 		return errors.New("repository not initialized")
 	}
 	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
-		"mimic_status":    status,
-		"mimic_error":     errMsg,
+		"mimic_status":     status,
+		"mimic_error":      errMsg,
 		"mimic_updated_at": unixMilliNow(),
-		"updated_time":    unixMilliNow(),
+		"updated_time":     unixMilliNow(),
 	}).Error
 }
 
@@ -980,7 +980,7 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"tcpListenAddr": n.TCPListenAddr,
 			"udpListenAddr": n.UDPListenAddr,
 			"version":       nullableString(n.Version),
-			"http": n.HTTP, "tls": n.TLS, "socks": n.Socks, "blockOther": n.BlockOther,
+			"http":          n.HTTP, "tls": n.TLS, "socks": n.Socks, "blockOther": n.BlockOther,
 			"status": n.Status, "isRemote": n.IsRemote,
 			"remoteUrl":               nullableString(n.RemoteURL),
 			"remoteToken":             nullableString(n.RemoteToken),
@@ -990,11 +990,18 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"groupId":                 nullableInt64(n.GroupID),
 			"trafficLimit":            n.TrafficLimit,
 			"paused":                  n.Paused,
-			"flowResetTime":           n.FlowResetTime,
-			"periodTraffic":           pt,
-			"mimic_status":            n.MimicStatus,
-			"mimic_error":             n.MimicError,
-			"mimic_updated_at":        n.MimicUpdatedAt,
+			"weight":                  n.Weight,
+			"onlineCount": func() int64 {
+				if m, ok := metricMap[n.ID]; ok {
+					return m.TCPConns + m.UDPConns
+				}
+				return 0
+			}(),
+			"flowResetTime":    n.FlowResetTime,
+			"periodTraffic":    pt,
+			"mimic_status":     n.MimicStatus,
+			"mimic_error":      n.MimicError,
+			"mimic_updated_at": n.MimicUpdatedAt,
 		})
 	}
 	return items, nil
@@ -1025,12 +1032,12 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 			"flowResetTime": u.FlowResetTime, "createdTime": u.CreatedTime,
 			"updatedTime": nullableInt64(u.UpdatedTime),
 			"inFlow":      u.InFlow, "outFlow": u.OutFlow,
-			"renewalAmount":    u.RenewalAmount,
-			"balance":          u.Balance,
-			"autoRenew":        u.AutoRenew,
-			"autoBuyTraffic":   u.AutoBuyTraffic,
-			"buyTrafficAmount": u.BuyTrafficAmount,
-			"buyTrafficPrice":          u.BuyTrafficPrice,
+			"renewalAmount":           u.RenewalAmount,
+			"balance":                 u.Balance,
+			"autoRenew":               u.AutoRenew,
+			"autoBuyTraffic":          u.AutoBuyTraffic,
+			"buyTrafficAmount":        u.BuyTrafficAmount,
+			"buyTrafficPrice":         u.BuyTrafficPrice,
 			"autoBuyTrafficPackageId": u.AutoBuyTrafficPackageID,
 			"autoBuyTrafficThreshold": u.AutoBuyTrafficThreshold,
 			"baseFlow":                u.BaseFlow,

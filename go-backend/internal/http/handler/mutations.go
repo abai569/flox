@@ -5013,6 +5013,9 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		if targetNode == nil {
 			return nil, errors.New("节点不存在")
 		}
+		if targetNode.Weight <= 0 {
+			continue
+		}
 		host, _, err := selectTunnelDialHost(fromNode, targetNode, ipPreference, target.ConnectIPType)
 		if err != nil {
 			return nil, err
@@ -5033,14 +5036,21 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		nodeItems = append(nodeItems, map[string]interface{}{
 			"name":      fmt.Sprintf("node_%d", idx+1),
 			"addr":      processServerAddress(fmt.Sprintf("%s:%d", host, port)),
+			"metadata":  map[string]interface{}{"weight": targetNode.Weight},
 			"connector": connector,
 			"dialer": map[string]interface{}{
 				"type": protocol,
 			},
 		})
 	}
+	if len(nodeItems) == 0 {
+		return nil, errors.New("可用转发链目标为空，请检查节点权重")
+	}
 
 	strategy := defaultString(strings.TrimSpace(targets[0].Strategy), "round")
+	if len(nodeItems) > 1 && !strings.EqualFold(strategy, "fifo") {
+		strategy = "random"
+	}
 	hop := map[string]interface{}{
 		"name": fmt.Sprintf("hop_%d", tunnelID),
 		"selector": map[string]interface{}{

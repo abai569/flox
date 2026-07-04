@@ -42,10 +42,22 @@ func registerFloxChain(cfg *config.ChainConfig) {
 			if n.Dialer != nil && strings.TrimSpace(n.Dialer.Type) != "" {
 				transport = strings.TrimSpace(n.Dialer.Type)
 			}
+			weight := 0
+			if n.Metadata != nil {
+				switch v := n.Metadata["weight"].(type) {
+				case int:
+					weight = v
+				case int64:
+					weight = int(v)
+				case float64:
+					weight = int(v)
+				}
+			}
 			hop.Nodes = append(hop.Nodes, floxcfg.ChainNodeConfig{
 				Name:      n.Name,
 				Addr:      addr,
 				Transport: transport,
+				Weight:    weight,
 			})
 		}
 		fc.Hops = append(fc.Hops, hop)

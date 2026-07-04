@@ -7,6 +7,8 @@ export interface NodeApiItem {
   expiryTime?: number;
   renewalCycle?: "month" | "quarter" | "halfYear" | "" | "year";
   expiryReminderDismissed?: number;
+  weight?: number;
+  onlineCount?: number;
   syncError?: string;
   // 周期流量统计
   periodTraffic?: {
@@ -556,7 +558,43 @@ export interface MonitorNodeApiItem {
   name: string;
   status: number;
   version?: string;
+  weight?: number;
   updatedTime: number;
+}
+
+export interface MonitorServerGroupMemberApiItem {
+  nodeId: number;
+  nodeName: string;
+  serverIp?: string;
+  serverIpV4?: string;
+  serverIpV6?: string;
+  resolvedIpV4?: string;
+  resolvedIpV6?: string;
+  ipV4ResolvedAt?: number;
+  ipV6ResolvedAt?: number;
+  ipResolveError?: string;
+  status: number;
+  weight: number;
+  onlineCount: number;
+  netInSpeed: number;
+  netOutSpeed: number;
+  netInBytes: number;
+  netOutBytes: number;
+  uptime: number;
+  periodRx: number;
+  periodTx: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  diskUsage: number;
+}
+
+export interface MonitorServerGroupApiItem {
+  id: number;
+  name: string;
+  status: number;
+  totalInSpeed: number;
+  totalOutSpeed: number;
+  members: MonitorServerGroupMemberApiItem[];
 }
 
 export interface MonitorNodeMetricsApiItem extends MonitorNodeApiItem {

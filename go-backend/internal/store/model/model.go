@@ -10,35 +10,35 @@ import "database/sql"
 // User maps to the "user" table. PostgreSQL treats "user" as a reserved
 // word, so TableName() is required for correct quoting.
 type User struct {
-	ID            int64         `gorm:"primaryKey;autoIncrement"`
-	User          string        `gorm:"column:user;type:varchar(100);not null"`
-	Pwd           string        `gorm:"type:varchar(100);not null"`
-	RoleID        int           `gorm:"column:role_id;not null"`
-	Name          string        `gorm:"column:name;type:varchar(100);default:''"` // 用户备注
-	ExpTime       int64         `gorm:"column:exp_time;not null"`
-	Flow          int64         `gorm:"not null"`
-	InFlow        int64         `gorm:"column:in_flow;not null;default:0"`
-	OutFlow       int64         `gorm:"column:out_flow;not null;default:0"`
-	FlowResetTime int64         `gorm:"column:flow_reset_time;not null"`
-	Num           int           `gorm:"not null"`
-	Inx           int           `gorm:"column:inx;default:0"` // 排序索引
-	CreatedTime   int64         `gorm:"column:created_time;not null"`
-	UpdatedTime   sql.NullInt64 `gorm:"column:updated_time"`
-	Status        int           `gorm:"not null"`
-	RenewalAmount   int64         `gorm:"column:renewal_amount;default:0"`   // 续费金额 (分)
-	Balance         int64         `gorm:"column:balance;default:0"`          // 可用余额 (分)
-	AutoRenew       int           `gorm:"column:auto_renew;default:0"`       // 自动续费开关 (0=禁用，1=启用)
-	AutoBuyTraffic  int           `gorm:"column:auto_buy_traffic;default:0"` // 自动购买流量开关 (0=禁用，1=启用)
-	BuyTrafficAmount int64        `gorm:"column:buy_traffic_amount;default:0"` // 每次购买流量量 (GB)
-	BuyTrafficPrice int64         `gorm:"column:buy_traffic_price;default:0"`  // 每次购买价格 (分)
-	AutoBuyTrafficPackageID     int64 `gorm:"column:auto_buy_traffic_package_id;default:0"`                    // 关联的自动购流套餐ID (0=使用自定义配置)
-	AutoBuyTrafficThreshold      int64 `gorm:"column:auto_buy_traffic_threshold;default:10"`                    // 自动购流触发阈值(GB)，默认10
-	BaseFlow                     int64 `gorm:"column:base_flow;default:0"`                                    // 初始流量配额 (GB)
-	TrafficFlow     int64         `gorm:"column:traffic_flow;default:0"`        // 流量快餐累计 (GB)
-	SpeedLimit      int           `gorm:"column:speed_limit;default:0"`        // 限速 MB/s (0=不限)
-	MaxRules        int           `gorm:"column:max_rules;default:0"`          // 最大规则数 (0=不限)
-	MaxConnections  int           `gorm:"column:max_connections;default:0"`    // 最大连接数 (0=不限)
-	MaxIPAccess     int           `gorm:"column:max_ip_access;default:0"`      // 单 IP 接入限制 (0=不限)
+	ID                      int64         `gorm:"primaryKey;autoIncrement"`
+	User                    string        `gorm:"column:user;type:varchar(100);not null"`
+	Pwd                     string        `gorm:"type:varchar(100);not null"`
+	RoleID                  int           `gorm:"column:role_id;not null"`
+	Name                    string        `gorm:"column:name;type:varchar(100);default:''"` // 用户备注
+	ExpTime                 int64         `gorm:"column:exp_time;not null"`
+	Flow                    int64         `gorm:"not null"`
+	InFlow                  int64         `gorm:"column:in_flow;not null;default:0"`
+	OutFlow                 int64         `gorm:"column:out_flow;not null;default:0"`
+	FlowResetTime           int64         `gorm:"column:flow_reset_time;not null"`
+	Num                     int           `gorm:"not null"`
+	Inx                     int           `gorm:"column:inx;default:0"` // 排序索引
+	CreatedTime             int64         `gorm:"column:created_time;not null"`
+	UpdatedTime             sql.NullInt64 `gorm:"column:updated_time"`
+	Status                  int           `gorm:"not null"`
+	RenewalAmount           int64         `gorm:"column:renewal_amount;default:0"`              // 续费金额 (分)
+	Balance                 int64         `gorm:"column:balance;default:0"`                     // 可用余额 (分)
+	AutoRenew               int           `gorm:"column:auto_renew;default:0"`                  // 自动续费开关 (0=禁用，1=启用)
+	AutoBuyTraffic          int           `gorm:"column:auto_buy_traffic;default:0"`            // 自动购买流量开关 (0=禁用，1=启用)
+	BuyTrafficAmount        int64         `gorm:"column:buy_traffic_amount;default:0"`          // 每次购买流量量 (GB)
+	BuyTrafficPrice         int64         `gorm:"column:buy_traffic_price;default:0"`           // 每次购买价格 (分)
+	AutoBuyTrafficPackageID int64         `gorm:"column:auto_buy_traffic_package_id;default:0"` // 关联的自动购流套餐ID (0=使用自定义配置)
+	AutoBuyTrafficThreshold int64         `gorm:"column:auto_buy_traffic_threshold;default:10"` // 自动购流触发阈值(GB)，默认10
+	BaseFlow                int64         `gorm:"column:base_flow;default:0"`                   // 初始流量配额 (GB)
+	TrafficFlow             int64         `gorm:"column:traffic_flow;default:0"`                // 流量快餐累计 (GB)
+	SpeedLimit              int           `gorm:"column:speed_limit;default:0"`                 // 限速 MB/s (0=不限)
+	MaxRules                int           `gorm:"column:max_rules;default:0"`                   // 最大规则数 (0=不限)
+	MaxConnections          int           `gorm:"column:max_connections;default:0"`             // 最大连接数 (0=不限)
+	MaxIPAccess             int           `gorm:"column:max_ip_access;default:0"`               // 单 IP 接入限制 (0=不限)
 }
 
 func (User) TableName() string { return "user" }
@@ -83,7 +83,7 @@ type ForwardPort struct {
 func (ForwardPort) TableName() string { return "forward_port" }
 
 type NftablesRule struct {
-	ID        int64  `gorm:"primaryKey;autoIncrement"`
+	ID         int64  `gorm:"primaryKey;autoIncrement"`
 	ForwardID  int64  `gorm:"column:forward_id;not null;index:idx_nftables_forward_id"`
 	NodeID     int64  `gorm:"column:node_id;not null"`
 	Protocol   string `gorm:"type:varchar(10);not null"`
@@ -129,11 +129,12 @@ type Node struct {
 	ExpiryReminderDismissedUntil sql.NullInt64  `gorm:"column:expiry_reminder_dismissed_until"`
 	GroupID                      sql.NullInt64  `gorm:"column:group_id;index:idx_node_group_id"`
 	ServiceName                  sql.NullString `gorm:"column:service_name;type:varchar(100)"`
-	TrafficLimit         int64 `gorm:"column:traffic_limit;default:0"`
-	TotalInFlow          int64 `gorm:"column:total_in_flow;default:0"`
-	TotalOutFlow         int64 `gorm:"column:total_out_flow;default:0"`
-	Paused               int   `gorm:"column:paused;default:0"`
-	TrafficNotifiedMask  int   `gorm:"column:traffic_notified_mask;default:0"`
+	TrafficLimit                 int64          `gorm:"column:traffic_limit;default:0"`
+	TotalInFlow                  int64          `gorm:"column:total_in_flow;default:0"`
+	TotalOutFlow                 int64          `gorm:"column:total_out_flow;default:0"`
+	Paused                       int            `gorm:"column:paused;default:0"`
+	Weight                       int            `gorm:"column:weight;not null;default:1"`
+	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
 	FlowResetTime                int            `gorm:"column:flow_reset_time;not null;default:1"`
 	MimicStatus                  string         `gorm:"column:mimic_status;type:varchar(50);default:''"`
 	MimicError                   string         `gorm:"column:mimic_error;type:text;default:''"`
@@ -656,6 +657,7 @@ type NodeRecord struct {
 	RemoteURL     string
 	RemoteToken   string
 	RemoteConfig  string
+	Weight        int
 }
 
 type ChainNodeRecord struct {
@@ -929,13 +931,13 @@ type UserTrafficBuyLog struct {
 	ID            int64  `gorm:"primaryKey;autoIncrement"`
 	UserID        int64  `gorm:"column:user_id;not null;index:idx_user_buy_time"`
 	UserName      string `gorm:"column:user_name;type:varchar(100);not null"`
-	BuyAmount     int64  `gorm:"column:buy_amount;not null"`        // 购买流量量 (GB)
-	BuyPrice      int64  `gorm:"column:buy_price;not null"`         // 扣款金额 (分)
-	BalanceBefore int64  `gorm:"column:balance_before;not null"`    // 扣款前余额
-	BalanceAfter  int64  `gorm:"column:balance_after;not null"`     // 扣款后余额
-	FlowBefore    int64  `gorm:"column:flow_before;not null"`       // 购买前流量配额 (GB)
-	FlowAfter     int64  `gorm:"column:flow_after;not null"`        // 购买后流量配额 (GB)
-	BuyTime       int64  `gorm:"column:buy_time;not null"`          // 购买时间
+	BuyAmount     int64  `gorm:"column:buy_amount;not null"`     // 购买流量量 (GB)
+	BuyPrice      int64  `gorm:"column:buy_price;not null"`      // 扣款金额 (分)
+	BalanceBefore int64  `gorm:"column:balance_before;not null"` // 扣款前余额
+	BalanceAfter  int64  `gorm:"column:balance_after;not null"`  // 扣款后余额
+	FlowBefore    int64  `gorm:"column:flow_before;not null"`    // 购买前流量配额 (GB)
+	FlowAfter     int64  `gorm:"column:flow_after;not null"`     // 购买后流量配额 (GB)
+	BuyTime       int64  `gorm:"column:buy_time;not null"`       // 购买时间
 	Reason        string `gorm:"column:reason;type:varchar(200);default:'自动购买流量'"`
 }
 
