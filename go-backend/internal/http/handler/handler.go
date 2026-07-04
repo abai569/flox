@@ -447,7 +447,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/monitor/nodes/", h.monitorNodeMetricsHandler)
 	mux.HandleFunc("/api/v1/monitor/nodes", h.monitorNodeListHandler)
 	mux.HandleFunc("/api/v1/monitor/tunnels", h.monitorTunnelListHandler)
-	mux.HandleFunc("/api/v1/monitor/server-groups", h.monitorServerGroupsHandler)
+	mux.HandleFunc("/api/v1/monitor/node-instance-groups", h.monitorNodeInstanceGroupsHandler)
 	mux.HandleFunc("/api/v1/monitor/tunnels/quality", h.monitorTunnelQualityHandler)
 	mux.HandleFunc("/api/v1/monitor/tunnels/", h.monitorTunnelMetrics)
 	mux.HandleFunc("/api/v1/monitor/services", h.monitorServiceListHandler)
@@ -2235,6 +2235,8 @@ func (h *Handler) nodeReportIP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
+		InstanceID string `json:"instance_id"`
+		Hostname   string `json:"hostname"`
 		PublicIP   string `json:"public_ip"`
 		PublicIPV4 string `json:"public_ip_v4"`
 		PublicIPV6 string `json:"public_ip_v6"`
@@ -2251,29 +2253,47 @@ func (h *Handler) nodeReportIP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 支持新格式 (public_ip_v4 + public_ip_v6) 和旧格式 (public_ip)
+	// 支持新格式 (public_ip_v4 + public_ip_v6) 和旧格式 (public_ip)，均写入节点实例表。
 	if req.PublicIPV4 != "" || req.PublicIPV6 != "" {
-		// 新格式：分别更新 IPv4 和 IPv6
-		if err := h.repo.UpdateNodePublicIPs(node.ID, req.PublicIPV4, req.PublicIPV6); err != nil {
+		if err := h.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
+			NodeID:     node.ID,
+			InstanceID: req.InstanceID,
+			Hostname:   req.Hostname,
+			PublicIPV4: req.PublicIPV4,
+			PublicIPV6: req.PublicIPV6,
+			Now:        time.Now().UnixMilli(),
+		}); err != nil {
 			response.WriteJSON(w, response.Err(-1, fmt.Sprintf("更新 IP 失败：%v", err)))
 			return
 		}
-		clearMonitorResolvedIPCacheForNode(node.ID)
 		response.WriteJSON(w, response.OK(map[string]interface{}{
 			"node_id":      node.ID,
+			"instance_id":  req.InstanceID,
 			"public_ip_v4": req.PublicIPV4,
 			"public_ip_v6": req.PublicIPV6,
 		}))
 	} else if req.PublicIP != "" {
-		// 旧格式：只更新 server_ip（向后兼容）
-		if err := h.repo.UpdateNodePublicIP(node.ID, req.PublicIP); err != nil {
+		publicIPV4 := req.PublicIP
+		publicIPV6 := ""
+		if strings.Contains(req.PublicIP, ":") {
+			publicIPV4 = ""
+			publicIPV6 = req.PublicIP
+		}
+		if err := h.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
+			NodeID:     node.ID,
+			InstanceID: req.InstanceID,
+			Hostname:   req.Hostname,
+			PublicIPV4: publicIPV4,
+			PublicIPV6: publicIPV6,
+			Now:        time.Now().UnixMilli(),
+		}); err != nil {
 			response.WriteJSON(w, response.Err(-1, fmt.Sprintf("更新 IP 失败：%v", err)))
 			return
 		}
-		clearMonitorResolvedIPCacheForNode(node.ID)
 		response.WriteJSON(w, response.OK(map[string]interface{}{
-			"node_id":   node.ID,
-			"public_ip": req.PublicIP,
+			"node_id":     node.ID,
+			"instance_id": req.InstanceID,
+			"public_ip":   req.PublicIP,
 		}))
 	} else {
 		response.WriteJSON(w, response.ErrDefault("IP 地址不能为空"))

@@ -15,6 +15,7 @@ type Config struct {
 	BlockSocks           int    `json:"block_socks,omitempty"`
 	BlockOtherPorts      int    `json:"block_other_ports,omitempty"`
 	NodeID               int64  `json:"node_id"`
+	InstanceID           string `json:"instance_id"`
 	ServiceName          string `json:"service_name"`
 	DomesticDownloadHost string `json:"domestic_download_host"`
 }
@@ -43,7 +44,7 @@ func LoadConfig(configPath string) (*Config, error) {
 
 	// 验证必要的配置项
 	if config.Addr == "" {
-		return nil, fmt.Errorf("服务器地址不能为空")
+		return nil, fmt.Errorf("面板地址不能为空")
 	}
 
 	return &config, nil

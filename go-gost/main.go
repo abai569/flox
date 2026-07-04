@@ -168,7 +168,7 @@ func main() {
 
 	distro := socket.DetectDistro()
 	fullVersion := fmt.Sprintf("%s (%s/%s)", version, distro, runtime.GOARCH)
-	wsReporter := socket.StartWebSocketReporterWithConfig(config.Addr, config.Secret, config.BlockHttp, config.BlockTls, config.BlockSocks, config.BlockOtherPorts, fullVersion, config.NodeID)
+	wsReporter := socket.StartWebSocketReporterWithConfig(config.Addr, config.Secret, config.BlockHttp, config.BlockTls, config.BlockSocks, config.BlockOtherPorts, fullVersion, config.NodeID, config.InstanceID)
 	defer wsReporter.Stop()
 	service.SetHTTPReportURL(config.Addr, config.Secret)
 

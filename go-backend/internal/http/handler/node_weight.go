@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"go-backend/internal/http/response"
@@ -23,8 +24,9 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		NodeID int64 `json:"nodeId"`
-		Weight int   `json:"weight"`
+		NodeID     int64  `json:"nodeId"`
+		InstanceID string `json:"instanceId"`
+		Weight     int    `json:"weight"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -43,14 +45,22 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.repo.UpdateNodeWeight(req.NodeID, req.Weight, time.Now().UnixMilli()); err != nil {
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
+	if strings.TrimSpace(req.InstanceID) != "" {
+		if err := h.repo.UpdateNodeInstanceWeight(req.NodeID, req.InstanceID, req.Weight, time.Now().UnixMilli()); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
+	} else {
+		if err := h.repo.UpdateNodeWeight(req.NodeID, req.Weight, time.Now().UnixMilli()); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 
 	go h.redeployNodeRuntime(req.NodeID)
 	response.WriteJSON(w, response.OK(map[string]interface{}{
-		"nodeId": req.NodeID,
-		"weight": req.Weight,
+		"nodeId":     req.NodeID,
+		"instanceId": req.InstanceID,
+		"weight":     req.Weight,
 	}))
 }

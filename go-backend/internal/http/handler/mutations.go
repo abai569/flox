@@ -764,8 +764,11 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
 	if serverIP == "" {
 		serverIP = asString(req["intranetIp"])
 	}
-	if name == "" || serverIP == "" {
-		response.WriteJSON(w, response.ErrDefault("节点名称和地址不能为空"))
+	if serverIP == "" {
+		serverIP = "auto"
+	}
+	if name == "" {
+		response.WriteJSON(w, response.ErrDefault("节点名称不能为空"))
 		return
 	}
 
@@ -890,6 +893,9 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	if serverIP == "" {
 		serverIP = asString(req["intranetIp"])
+	}
+	if serverIP == "" {
+		serverIP = "auto"
 	}
 	var secret interface{}
 	if secretRaw, ok := req["secret"]; ok && secretRaw != nil {
@@ -4544,25 +4550,27 @@ type tunnelRuntimeNode struct {
 }
 
 type tunnelCreateState struct {
-	TunnelID     int64
-	Type         int
-	Mode         string
-	IPPreference string // "" = auto, "v4" = prefer IPv4, "v6" = prefer IPv6
-	InNodes      []tunnelRuntimeNode
-	ChainHops    [][]tunnelRuntimeNode
-	OutNodes     []tunnelRuntimeNode
-	Nodes        map[int64]*nodeRecord
-	NodeIDList   []int64
+	TunnelID      int64
+	Type          int
+	Mode          string
+	IPPreference  string // "" = auto, "v4" = prefer IPv4, "v6" = prefer IPv6
+	InNodes       []tunnelRuntimeNode
+	ChainHops     [][]tunnelRuntimeNode
+	OutNodes      []tunnelRuntimeNode
+	Nodes         map[int64]*nodeRecord
+	NodeInstances map[int64][]model.NodeInstance
+	NodeIDList    []int64
 }
 
 func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface{}, tunnelType int, excludeTunnelID int64) (*tunnelCreateState, error) {
 	state := &tunnelCreateState{
-		Type:      tunnelType,
-		Mode:      "", // 不从请求读取，由调用方通过 resolveTunnelRelayMode 填充
-		InNodes:   make([]tunnelRuntimeNode, 0),
-		ChainHops: make([][]tunnelRuntimeNode, 0),
-		OutNodes:  make([]tunnelRuntimeNode, 0),
-		Nodes:     make(map[int64]*nodeRecord),
+		Type:          tunnelType,
+		Mode:          "", // 不从请求读取，由调用方通过 resolveTunnelRelayMode 填充
+		InNodes:       make([]tunnelRuntimeNode, 0),
+		ChainHops:     make([][]tunnelRuntimeNode, 0),
+		OutNodes:      make([]tunnelRuntimeNode, 0),
+		Nodes:         make(map[int64]*nodeRecord),
+		NodeInstances: make(map[int64][]model.NodeInstance),
 	}
 	nodeIDs := make([]int64, 0)
 
@@ -4684,6 +4692,11 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		}
 		state.Nodes[nodeID] = node
 	}
+	instances, err := h.repo.ListOnlineNodeInstancesByNodeIDs(state.NodeIDList)
+	if err != nil {
+		return nil, err
+	}
+	state.NodeInstances = instances
 
 	for _, hop := range state.ChainHops {
 		for _, chainNode := range hop {
@@ -4848,7 +4861,7 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 			targets = state.ChainHops[0]
 		}
 		preparedTargets := h.prepareRuntimeTargetsForOwner(state.TunnelID, inNode.NodeID, targets, 0)
-		chainData, err := buildTunnelChainConfig(state.TunnelID, inNode.NodeID, preparedTargets, state.Nodes, state.IPPreference)
+		chainData, err := buildTunnelChainConfig(state.TunnelID, inNode.NodeID, preparedTargets, state.Nodes, state.NodeInstances, state.IPPreference)
 		if err != nil {
 			return createdChains, createdServices, err
 		}
@@ -4882,7 +4895,7 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 				continue
 			}
 			preparedTargets := h.prepareRuntimeTargetsForOwner(state.TunnelID, chainNode.NodeID, nextTargets, 0)
-			chainData, err := buildTunnelChainConfig(state.TunnelID, chainNode.NodeID, preparedTargets, state.Nodes, state.IPPreference)
+			chainData, err := buildTunnelChainConfig(state.TunnelID, chainNode.NodeID, preparedTargets, state.Nodes, state.NodeInstances, state.IPPreference)
 			if err != nil {
 				return createdChains, createdServices, err
 			}
@@ -4999,7 +5012,7 @@ func isNodeOfflineOrTimeoutError(err error) bool {
 	return shouldDeferTunnelRuntimeApplyError(err)
 }
 
-func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRuntimeNode, nodes map[int64]*nodeRecord, ipPreference string) (map[string]interface{}, error) {
+func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRuntimeNode, nodes map[int64]*nodeRecord, instancesByNode map[int64][]model.NodeInstance, ipPreference string) (map[string]interface{}, error) {
 	fromNode := nodes[fromNodeID]
 	if fromNode == nil {
 		return nil, errors.New("节点不存在")
@@ -5008,11 +5021,33 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		return nil, errors.New("转发链目标不能为空")
 	}
 	nodeItems := make([]map[string]interface{}, 0, len(targets))
-	for idx, target := range targets {
+	itemIndex := 0
+	for _, target := range targets {
 		targetNode := nodes[target.NodeID]
 		if targetNode == nil {
 			return nil, errors.New("节点不存在")
 		}
+		port := target.Port
+		if port <= 0 {
+			return nil, errors.New("节点端口不能为空")
+		}
+
+		instances := instancesByNode[target.NodeID]
+		if len(instances) > 0 {
+			for _, inst := range instances {
+				if inst.Weight <= 0 {
+					continue
+				}
+				host := pickNodeInstanceAddress(inst, target.ConnectIPType, ipPreference)
+				if host == "" {
+					continue
+				}
+				itemIndex++
+				nodeItems = append(nodeItems, buildTunnelChainNodeItem(itemIndex, host, port, target.Protocol, inst.Weight))
+			}
+			continue
+		}
+
 		if targetNode.Weight <= 0 {
 			continue
 		}
@@ -5020,28 +5055,8 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		if err != nil {
 			return nil, err
 		}
-		port := target.Port
-		if port <= 0 {
-			return nil, errors.New("节点端口不能为空")
-		}
-		protocol := defaultString(target.Protocol, "tls")
-		// ✅ 修复 1: 为所有 Relay Connector 启用 noDelay 模式（不限于 TLS）
-		connector := map[string]interface{}{
-			"type": "relay",
-			"metadata": map[string]interface{}{
-				"nodelay": true,
-				"udpTTL":  "5s", // ✅ 修复 2: 添加 UDP TTL 默认配置
-			},
-		}
-		nodeItems = append(nodeItems, map[string]interface{}{
-			"name":      fmt.Sprintf("node_%d", idx+1),
-			"addr":      processServerAddress(fmt.Sprintf("%s:%d", host, port)),
-			"metadata":  map[string]interface{}{"weight": targetNode.Weight},
-			"connector": connector,
-			"dialer": map[string]interface{}{
-				"type": protocol,
-			},
-		})
+		itemIndex++
+		nodeItems = append(nodeItems, buildTunnelChainNodeItem(itemIndex, host, port, target.Protocol, targetNode.Weight))
 	}
 	if len(nodeItems) == 0 {
 		return nil, errors.New("可用转发链目标为空，请检查节点权重")
@@ -5068,6 +5083,46 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		"name": fmt.Sprintf("chains_%d", tunnelID),
 		"hops": []map[string]interface{}{hop},
 	}, nil
+}
+
+func buildTunnelChainNodeItem(index int, host string, port int, protocol string, weight int) map[string]interface{} {
+	connector := map[string]interface{}{
+		"type": "relay",
+		"metadata": map[string]interface{}{
+			"nodelay": true,
+			"udpTTL":  "5s",
+		},
+	}
+	return map[string]interface{}{
+		"name":      fmt.Sprintf("node_%d", index),
+		"addr":      processServerAddress(fmt.Sprintf("%s:%d", host, port)),
+		"metadata":  map[string]interface{}{"weight": weight},
+		"connector": connector,
+		"dialer": map[string]interface{}{
+			"type": defaultString(protocol, "tls"),
+		},
+	}
+}
+
+func pickNodeInstanceAddress(inst model.NodeInstance, connectIPType string, ipPreference string) string {
+	v4 := strings.TrimSpace(inst.PublicIPV4)
+	v6 := strings.TrimSpace(inst.PublicIPV6)
+	switch strings.ToLower(strings.TrimSpace(connectIPType)) {
+	case "v4", "ipv4":
+		return v4
+	case "v6", "ipv6":
+		return v6
+	}
+	if strings.TrimSpace(ipPreference) == "v6" {
+		if v6 != "" {
+			return v6
+		}
+		return v4
+	}
+	if v4 != "" {
+		return v4
+	}
+	return v6
 }
 
 func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, node *nodeRecord, nextHopCandidateCount int, mode string) []map[string]interface{} {

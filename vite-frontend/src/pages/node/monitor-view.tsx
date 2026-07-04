@@ -91,6 +91,8 @@ interface MonitorViewProps {
       name: string;
       connectionStatus: string;
       version?: string;
+      instanceCount?: number;
+      onlineInstanceCount?: number;
     }
   >;
   viewMode?: "list" | "grid";
@@ -719,6 +721,15 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
   }, [nodeMap, realtimeNodeStatus]);
 
   const onlineNodes = nodes.filter((n) => n.connectionStatus === "online");
+  const instanceSummary = nodes.reduce(
+    (acc, node) => {
+      acc.total += Number(node.instanceCount ?? 0);
+      acc.online += Number(node.onlineInstanceCount ?? 0);
+
+      return acc;
+    },
+    { total: 0, online: 0 },
+  );
   const preferredNodeId = onlineNodes[0]?.id ?? nodes[0]?.id ?? 0;
 
   const resolvedServiceMonitorLimits =
@@ -1440,11 +1451,19 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
             </Chip>
             <Chip
               className="rounded-md"
+              color="secondary"
+              size="sm"
+              variant="flat"
+            >
+              实例 {instanceSummary.online}/{instanceSummary.total}
+            </Chip>
+            <Chip
+              className="rounded-md"
               color="success"
               size="sm"
               variant="flat"
             >
-              监控 成功 {monitorSummary.ok} / 失败 {monitorSummary.fail}
+              服务监控 成功 {monitorSummary.ok} / 失败 {monitorSummary.fail}
             </Chip>
             {monitorSummary.stale > 0 && (
               <Chip

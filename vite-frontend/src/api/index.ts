@@ -50,7 +50,7 @@ import type {
   ServiceMonitorLimitsApiData,
   ServiceMonitorMutationPayload,
   MonitorNodeApiItem,
-  MonitorServerGroupApiItem,
+  MonitorNodeInstanceGroupApiItem,
   MonitorNodeMetricsApiItem,
   MonitorTunnelApiItem,
   TunnelQualityApiItem,
@@ -136,8 +136,8 @@ export const getDashboardNodeExpiryList = () =>
   Network.post<NodeApiItem[]>("/node/list", {});
 export const updateNode = (data: NodeMutationPayload) =>
   Network.post("/node/update", data);
-export const updateNodeWeight = (nodeId: number, weight: number) =>
-  Network.post("/node/weight", { nodeId, weight });
+export const updateNodeWeight = (nodeId: number, weight: number, instanceId?: string) =>
+  Network.post("/node/weight", { nodeId, weight, instanceId });
 export const issueNodeSDWANCert = (id: number, vpnIp?: string) =>
   Network.post<{
     vpnIp: string;
@@ -852,8 +852,8 @@ export const runServiceMonitor = (id: number) =>
 
 export const getMonitorNodes = () =>
   Network.get<MonitorNodeApiItem[]>("/monitor/nodes");
-export const getMonitorServerGroups = () =>
-  Network.get<MonitorServerGroupApiItem[]>("/monitor/server-groups");
+export const getMonitorNodeInstanceGroups = () =>
+  Network.get<MonitorNodeInstanceGroupApiItem[]>("/monitor/node-instance-groups");
 
 export const getMonitorNodesPublic = () =>
   Network.getPublic<MonitorNodeApiItem[]>("/monitor/public/nodes");

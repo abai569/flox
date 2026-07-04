@@ -11,7 +11,7 @@ import (
 )
 
 func TestBuildWebSocketCandidatesSecureFirst(t *testing.T) {
-	candidates := buildWebSocketCandidates("panel.example.com:443", "abc", "2.0.2", 1, 0, 1, 0, "")
+	candidates := buildWebSocketCandidates("panel.example.com:443", "abc", "2.0.2", 1, 0, 1, 0, "", "")
 
 	if len(candidates) != 2 {
 		t.Fatalf("expected 2 candidates, got %d", len(candidates))
@@ -25,7 +25,7 @@ func TestBuildWebSocketCandidatesSecureFirst(t *testing.T) {
 }
 
 func TestBuildWebSocketCandidatesUsesPreferredScheme(t *testing.T) {
-	candidates := buildWebSocketCandidates("panel.example.com:443", "abc", "2.0.2", 1, 0, 1, 0, "ws")
+	candidates := buildWebSocketCandidates("panel.example.com:443", "abc", "2.0.2", 1, 0, 1, 0, "ws", "")
 
 	if len(candidates) != 2 {
 		t.Fatalf("expected 2 candidates, got %d", len(candidates))
@@ -39,7 +39,7 @@ func TestBuildWebSocketCandidatesUsesPreferredScheme(t *testing.T) {
 }
 
 func TestBuildWebSocketCandidatesNormalizesSchemePrefixedAddr(t *testing.T) {
-	candidates := buildWebSocketCandidates("https://panel.example.com:443/path?q=1", "abc", "2.0.2", 0, 0, 0, 0, "")
+	candidates := buildWebSocketCandidates("https://panel.example.com:443/path?q=1", "abc", "2.0.2", 0, 0, 0, 0, "", "")
 
 	if len(candidates) != 2 {
 		t.Fatalf("expected 2 candidates, got %d", len(candidates))

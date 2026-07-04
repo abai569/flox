@@ -32,17 +32,39 @@ type SystemInfo struct {
 }
 
 type IngestionService struct {
-	repo          *repo.Repository
-	nodeBuffer    []*model.NodeMetric
-	nodeBufferMu  sync.Mutex
-	flushInterval time.Duration
-	retentionDays int
+	repo              *repo.Repository
+	nodeBuffer        map[int64]*nodeMetricAggregate
+	nodeBufferSamples int
+	nodeBufferMu      sync.Mutex
+	flushInterval     time.Duration
+	retentionDays     int
+}
+
+type nodeMetricAggregate struct {
+	nodeID                 int64
+	timestamp              int64
+	count                  int64
+	bytesReceived          uint64
+	bytesTransmitted       uint64
+	periodBytesReceived    uint64
+	periodBytesTransmitted uint64
+	cpuUsageSum            float64
+	memoryUsageSum         float64
+	diskUsageSum           float64
+	load1Sum               float64
+	load5Sum               float64
+	load15Sum              float64
+	tcpConns               int64
+	udpConns               int64
+	netInSpeed             int64
+	netOutSpeed            int64
+	uptimeMax              uint64
 }
 
 func NewIngestionService(repo *repo.Repository) *IngestionService {
 	return &IngestionService{
 		repo:          repo,
-		nodeBuffer:    make([]*model.NodeMetric, 0, 500),
+		nodeBuffer:    make(map[int64]*nodeMetricAggregate),
 		flushInterval: 30 * time.Second,
 		retentionDays: 1,
 	}
@@ -69,33 +91,38 @@ func (s *IngestionService) Start(ctx context.Context) {
 }
 
 func (s *IngestionService) RecordNodeMetric(nodeID int64, info SystemInfo) {
-	m := &model.NodeMetric{
-		NodeID:      nodeID,
-		Timestamp:   time.Now().UnixMilli(),
-		CPUUsage:    info.CPUUsage,
-		MemUsage:    info.MemoryUsage,
-		DiskUsage:   info.DiskUsage,
-		NetInBytes:  int64(info.BytesReceived),
-		NetOutBytes: int64(info.BytesTransmitted),
-		NetInSpeed:  info.NetInSpeed,
-		NetOutSpeed: info.NetOutSpeed,
-		Load1:       info.Load1,
-		Load5:       info.Load5,
-		Load15:      info.Load15,
-		TCPConns:    info.TCPConns,
-		UDPConns:    info.UDPConns,
-		Uptime:      int64(info.Uptime),
-		PeriodRx:    int64(info.PeriodBytesReceived),
-		PeriodTx:    int64(info.PeriodBytesTransmitted),
-	}
-
+	now := time.Now().UnixMilli()
 	s.nodeBufferMu.Lock()
-	s.nodeBuffer = append(s.nodeBuffer, m)
-	shouldFlush := len(s.nodeBuffer) >= 200
+	agg := s.nodeBuffer[nodeID]
+	if agg == nil {
+		agg = &nodeMetricAggregate{nodeID: nodeID, timestamp: now}
+		s.nodeBuffer[nodeID] = agg
+	}
+	agg.timestamp = now
+	agg.count++
+	agg.bytesReceived += info.BytesReceived
+	agg.bytesTransmitted += info.BytesTransmitted
+	agg.periodBytesReceived += info.PeriodBytesReceived
+	agg.periodBytesTransmitted += info.PeriodBytesTransmitted
+	agg.cpuUsageSum += info.CPUUsage
+	agg.memoryUsageSum += info.MemoryUsage
+	agg.diskUsageSum += info.DiskUsage
+	agg.load1Sum += info.Load1
+	agg.load5Sum += info.Load5
+	agg.load15Sum += info.Load15
+	agg.tcpConns += info.TCPConns
+	agg.udpConns += info.UDPConns
+	agg.netInSpeed += info.NetInSpeed
+	agg.netOutSpeed += info.NetOutSpeed
+	if info.Uptime > agg.uptimeMax {
+		agg.uptimeMax = info.Uptime
+	}
+	s.nodeBufferSamples++
+	shouldFlush := s.nodeBufferSamples >= 200
 	s.nodeBufferMu.Unlock()
 
 	if shouldFlush {
-		go s.flushNodeMetrics()
+		s.flushNodeMetrics()
 	}
 }
 
@@ -106,14 +133,43 @@ func (s *IngestionService) flushNodeMetrics() {
 		return
 	}
 	buffer := s.nodeBuffer
-	s.nodeBuffer = make([]*model.NodeMetric, 0, 500)
+	s.nodeBuffer = make(map[int64]*nodeMetricAggregate)
+	s.nodeBufferSamples = 0
 	s.nodeBufferMu.Unlock()
 
 	if s.repo == nil {
 		return
 	}
-	if err := s.repo.InsertNodeMetricBatch(buffer); err != nil {
-		log.Printf("monitoring write failed op=node_metric.flush count=%d err=%v", len(buffer), err)
+	metrics := make([]*model.NodeMetric, 0, len(buffer))
+	for _, agg := range buffer {
+		if agg == nil || agg.count <= 0 {
+			continue
+		}
+		metrics = append(metrics, &model.NodeMetric{
+			NodeID:      agg.nodeID,
+			Timestamp:   agg.timestamp,
+			CPUUsage:    agg.cpuUsageSum / float64(agg.count),
+			MemUsage:    agg.memoryUsageSum / float64(agg.count),
+			DiskUsage:   agg.diskUsageSum / float64(agg.count),
+			NetInBytes:  int64(agg.bytesReceived),
+			NetOutBytes: int64(agg.bytesTransmitted),
+			NetInSpeed:  agg.netInSpeed,
+			NetOutSpeed: agg.netOutSpeed,
+			Load1:       agg.load1Sum / float64(agg.count),
+			Load5:       agg.load5Sum / float64(agg.count),
+			Load15:      agg.load15Sum / float64(agg.count),
+			TCPConns:    agg.tcpConns,
+			UDPConns:    agg.udpConns,
+			Uptime:      int64(agg.uptimeMax),
+			PeriodRx:    int64(agg.periodBytesReceived),
+			PeriodTx:    int64(agg.periodBytesTransmitted),
+		})
+	}
+	if len(metrics) == 0 {
+		return
+	}
+	if err := s.repo.InsertNodeMetricBatch(metrics); err != nil {
+		log.Printf("monitoring write failed op=node_metric.flush count=%d err=%v", len(metrics), err)
 	}
 }
 
@@ -130,6 +186,10 @@ func (s *IngestionService) pruneMetrics() {
 	}
 	if err := s.repo.PruneServiceMonitorResults(cutoff); err != nil {
 		log.Printf("monitoring prune failed op=service_monitor_result cutoff=%d err=%v", cutoff, err)
+	}
+	staleInstanceCutoff := time.Now().Add(-7 * 24 * time.Hour).UnixMilli()
+	if err := s.repo.PruneStaleNodeInstances(staleInstanceCutoff); err != nil {
+		log.Printf("monitoring prune failed op=node_instance cutoff=%d err=%v", staleInstanceCutoff, err)
 	}
 }
 

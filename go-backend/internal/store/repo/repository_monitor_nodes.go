@@ -6,16 +6,17 @@ import (
 	"go-backend/internal/store/model"
 )
 
-type MonitorServerGroupRow struct {
+type MonitorNodeInstanceGroupRow struct {
 	TunnelID     int64   `gorm:"column:tunnel_id"`
 	TunnelName   string  `gorm:"column:tunnel_name"`
 	TunnelStatus int     `gorm:"column:tunnel_status"`
 	Inx          int64   `gorm:"column:inx"`
 	NodeID       int64   `gorm:"column:node_id"`
 	NodeName     string  `gorm:"column:node_name"`
-	ServerIP     string  `gorm:"column:server_ip"`
-	ServerIPV4   string  `gorm:"column:server_ip_v4"`
-	ServerIPV6   string  `gorm:"column:server_ip_v6"`
+	InstanceID   string  `gorm:"column:instance_id"`
+	Hostname     string  `gorm:"column:hostname"`
+	PublicIPV4   string  `gorm:"column:public_ip_v4"`
+	PublicIPV6   string  `gorm:"column:public_ip_v6"`
 	Status       int     `gorm:"column:status"`
 	Weight       int     `gorm:"column:weight"`
 	NetInSpeed   int64   `gorm:"column:net_in_speed"`
@@ -59,22 +60,10 @@ func (r *Repository) ListMonitorNodesByIDs(nodeIDs []int64) ([]model.Node, error
 	return nodes, err
 }
 
-func (r *Repository) ListMonitorServerGroups(nodeIDs []int64, tunnelIDs []int64) ([]MonitorServerGroupRow, error) {
+func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64, tunnelIDs []int64) ([]MonitorNodeInstanceGroupRow, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
-
-	latestMetricSQL := `
-		LEFT JOIN (
-			SELECT nm1.*
-			FROM node_metric nm1
-			INNER JOIN (
-				SELECT node_id, MAX(timestamp) AS max_ts
-				FROM node_metric
-				GROUP BY node_id
-			) latest ON latest.node_id = nm1.node_id AND latest.max_ts = nm1.timestamp
-		) nm ON nm.node_id = n.id
-	`
 
 	query := r.db.Table("chain_tunnel AS ct").
 		Select(`
@@ -84,27 +73,28 @@ func (r *Repository) ListMonitorServerGroups(nodeIDs []int64, tunnelIDs []int64)
 			COALESCE(ct.inx, 0) AS inx,
 			n.id AS node_id,
 			n.name AS node_name,
-			n.server_ip,
-			COALESCE(n.server_ip_v4, '') AS server_ip_v4,
-			COALESCE(n.server_ip_v6, '') AS server_ip_v6,
-			n.status,
-			COALESCE(n.weight, 1) AS weight,
-			COALESCE(nm.net_in_speed, 0) AS net_in_speed,
-			COALESCE(nm.net_out_speed, 0) AS net_out_speed,
-			COALESCE(nm.net_in_bytes, 0) AS net_in_bytes,
-			COALESCE(nm.net_out_bytes, 0) AS net_out_bytes,
-			COALESCE(nm.tcp_conns, 0) AS tcp_conns,
-			COALESCE(nm.udp_conns, 0) AS udp_conns,
-			COALESCE(nm.uptime, 0) AS uptime,
-			COALESCE(nm.period_rx, 0) AS period_rx,
-			COALESCE(nm.period_tx, 0) AS period_tx,
-			COALESCE(nm.cpu_usage, 0) AS cpu_usage,
-			COALESCE(nm.mem_usage, 0) AS mem_usage,
-			COALESCE(nm.disk_usage, 0) AS disk_usage
+			COALESCE(nsi.instance_id, '') AS instance_id,
+			COALESCE(nsi.hostname, '') AS hostname,
+			COALESCE(nsi.public_ip_v4, '') AS public_ip_v4,
+			COALESCE(nsi.public_ip_v6, '') AS public_ip_v6,
+			COALESCE(nsi.status, n.status) AS status,
+			COALESCE(nsi.weight, n.weight, 1) AS weight,
+			COALESCE(nsi.net_in_speed, 0) AS net_in_speed,
+			COALESCE(nsi.net_out_speed, 0) AS net_out_speed,
+			COALESCE(nsi.net_in_bytes, 0) AS net_in_bytes,
+			COALESCE(nsi.net_out_bytes, 0) AS net_out_bytes,
+			COALESCE(nsi.tcp_conns, 0) AS tcp_conns,
+			COALESCE(nsi.udp_conns, 0) AS udp_conns,
+			COALESCE(nsi.uptime, 0) AS uptime,
+			COALESCE(nsi.period_rx, 0) AS period_rx,
+			COALESCE(nsi.period_tx, 0) AS period_tx,
+			COALESCE(nsi.cpu_usage, 0) AS cpu_usage,
+			COALESCE(nsi.mem_usage, 0) AS mem_usage,
+			COALESCE(nsi.disk_usage, 0) AS disk_usage
 		`).
 		Joins("JOIN tunnel AS t ON t.id = ct.tunnel_id").
 		Joins("JOIN node AS n ON n.id = ct.node_id").
-		Joins(latestMetricSQL).
+		Joins("JOIN node_instance AS nsi ON nsi.node_id = n.id").
 		Where("t.status = ?", 1).
 		Where("n.is_remote = ?", 0)
 
@@ -115,7 +105,7 @@ func (r *Repository) ListMonitorServerGroups(nodeIDs []int64, tunnelIDs []int64)
 		query = query.Where("t.id IN ?", tunnelIDs)
 	}
 
-	var rows []MonitorServerGroupRow
+	var rows []MonitorNodeInstanceGroupRow
 	err := query.Order("t.inx ASC, t.id ASC, ct.chain_type ASC, ct.inx ASC, ct.id ASC").Scan(&rows).Error
 	return rows, err
 }

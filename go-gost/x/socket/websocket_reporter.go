@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -64,6 +65,8 @@ type SystemInfo struct {
 	NetInSpeed             int64           `json:"net_in_speed"`
 	NetOutSpeed            int64           `json:"net_out_speed"`
 	ServiceName            string          `json:"service_name,omitempty"` // 服务名
+	InstanceID             string          `json:"instance_id,omitempty"`
+	Hostname               string          `json:"hostname,omitempty"`
 	ServiceConnections     map[string]int  `json:"serviceConnections"`
 	ForwardMetrics         []ForwardMetric `json:"forward_metrics,omitempty"` // 转发规则指标
 }
@@ -210,10 +213,11 @@ const (
 
 type WebSocketReporter struct {
 	url                   string
-	addr                  string // 保存服务器地址
+	addr                  string // 保存面板地址
 	secret                string // 保存密钥
 	version               string // 保存版本号
 	nodeID                int64  // 节点 ID
+	instanceID            string // 节点实例 ID
 	preferredWSScheme     string
 	conn                  *websocket.Conn
 	curBackoff            time.Duration // 当前重连退避间隔
@@ -382,7 +386,7 @@ func (w *WebSocketReporter) connect() error {
 		}
 	}
 
-	candidates := buildWebSocketCandidates(w.addr, w.secret, w.version, cfg.BlockHttp, cfg.BlockTls, cfg.BlockSocks, cfg.BlockOtherPorts, w.preferredWSScheme)
+	candidates := buildWebSocketCandidates(w.addr, w.secret, w.version, cfg.BlockHttp, cfg.BlockTls, cfg.BlockSocks, cfg.BlockOtherPorts, w.preferredWSScheme, w.instanceID)
 
 	dialer := websocket.DefaultDialer
 	dialer.HandshakeTimeout = 10 * time.Second
@@ -499,6 +503,35 @@ func getConfigDir(serviceName string) string {
 		return "/etc/" + serviceName
 	}
 	return "/etc/flox_agent"
+}
+
+func ensureInstanceID(configDir string, existing string) string {
+	if strings.TrimSpace(existing) != "" {
+		return strings.TrimSpace(existing)
+	}
+	configPath := filepath.Join(configDir, "config.json")
+	config := make(map[string]interface{})
+	if data, err := os.ReadFile(configPath); err == nil {
+		_ = json.Unmarshal(data, &config)
+		if v, ok := config["instance_id"].(string); ok && strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+
+	buf := make([]byte, 16)
+	if _, err := crand.Read(buf); err != nil {
+		hostname, _ := os.Hostname()
+		sum := sha256.Sum256([]byte(fmt.Sprintf("%s-%d", hostname, time.Now().UnixNano())))
+		copy(buf, sum[:16])
+	}
+	instanceID := hex.EncodeToString(buf)
+	config["instance_id"] = instanceID
+	if data, err := json.MarshalIndent(config, "", "  "); err == nil {
+		if err := os.WriteFile(configPath, data, 0600); err != nil {
+			fmt.Printf("⚠️ 保存 instance_id 失败：%v\n", err)
+		}
+	}
+	return instanceID
 }
 
 // fetchAndSaveNodeID 从面板获取节点 ID 并保存到 config.json，然后初始化基线管理器
@@ -681,7 +714,7 @@ func getPublicIPv6() string {
 	return ""
 }
 
-// getPublicIP 获取服务器公网 IP（优先 IPv6）
+// getPublicIP 获取节点实例公网 IP（优先 IPv6）
 // Deprecated: 使用 getPublicIPv4() 和 getPublicIPv6() 替代
 func getPublicIP() string {
 	ipv6 := getPublicIPv6()
@@ -729,7 +762,10 @@ func (w *WebSocketReporter) reportPublicIPs(ipv4, ipv6 string) {
 	req.Header.Set("Content-Type", "application/json")
 
 	// 构建请求体（新格式：同时上报 IPv4 和 IPv6）
+	hostname, _ := os.Hostname()
 	body := map[string]string{
+		"instance_id":  w.instanceID,
+		"hostname":     hostname,
 		"public_ip_v4": ipv4,
 		"public_ip_v6": ipv6,
 	}
@@ -763,7 +799,7 @@ func (w *WebSocketReporter) reportPublicIP(publicIP string) {
 	w.reportPublicIPs(publicIP, "")
 }
 
-func buildWebSocketCandidates(addr string, secret string, version string, http int, tls int, socks int, blockOther int, preferredScheme string) []string {
+func buildWebSocketCandidates(addr string, secret string, version string, http int, tls int, socks int, blockOther int, preferredScheme string, instanceID string) []string {
 	normalizedAddr, explicitScheme := normalizeReporterAddress(addr)
 	if normalizedAddr == "" {
 		normalizedAddr = strings.TrimSpace(addr)
@@ -772,6 +808,9 @@ func buildWebSocketCandidates(addr string, secret string, version string, http i
 	query := "/system-info?type=1&secret=" + url.QueryEscape(secret) + "&version=" + url.QueryEscape(version) +
 		"&http=" + strconv.Itoa(http) + "&tls=" + strconv.Itoa(tls) + "&socks=" + strconv.Itoa(socks) +
 		"&blockOther=" + strconv.Itoa(blockOther)
+	if strings.TrimSpace(instanceID) != "" {
+		query += "&instance_id=" + url.QueryEscape(strings.TrimSpace(instanceID))
+	}
 
 	schemes := []string{"wss", "ws"}
 	if mappedScheme := mapToWebSocketScheme(explicitScheme); mappedScheme != "" {
@@ -1019,6 +1058,7 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 		periodRX = networkStats.BytesReceived
 		periodTX = networkStats.BytesTransmitted
 	}
+	hostname, _ := os.Hostname()
 
 	return SystemInfo{
 		Uptime:                 getUptime(),
@@ -1040,6 +1080,8 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 		NetInSpeed:             netInSpeed,
 		NetOutSpeed:            netOutSpeed,
 		ServiceName:            w.serviceName,
+		InstanceID:             w.instanceID,
+		Hostname:               hostname,
 		ServiceConnections:     collectServiceConnections(),
 		ForwardMetrics:         collectForwardMetrics(),
 	}
@@ -2475,27 +2517,16 @@ func (w *WebSocketReporter) handleRollbackAgent(data interface{}) error {
 func (w *WebSocketReporter) updateLocalConfigJSON(httpVal int, tlsVal int, socksVal int, blockOtherVal int) error {
 	configDir := getConfigDir(w.serviceName)
 	path := configDir + "/config.json"
-
-	// 读取现有配置
-	type LocalConfig struct {
-		Addr            string `json:"addr"`
-		Secret          string `json:"secret"`
-		BlockHttp       int    `json:"block_http,omitempty"`
-		BlockTls        int    `json:"block_tls,omitempty"`
-		BlockSocks      int    `json:"block_socks,omitempty"`
-		BlockOtherPorts int    `json:"block_other_ports,omitempty"`
-	}
-
-	var cfg LocalConfig
+	cfg := make(map[string]interface{})
 	if b, err := os.ReadFile(path); err == nil {
 		b = migrateConfigKeys(b, path)
 		_ = json.Unmarshal(b, &cfg)
 	}
 
-	cfg.BlockHttp = httpVal
-	cfg.BlockTls = tlsVal
-	cfg.BlockSocks = socksVal
-	cfg.BlockOtherPorts = blockOtherVal
+	cfg["block_http"] = httpVal
+	cfg["block_tls"] = tlsVal
+	cfg["block_socks"] = socksVal
+	cfg["block_other_ports"] = blockOtherVal
 
 	// 写回
 	data, err := json.MarshalIndent(cfg, "", "  ")
@@ -2737,11 +2768,12 @@ func fixServiceFile(serviceName string) {
 }
 
 // StartWebSocketReporterWithConfig 使用配置字段启动WebSocket报告器
-func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls int, socks int, blockOther int, version string, nodeID int64) *WebSocketReporter {
+func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls int, socks int, blockOther int, version string, nodeID int64, instanceID string) *WebSocketReporter {
 
 	// 先读取 config.json 获取 service_name
 	type LocalConfig struct {
 		ServiceName string `json:"service_name"`
+		InstanceID  string `json:"instance_id"`
 	}
 	var cfg LocalConfig
 	configPaths := []string{"config.json", "/etc/flox_agent/config.json", "/etc/flux_agent/config.json"}
@@ -2752,6 +2784,10 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 		}
 	}
 	configDir := getConfigDir(cfg.ServiceName)
+	if strings.TrimSpace(instanceID) == "" {
+		instanceID = cfg.InstanceID
+	}
+	instanceID = ensureInstanceID(configDir, instanceID)
 
 	// 修复旧版 service 日志配置
 	serviceName := cfg.ServiceName
@@ -2761,7 +2797,7 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 	fixServiceFile(serviceName)
 
 	// 构建初始 WebSocket URL
-	candidates := buildWebSocketCandidates(addr, secret, version, http, tls, socks, blockOther, "")
+	candidates := buildWebSocketCandidates(addr, secret, version, http, tls, socks, blockOther, "", instanceID)
 	fullURL := candidates[0]
 
 	fmt.Printf("🔗 WebSocket 连接 URL: %s\n", fullURL)
@@ -2772,6 +2808,7 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 	reporter.secret = secret
 	reporter.version = version
 	reporter.nodeID = nodeID
+	reporter.instanceID = instanceID
 	reporter.serviceName = cfg.ServiceName
 
 	// 如果 config.json 中有 node_id，初始化基线管理器
@@ -4235,9 +4272,9 @@ func (w *WebSocketReporter) reportMimicStatus(status, errMsg string) {
 	payload := map[string]interface{}{
 		"type": "ReportMimicStatus",
 		"data": map[string]interface{}{
-			"status":   status,
-			"error":    errMsg,
-			"nodeId":   w.nodeID,
+			"status": status,
+			"error":  errMsg,
+			"nodeId": w.nodeID,
 		},
 	}
 

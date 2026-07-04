@@ -143,6 +143,35 @@ type Node struct {
 
 func (Node) TableName() string { return "node" }
 
+type NodeInstance struct {
+	ID          int64   `gorm:"primaryKey;autoIncrement"`
+	NodeID      int64   `gorm:"column:node_id;not null;uniqueIndex:idx_node_instance"`
+	InstanceID  string  `gorm:"column:instance_id;type:varchar(100);not null;uniqueIndex:idx_node_instance"`
+	Hostname    string  `gorm:"column:hostname;type:varchar(200);default:''"`
+	PublicIPV4  string  `gorm:"column:public_ip_v4;type:varchar(100);default:''"`
+	PublicIPV6  string  `gorm:"column:public_ip_v6;type:varchar(100);default:''"`
+	Version     string  `gorm:"column:version;type:varchar(100);default:''"`
+	Status      int     `gorm:"column:status;not null;default:1"`
+	Weight      int     `gorm:"column:weight;not null;default:1"`
+	NetInSpeed  int64   `gorm:"column:net_in_speed;default:0"`
+	NetOutSpeed int64   `gorm:"column:net_out_speed;default:0"`
+	NetInBytes  int64   `gorm:"column:net_in_bytes;default:0"`
+	NetOutBytes int64   `gorm:"column:net_out_bytes;default:0"`
+	TCPConns    int64   `gorm:"column:tcp_conns;default:0"`
+	UDPConns    int64   `gorm:"column:udp_conns;default:0"`
+	Uptime      int64   `gorm:"column:uptime;default:0"`
+	PeriodRx    int64   `gorm:"column:period_rx;default:0"`
+	PeriodTx    int64   `gorm:"column:period_tx;default:0"`
+	CPUUsage    float64 `gorm:"column:cpu_usage;default:0"`
+	MemUsage    float64 `gorm:"column:mem_usage;default:0"`
+	DiskUsage   float64 `gorm:"column:disk_usage;default:0"`
+	LastSeenAt  int64   `gorm:"column:last_seen_at;not null;default:0"`
+	CreatedTime int64   `gorm:"column:created_time;not null"`
+	UpdatedTime int64   `gorm:"column:updated_time;not null"`
+}
+
+func (NodeInstance) TableName() string { return "node_instance" }
+
 type SpeedLimit struct {
 	ID          int64          `gorm:"primaryKey;autoIncrement"`
 	Name        string         `gorm:"type:varchar(100);not null"`

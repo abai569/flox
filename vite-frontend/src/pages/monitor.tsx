@@ -1,7 +1,7 @@
 import type {
   MonitorNodeApiItem,
-  MonitorServerGroupApiItem,
-  MonitorServerGroupMemberApiItem,
+  MonitorNodeInstanceGroupApiItem,
+  MonitorNodeInstanceGroupMemberApiItem,
 } from "@/api/types";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -13,7 +13,7 @@ import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import {
   getMonitorNodes,
-  getMonitorServerGroups,
+  getMonitorNodeInstanceGroups,
   updateNodeWeight,
 } from "@/api";
 import { MonitorView } from "@/pages/node/monitor-view";
@@ -33,9 +33,11 @@ type MonitorNode = {
   name: string;
   connectionStatus: "online" | "offline";
   version?: string;
+  instanceCount?: number;
+  onlineInstanceCount?: number;
 };
 
-type MonitorTab = "servers" | "nodes" | "tunnels";
+type MonitorTab = "nodes" | "tunnels";
 
 const formatBytes = (bytes: number): string => {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
@@ -58,81 +60,39 @@ const formatUptime = (seconds: number): string => {
 
 type MonitorIPFamily = "v4" | "v6";
 
-const extractMonitorHost = (value?: string): string => {
-  const raw = String(value ?? "").trim().split(",")[0]?.trim().split(/\s+/)[0] ?? "";
+const getMonitorDisplayIP = (member: MonitorNodeInstanceGroupMemberApiItem, family: MonitorIPFamily): string => {
+  const reported = family === "v4" ? member.publicIpV4 : member.publicIpV6;
 
-  if (!raw) return "";
-  if (raw.startsWith("[")) {
-    const end = raw.indexOf("]");
-
-    return end > 0 ? raw.slice(1, end).trim() : raw.replace(/[\[\]]/g, "").trim();
-  }
-  const colonCount = (raw.match(/:/g) ?? []).length;
-
-  if (colonCount === 1) return raw.split(":")[0].trim();
-
-  return raw.replace(/[\[\]]/g, "").trim();
+  return reported || "-";
 };
 
-const getMonitorAddressFamily = (value?: string): MonitorIPFamily | "domain" | null => {
-  const host = extractMonitorHost(value);
-
-  if (!host) return null;
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return "v4";
-  if (host.includes(":")) return "v6";
-
-  return "domain";
-};
-
-const getMonitorRawIP = (member: MonitorServerGroupMemberApiItem, family: MonitorIPFamily): string => {
-  const explicit = family === "v4" ? member.serverIpV4 : member.serverIpV6;
-
-  if (explicit) return explicit;
-  const serverFamily = getMonitorAddressFamily(member.serverIp);
-
-  return serverFamily === family || serverFamily === "domain" ? (member.serverIp ?? "") : "";
-};
-
-const getMonitorDisplayIP = (member: MonitorServerGroupMemberApiItem, family: MonitorIPFamily): string => {
-  const resolved = family === "v4" ? member.resolvedIpV4 : member.resolvedIpV6;
-
-  return resolved || getMonitorRawIP(member, family) || "-";
-};
-
-const getMonitorPrimaryDisplayIP = (member: MonitorServerGroupMemberApiItem): string => {
+const getMonitorPrimaryDisplayIP = (member: MonitorNodeInstanceGroupMemberApiItem): string => {
   const v4 = getMonitorDisplayIP(member, "v4");
 
   return v4 !== "-" ? v4 : getMonitorDisplayIP(member, "v6");
 };
 
-const formatResolvedAt = (timestamp?: number): string => {
-  if (!timestamp) return "";
-
-  return new Date(timestamp).toLocaleString();
-};
-
-const getMonitorIPTitle = (member: MonitorServerGroupMemberApiItem, family: MonitorIPFamily): string => {
-  const raw = getMonitorRawIP(member, family);
-  const resolvedAt = formatResolvedAt(family === "v4" ? member.ipV4ResolvedAt : member.ipV6ResolvedAt);
-  const parts = [raw ? `配置: ${raw}` : "", resolvedAt ? `解析时间: ${resolvedAt}` : "", member.ipResolveError ? `解析状态: ${member.ipResolveError}` : ""];
+const getMonitorIPTitle = (member: MonitorNodeInstanceGroupMemberApiItem, family: MonitorIPFamily): string => {
+  const reported = getMonitorDisplayIP(member, family);
+  const parts = [member.hostname ? `主机: ${member.hostname}` : "", member.instanceId ? `实例: ${member.instanceId}` : "", reported !== "-" ? `上报IP: ${reported}` : ""];
 
   return parts.filter(Boolean).join("\n");
 };
 
-function ServerGroupsView({
+function NodeInstanceGroupsView({
   groups,
   loading,
   onEditWeight,
 }: {
-  groups: MonitorServerGroupApiItem[];
+  groups: MonitorNodeInstanceGroupApiItem[];
   loading: boolean;
-  onEditWeight: (member: MonitorServerGroupMemberApiItem) => void;
+  onEditWeight: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
 }) {
   if (loading && groups.length === 0) {
     return (
       <Card>
         <CardBody className="py-12 text-center text-sm text-default-500">
-          正在加载服务器监控...
+          正在加载节点实例监控...
         </CardBody>
       </Card>
     );
@@ -142,7 +102,7 @@ function ServerGroupsView({
     return (
       <Card>
         <CardBody className="py-12 text-center text-sm text-default-500">
-          暂无服务器负载数据
+          暂无节点实例负载数据
         </CardBody>
       </Card>
     );
@@ -159,7 +119,7 @@ function ServerGroupsView({
                   {group.name} | ID: {group.id}
                 </span>
                 <span className="text-xs text-default-500">
-                  {group.members.length} 台服务器
+                  {group.members.length} 个实例
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs font-mono">
@@ -178,9 +138,9 @@ function ServerGroupsView({
                 <thead className="border-b border-divider bg-default-50 text-xs text-default-500">
                   <tr>
                     <th className="px-4 py-2 text-left">状态</th>
-                    <th className="px-4 py-2 text-left">服务器</th>
-                    <th className="px-4 py-2 text-left">v4 地区</th>
-                    <th className="px-4 py-2 text-left">v6 地区</th>
+                    <th className="px-4 py-2 text-left">节点实例</th>
+                    <th className="px-4 py-2 text-left">IPv4</th>
+                    <th className="px-4 py-2 text-left">IPv6</th>
                     <th className="px-4 py-2 text-right">速率</th>
                     <th className="px-4 py-2 text-right">开机时长</th>
                     <th className="px-4 py-2 text-right">流量</th>
@@ -191,14 +151,15 @@ function ServerGroupsView({
                 </thead>
                 <tbody>
                   {group.members.map((member) => (
-                    <tr key={member.nodeId} className="border-b border-divider/50 last:border-b-0 hover:bg-default-50/50">
+                    <tr key={`${member.nodeId}:${member.instanceId || "default"}`} className="border-b border-divider/50 last:border-b-0 hover:bg-default-50/50">
                       <td className="px-4 py-3">
                         <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md ${member.status === 1 ? "bg-success-500/15 text-success-600" : "bg-danger-500/15 text-danger-600"}`}>
                           ●
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
-                        {member.nodeName}
+                        <div>{member.hostname || member.nodeName}</div>
+                        <div className="text-xs font-normal text-default-400">{member.nodeName}</div>
                       </td>
                       <td className="px-4 py-3 text-default-600 whitespace-nowrap" title={getMonitorIPTitle(member, "v4")}>
                         {getMonitorDisplayIP(member, "v4")}
@@ -250,12 +211,12 @@ function ServerGroupsView({
 
 export default function MonitorPage() {
   const [nodes, setNodes] = useState<MonitorNodeApiItem[]>([]);
-  const [serverGroups, setServerGroups] = useState<MonitorServerGroupApiItem[]>([]);
+  const [nodeInstanceGroups, setNodeInstanceGroups] = useState<MonitorNodeInstanceGroupApiItem[]>([]);
   const [nodesLoading, setNodesLoading] = useState(false);
-  const [serverGroupsLoading, setServerGroupsLoading] = useState(false);
+  const [nodeInstanceGroupsLoading, setNodeInstanceGroupsLoading] = useState(false);
   const [nodesError, setNodesError] = useState<string | null>(null);
   const [weightModalOpen, setWeightModalOpen] = useState(false);
-  const [weightTarget, setWeightTarget] = useState<MonitorServerGroupMemberApiItem | null>(null);
+  const [weightTarget, setWeightTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [weightValue, setWeightValue] = useState("");
   const [weightSaving, setWeightSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
@@ -273,10 +234,10 @@ export default function MonitorPage() {
     try {
       const saved = localStorage.getItem("monitor-active-tab");
 
-      if (saved === "servers" || saved === "nodes" || saved === "tunnels") return saved as MonitorTab;
+      if (saved === "nodes" || saved === "tunnels") return saved as MonitorTab;
     } catch {}
 
-    return "servers";
+    return "nodes";
   });
 
   useEffect(() => {
@@ -301,22 +262,22 @@ export default function MonitorPage() {
     });
   }, []);
 
-  const loadServerGroups = useCallback(async (options?: { silent?: boolean }) => {
+  const loadNodeInstanceGroups = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
 
-    if (!silent) setServerGroupsLoading(true);
+    if (!silent) setNodeInstanceGroupsLoading(true);
     try {
-      const response = await getMonitorServerGroups();
+      const response = await getMonitorNodeInstanceGroups();
 
       if (response.code === 0 && Array.isArray(response.data)) {
-        setServerGroups(response.data);
+        setNodeInstanceGroups(response.data);
         return;
       }
-      if (!silent) toast.error(response.msg || "加载服务器负载失败");
+      if (!silent) toast.error(response.msg || "加载节点实例负载失败");
     } catch {
-      if (!silent) toast.error("加载服务器负载失败");
+      if (!silent) toast.error("加载节点实例负载失败");
     } finally {
-      if (!silent) setServerGroupsLoading(false);
+      if (!silent) setNodeInstanceGroupsLoading(false);
     }
   }, []);
 
@@ -347,22 +308,34 @@ export default function MonitorPage() {
     }
   }, []);
 
+  const loadNodeTab = useCallback(async (options?: { silent?: boolean }) => {
+    await Promise.all([loadNodes(options), loadNodeInstanceGroups(options)]);
+  }, [loadNodes, loadNodeInstanceGroups]);
+
+  const refreshActiveTab = useCallback(() => {
+    if (activeTab === "nodes") {
+      void loadNodeTab();
+      return;
+    }
+    setTunnelRefreshTrigger((prev) => prev + 1);
+  }, [activeTab, loadNodeTab]);
+
   useEffect(() => {
     void loadNodes();
-    void loadServerGroups();
-  }, [loadNodes, loadServerGroups]);
-  usePullToRefresh(activeTab === "servers" ? loadServerGroups : loadNodes);
+    void loadNodeInstanceGroups();
+  }, [loadNodes, loadNodeInstanceGroups]);
+  usePullToRefresh(refreshActiveTab);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       void loadNodes({ silent: true });
-      void loadServerGroups({ silent: true });
+      void loadNodeInstanceGroups({ silent: true });
     }, 30_000);
 
     return () => window.clearInterval(timer);
-  }, [loadNodes, loadServerGroups]);
+  }, [loadNodes, loadNodeInstanceGroups]);
 
-  const openWeightModal = useCallback((member: MonitorServerGroupMemberApiItem) => {
+  const openWeightModal = useCallback((member: MonitorNodeInstanceGroupMemberApiItem) => {
     setWeightTarget(member);
     setWeightValue(String(member.weight ?? 1));
     setWeightModalOpen(true);
@@ -378,13 +351,13 @@ export default function MonitorPage() {
     }
     setWeightSaving(true);
     try {
-      const res = await updateNodeWeight(weightTarget.nodeId, Math.floor(nextWeight));
+      const res = await updateNodeWeight(weightTarget.nodeId, Math.floor(nextWeight), weightTarget.instanceId);
 
       if (res.code === 0) {
         toast.success("权重已更新，正在重新下发线路配置");
         setWeightModalOpen(false);
         setWeightTarget(null);
-        await loadServerGroups({ silent: true });
+        await loadNodeInstanceGroups({ silent: true });
         await loadNodes({ silent: true });
       } else {
         toast.error(res.msg || "更新权重失败");
@@ -394,7 +367,7 @@ export default function MonitorPage() {
     } finally {
       setWeightSaving(false);
     }
-  }, [loadNodes, loadServerGroups, weightTarget, weightValue]);
+  }, [loadNodes, loadNodeInstanceGroups, weightTarget, weightValue]);
 
   const nodeMap = useMemo(() => {
     const list: MonitorNode[] = nodes
@@ -404,6 +377,8 @@ export default function MonitorPage() {
         name: String(n.name ?? ""),
         connectionStatus: n.status === 1 ? "online" : "offline",
         version: n.version,
+        instanceCount: Number(n.instanceCount ?? 0),
+        onlineInstanceCount: Number(n.onlineInstanceCount ?? 0),
       }));
 
     return new Map<number, MonitorNode>(list.map((n) => [n.id, n]));
@@ -428,15 +403,6 @@ export default function MonitorPage() {
             color="primary"
             size="sm"
             variant="flat"
-            onPress={() => setActiveTab("servers")}
-          >
-            服务器
-          </Button>
-          {/* 节点按钮 - 蓝色 */}
-          <Button
-            color="primary"
-            size="sm"
-            variant="flat"
             onPress={() => setActiveTab("nodes")}
           >
             节点
@@ -453,14 +419,13 @@ export default function MonitorPage() {
           {/* 刷新按钮 - 紫色 */}
           <Button
             color="secondary"
-            isLoading={activeTab === "servers" ? serverGroupsLoading : activeTab === "nodes" ? nodesLoading : tunnelsLoading}
+            isLoading={activeTab === "nodes" ? (nodesLoading || nodeInstanceGroupsLoading) : tunnelsLoading}
             size="sm"
             variant="flat"
             onPress={() => {
-              if (activeTab === "servers") {
-                loadServerGroups();
-              } else if (activeTab === "nodes") {
+              if (activeTab === "nodes") {
                 loadNodes();
+                loadNodeInstanceGroups();
               } else {
                 setTunnelRefreshTrigger((prev) => prev + 1);
               }
@@ -485,15 +450,15 @@ export default function MonitorPage() {
         ) : null}
       </div>
       <>
-        <div className={activeTab === "servers" ? "block" : "hidden"}>
-          <ServerGroupsView
-            groups={serverGroups}
-            loading={serverGroupsLoading}
-            onEditWeight={openWeightModal}
-          />
-        </div>
         <div className={activeTab === "nodes" ? "block" : "hidden"}>
-          <MonitorView nodeMap={nodeMap} viewMode={viewMode} />
+          <div className="space-y-4">
+            <NodeInstanceGroupsView
+              groups={nodeInstanceGroups}
+              loading={nodeInstanceGroupsLoading}
+              onEditWeight={openWeightModal}
+            />
+            <MonitorView nodeMap={nodeMap} viewMode={viewMode} />
+          </div>
         </div>
         <div className={activeTab === "tunnels" ? "block" : "hidden"}>
           <TunnelMonitorView
@@ -509,8 +474,9 @@ export default function MonitorPage() {
           <ModalBody>
             <div className="space-y-3 text-sm">
               <div>IP: {weightTarget ? getMonitorPrimaryDisplayIP(weightTarget) : "-"}</div>
+              <div>节点实例: {weightTarget?.hostname || weightTarget?.instanceId || weightTarget?.nodeName || "-"}</div>
               <div>当前权重: {weightTarget?.weight ?? "-"}</div>
-              <div className="text-default-500">权重 0 即不在隧道转发中使用此服务器。</div>
+              <div className="text-default-500">权重 0 即不在隧道转发中使用此节点实例。</div>
               <div className="text-default-500">建议：组内配置最低的机器设置为 1 权重，高配机器根据 CPU 核心数等适量增加权重。</div>
               <Input
                 label="权重"

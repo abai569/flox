@@ -36,10 +36,12 @@ type connWrap struct {
 }
 
 type nodeSession struct {
-	nodeID int64
-	secret string
-	conn   *connWrap
-	crypto *security.AESCrypto // 缓存的 AES 加密器，避免每条消息重建
+	nodeID     int64
+	instanceID string
+	hostname   string
+	secret     string
+	conn       *connWrap
+	crypto     *security.AESCrypto // 缓存的 AES 加密器，避免每条消息重建
 }
 
 type commandResponse struct {
@@ -51,8 +53,9 @@ type commandResponse struct {
 }
 
 type pendingRequest struct {
-	nodeID int64
-	ch     chan CommandResult
+	nodeID     int64
+	instanceID string
+	ch         chan CommandResult
 }
 
 const (
@@ -79,7 +82,7 @@ type Server struct {
 	mu                    sync.RWMutex
 	admins                map[*connWrap]struct{}
 	publics               map[*connWrap]struct{}
-	nodes                 map[int64]*nodeSession
+	nodes                 map[int64]map[string]*nodeSession
 	byConn                map[*websocket.Conn]*nodeSession
 	pending               map[string]pendingRequest
 	serviceConnections    map[int64]map[string]int           // nodeID -> serviceName -> connections
@@ -109,6 +112,8 @@ type SystemInfo struct {
 	NetInSpeed             int64           `json:"net_in_speed"`
 	NetOutSpeed            int64           `json:"net_out_speed"`
 	ServiceName            string          `json:"service_name,omitempty"`
+	InstanceID             string          `json:"instance_id,omitempty"`
+	Hostname               string          `json:"hostname,omitempty"`
 	ServiceConnections     map[string]int  `json:"serviceConnections"`
 	ForwardMetrics         []ForwardMetric `json:"forward_metrics,omitempty"`
 }
@@ -262,7 +267,7 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		},
 		admins:                make(map[*connWrap]struct{}),
 		publics:               make(map[*connWrap]struct{}),
-		nodes:                 make(map[int64]*nodeSession),
+		nodes:                 make(map[int64]map[string]*nodeSession),
 		byConn:                make(map[*websocket.Conn]*nodeSession),
 		pending:               make(map[string]pendingRequest),
 		serviceConnections:    make(map[int64]map[string]int),
@@ -305,6 +310,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, "bad request", http.StatusBadRequest)
+}
+
+func normalizeInstanceID(instanceID string) string {
+	instanceID = strings.TrimSpace(instanceID)
+	if instanceID == "" {
+		return "default"
+	}
+	if len(instanceID) > 100 {
+		return instanceID[:100]
+	}
+	return instanceID
+}
+
+func nodeInstanceKey(nodeID int64, instanceID string) string {
+	return fmt.Sprintf("%d:%s", nodeID, normalizeInstanceID(instanceID))
+}
+
+func defaultString(value string, fallback string) string {
+	if strings.TrimSpace(value) != "" {
+		return value
+	}
+	return fallback
 }
 
 func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
@@ -385,9 +412,14 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	go startKeepalive(cw, done)
 
 	version := r.URL.Query().Get("version")
+	instanceID := normalizeInstanceID(r.URL.Query().Get("instance_id"))
+	hostname := strings.TrimSpace(r.URL.Query().Get("hostname"))
 
 	s.mu.Lock()
-	if old, ok := s.nodes[nodeID]; ok {
+	if s.nodes[nodeID] == nil {
+		s.nodes[nodeID] = make(map[string]*nodeSession)
+	}
+	if old, ok := s.nodes[nodeID][instanceID]; ok {
 		_ = old.conn.conn.Close()
 		delete(s.byConn, old.conn.conn)
 	}
@@ -396,8 +428,8 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	if strings.TrimSpace(secret) != "" {
 		nodeCrypto, _ = security.NewAESCrypto(secret)
 	}
-	ns := &nodeSession{nodeID: nodeID, secret: secret, conn: cw, crypto: nodeCrypto}
-	s.nodes[nodeID] = ns
+	ns := &nodeSession{nodeID: nodeID, instanceID: instanceID, hostname: hostname, secret: secret, conn: cw, crypto: nodeCrypto}
+	s.nodes[nodeID][instanceID] = ns
 	s.byConn[conn] = ns
 	// 节点重新上线，清除离线时间记录
 	delete(s.nodeOfflineTime, nodeID)
@@ -406,6 +438,13 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	if err := s.repo.UpdateNodeOnline(nodeID, 1, version); err != nil {
 		fmt.Printf("⚠️ 更新节点%d在线状态失败：%v\n", nodeID, err)
 	}
+	_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
+		NodeID:     nodeID,
+		InstanceID: instanceID,
+		Hostname:   hostname,
+		Version:    version,
+		Now:        time.Now().UnixMilli(),
+	})
 	s.broadcastStatus(nodeID, 1)
 
 	s.mu.RLock()
@@ -419,15 +458,19 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		close(done)
 		needOfflineBroadcast := false
 		s.mu.Lock()
-		current, ok := s.nodes[nodeID]
+		current, ok := s.nodes[nodeID][instanceID]
 		if ok && current.conn.conn == conn {
-			delete(s.nodes, nodeID)
-			// 记录节点离线时间
-			s.nodeOfflineTime[nodeID] = time.Now().Unix()
-			needOfflineBroadcast = true
+			delete(s.nodes[nodeID], instanceID)
+			if len(s.nodes[nodeID]) == 0 {
+				delete(s.nodes, nodeID)
+				// 记录节点离线时间
+				s.nodeOfflineTime[nodeID] = time.Now().Unix()
+				needOfflineBroadcast = true
+			}
 		}
 		delete(s.byConn, conn)
 		s.mu.Unlock()
+		_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
 		if needOfflineBroadcast {
 			s.failPendingForNode(nodeID, "节点连接已断开")
 			if err := s.repo.UpdateNodeStatus(nodeID, 0); err != nil {
@@ -452,7 +495,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		}
 
 		msg := decryptIfNeeded(payload, ns.crypto, secret)
-		s.tryResolvePending(nodeID, msg)
+		s.tryResolvePending(nodeID, ns.instanceID, msg)
 
 		var parsed struct {
 			Type string `json:"type"`
@@ -468,6 +511,12 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					// 解析 SystemInfo 并调用 hook
 					var sysInfo SystemInfo
 					if json.Unmarshal(envelope.Data, &sysInfo) == nil {
+						if strings.TrimSpace(sysInfo.InstanceID) == "" {
+							sysInfo.InstanceID = ns.instanceID
+						}
+						if strings.TrimSpace(sysInfo.Hostname) == "" {
+							sysInfo.Hostname = ns.hostname
+						}
 						// 缓存服务连接数
 						s.mu.Lock()
 						s.serviceConnections[nodeID] = sysInfo.ServiceConnections
@@ -491,6 +540,25 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 							s.forwardMetricsMu.Unlock()
 						}
 						s.mu.Unlock()
+						_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
+							NodeID:      nodeID,
+							InstanceID:  sysInfo.InstanceID,
+							Hostname:    sysInfo.Hostname,
+							Version:     version,
+							NetInSpeed:  sysInfo.NetInSpeed,
+							NetOutSpeed: sysInfo.NetOutSpeed,
+							NetInBytes:  int64(sysInfo.BytesReceived),
+							NetOutBytes: int64(sysInfo.BytesTransmitted),
+							TCPConns:    sysInfo.TCPConns,
+							UDPConns:    sysInfo.UDPConns,
+							Uptime:      int64(sysInfo.Uptime),
+							PeriodRx:    int64(sysInfo.PeriodBytesReceived),
+							PeriodTx:    int64(sysInfo.PeriodBytesTransmitted),
+							CPUUsage:    sysInfo.CPUUsage,
+							MemUsage:    sysInfo.MemoryUsage,
+							DiskUsage:   sysInfo.DiskUsage,
+							Now:         time.Now().UnixMilli(),
+						})
 
 						s.mu.RLock()
 						onMetric := s.onNodeMetric
@@ -507,17 +575,36 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 				// 节点上报公网 IP
 				var envelope struct {
 					Data struct {
-						PublicIP string `json:"public_ip"`
+						InstanceID string `json:"instance_id"`
+						Hostname   string `json:"hostname"`
+						PublicIP   string `json:"public_ip"`
+						PublicIPV4 string `json:"public_ip_v4"`
+						PublicIPV6 string `json:"public_ip_v6"`
 					} `json:"data"`
 				}
-				if err := json.Unmarshal([]byte(msg), &envelope); err == nil && envelope.Data.PublicIP != "" {
-					// 更新节点公网 IP
-					if s.onNodeMetric != nil {
-						// 通过 repo 更新数据库
-						if err := s.repo.UpdateNodePublicIP(nodeID, envelope.Data.PublicIP); err != nil {
-							fmt.Printf("⚠️ 更新节点%d公网 IP 失败：%v\n", nodeID, err)
+				if err := json.Unmarshal([]byte(msg), &envelope); err == nil {
+					publicIPV4 := envelope.Data.PublicIPV4
+					publicIPV6 := envelope.Data.PublicIPV6
+					if publicIPV4 == "" {
+						publicIPV4 = envelope.Data.PublicIP
+						if strings.Contains(publicIPV4, ":") {
+							publicIPV6 = publicIPV4
+							publicIPV4 = ""
+						}
+					}
+					if publicIPV4 != "" || publicIPV6 != "" {
+						if err := s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
+							NodeID:     nodeID,
+							InstanceID: defaultString(envelope.Data.InstanceID, ns.instanceID),
+							Hostname:   defaultString(envelope.Data.Hostname, ns.hostname),
+							PublicIPV4: publicIPV4,
+							PublicIPV6: publicIPV6,
+							Version:    version,
+							Now:        time.Now().UnixMilli(),
+						}); err != nil {
+							fmt.Printf("⚠️ 更新节点%d实例公网 IP 失败：%v\n", nodeID, err)
 						} else {
-							fmt.Printf("✅ 节点%d公网 IP 已更新：%s\n", nodeID, envelope.Data.PublicIP)
+							fmt.Printf("✅ 节点%d实例%s公网 IP 已更新\n", nodeID, defaultString(envelope.Data.InstanceID, ns.instanceID))
 						}
 					}
 				}
@@ -559,11 +646,36 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		if looksLikeSystemInfoMessage(msg) {
 			var sysInfo SystemInfo
 			if err := json.Unmarshal([]byte(msg), &sysInfo); err == nil {
+				if strings.TrimSpace(sysInfo.InstanceID) == "" {
+					sysInfo.InstanceID = ns.instanceID
+				}
+				if strings.TrimSpace(sysInfo.Hostname) == "" {
+					sysInfo.Hostname = ns.hostname
+				}
 				// 缓存服务连接数
 				s.mu.Lock()
 				s.serviceConnections[nodeID] = sysInfo.ServiceConnections
 				s.serviceConnUpdateTime[nodeID] = time.Now().Unix()
 				s.mu.Unlock()
+				_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
+					NodeID:      nodeID,
+					InstanceID:  sysInfo.InstanceID,
+					Hostname:    sysInfo.Hostname,
+					Version:     version,
+					NetInSpeed:  sysInfo.NetInSpeed,
+					NetOutSpeed: sysInfo.NetOutSpeed,
+					NetInBytes:  int64(sysInfo.BytesReceived),
+					NetOutBytes: int64(sysInfo.BytesTransmitted),
+					TCPConns:    sysInfo.TCPConns,
+					UDPConns:    sysInfo.UDPConns,
+					Uptime:      int64(sysInfo.Uptime),
+					PeriodRx:    int64(sysInfo.PeriodBytesReceived),
+					PeriodTx:    int64(sysInfo.PeriodBytesTransmitted),
+					CPUUsage:    sysInfo.CPUUsage,
+					MemUsage:    sysInfo.MemoryUsage,
+					DiskUsage:   sysInfo.DiskUsage,
+					Now:         time.Now().UnixMilli(),
+				})
 
 				s.mu.RLock()
 				onMetric := s.onNodeMetric
@@ -629,19 +741,57 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 		timeout = 10 * time.Second
 	}
 
-	s.mu.RLock()
-	ns, ok := s.nodes[nodeID]
-	s.mu.RUnlock()
-	if !ok || ns == nil || ns.conn == nil || ns.conn.conn == nil {
+	sessions := s.activeNodeSessions(nodeID)
+	if len(sessions) == 0 {
 		return CommandResult{}, errors.New("节点不在线")
 	}
 
-	requestID := fmt.Sprintf("%d_%d", nodeID, time.Now().UnixNano())
+	var result CommandResult
+	var firstErr error
+	for _, ns := range sessions {
+		res, err := s.sendCommandToSession(ns, cmdType, data, timeout)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+				result = res
+			}
+			continue
+		}
+		result = res
+	}
+	if firstErr != nil {
+		return result, firstErr
+	}
+	return result, nil
+}
+
+func (s *Server) activeNodeSessions(nodeID int64) []*nodeSession {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	byInstance := s.nodes[nodeID]
+	if len(byInstance) == 0 {
+		return nil
+	}
+	sessions := make([]*nodeSession, 0, len(byInstance))
+	for _, ns := range byInstance {
+		if ns != nil && ns.conn != nil && ns.conn.conn != nil {
+			sessions = append(sessions, ns)
+		}
+	}
+	return sessions
+}
+
+func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data interface{}, timeout time.Duration) (CommandResult, error) {
+	if ns == nil || ns.conn == nil || ns.conn.conn == nil {
+		return CommandResult{}, errors.New("节点不在线")
+	}
+
+	requestID := fmt.Sprintf("%d_%s_%d", ns.nodeID, ns.instanceID, time.Now().UnixNano())
 	ch := make(chan CommandResult, 1)
 	debugMimic := strings.HasPrefix(strings.TrimSpace(cmdType), "Mimic")
 
 	s.mu.Lock()
-	s.pending[requestID] = pendingRequest{nodeID: nodeID, ch: ch}
+	s.pending[requestID] = pendingRequest{nodeID: ns.nodeID, instanceID: ns.instanceID, ch: ch}
 	s.mu.Unlock()
 
 	cleanup := func() {
@@ -664,7 +814,7 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 		return CommandResult{}, err
 	}
 	if debugMimic {
-		log.Printf("[mimic.debug] send command node=%d type=%s requestId=%s payload=%s", nodeID, cmdType, requestID, string(rawCmd))
+		log.Printf("[mimic.debug] send command node=%d instance=%s type=%s requestId=%s payload=%s", ns.nodeID, ns.instanceID, cmdType, requestID, string(rawCmd))
 	}
 
 	messageData := rawCmd
@@ -693,7 +843,7 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 	ns.conn.mu.Unlock()
 	if err != nil {
 		if debugMimic {
-			log.Printf("[mimic.debug] write command failed node=%d type=%s requestId=%s err=%v", nodeID, cmdType, requestID, err)
+			log.Printf("[mimic.debug] write command failed node=%d instance=%s type=%s requestId=%s err=%v", ns.nodeID, ns.instanceID, cmdType, requestID, err)
 		}
 		cleanup()
 		return CommandResult{}, err
@@ -703,7 +853,7 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 	case result, ok := <-ch:
 		if !ok {
 			if debugMimic {
-				log.Printf("[mimic.debug] command channel closed node=%d type=%s requestId=%s", nodeID, cmdType, requestID)
+				log.Printf("[mimic.debug] command channel closed node=%d instance=%s type=%s requestId=%s", ns.nodeID, ns.instanceID, cmdType, requestID)
 			}
 			return CommandResult{}, errors.New("命令通道已关闭")
 		}
@@ -712,24 +862,24 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 				result.Message = "命令执行失败"
 			}
 			if debugMimic {
-				log.Printf("[mimic.debug] command failed node=%d type=%s requestId=%s msg=%s", nodeID, cmdType, requestID, result.Message)
+				log.Printf("[mimic.debug] command failed node=%d instance=%s type=%s requestId=%s msg=%s", ns.nodeID, ns.instanceID, cmdType, requestID, result.Message)
 			}
 			return result, errors.New(result.Message)
 		}
 		if debugMimic {
-			log.Printf("[mimic.debug] command succeeded node=%d type=%s requestId=%s", nodeID, cmdType, requestID)
+			log.Printf("[mimic.debug] command succeeded node=%d instance=%s type=%s requestId=%s", ns.nodeID, ns.instanceID, cmdType, requestID)
 		}
 		return result, nil
 	case <-time.After(timeout):
 		if debugMimic {
-			log.Printf("[mimic.debug] command timeout node=%d type=%s requestId=%s timeout=%s", nodeID, cmdType, requestID, timeout)
+			log.Printf("[mimic.debug] command timeout node=%d instance=%s type=%s requestId=%s timeout=%s", ns.nodeID, ns.instanceID, cmdType, requestID, timeout)
 		}
 		cleanup()
 		return CommandResult{}, errors.New("等待节点响应超时")
 	}
 }
 
-func (s *Server) tryResolvePending(nodeID int64, message string) {
+func (s *Server) tryResolvePending(nodeID int64, instanceID string, message string) {
 	if s == nil || strings.TrimSpace(message) == "" {
 		return
 	}
@@ -756,7 +906,7 @@ func (s *Server) tryResolvePending(nodeID int64, message string) {
 	if !ok {
 		return
 	}
-	if p.nodeID != nodeID {
+	if p.nodeID != nodeID || p.instanceID != instanceID {
 		select {
 		case p.ch <- CommandResult{Type: resp.Type, Success: false, Message: "节点响应与请求不匹配"}:
 		default:
@@ -832,7 +982,7 @@ func (s *Server) DisconnectNode(nodeID int64) {
 	}
 
 	s.mu.Lock()
-	ns, ok := s.nodes[nodeID]
+	sessions, ok := s.nodes[nodeID]
 	if !ok {
 		s.mu.Unlock()
 		return
@@ -840,9 +990,12 @@ func (s *Server) DisconnectNode(nodeID int64) {
 
 	s.nodeOfflineTime[nodeID] = time.Now().Unix()
 
-	if ns.conn != nil && ns.conn.conn != nil {
-		_ = ns.conn.conn.Close()
-		delete(s.byConn, ns.conn.conn)
+	for instanceID, ns := range sessions {
+		if ns.conn != nil && ns.conn.conn != nil {
+			_ = ns.conn.conn.Close()
+			delete(s.byConn, ns.conn.conn)
+		}
+		_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
 	}
 	delete(s.nodes, nodeID)
 	s.mu.Unlock()

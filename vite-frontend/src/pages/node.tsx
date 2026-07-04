@@ -3504,7 +3504,7 @@ export default function NodePage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
-                      description="可选：建议填写公网IPv4或对应解析域名，可留空"
+                      description="可选：多实例节点可留空，实例公网 IP 由 agent 自动上报"
                       errorMessage={errors.serverIpV4}
                       isInvalid={!!errors.serverIpV4}
                       label="域名/公网IPv4地址"
@@ -3551,7 +3551,7 @@ export default function NodePage() {
                       }
                     />
                     <Input
-                      description="可选：建议填写公网IPv6或对应解析域名，可留空"
+                      description="可选：多实例节点可留空，实例公网 IP 由 agent 自动上报"
                       errorMessage={errors.serverIpV6}
                       isInvalid={!!errors.serverIpV6}
                       label="域名/公网IPv6地址"
@@ -3567,7 +3567,7 @@ export default function NodePage() {
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                    <span className="text-[14px] text-warning-600">节点ip地址是你要添加的入口/出口的ip地址，不是面板的ip地址</span>
+                    <span className="text-[14px] text-warning-600">多实例节点可以不填 IP，监控和权重使用各台 agent 自动上报的实例公网 IP。</span>
                   </div>
                   <Accordion variant="bordered">
                     <AccordionItem
@@ -3578,7 +3578,7 @@ export default function NodePage() {
                       <div className="space-y-4 pb-2 px-[12px]">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <Input
-                            description="用于多IP服务器指定使用那个IP请求远程地址，不懂的默认为空就行"
+                            description="用于多IP主机指定使用哪个 IP 请求远程地址，不懂的默认为空就行"
                             errorMessage={errors.interfaceName}
                             isInvalid={!!errors.interfaceName}
                             label="出口网卡名或IP"
@@ -3593,7 +3593,7 @@ export default function NodePage() {
                             }
                           />
                           <Input
-                            description="多IP服务器可填写额外IP地址，逗号分隔"
+                            description="多IP主机可填写额外IP地址，逗号分隔"
                             label="额外IP地址"
                             placeholder="例如: 192.168.1.100, 10.0.0.5"
                             value={form.extraIPs}
@@ -3782,7 +3782,7 @@ export default function NodePage() {
           <ModalBody>
             <div className="space-y-4">
               <p className="text-sm text-default-600">
-                请复制以下安装命令到服务器上执行：
+                请复制以下安装命令到目标机器上执行：
               </p>
 
               {/* 服务名输入框 */}
@@ -3874,7 +3874,7 @@ export default function NodePage() {
           <ModalBody>
             <div className="space-y-4">
               <p className="text-sm text-default-600">
-                请复制以下安装命令到服务器上执行：
+                请复制以下安装命令到目标机器上执行：
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3">

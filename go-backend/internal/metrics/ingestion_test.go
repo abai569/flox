@@ -90,8 +90,8 @@ func TestRecordNodeMetricAutoFlush(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get metrics: %v", err)
 	}
-	if len(metrics) < 200 {
-		t.Fatalf("expected at least 200 metrics after auto-flush, got %d", len(metrics))
+	if len(metrics) != 1 {
+		t.Fatalf("expected one aggregated metric after auto-flush, got %d", len(metrics))
 	}
 }
 
@@ -160,8 +160,8 @@ func TestGetLatestMetric(t *testing.T) {
 	if latest == nil {
 		t.Fatalf("expected latest metric")
 	}
-	if latest.CPUUsage != 60.0 {
-		t.Fatalf("expected latest CPUUsage 60.0, got %f", latest.CPUUsage)
+	if latest.CPUUsage != 50.0 {
+		t.Fatalf("expected aggregated CPUUsage 50.0, got %f", latest.CPUUsage)
 	}
 
 	_ = now
@@ -202,8 +202,36 @@ func TestGetMetricsWithTimeRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get metrics: %v", err)
 	}
-	if len(metrics) != 5 {
-		t.Fatalf("expected 5 metrics, got %d", len(metrics))
+	if len(metrics) != 1 {
+		t.Fatalf("expected 1 aggregated metric, got %d", len(metrics))
+	}
+}
+
+func TestRecordNodeMetricAggregatesInstances(t *testing.T) {
+	r, err := repo.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	svc := NewIngestionService(r)
+	svc.RecordNodeMetric(1, SystemInfo{CPUUsage: 20, MemoryUsage: 40, DiskUsage: 60, TCPConns: 10, UDPConns: 5, NetInSpeed: 100, NetOutSpeed: 200, BytesReceived: 1000, BytesTransmitted: 2000})
+	svc.RecordNodeMetric(1, SystemInfo{CPUUsage: 40, MemoryUsage: 60, DiskUsage: 80, TCPConns: 30, UDPConns: 15, NetInSpeed: 300, NetOutSpeed: 400, BytesReceived: 3000, BytesTransmitted: 4000})
+	svc.flushNodeMetrics()
+
+	metrics, err := r.GetNodeMetrics(1, time.Now().UnixMilli()-60000, time.Now().UnixMilli()+1000)
+	if err != nil {
+		t.Fatalf("get metrics: %v", err)
+	}
+	if len(metrics) != 1 {
+		t.Fatalf("expected 1 metric, got %d", len(metrics))
+	}
+	m := metrics[0]
+	if m.CPUUsage != 30 || m.MemUsage != 50 || m.DiskUsage != 70 {
+		t.Fatalf("expected averaged usage 30/50/70, got %.2f/%.2f/%.2f", m.CPUUsage, m.MemUsage, m.DiskUsage)
+	}
+	if m.TCPConns != 40 || m.UDPConns != 20 || m.NetInSpeed != 400 || m.NetOutSpeed != 600 {
+		t.Fatalf("expected summed network values, got tcp=%d udp=%d in=%d out=%d", m.TCPConns, m.UDPConns, m.NetInSpeed, m.NetOutSpeed)
 	}
 }
 

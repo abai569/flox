@@ -68,13 +68,15 @@ func (h *Handler) monitorNodeMetricsHandler(w http.ResponseWriter, r *http.Reque
 }
 
 type monitorNodeListItem struct {
-	ID          int64  `json:"id"`
-	Inx         int    `json:"inx"`
-	Name        string `json:"name"`
-	Status      int    `json:"status"`
-	Version     string `json:"version"`
-	Weight      int    `json:"weight"`
-	UpdatedTime int64  `json:"updatedTime"`
+	ID                  int64  `json:"id"`
+	Inx                 int    `json:"inx"`
+	Name                string `json:"name"`
+	Status              int    `json:"status"`
+	Version             string `json:"version"`
+	Weight              int    `json:"weight"`
+	InstanceCount       int64  `json:"instanceCount"`
+	OnlineInstanceCount int64  `json:"onlineInstanceCount"`
+	UpdatedTime         int64  `json:"updatedTime"`
 }
 
 func (h *Handler) monitorNodeListHandler(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +105,15 @@ func (h *Handler) monitorNodeListHandler(w http.ResponseWriter, r *http.Request)
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	nodeIDs := make([]int64, 0, len(nodes))
+	for _, n := range nodes {
+		nodeIDs = append(nodeIDs, n.ID)
+	}
+	instanceCounts, err := h.repo.CountNodeInstancesByNodeIDs(nodeIDs)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
 
 	items := make([]monitorNodeListItem, 0, len(nodes))
 	for _, n := range nodes {
@@ -110,14 +121,17 @@ func (h *Handler) monitorNodeListHandler(w http.ResponseWriter, r *http.Request)
 		if n.UpdatedTime.Valid {
 			updated = n.UpdatedTime.Int64
 		}
+		counts := instanceCounts[n.ID]
 		items = append(items, monitorNodeListItem{
-			ID:          n.ID,
-			Inx:         n.Inx,
-			Name:        n.Name,
-			Status:      n.Status,
-			Version:     n.Version.String,
-			Weight:      n.Weight,
-			UpdatedTime: updated,
+			ID:                  n.ID,
+			Inx:                 n.Inx,
+			Name:                n.Name,
+			Status:              n.Status,
+			Version:             n.Version.String,
+			Weight:              n.Weight,
+			InstanceCount:       counts.Total,
+			OnlineInstanceCount: counts.Online,
+			UpdatedTime:         updated,
 		})
 	}
 
@@ -173,42 +187,38 @@ func (h *Handler) monitorTunnelListHandler(w http.ResponseWriter, r *http.Reques
 	response.WriteJSON(w, response.OK(items))
 }
 
-type monitorServerGroupMember struct {
-	NodeID         int64   `json:"nodeId"`
-	NodeName       string  `json:"nodeName"`
-	ServerIP       string  `json:"serverIp"`
-	ServerIPV4     string  `json:"serverIpV4"`
-	ServerIPV6     string  `json:"serverIpV6"`
-	ResolvedIPV4   string  `json:"resolvedIpV4"`
-	ResolvedIPV6   string  `json:"resolvedIpV6"`
-	IPV4ResolvedAt int64   `json:"ipV4ResolvedAt"`
-	IPV6ResolvedAt int64   `json:"ipV6ResolvedAt"`
-	IPResolveError string  `json:"ipResolveError"`
-	Status         int     `json:"status"`
-	Weight         int     `json:"weight"`
-	OnlineCount    int64   `json:"onlineCount"`
-	NetInSpeed     int64   `json:"netInSpeed"`
-	NetOutSpeed    int64   `json:"netOutSpeed"`
-	NetInBytes     int64   `json:"netInBytes"`
-	NetOutBytes    int64   `json:"netOutBytes"`
-	Uptime         int64   `json:"uptime"`
-	PeriodRx       int64   `json:"periodRx"`
-	PeriodTx       int64   `json:"periodTx"`
-	CPUUsage       float64 `json:"cpuUsage"`
-	MemoryUsage    float64 `json:"memoryUsage"`
-	DiskUsage      float64 `json:"diskUsage"`
+type monitorNodeInstanceGroupMember struct {
+	NodeID      int64   `json:"nodeId"`
+	NodeName    string  `json:"nodeName"`
+	InstanceID  string  `json:"instanceId"`
+	Hostname    string  `json:"hostname"`
+	PublicIPV4  string  `json:"publicIpV4"`
+	PublicIPV6  string  `json:"publicIpV6"`
+	Status      int     `json:"status"`
+	Weight      int     `json:"weight"`
+	OnlineCount int64   `json:"onlineCount"`
+	NetInSpeed  int64   `json:"netInSpeed"`
+	NetOutSpeed int64   `json:"netOutSpeed"`
+	NetInBytes  int64   `json:"netInBytes"`
+	NetOutBytes int64   `json:"netOutBytes"`
+	Uptime      int64   `json:"uptime"`
+	PeriodRx    int64   `json:"periodRx"`
+	PeriodTx    int64   `json:"periodTx"`
+	CPUUsage    float64 `json:"cpuUsage"`
+	MemoryUsage float64 `json:"memoryUsage"`
+	DiskUsage   float64 `json:"diskUsage"`
 }
 
-type monitorServerGroupItem struct {
-	ID            int64                      `json:"id"`
-	Name          string                     `json:"name"`
-	Status        int                        `json:"status"`
-	TotalInSpeed  int64                      `json:"totalInSpeed"`
-	TotalOutSpeed int64                      `json:"totalOutSpeed"`
-	Members       []monitorServerGroupMember `json:"members"`
+type monitorNodeInstanceGroupItem struct {
+	ID            int64                            `json:"id"`
+	Name          string                           `json:"name"`
+	Status        int                              `json:"status"`
+	TotalInSpeed  int64                            `json:"totalInSpeed"`
+	TotalOutSpeed int64                            `json:"totalOutSpeed"`
+	Members       []monitorNodeInstanceGroupMember `json:"members"`
 }
 
-func (h *Handler) monitorServerGroupsHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))
 		return
@@ -228,7 +238,7 @@ func (h *Handler) monitorServerGroupsHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		if len(nodeIDs) == 0 {
-			response.WriteJSON(w, response.OK([]monitorServerGroupItem{}))
+			response.WriteJSON(w, response.OK([]monitorNodeInstanceGroupItem{}))
 			return
 		}
 		tunnelIDs, err = h.getAccessibleTunnelIDs(scope)
@@ -237,70 +247,58 @@ func (h *Handler) monitorServerGroupsHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		if len(tunnelIDs) == 0 {
-			response.WriteJSON(w, response.OK([]monitorServerGroupItem{}))
+			response.WriteJSON(w, response.OK([]monitorNodeInstanceGroupItem{}))
 			return
 		}
 	}
 
-	rows, err := h.repo.ListMonitorServerGroups(nodeIDs, tunnelIDs)
+	rows, err := h.repo.ListMonitorNodeInstanceGroups(nodeIDs, tunnelIDs)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
 
-	groups := make([]monitorServerGroupItem, 0)
+	groups := make([]monitorNodeInstanceGroupItem, 0)
 	groupIndex := make(map[int64]int)
-	seenMembers := make(map[int64]map[int64]struct{})
+	seenMembers := make(map[int64]map[string]struct{})
 	for _, row := range rows {
 		idx, exists := groupIndex[row.TunnelID]
 		if !exists {
 			groupIndex[row.TunnelID] = len(groups)
 			idx = len(groups)
-			groups = append(groups, monitorServerGroupItem{
+			groups = append(groups, monitorNodeInstanceGroupItem{
 				ID:      row.TunnelID,
 				Name:    row.TunnelName,
 				Status:  row.TunnelStatus,
-				Members: make([]monitorServerGroupMember, 0),
+				Members: make([]monitorNodeInstanceGroupMember, 0),
 			})
-			seenMembers[row.TunnelID] = make(map[int64]struct{})
+			seenMembers[row.TunnelID] = make(map[string]struct{})
 		}
-		if _, ok := seenMembers[row.TunnelID][row.NodeID]; ok {
+		memberKey := strconv.FormatInt(row.NodeID, 10) + ":" + row.InstanceID
+		if _, ok := seenMembers[row.TunnelID][memberKey]; ok {
 			continue
 		}
-		seenMembers[row.TunnelID][row.NodeID] = struct{}{}
-		resolvedV4 := resolveMonitorNodeIP(row.NodeID, monitorIPFamilyV4, monitorServerGroupIPSource(monitorIPFamilyV4, row.ServerIP, row.ServerIPV4, row.ServerIPV6))
-		resolvedV6 := resolveMonitorNodeIP(row.NodeID, monitorIPFamilyV6, monitorServerGroupIPSource(monitorIPFamilyV6, row.ServerIP, row.ServerIPV4, row.ServerIPV6))
-		resolveErrors := make([]string, 0, 2)
-		if resolvedV4.Error != "" {
-			resolveErrors = append(resolveErrors, "v4: "+resolvedV4.Error)
-		}
-		if resolvedV6.Error != "" {
-			resolveErrors = append(resolveErrors, "v6: "+resolvedV6.Error)
-		}
-		member := monitorServerGroupMember{
-			NodeID:         row.NodeID,
-			NodeName:       row.NodeName,
-			ServerIP:       row.ServerIP,
-			ServerIPV4:     row.ServerIPV4,
-			ServerIPV6:     row.ServerIPV6,
-			ResolvedIPV4:   resolvedV4.IP,
-			ResolvedIPV6:   resolvedV6.IP,
-			IPV4ResolvedAt: resolvedV4.ResolvedAt,
-			IPV6ResolvedAt: resolvedV6.ResolvedAt,
-			IPResolveError: strings.Join(resolveErrors, "; "),
-			Status:         row.Status,
-			Weight:         row.Weight,
-			OnlineCount:    row.TCPConns + row.UDPConns,
-			NetInSpeed:     row.NetInSpeed,
-			NetOutSpeed:    row.NetOutSpeed,
-			NetInBytes:     row.NetInBytes,
-			NetOutBytes:    row.NetOutBytes,
-			Uptime:         row.Uptime,
-			PeriodRx:       row.PeriodRx,
-			PeriodTx:       row.PeriodTx,
-			CPUUsage:       row.CPUUsage,
-			MemoryUsage:    row.MemUsage,
-			DiskUsage:      row.DiskUsage,
+		seenMembers[row.TunnelID][memberKey] = struct{}{}
+		member := monitorNodeInstanceGroupMember{
+			NodeID:      row.NodeID,
+			NodeName:    row.NodeName,
+			InstanceID:  row.InstanceID,
+			Hostname:    row.Hostname,
+			PublicIPV4:  row.PublicIPV4,
+			PublicIPV6:  row.PublicIPV6,
+			Status:      row.Status,
+			Weight:      row.Weight,
+			OnlineCount: row.TCPConns + row.UDPConns,
+			NetInSpeed:  row.NetInSpeed,
+			NetOutSpeed: row.NetOutSpeed,
+			NetInBytes:  row.NetInBytes,
+			NetOutBytes: row.NetOutBytes,
+			Uptime:      row.Uptime,
+			PeriodRx:    row.PeriodRx,
+			PeriodTx:    row.PeriodTx,
+			CPUUsage:    row.CPUUsage,
+			MemoryUsage: row.MemUsage,
+			DiskUsage:   row.DiskUsage,
 		}
 		groups[idx].Members = append(groups[idx].Members, member)
 		groups[idx].TotalInSpeed += row.NetInSpeed

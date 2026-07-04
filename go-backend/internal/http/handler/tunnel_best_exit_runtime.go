@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go-backend/internal/store/model"
 )
 
 const (
@@ -111,12 +113,35 @@ func (h *Handler) updateTunnelChainOnNode(nodeID int64, chainData map[string]int
 	return nil
 }
 
+func (h *Handler) loadRuntimeNodeInstances(targets []tunnelRuntimeNode) (map[int64][]model.NodeInstance, error) {
+	if h == nil || h.repo == nil || len(targets) == 0 {
+		return map[int64][]model.NodeInstance{}, nil
+	}
+	seen := make(map[int64]struct{})
+	nodeIDs := make([]int64, 0, len(targets))
+	for _, target := range targets {
+		if target.NodeID <= 0 {
+			continue
+		}
+		if _, ok := seen[target.NodeID]; ok {
+			continue
+		}
+		seen[target.NodeID] = struct{}{}
+		nodeIDs = append(nodeIDs, target.NodeID)
+	}
+	return h.repo.ListOnlineNodeInstancesByNodeIDs(nodeIDs)
+}
+
 func (h *Handler) applyBestExitSwitch(tunnelID, ownerNodeID, preferredExitID int64, targets []tunnelRuntimeNode, nodes map[int64]*nodeRecord, ipPreference string) error {
 	if h == nil || len(targets) == 0 {
 		return nil
 	}
 	preparedTargets := h.prepareRuntimeTargetsForOwner(tunnelID, ownerNodeID, targets, preferredExitID)
-	chainData, err := buildTunnelChainConfig(tunnelID, ownerNodeID, preparedTargets, nodes, ipPreference)
+	instancesByNode, err := h.loadRuntimeNodeInstances(preparedTargets)
+	if err != nil {
+		return err
+	}
+	chainData, err := buildTunnelChainConfig(tunnelID, ownerNodeID, preparedTargets, nodes, instancesByNode, ipPreference)
 	if err != nil {
 		return err
 	}
@@ -128,7 +153,11 @@ func (h *Handler) applyBestHopSwitch(tunnelID, ownerNodeID int64, hopIndex int, 
 		return nil
 	}
 	preparedTargets := h.prepareRuntimeTargetsForOwner(tunnelID, ownerNodeID, targets, preferredNodeID)
-	chainData, err := buildTunnelChainConfig(tunnelID, ownerNodeID, preparedTargets, nodes, ipPreference)
+	instancesByNode, err := h.loadRuntimeNodeInstances(preparedTargets)
+	if err != nil {
+		return err
+	}
+	chainData, err := buildTunnelChainConfig(tunnelID, ownerNodeID, preparedTargets, nodes, instancesByNode, ipPreference)
 	if err != nil {
 		return err
 	}

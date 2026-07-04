@@ -559,20 +559,18 @@ export interface MonitorNodeApiItem {
   status: number;
   version?: string;
   weight?: number;
+  instanceCount?: number;
+  onlineInstanceCount?: number;
   updatedTime: number;
 }
 
-export interface MonitorServerGroupMemberApiItem {
+export interface MonitorNodeInstanceGroupMemberApiItem {
   nodeId: number;
   nodeName: string;
-  serverIp?: string;
-  serverIpV4?: string;
-  serverIpV6?: string;
-  resolvedIpV4?: string;
-  resolvedIpV6?: string;
-  ipV4ResolvedAt?: number;
-  ipV6ResolvedAt?: number;
-  ipResolveError?: string;
+  instanceId?: string;
+  hostname?: string;
+  publicIpV4?: string;
+  publicIpV6?: string;
   status: number;
   weight: number;
   onlineCount: number;
@@ -588,13 +586,13 @@ export interface MonitorServerGroupMemberApiItem {
   diskUsage: number;
 }
 
-export interface MonitorServerGroupApiItem {
+export interface MonitorNodeInstanceGroupApiItem {
   id: number;
   name: string;
   status: number;
   totalInSpeed: number;
   totalOutSpeed: number;
-  members: MonitorServerGroupMemberApiItem[];
+  members: MonitorNodeInstanceGroupMemberApiItem[];
 }
 
 export interface MonitorNodeMetricsApiItem extends MonitorNodeApiItem {
