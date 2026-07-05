@@ -92,6 +92,21 @@ type ServiceSummary = {
   fail: number;
 };
 
+const MONITOR_INSTANCE_TABLE_COLUMNS = [
+  "4%",
+  "9%",
+  "9%",
+  "10%",
+  "8%",
+  "7%",
+  "8%",
+  "10%",
+  "10%",
+  "10%",
+  "5%",
+  "10%",
+] as const;
+
 const isRealInstanceId = (instanceId?: string): boolean => {
   const value = instanceId?.trim() || "";
 
@@ -164,26 +179,29 @@ const getMonitorIPCellTitle = (
   return parts.filter(Boolean).join("\n");
 };
 
+const getMonitorRegionTitle = (
+  member: MonitorNodeInstanceGroupMemberApiItem,
+  family: MonitorIPFamily,
+): string => {
+  const region =
+    family === "v4" ? member.publicIpV4Region : member.publicIpV6Region;
+  const reported = getMonitorDisplayIP(member, family);
+  const parts = [
+    member.hostname ? `主机: ${member.hostname}` : "",
+    member.instanceId ? `实例: ${member.instanceId}` : "",
+    region ? `地区: ${region}` : "",
+    reported !== "-" ? `IP: ${reported}` : "",
+  ];
+
+  return parts.filter(Boolean).join("\n");
+};
+
 const getMonitorPrimaryDisplayIP = (
   member: MonitorNodeInstanceGroupMemberApiItem,
 ): string => {
   const v4 = getMonitorDisplayIP(member, "v4");
 
   return v4 !== "-" ? v4 : getMonitorDisplayIP(member, "v6");
-};
-
-const getMonitorIPTitle = (
-  member: MonitorNodeInstanceGroupMemberApiItem,
-  family: MonitorIPFamily,
-): string => {
-  const reported = getMonitorDisplayIP(member, family);
-  const parts = [
-    member.hostname ? `主机: ${member.hostname}` : "",
-    member.instanceId ? `实例: ${member.instanceId}` : "",
-    reported !== "-" ? `上报IP: ${reported}` : "",
-  ];
-
-  return parts.filter(Boolean).join("\n");
 };
 
 function UsageMeter({
@@ -202,7 +220,7 @@ function UsageMeter({
         : "bg-indigo-500";
 
   return (
-    <div className="relative h-7 w-[150px] overflow-hidden rounded-md border border-default-300 bg-default-200/80">
+    <div className="relative h-7 w-full min-w-0 overflow-hidden rounded-md border border-default-300 bg-default-200/80">
       <div
         className={`absolute inset-y-0 left-0 ${colorClass}`}
         style={{ width: `${percent}%` }}
@@ -360,21 +378,26 @@ function NodeInstanceGroupsView({
             </div>
             <div className="px-4 pb-4">
               <div className="overflow-x-auto">
-                <table className="min-w-[1220px] w-full text-sm">
+                <table className="min-w-[1220px] w-full table-fixed text-sm">
+                  <colgroup>
+                    {MONITOR_INSTANCE_TABLE_COLUMNS.map((width, index) => (
+                      <col key={index} style={{ width }} />
+                    ))}
+                  </colgroup>
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
-                      <th className="px-3 py-2 text-center">状态</th>
-                      <th className="px-3 py-2 text-center">v4 地区</th>
-                      <th className="px-3 py-2 text-center">v6 地区</th>
-                      <th className="px-3 py-2 text-center">出口 IP</th>
-                      <th className="w-[118px] px-3 py-2 text-center">速率</th>
-                      <th className="px-3 py-2 text-center">开机时长</th>
-                      <th className="px-3 py-2 text-center">流量</th>
-                      <th className="px-3 py-2 text-center">CPU</th>
-                      <th className="px-3 py-2 text-center">RAM</th>
-                      <th className="px-3 py-2 text-center">存储</th>
-                      <th className="px-3 py-2 text-center">权重</th>
-                      <th className="px-3 py-2 text-center">操作</th>
+                      <th className="px-2 py-2 text-center">状态</th>
+                      <th className="px-2 py-2 text-center">v4 地区</th>
+                      <th className="px-2 py-2 text-center">v6 地区</th>
+                      <th className="px-2 py-2 text-center">出口 IP</th>
+                      <th className="px-2 py-2 text-center">速率</th>
+                      <th className="px-2 py-2 text-center">开机时长</th>
+                      <th className="px-2 py-2 text-center">流量</th>
+                      <th className="px-2 py-2 text-center">CPU</th>
+                      <th className="px-2 py-2 text-center">RAM</th>
+                      <th className="px-2 py-2 text-center">存储</th>
+                      <th className="px-2 py-2 text-center">权重</th>
+                      <th className="px-2 py-2 text-center">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -387,7 +410,7 @@ function NodeInstanceGroupsView({
                           )}
                           className="border-b border-divider/50 last:border-b-0 hover:bg-default-50/50"
                         >
-                          <td className="px-3 py-3 text-center">
+                          <td className="px-2 py-3 text-center align-middle">
                             <span
                               className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${member.status === 1 ? "bg-success-500 text-white" : "bg-danger-100 text-danger"}`}
                             >
@@ -395,19 +418,23 @@ function NodeInstanceGroupsView({
                             </span>
                           </td>
                           <td
-                            className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap"
-                            title={getMonitorIPTitle(member, "v4")}
+                            className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
+                            title={getMonitorRegionTitle(member, "v4")}
                           >
-                            {member.publicIpV4Region || "-"}
+                            <div className="truncate">
+                              {member.publicIpV4Region || "-"}
+                            </div>
                           </td>
                           <td
-                            className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap"
-                            title={getMonitorIPTitle(member, "v6")}
+                            className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
+                            title={getMonitorRegionTitle(member, "v6")}
                           >
-                            {member.publicIpV6Region || "-"}
+                            <div className="truncate">
+                              {member.publicIpV6Region || "-"}
+                            </div>
                           </td>
                           <td
-                            className="w-[132px] max-w-[132px] px-3 py-3 text-center font-mono text-xs text-default-600"
+                            className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
                             title={getMonitorIPCellTitle(member)}
                           >
                             <div className="truncate">
@@ -417,43 +444,53 @@ function NodeInstanceGroupsView({
                               {formatMonitorIPForCell(member.publicIpV6)}
                             </div>
                           </td>
-                          <td className="w-[118px] min-w-[118px] max-w-[118px] px-3 py-3 text-center font-mono text-xs leading-5 tabular-nums whitespace-nowrap">
-                            <div>{formatSpeed(member.netOutSpeed)}↑</div>
-                            <div>{formatSpeed(member.netInSpeed)}↓</div>
+                          <td className="px-2 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums">
+                            <div className="truncate">
+                              {formatSpeed(member.netOutSpeed)}↑
+                            </div>
+                            <div className="truncate">
+                              {formatSpeed(member.netInSpeed)}↓
+                            </div>
                           </td>
-                          <td className="px-3 py-3 text-center whitespace-nowrap">
-                            {formatUptime(member.uptime)}
+                          <td className="px-2 py-3 text-center align-middle">
+                            <div className="truncate">
+                              {formatUptime(member.uptime)}
+                            </div>
                           </td>
-                          <td className="px-3 py-3 text-center font-mono text-xs whitespace-nowrap">
-                            <div>{formatBytes(member.periodTx)}↑</div>
-                            <div>{formatBytes(member.periodRx)}↓</div>
+                          <td className="px-2 py-3 text-center align-middle font-mono text-xs">
+                            <div className="truncate">
+                              {formatBytes(member.periodTx)}↑
+                            </div>
+                            <div className="truncate">
+                              {formatBytes(member.periodRx)}↓
+                            </div>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="flex justify-center">
+                          <td className="px-2 py-3 align-middle">
+                            <div className="flex min-w-0 justify-center">
                               <UsageMeter tone="cpu" value={member.cpuUsage} />
                             </div>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="flex justify-center">
+                          <td className="px-2 py-3 align-middle">
+                            <div className="flex min-w-0 justify-center">
                               <UsageMeter
                                 tone="memory"
                                 value={member.memoryUsage}
                               />
                             </div>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="flex justify-center">
+                          <td className="px-2 py-3 align-middle">
+                            <div className="flex min-w-0 justify-center">
                               <UsageMeter
                                 tone="disk"
                                 value={member.diskUsage}
                               />
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-center font-mono tabular-nums">
-                            {member.weight}
+                          <td className="px-2 py-3 text-center align-middle font-mono tabular-nums">
+                            <div className="truncate">{member.weight}</div>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="flex justify-center gap-2">
+                          <td className="px-2 py-3 align-middle">
+                            <div className="flex min-w-0 justify-center gap-2">
                               <Button
                                 isIconOnly
                                 size="sm"

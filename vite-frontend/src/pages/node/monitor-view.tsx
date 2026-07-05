@@ -1742,69 +1742,65 @@ export function MonitorView({
       {!accessDenied && detailNodeId && (
         <>
           {/* 详情页统一头部 */}
-          <Card className="border border-divider bg-content1 shadow-sm">
-            <CardBody className="flex min-h-[58px] flex-col items-center justify-between gap-4 px-4 py-3 sm:flex-row">
-              <div className="flex items-center gap-4 self-stretch sm:self-center">
-                <Button
-                  className="h-9 bg-default-100 font-medium hover:bg-default-200"
+          <div className="flex min-h-12 w-full flex-col items-center justify-between gap-3 px-1 py-2 sm:flex-row sm:py-0">
+            <div className="flex min-h-10 items-center gap-4 self-stretch sm:self-center">
+              <Button
+                className="h-9 bg-default-100 font-medium hover:bg-default-200"
+                size="sm"
+                variant="flat"
+                onPress={() => setDetailNodeId(null)}
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                返回列表
+              </Button>
+              <div className="hidden h-5 w-[1px] bg-divider sm:block" />
+              <div className="flex h-9 items-center gap-2.5">
+                <DistroIcon
+                  className="w-5 h-5"
+                  distro={parseDistroFromVersion(detailNode?.version)}
+                  style={{
+                    color:
+                      detailNode?.connectionStatus === "online"
+                        ? getDistroColor(
+                            parseDistroFromVersion(detailNode?.version),
+                          )
+                        : undefined,
+                  }}
+                />
+                <h3 className="text-lg font-bold text-foreground">
+                  {detailNode?.name || `节点 #${detailNodeId}`}
+                </h3>
+                <Chip
+                  className="flex h-6 items-center rounded-md font-medium"
+                  color={
+                    detailNode?.connectionStatus === "online"
+                      ? "success"
+                      : "danger"
+                  }
                   size="sm"
                   variant="flat"
-                  onPress={() => setDetailNodeId(null)}
                 >
-                  <ArrowLeft className="w-4 h-4 mr-1" />
-                  返回列表
-                </Button>
-                <div className="hidden h-5 w-[1px] bg-divider sm:block" />
-                <div className="flex h-9 items-center gap-2.5">
-                  <DistroIcon
-                    className="w-5 h-5"
-                    distro={parseDistroFromVersion(detailNode?.version)}
-                    style={{
-                      color:
-                        detailNode?.connectionStatus === "online"
-                          ? getDistroColor(
-                              parseDistroFromVersion(detailNode?.version),
-                            )
-                          : undefined,
-                    }}
-                  />
-                  <h3 className="text-lg font-bold text-foreground">
-                    {detailNode?.name || `节点 #${detailNodeId}`}
-                  </h3>
-                  <Chip
-                    className="flex h-6 items-center rounded-md font-medium"
-                    color={
-                      detailNode?.connectionStatus === "online"
-                        ? "success"
-                        : "danger"
-                    }
-                    size="sm"
-                    variant="flat"
-                  >
-                    {detailNode?.connectionStatus === "online"
-                      ? "在线"
-                      : "离线"}
-                  </Chip>
-                </div>
+                  {detailNode?.connectionStatus === "online" ? "在线" : "离线"}
+                </Chip>
               </div>
-              <div className="flex h-9 items-center gap-2 self-center rounded-full border border-divider bg-default-100/50 px-3 py-1.5 text-xs text-default-600">
-                {wsConnected ? (
-                  <LiveDot />
-                ) : (
-                  <div
-                    className={`w-2 h-2 rounded-full ${wsConnecting ? "bg-warning" : "bg-default-300"}`}
-                  />
-                )}
-                <span className="font-medium">
-                  {wsConnected
-                    ? "实时已连接"
-                    : wsConnecting
-                      ? "实时连接中"
-                      : "实时未连接"}
-                </span>
-              </div>
-            </CardBody>
-          </Card>
+            </div>
+            <div className="flex h-9 items-center gap-2 self-center rounded-full border border-divider bg-default-100/50 px-3 py-1.5 text-xs text-default-600">
+              {wsConnected ? (
+                <LiveDot />
+              ) : (
+                <div
+                  className={`w-2 h-2 rounded-full ${wsConnecting ? "bg-warning" : "bg-default-300"}`}
+                />
+              )}
+              <span className="font-medium">
+                {wsConnected
+                  ? "实时已连接"
+                  : wsConnecting
+                    ? "实时连接中"
+                    : "实时未连接"}
+              </span>
+            </div>
+          </div>
 
           {/* Realtime KPI cards */}
           {detailRealtimeMetric && (

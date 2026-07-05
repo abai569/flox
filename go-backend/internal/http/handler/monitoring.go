@@ -78,21 +78,142 @@ func queryMonitorIPRegion(ip string) string {
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || !data.Success {
 		return ""
 	}
+	return formatMonitorIPRegion(data.Country, data.Region, data.City)
+}
+
+func formatMonitorIPRegion(country, region, city string) string {
 	parts := make([]string, 0, 3)
-	for _, part := range []string{data.Country, data.Region, data.City} {
-		part = strings.TrimSpace(part)
-		if part == "" || part == "-" {
-			continue
-		}
-		if len(parts) > 0 && parts[len(parts)-1] == part {
-			continue
-		}
-		parts = append(parts, part)
+	for _, token := range collectMonitorLocationTokens(country, region, city) {
+		parts = appendMonitorLocationPart(parts, token)
 	}
 	if len(parts) == 0 {
 		return ""
 	}
+	if hasMonitorLocationPart(parts, "香港") {
+		return "中国 香港"
+	}
+	if hasMonitorLocationPart(parts, "澳门") {
+		return "中国 澳门"
+	}
+	if hasMonitorLocationPart(parts, "台湾") {
+		out := []string{"中国", "台湾"}
+		for _, part := range parts {
+			part = trimMonitorLocationPrefixes(part, "中国", "台湾")
+			out = appendMonitorLocationPart(out, part)
+		}
+		return strings.Join(out, " ")
+	}
+	if hasMonitorLocationPart(parts, "中国") {
+		out := []string{"中国"}
+		for _, part := range parts {
+			part = trimMonitorLocationPrefixes(part, "中国")
+			out = appendMonitorLocationPart(out, part)
+		}
+		return strings.Join(out, " ")
+	}
 	return strings.Join(parts, " ")
+}
+
+func collectMonitorLocationTokens(values ...string) []string {
+	tokens := make([]string, 0, len(values))
+	for _, value := range values {
+		for _, token := range strings.FieldsFunc(value, func(r rune) bool {
+			return r == ',' || r == '，' || r == '、' || r == '/'
+		}) {
+			token = strings.TrimSpace(token)
+			if token == "" || token == "-" {
+				continue
+			}
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
+}
+
+func appendMonitorLocationPart(parts []string, part string) []string {
+	part = normalizeMonitorLocationPart(part)
+	if part == "" {
+		return parts
+	}
+	for _, prefix := range parts {
+		if prefix == "" || prefix == part || !strings.HasPrefix(part, prefix) {
+			continue
+		}
+		trimmed := normalizeMonitorLocationPart(strings.TrimPrefix(part, prefix))
+		if trimmed != "" && trimmed != part {
+			part = trimmed
+			break
+		}
+	}
+	for _, existing := range parts {
+		if existing == part || strings.HasSuffix(existing, part) {
+			return parts
+		}
+	}
+	return append(parts, part)
+}
+
+func normalizeMonitorLocationPart(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "-" {
+		return ""
+	}
+	lower := strings.ToLower(value)
+	switch lower {
+	case "china", "cn", "prc":
+		return "中国"
+	case "hong kong", "hong kong sar", "hong kong sar china", "hong kong s.a.r.", "hk":
+		return "香港"
+	case "macao", "macau", "macao sar", "macau sar", "mo":
+		return "澳门"
+	case "taiwan", "tw":
+		return "台湾"
+	}
+	replacements := []struct {
+		old string
+		new string
+	}{
+		{"中华人民共和国", "中国"},
+		{"中国大陆", "中国"},
+		{"香港特别行政区", "香港"},
+		{"澳门特别行政区", "澳门"},
+		{"台湾省", "台湾"},
+	}
+	for _, replacement := range replacements {
+		value = strings.ReplaceAll(value, replacement.old, replacement.new)
+	}
+	for _, suffix := range []string{"特别行政区", "特别行政", "省", "市"} {
+		if strings.HasSuffix(value, suffix) && len(value) > len(suffix) {
+			value = strings.TrimSuffix(value, suffix)
+		}
+	}
+	return strings.TrimSpace(value)
+}
+
+func hasMonitorLocationPart(parts []string, target string) bool {
+	for _, part := range parts {
+		if part == target || strings.Contains(part, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func trimMonitorLocationPrefixes(value string, prefixes ...string) string {
+	value = normalizeMonitorLocationPart(value)
+	for {
+		trimmed := false
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(value, prefix) {
+				value = normalizeMonitorLocationPart(strings.TrimPrefix(value, prefix))
+				trimmed = true
+			}
+		}
+		if !trimmed {
+			break
+		}
+	}
+	return value
 }
 
 func resolveMonitorIPRegionMap(rows []repo.MonitorNodeInstanceGroupRow) map[string]string {
