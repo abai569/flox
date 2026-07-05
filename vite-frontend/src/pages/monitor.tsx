@@ -166,81 +166,74 @@ const formatMonitorIPForCell = (ip?: string): string => {
   return value.length > 15 ? `${value.slice(0, 15)}...` : value;
 };
 
-const getMonitorRegionTitle = (
+const getMonitorRegionIPTitle = (
   member: MonitorNodeInstanceGroupMemberApiItem,
   family: MonitorIPFamily,
 ): string => {
-  const region =
-    family === "v4" ? member.publicIpV4Region : member.publicIpV6Region;
   const reported = getMonitorDisplayIP(member, family);
 
-  if (!region && reported === "-") return "";
-  const parts = [
-    member.hostname ? `主机: ${member.hostname}` : "",
-    member.instanceId ? `实例: ${member.instanceId}` : "",
-    region ? `地区: ${region}` : "",
-    reported !== "-" ? `IP: ${reported}` : "",
-  ];
-
-  return parts.filter(Boolean).join("\n");
+  return reported === "-" ? "" : reported;
 };
 
-const REGION_FLAG_BY_COUNTRY: Record<string, string> = {
-  中国: "🇨🇳",
-  香港: "🇨🇳",
-  澳门: "🇨🇳",
-  台湾: "🇨🇳",
-  日本: "🇯🇵",
-  美国: "🇺🇸",
-  新加坡: "🇸🇬",
-  韩国: "🇰🇷",
-  英国: "🇬🇧",
-  德国: "🇩🇪",
-  法国: "🇫🇷",
-  荷兰: "🇳🇱",
-  加拿大: "🇨🇦",
-  澳大利亚: "🇦🇺",
-  俄罗斯: "🇷🇺",
-  印度: "🇮🇳",
-  泰国: "🇹🇭",
-  越南: "🇻🇳",
-  菲律宾: "🇵🇭",
-  马来西亚: "🇲🇾",
-  印尼: "🇮🇩",
-  印度尼西亚: "🇮🇩",
-  土耳其: "🇹🇷",
-  巴西: "🇧🇷",
-  墨西哥: "🇲🇽",
-  意大利: "🇮🇹",
-  西班牙: "🇪🇸",
-  瑞士: "🇨🇭",
-  瑞典: "🇸🇪",
-  芬兰: "🇫🇮",
-  挪威: "🇳🇴",
-  丹麦: "🇩🇰",
-  波兰: "🇵🇱",
-  乌克兰: "🇺🇦",
-  阿联酋: "🇦🇪",
-  以色列: "🇮🇱",
-  南非: "🇿🇦",
+type MonitorFlagCode = "cn" | "jp";
+
+const REGION_FLAG_CODE_BY_COUNTRY: Record<string, MonitorFlagCode> = {
+  中国: "cn",
+  香港: "cn",
+  澳门: "cn",
+  台湾: "cn",
+  日本: "jp",
 };
 
-const getRegionFlag = (region?: string): string => {
+const getRegionFlagCode = (region?: string): MonitorFlagCode | "" => {
   const first = region?.trim().split(/\s+/)[0] || "";
 
-  return REGION_FLAG_BY_COUNTRY[first] || "";
+  return REGION_FLAG_CODE_BY_COUNTRY[first] || "";
 };
+
+function MonitorFlagIcon({ code }: { code: MonitorFlagCode }) {
+  if (code === "jp") {
+    return (
+      <svg
+        aria-hidden="true"
+        className="h-3 w-4 shrink-0 overflow-hidden rounded-[1px] ring-1 ring-default-300"
+        viewBox="0 0 16 12"
+      >
+        <rect fill="#fff" height="12" width="16" />
+        <circle cx="8" cy="6" fill="#bc002d" r="3.1" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-3 w-4 shrink-0 overflow-hidden rounded-[1px] ring-1 ring-default-300"
+      viewBox="0 0 16 12"
+    >
+      <rect fill="#de2910" height="12" width="16" />
+      <polygon
+        fill="#ffde00"
+        points="2.8,1.4 3.2,2.6 4.5,2.6 3.45,3.35 3.85,4.55 2.8,3.8 1.75,4.55 2.15,3.35 1.1,2.6 2.4,2.6"
+      />
+      <circle cx="6" cy="2" fill="#ffde00" r="0.45" />
+      <circle cx="7.1" cy="3.2" fill="#ffde00" r="0.45" />
+      <circle cx="7" cy="5" fill="#ffde00" r="0.45" />
+      <circle cx="5.8" cy="6" fill="#ffde00" r="0.45" />
+    </svg>
+  );
+}
 
 function MonitorRegionCellValue({ region }: { region?: string }) {
   const value = region?.trim() || "";
 
   if (!value) return <span className="block h-5" />;
 
-  const flag = getRegionFlag(value);
+  const flagCode = getRegionFlagCode(value);
 
   return (
     <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-secondary-500/10 px-2 py-0.5 text-secondary-700">
-      {flag && <span className="shrink-0">{flag}</span>}
+      {flagCode && <MonitorFlagIcon code={flagCode} />}
       <span className="truncate">{value}</span>
     </span>
   );
@@ -536,7 +529,7 @@ function NodeInstanceGroupsView({
                           </td>
                           <td
                             className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
-                            title={getMonitorRegionTitle(member, "v4")}
+                            title={getMonitorRegionIPTitle(member, "v4")}
                           >
                             <div className="truncate">
                               <MonitorRegionCellValue
@@ -546,7 +539,7 @@ function NodeInstanceGroupsView({
                           </td>
                           <td
                             className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
-                            title={getMonitorRegionTitle(member, "v6")}
+                            title={getMonitorRegionIPTitle(member, "v6")}
                           >
                             <div className="truncate">
                               <MonitorRegionCellValue
