@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-gost/core/logger"
 	"github.com/go-gost/core/metadata"
-	mdutil "github.com/go-gost/x/metadata/util"
 	"github.com/go-gost/core/selector"
 	ctxvalue "github.com/go-gost/x/ctx"
+	mdutil "github.com/go-gost/x/metadata/util"
 )
 
 type roundRobinStrategy[T any] struct {
@@ -30,8 +30,37 @@ func (s *roundRobinStrategy[T]) Apply(ctx context.Context, vs ...T) (v T) {
 		return
 	}
 
+	weights := make([]int, len(vs))
+	total := 0
+	for i := range vs {
+		weights[i] = strategyWeight(vs[i])
+		total += weights[i]
+	}
+	if total <= 0 {
+		n := atomic.AddUint64(&s.counter, 1) - 1
+		return vs[int(n%uint64(len(vs)))]
+	}
+
 	n := atomic.AddUint64(&s.counter, 1) - 1
-	return vs[int(n%uint64(len(vs)))]
+	cursor := int(n % uint64(total))
+	for i, weight := range weights {
+		if cursor < weight {
+			return vs[i]
+		}
+		cursor -= weight
+	}
+	return vs[len(vs)-1]
+}
+
+func strategyWeight[T any](v T) int {
+	weight := 0
+	if md, _ := any(v).(metadata.Metadatable); md != nil {
+		weight = mdutil.GetInt(md.Metadata(), labelWeight)
+	}
+	if weight <= 0 {
+		weight = 1
+	}
+	return weight
 }
 
 type randomStrategy[T any] struct {
@@ -57,14 +86,7 @@ func (s *randomStrategy[T]) Apply(ctx context.Context, vs ...T) (v T) {
 
 	s.rw.Reset()
 	for i := range vs {
-		weight := 0
-		if md, _ := any(vs[i]).(metadata.Metadatable); md != nil {
-			weight = mdutil.GetInt(md.Metadata(), labelWeight)
-		}
-		if weight <= 0 {
-			weight = 1
-		}
-		s.rw.Add(vs[i], weight)
+		s.rw.Add(vs[i], strategyWeight(vs[i]))
 	}
 
 	return s.rw.Next()

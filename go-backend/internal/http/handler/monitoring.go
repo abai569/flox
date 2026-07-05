@@ -229,7 +229,6 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 	}
 
 	var nodeIDs []int64
-	var tunnelIDs []int64
 	var err error
 	if !scope.fullAccess {
 		nodeIDs, err = h.getAccessibleNodeIDs(scope)
@@ -241,18 +240,9 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			response.WriteJSON(w, response.OK([]monitorNodeInstanceGroupItem{}))
 			return
 		}
-		tunnelIDs, err = h.getAccessibleTunnelIDs(scope)
-		if err != nil {
-			response.WriteJSON(w, response.Err(-2, err.Error()))
-			return
-		}
-		if len(tunnelIDs) == 0 {
-			response.WriteJSON(w, response.OK([]monitorNodeInstanceGroupItem{}))
-			return
-		}
 	}
 
-	rows, err := h.repo.ListMonitorNodeInstanceGroups(nodeIDs, tunnelIDs)
+	rows, err := h.repo.ListMonitorNodeInstanceGroups(nodeIDs)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -262,23 +252,23 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 	groupIndex := make(map[int64]int)
 	seenMembers := make(map[int64]map[string]struct{})
 	for _, row := range rows {
-		idx, exists := groupIndex[row.TunnelID]
+		idx, exists := groupIndex[row.NodeID]
 		if !exists {
-			groupIndex[row.TunnelID] = len(groups)
+			groupIndex[row.NodeID] = len(groups)
 			idx = len(groups)
 			groups = append(groups, monitorNodeInstanceGroupItem{
-				ID:      row.TunnelID,
-				Name:    row.TunnelName,
-				Status:  row.TunnelStatus,
+				ID:      row.NodeID,
+				Name:    row.NodeName,
+				Status:  row.NodeStatus,
 				Members: make([]monitorNodeInstanceGroupMember, 0),
 			})
-			seenMembers[row.TunnelID] = make(map[string]struct{})
+			seenMembers[row.NodeID] = make(map[string]struct{})
 		}
 		memberKey := strconv.FormatInt(row.NodeID, 10) + ":" + row.InstanceID
-		if _, ok := seenMembers[row.TunnelID][memberKey]; ok {
+		if _, ok := seenMembers[row.NodeID][memberKey]; ok {
 			continue
 		}
-		seenMembers[row.TunnelID][memberKey] = struct{}{}
+		seenMembers[row.NodeID][memberKey] = struct{}{}
 		member := monitorNodeInstanceGroupMember{
 			NodeID:      row.NodeID,
 			NodeName:    row.NodeName,

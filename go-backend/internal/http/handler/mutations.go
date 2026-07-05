@@ -764,9 +764,6 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
 	if serverIP == "" {
 		serverIP = asString(req["intranetIp"])
 	}
-	if serverIP == "" {
-		serverIP = "auto"
-	}
 	if name == "" {
 		response.WriteJSON(w, response.ErrDefault("节点名称不能为空"))
 		return
@@ -893,9 +890,6 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	if serverIP == "" {
 		serverIP = asString(req["intranetIp"])
-	}
-	if serverIP == "" {
-		serverIP = "auto"
 	}
 	var secret interface{}
 	if secretRaw, ok := req["secret"]; ok && secretRaw != nil {
@@ -5033,6 +5027,7 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		}
 
 		instances := instancesByNode[target.NodeID]
+		usedInstance := false
 		if len(instances) > 0 {
 			for _, inst := range instances {
 				if inst.Weight <= 0 {
@@ -5044,6 +5039,10 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 				}
 				itemIndex++
 				nodeItems = append(nodeItems, buildTunnelChainNodeItem(itemIndex, host, port, target.Protocol, inst.Weight))
+				usedInstance = true
+			}
+			if usedInstance {
+				continue
 			}
 			continue
 		}
@@ -5059,13 +5058,10 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		nodeItems = append(nodeItems, buildTunnelChainNodeItem(itemIndex, host, port, target.Protocol, targetNode.Weight))
 	}
 	if len(nodeItems) == 0 {
-		return nil, errors.New("可用转发链目标为空，请检查节点权重")
+		return nil, errors.New("可用转发链目标为空，请检查节点实例IP或权重")
 	}
 
 	strategy := defaultString(strings.TrimSpace(targets[0].Strategy), "round")
-	if len(nodeItems) > 1 && !strings.EqualFold(strategy, "fifo") {
-		strategy = "random"
-	}
 	hop := map[string]interface{}{
 		"name": fmt.Sprintf("hop_%d", tunnelID),
 		"selector": map[string]interface{}{
@@ -5346,6 +5342,9 @@ func nodeSupportsV4(node *nodeRecord) bool {
 	if legacy == "" {
 		return false
 	}
+	if strings.EqualFold(legacy, "auto") {
+		return false
+	}
 	if ip := net.ParseIP(legacy); ip != nil {
 		return ip.To4() != nil
 	}
@@ -5366,6 +5365,9 @@ func nodeSupportsV6(node *nodeRecord) bool {
 	if legacy == "" {
 		return false
 	}
+	if strings.EqualFold(legacy, "auto") {
+		return false
+	}
 	if ip := net.ParseIP(legacy); ip != nil {
 		return ip.To4() == nil
 	}
@@ -5379,7 +5381,10 @@ func pickNodeAddressV4(node *nodeRecord) string {
 	if v := strings.TrimSpace(node.ServerIPv4); v != "" {
 		return v
 	}
-	return strings.TrimSpace(node.ServerIP)
+	if v := strings.TrimSpace(node.ServerIP); !strings.EqualFold(strings.Trim(v, "[]"), "auto") {
+		return v
+	}
+	return ""
 }
 
 func pickNodeAddressV6(node *nodeRecord) string {
@@ -5389,7 +5394,10 @@ func pickNodeAddressV6(node *nodeRecord) string {
 	if v := strings.TrimSpace(node.ServerIPv6); v != "" {
 		return v
 	}
-	return strings.TrimSpace(node.ServerIP)
+	if v := strings.TrimSpace(node.ServerIP); !strings.EqualFold(strings.Trim(v, "[]"), "auto") {
+		return v
+	}
+	return ""
 }
 
 func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[string]interface{}) error {

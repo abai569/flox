@@ -1,7 +1,9 @@
-﻿package handler
+package handler
 
 import (
 	"testing"
+
+	"go-backend/internal/store/model"
 )
 
 // ---------------------------------------------------------------------------
@@ -190,6 +192,22 @@ func TestNodeSupportsV4_LegacyBracketed(t *testing.T) {
 	}
 	if !nodeSupportsV6(n) {
 		t.Fatal("bracketed ipv6 must support v6")
+	}
+}
+
+func TestNodeSupportsV4_LegacyAutoIgnored(t *testing.T) {
+	n := &nodeRecord{ServerIP: "auto"}
+	if nodeSupportsV4(n) {
+		t.Fatal("legacy auto server_ip must not support v4")
+	}
+	if nodeSupportsV6(n) {
+		t.Fatal("legacy auto server_ip must not support v6")
+	}
+	if pickNodeAddressV4(n) != "" {
+		t.Fatal("legacy auto server_ip must not return v4 address")
+	}
+	if pickNodeAddressV6(n) != "" {
+		t.Fatal("legacy auto server_ip must not return v6 address")
 	}
 }
 
@@ -425,6 +443,56 @@ func TestSelectTunnelDialHost_MixedStack_FromV6ToDual(t *testing.T) {
 	}
 	if host != "2001:db8::2" {
 		t.Fatalf("should use v6 when from is v6-only, got %q", host)
+	}
+}
+
+func TestBuildTunnelChainConfig_UsesNodeInstancesWithWeights(t *testing.T) {
+	nodes := map[int64]*nodeRecord{
+		1: {ID: 1, Name: "from", ServerIPv4: "10.0.0.1"},
+		2: {ID: 2, Name: "to", ServerIPv4: "192.0.2.10", Weight: 9},
+	}
+	instances := map[int64][]model.NodeInstance{
+		2: {
+			{NodeID: 2, InstanceID: "a", PublicIPV4: "198.51.100.1", Weight: 3},
+			{NodeID: 2, InstanceID: "b", PublicIPV4: "198.51.100.2", Weight: 7},
+		},
+	}
+	targets := []tunnelRuntimeNode{{NodeID: 2, Protocol: "tls", Strategy: "round", Port: 21000}}
+
+	chain, err := buildTunnelChainConfig(99, 1, targets, nodes, instances, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	hops := chain["hops"].([]map[string]interface{})
+	selector := hops[0]["selector"].(map[string]interface{})
+	if selector["strategy"] != "round" {
+		t.Fatalf("expected weighted round strategy, got %v", selector["strategy"])
+	}
+	items := hops[0]["nodes"].([]map[string]interface{})
+	if len(items) != 2 {
+		t.Fatalf("expected 2 instance targets, got %d", len(items))
+	}
+	if items[0]["addr"] != "198.51.100.1:21000" || items[1]["addr"] != "198.51.100.2:21000" {
+		t.Fatalf("expected instance addresses, got %#v", items)
+	}
+	if items[0]["metadata"].(map[string]interface{})["weight"] != 3 || items[1]["metadata"].(map[string]interface{})["weight"] != 7 {
+		t.Fatalf("expected instance weights, got %#v", items)
+	}
+}
+
+func TestBuildTunnelChainConfig_DoesNotFallbackWhenInstancesDisabled(t *testing.T) {
+	nodes := map[int64]*nodeRecord{
+		1: {ID: 1, Name: "from", ServerIPv4: "10.0.0.1"},
+		2: {ID: 2, Name: "to", ServerIPv4: "192.0.2.10", Weight: 9},
+	}
+	instances := map[int64][]model.NodeInstance{
+		2: {{NodeID: 2, InstanceID: "disabled", PublicIPV4: "198.51.100.1", Weight: 0}},
+	}
+	targets := []tunnelRuntimeNode{{NodeID: 2, Protocol: "tls", Strategy: "round", Port: 21000}}
+
+	_, err := buildTunnelChainConfig(99, 1, targets, nodes, instances, "")
+	if err == nil {
+		t.Fatal("expected no usable chain target when online instances are disabled")
 	}
 }
 
