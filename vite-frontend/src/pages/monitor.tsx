@@ -129,6 +129,41 @@ const getMonitorDisplayIP = (
   return reported || "-";
 };
 
+const formatMonitorIPForCell = (ip?: string): string => {
+  const value = ip?.trim() || "";
+
+  if (!value) return "-";
+  if (value.includes(":")) {
+    const parts = value.split(":").filter(Boolean);
+
+    if (parts.length <= 3) return value;
+
+    return `::${parts.slice(-3).join(":")}`;
+  }
+  if (value.includes(".")) {
+    const parts = value.split(".");
+
+    if (parts.length >= 2) return `${parts[0]}.${parts[1]}.*`;
+
+    return parts[0].length > 12 ? `${parts[0].slice(0, 12)}...` : parts[0];
+  }
+
+  return value.length > 15 ? `${value.slice(0, 15)}...` : value;
+};
+
+const getMonitorIPCellTitle = (
+  member: MonitorNodeInstanceGroupMemberApiItem,
+): string => {
+  const parts = [
+    member.hostname ? `主机: ${member.hostname}` : "",
+    member.instanceId ? `实例: ${member.instanceId}` : "",
+    member.publicIpV4 ? `IPv4: ${member.publicIpV4}` : "",
+    member.publicIpV6 ? `IPv6: ${member.publicIpV6}` : "",
+  ];
+
+  return parts.filter(Boolean).join("\n");
+};
+
 const getMonitorPrimaryDisplayIP = (
   member: MonitorNodeInstanceGroupMemberApiItem,
 ): string => {
@@ -372,18 +407,15 @@ function NodeInstanceGroupsView({
                             {member.publicIpV6Region || "-"}
                           </td>
                           <td
-                            className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap"
-                            title={[
-                              member.hostname ? `主机: ${member.hostname}` : "",
-                              member.instanceId
-                                ? `实例: ${member.instanceId}`
-                                : "",
-                            ]
-                              .filter(Boolean)
-                              .join("\n")}
+                            className="w-[132px] max-w-[132px] px-3 py-3 text-center font-mono text-xs text-default-600"
+                            title={getMonitorIPCellTitle(member)}
                           >
-                            <div>{member.publicIpV4 || "-"}</div>
-                            <div>{member.publicIpV6 || "-"}</div>
+                            <div className="truncate">
+                              {formatMonitorIPForCell(member.publicIpV4)}
+                            </div>
+                            <div className="truncate">
+                              {formatMonitorIPForCell(member.publicIpV6)}
+                            </div>
                           </td>
                           <td className="w-[118px] min-w-[118px] max-w-[118px] px-3 py-3 text-center font-mono text-xs leading-5 tabular-nums whitespace-nowrap">
                             <div>{formatSpeed(member.netOutSpeed)}↑</div>
