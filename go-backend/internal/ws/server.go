@@ -114,6 +114,8 @@ type SystemInfo struct {
 	ServiceName            string          `json:"service_name,omitempty"`
 	InstanceID             string          `json:"instance_id,omitempty"`
 	Hostname               string          `json:"hostname,omitempty"`
+	PublicIPV4             string          `json:"public_ip_v4,omitempty"`
+	PublicIPV6             string          `json:"public_ip_v6,omitempty"`
 	ServiceConnections     map[string]int  `json:"serviceConnections"`
 	ForwardMetrics         []ForwardMetric `json:"forward_metrics,omitempty"`
 }
@@ -552,6 +554,8 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 							NodeID:      nodeID,
 							InstanceID:  sysInfo.InstanceID,
 							Hostname:    sysInfo.Hostname,
+							PublicIPV4:  sysInfo.PublicIPV4,
+							PublicIPV6:  sysInfo.PublicIPV6,
 							Version:     version,
 							NetInSpeed:  sysInfo.NetInSpeed,
 							NetOutSpeed: sysInfo.NetOutSpeed,
@@ -669,6 +673,8 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					NodeID:      nodeID,
 					InstanceID:  sysInfo.InstanceID,
 					Hostname:    sysInfo.Hostname,
+					PublicIPV4:  sysInfo.PublicIPV4,
+					PublicIPV6:  sysInfo.PublicIPV6,
 					Version:     version,
 					NetInSpeed:  sysInfo.NetInSpeed,
 					NetOutSpeed: sysInfo.NetOutSpeed,

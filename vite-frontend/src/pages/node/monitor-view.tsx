@@ -1743,10 +1743,10 @@ export function MonitorView({
         <>
           {/* 详情页统一头部 */}
           <Card className="border border-divider bg-content1 shadow-sm">
-            <CardBody className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 px-4">
-              <div className="flex items-center gap-4">
+            <CardBody className="flex min-h-[58px] flex-col items-center justify-between gap-4 px-4 py-3 sm:flex-row">
+              <div className="flex items-center gap-4 self-stretch sm:self-center">
                 <Button
-                  className="bg-default-100 hover:bg-default-200 font-medium"
+                  className="h-9 bg-default-100 font-medium hover:bg-default-200"
                   size="sm"
                   variant="flat"
                   onPress={() => setDetailNodeId(null)}
@@ -1754,8 +1754,8 @@ export function MonitorView({
                   <ArrowLeft className="w-4 h-4 mr-1" />
                   返回列表
                 </Button>
-                <div className="w-[1px] h-5 bg-divider hidden sm:block" />
-                <div className="flex items-center gap-2.5">
+                <div className="hidden h-5 w-[1px] bg-divider sm:block" />
+                <div className="flex h-9 items-center gap-2.5">
                   <DistroIcon
                     className="w-5 h-5"
                     distro={parseDistroFromVersion(detailNode?.version)}
@@ -1772,7 +1772,7 @@ export function MonitorView({
                     {detailNode?.name || `节点 #${detailNodeId}`}
                   </h3>
                   <Chip
-                    className="rounded-md font-medium"
+                    className="flex h-6 items-center rounded-md font-medium"
                     color={
                       detailNode?.connectionStatus === "online"
                         ? "success"
@@ -1787,7 +1787,7 @@ export function MonitorView({
                   </Chip>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-default-600 bg-default-100/50 px-3 py-1.5 rounded-full border border-divider">
+              <div className="flex h-9 items-center gap-2 self-center rounded-full border border-divider bg-default-100/50 px-3 py-1.5 text-xs text-default-600">
                 {wsConnected ? (
                   <LiveDot />
                 ) : (

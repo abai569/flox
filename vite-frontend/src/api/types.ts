@@ -571,6 +571,8 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   hostname?: string;
   publicIpV4?: string;
   publicIpV6?: string;
+  publicIpV4Region?: string;
+  publicIpV6Region?: string;
   status: number;
   weight: number;
   onlineCount: number;

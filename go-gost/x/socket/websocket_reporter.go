@@ -67,6 +67,8 @@ type SystemInfo struct {
 	ServiceName            string          `json:"service_name,omitempty"` // 服务名
 	InstanceID             string          `json:"instance_id,omitempty"`
 	Hostname               string          `json:"hostname,omitempty"`
+	PublicIPV4             string          `json:"public_ip_v4,omitempty"`
+	PublicIPV6             string          `json:"public_ip_v6,omitempty"`
 	ServiceConnections     map[string]int  `json:"serviceConnections"`
 	ForwardMetrics         []ForwardMetric `json:"forward_metrics,omitempty"` // 转发规则指标
 }
@@ -226,10 +228,13 @@ type WebSocketReporter struct {
 	ctx                   context.Context
 	cancel                context.CancelFunc
 	connected             bool
-	connecting            bool                     // 正在连接状态
-	connMutex             sync.Mutex               // 连接状态锁
-	aesCrypto             *crypto.AESCrypto        // AES 加密器
-	publicIPReported      bool                     // 是否已上报公网 IP
+	connecting            bool              // 正在连接状态
+	connMutex             sync.Mutex        // 连接状态锁
+	aesCrypto             *crypto.AESCrypto // AES 加密器
+	publicIPReported      bool              // 是否已上报公网 IP
+	publicIPV4            string
+	publicIPV6            string
+	publicIPMu            sync.RWMutex
 	serviceName           string                   // 服务名
 	nftablesMgr           NftablesManagerInterface // nftables manager (platform-specific)
 	nftablesPrevCounters  map[string]uint64        // "forwardID_protocol" → last total bytes
@@ -434,13 +439,8 @@ func (w *WebSocketReporter) connect() error {
 	// Initialize nftables manager (Linux-only)
 	w.initNftablesManager()
 
-	// 获取并上报公网 IP：优先 IPv4，IPv4 通就不查 IPv6
-	ipv4 := getPublicIPv4()
-	var ipv6 string
-	if ipv4 == "" {
-		ipv6 = getPublicIPv6()
-	}
-	w.reportPublicIPs(ipv4, ipv6)
+	// 获取并上报出口 IP。出口 IP 同时会随后续 WS 指标持续上报。
+	go w.refreshPublicIPs(true)
 
 	// 重连后同步服务配置：恢复可能因崩溃/重启而缺失的服务
 	go syncServicesAfterReconnect()
@@ -449,6 +449,36 @@ func (w *WebSocketReporter) connect() error {
 	go w.checkAndInstallMimicDeps()
 
 	return nil
+}
+
+func (w *WebSocketReporter) getCachedPublicIPs() (string, string) {
+	w.publicIPMu.RLock()
+	defer w.publicIPMu.RUnlock()
+	return w.publicIPV4, w.publicIPV6
+}
+
+func (w *WebSocketReporter) refreshPublicIPs(report bool) {
+	ipv4 := getPublicIPv4()
+	ipv6 := getPublicIPv6()
+
+	w.publicIPMu.Lock()
+	changed := ipv4 != w.publicIPV4 || ipv6 != w.publicIPV6
+	if ipv4 != "" {
+		w.publicIPV4 = ipv4
+	}
+	if ipv6 != "" {
+		w.publicIPV6 = ipv6
+	}
+	cachedV4, cachedV6 := w.publicIPV4, w.publicIPV6
+	shouldReport := report && (changed || !w.publicIPReported) && (cachedV4 != "" || cachedV6 != "")
+	if shouldReport {
+		w.publicIPReported = true
+	}
+	w.publicIPMu.Unlock()
+
+	if shouldReport {
+		w.reportPublicIPs(cachedV4, cachedV6)
+	}
 }
 
 // syncServicesAfterReconnect compares the in-memory config with the currently
@@ -639,7 +669,7 @@ func getPublicIPv4() string {
 	out, err := cmd.Output()
 	if err == nil {
 		ip := strings.TrimSpace(string(out))
-		if net.ParseIP(ip) != nil && strings.Contains(ip, ".") {
+		if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil && isPublicInternetIP(parsed) {
 			fmt.Printf("🌐 获取到 IPv4 公网 IP (curl): %s\n", ip)
 			return ip
 		}
@@ -652,7 +682,7 @@ func getPublicIPv4() string {
 		defer resp.Body.Close()
 		body, _ := io.ReadAll(resp.Body)
 		ip := strings.TrimSpace(string(body))
-		if net.ParseIP(ip) != nil {
+		if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil && isPublicInternetIP(parsed) {
 			fmt.Printf("🌐 获取到 IPv4 公网 IP (HTTP): %s\n", ip)
 			return ip
 		}
@@ -663,7 +693,7 @@ func getPublicIPv4() string {
 	if err == nil {
 		defer conn.Close()
 		localAddr := conn.LocalAddr().(*net.UDPAddr)
-		if localAddr.IP != nil {
+		if localAddr.IP != nil && localAddr.IP.To4() != nil && isPublicInternetIP(localAddr.IP) {
 			ip := localAddr.IP.String()
 			fmt.Printf("🌐 使用本地 IPv4 地址： %s\n", ip)
 			return ip
@@ -680,7 +710,7 @@ func getPublicIPv6() string {
 	out, err := cmd.Output()
 	if err == nil {
 		ip := strings.TrimSpace(string(out))
-		if net.ParseIP(ip) != nil && strings.Contains(ip, ":") {
+		if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() == nil && isPublicInternetIP(parsed) {
 			fmt.Printf("🌐 获取到 IPv6 公网 IP (curl): %s\n", ip)
 			return ip
 		}
@@ -693,7 +723,7 @@ func getPublicIPv6() string {
 		defer resp.Body.Close()
 		body, _ := io.ReadAll(resp.Body)
 		ip := strings.TrimSpace(string(body))
-		if net.ParseIP(ip) != nil {
+		if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() == nil && isPublicInternetIP(parsed) {
 			fmt.Printf("🌐 获取到 IPv6 公网 IP (HTTP): %s\n", ip)
 			return ip
 		}
@@ -704,7 +734,7 @@ func getPublicIPv6() string {
 	if err == nil {
 		defer conn.Close()
 		localAddr := conn.LocalAddr().(*net.UDPAddr)
-		if localAddr.IP != nil && localAddr.IP.To4() == nil {
+		if localAddr.IP != nil && localAddr.IP.To4() == nil && isPublicInternetIP(localAddr.IP) {
 			ip := localAddr.IP.String()
 			fmt.Printf("🌐 使用本地 IPv6 地址： %s\n", ip)
 			return ip
@@ -712,6 +742,10 @@ func getPublicIPv6() string {
 	}
 
 	return ""
+}
+
+func isPublicInternetIP(ip net.IP) bool {
+	return ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() && !ip.IsUnspecified()
 }
 
 // getPublicIP 获取节点实例公网 IP（优先 IPv6）
@@ -749,8 +783,12 @@ func getDefaultRouteIP() string {
 
 // reportPublicIPs 上报 IPv4 和 IPv6 公网地址到面板
 func (w *WebSocketReporter) reportPublicIPs(ipv4, ipv6 string) {
-	// 构建 HTTP API URL
-	httpURL := "http://" + w.addr + "/api/v1/node/report-ip"
+	// 构建 HTTP API URL，协议跟随面板地址/已连接的 WebSocket 协议。
+	httpURL := w.buildReportIPURL()
+	if httpURL == "" {
+		fmt.Printf("⚠️ 上报 IP 失败：面板地址为空\n")
+		return
+	}
 
 	// 使用 secret 作为 Authorization header
 	req, err := http.NewRequest("POST", httpURL, nil)
@@ -789,8 +827,27 @@ func (w *WebSocketReporter) reportPublicIPs(ipv4, ipv6 string) {
 			fmt.Printf("✅ 公网 IPv6 已上报：%s\n", ipv6)
 		}
 	} else {
-		fmt.Printf("⚠️ 上报 IP 失败：HTTP %d\n", resp.StatusCode)
+		fmt.Printf("⚠️ 上报 IP 失败：%s\n", responseStatusWithBody(resp))
 	}
+}
+
+func (w *WebSocketReporter) buildReportIPURL() string {
+	normalizedAddr, explicitScheme := normalizeReporterAddress(w.addr)
+	if normalizedAddr == "" {
+		return ""
+	}
+	scheme := "http"
+	switch strings.ToLower(strings.TrimSpace(explicitScheme)) {
+	case "https", "wss":
+		scheme = "https"
+	case "http", "ws":
+		scheme = "http"
+	default:
+		if strings.ToLower(strings.TrimSpace(w.preferredWSScheme)) == "wss" {
+			scheme = "https"
+		}
+	}
+	return scheme + "://" + normalizedAddr + "/api/v1/node/report-ip"
 }
 
 // reportPublicIP 上报公网 IP 到面板（旧版本，保留兼容）
@@ -938,6 +995,24 @@ func formatWebSocketDialError(err error, resp *http.Response) string {
 	return fmt.Sprintf("%s, body=%q", msg, bodyText)
 }
 
+func responseStatusWithBody(resp *http.Response) string {
+	if resp == nil {
+		return "HTTP 响应为空"
+	}
+	msg := "HTTP " + resp.Status
+	if resp.Body == nil {
+		return msg
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 256))
+	if err != nil {
+		return msg
+	}
+	if bodyText := strings.TrimSpace(string(body)); bodyText != "" {
+		return fmt.Sprintf("%s, body=%q", msg, bodyText)
+	}
+	return msg
+}
+
 // handleConnection 处理WebSocket连接
 func (w *WebSocketReporter) handleConnection() {
 	defer func() {
@@ -957,6 +1032,9 @@ func (w *WebSocketReporter) handleConnection() {
 	// 指标上报 ticker
 	metricTicker := time.NewTicker(w.pingInterval)
 	defer metricTicker.Stop()
+
+	publicIPTicker := time.NewTicker(5 * time.Minute)
+	defer publicIPTicker.Stop()
 
 	// 独立 WebSocket keepalive ping ticker
 	pingTicker := time.NewTicker(wsPingInterval)
@@ -980,6 +1058,9 @@ func (w *WebSocketReporter) handleConnection() {
 				fmt.Printf("❌ 发送WebSocket ping失败: %v，准备重连\n", err)
 				return
 			}
+
+		case <-publicIPTicker.C:
+			go w.refreshPublicIPs(true)
 
 		case <-metricTicker.C:
 			// 检查连接状态
@@ -1059,6 +1140,7 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 		periodTX = networkStats.BytesTransmitted
 	}
 	hostname, _ := os.Hostname()
+	publicIPV4, publicIPV6 := w.getCachedPublicIPs()
 
 	return SystemInfo{
 		Uptime:                 getUptime(),
@@ -1082,6 +1164,8 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 		ServiceName:            w.serviceName,
 		InstanceID:             w.instanceID,
 		Hostname:               hostname,
+		PublicIPV4:             publicIPV4,
+		PublicIPV6:             publicIPV6,
 		ServiceConnections:     collectServiceConnections(),
 		ForwardMetrics:         collectForwardMetrics(),
 	}

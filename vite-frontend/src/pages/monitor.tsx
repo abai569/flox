@@ -72,6 +72,8 @@ type MonitorIPFamily = "v4" | "v6";
 type RealtimeNodeInstanceMetric = {
   receivedAt: number;
   hostname?: string;
+  publicIpV4?: string;
+  publicIpV6?: string;
   netInSpeed: number;
   netOutSpeed: number;
   netInBytes: number;
@@ -149,25 +151,6 @@ const getMonitorIPTitle = (
   return parts.filter(Boolean).join("\n");
 };
 
-const formatInstanceId = (instanceId?: string): string => {
-  const value = instanceId?.trim() || "";
-
-  if (!isRealInstanceId(value)) return "-";
-  if (value.length <= 18) return value;
-
-  return `${value.slice(0, 8)}...${value.slice(-6)}`;
-};
-
-const getInstanceName = (
-  member: MonitorNodeInstanceGroupMemberApiItem,
-): string => {
-  const hostname = member.hostname?.trim();
-
-  if (hostname) return hostname;
-
-  return `实例 ${formatInstanceId(member.instanceId)}`;
-};
-
 function UsageMeter({
   value,
   tone,
@@ -208,6 +191,8 @@ const mergeRealtimeMetric = (
   return {
     ...member,
     hostname: metric.hostname || member.hostname,
+    publicIpV4: metric.publicIpV4 || member.publicIpV4,
+    publicIpV6: metric.publicIpV6 || member.publicIpV6,
     status: 1,
     netInSpeed: metric.netInSpeed,
     netOutSpeed: metric.netOutSpeed,
@@ -320,7 +305,7 @@ function NodeInstanceGroupsView({
           >
             <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="rounded-full border border-default-300 px-4 py-1.5 text-sm font-medium text-secondary truncate">
+                <span className="rounded-md border border-default-300 px-4 py-1.5 text-sm font-medium text-secondary truncate">
                   {group.name} | ID: {group.id}
                 </span>
                 <span className="text-xs text-default-500">
@@ -328,27 +313,26 @@ function NodeInstanceGroupsView({
                 </span>
               </div>
               <div className="flex items-center gap-3 text-sm font-mono">
-                <span className="inline-flex min-w-[120px] items-center gap-2 rounded-md bg-secondary-500/15 px-4 py-2 text-secondary-700">
-                  <ArrowUp className="h-4 w-4" />
+                <span className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-secondary-500/15 px-3 py-2 text-secondary-700 tabular-nums">
                   {formatSpeed(totalOutSpeed)}
+                  <ArrowUp className="h-4 w-4" />
                 </span>
-                <span className="inline-flex min-w-[120px] items-center gap-2 rounded-md bg-primary-500/15 px-4 py-2 text-primary-700">
-                  <ArrowDown className="h-4 w-4" />
+                <span className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary-500/15 px-3 py-2 text-primary-700 tabular-nums">
                   {formatSpeed(totalInSpeed)}
+                  <ArrowDown className="h-4 w-4" />
                 </span>
               </div>
             </div>
             <div className="px-4 pb-4">
               <div className="overflow-x-auto">
-                <table className="min-w-[1380px] w-full text-sm">
+                <table className="min-w-[1220px] w-full text-sm">
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
                       <th className="px-3 py-2 text-center">状态</th>
-                      <th className="px-3 py-2 text-left">节点实例</th>
                       <th className="px-3 py-2 text-center">v4 地区</th>
                       <th className="px-3 py-2 text-center">v6 地区</th>
                       <th className="px-3 py-2 text-center">出口 IP</th>
-                      <th className="px-3 py-2 text-center">速率</th>
+                      <th className="w-[118px] px-3 py-2 text-center">速率</th>
                       <th className="px-3 py-2 text-center">开机时长</th>
                       <th className="px-3 py-2 text-center">流量</th>
                       <th className="px-3 py-2 text-center">CPU</th>
@@ -360,8 +344,6 @@ function NodeInstanceGroupsView({
                   </thead>
                   <tbody>
                     {members.map((member) => {
-                      const instanceId = formatInstanceId(member.instanceId);
-
                       return (
                         <tr
                           key={getInstanceMetricKey(
@@ -377,31 +359,33 @@ function NodeInstanceGroupsView({
                               ●
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-left font-medium text-foreground whitespace-nowrap">
-                            <div>{getInstanceName(member)}</div>
-                            <div
-                              className="text-xs font-normal text-default-400"
-                              title={member.instanceId}
-                            >
-                              {instanceId}
-                            </div>
-                          </td>
                           <td
                             className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap"
                             title={getMonitorIPTitle(member, "v4")}
                           >
-                            {getMonitorDisplayIP(member, "v4")}
+                            {member.publicIpV4Region || "-"}
                           </td>
                           <td
                             className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap"
                             title={getMonitorIPTitle(member, "v6")}
                           >
-                            {getMonitorDisplayIP(member, "v6")}
+                            {member.publicIpV6Region || "-"}
                           </td>
-                          <td className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap">
-                            {getMonitorPrimaryDisplayIP(member)}
+                          <td
+                            className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap"
+                            title={[
+                              member.hostname ? `主机: ${member.hostname}` : "",
+                              member.instanceId
+                                ? `实例: ${member.instanceId}`
+                                : "",
+                            ]
+                              .filter(Boolean)
+                              .join("\n")}
+                          >
+                            <div>{member.publicIpV4 || "-"}</div>
+                            <div>{member.publicIpV6 || "-"}</div>
                           </td>
-                          <td className="px-3 py-3 text-center font-mono text-xs whitespace-nowrap">
+                          <td className="w-[118px] min-w-[118px] max-w-[118px] px-3 py-3 text-center font-mono text-xs leading-5 tabular-nums whitespace-nowrap">
                             <div>{formatSpeed(member.netOutSpeed)}↑</div>
                             <div>{formatSpeed(member.netInSpeed)}↓</div>
                           </td>
@@ -727,6 +711,8 @@ export default function MonitorPage() {
       [getInstanceMetricKey(nodeId, instanceId)]: {
         receivedAt: Date.now(),
         hostname: String(metric.hostname ?? ""),
+        publicIpV4: String(metric.publicIpV4 ?? metric.public_ip_v4 ?? ""),
+        publicIpV6: String(metric.publicIpV6 ?? metric.public_ip_v6 ?? ""),
         netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
         netOutBytes: Number(
           metric.netOutBytes ?? metric.bytes_transmitted ?? 0,

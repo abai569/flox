@@ -1,21 +1,127 @@
 package handler
 
 import (
+	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go-backend/internal/http/response"
 	"go-backend/internal/monitoring"
 	"go-backend/internal/store/model"
+	"go-backend/internal/store/repo"
 )
 
 const (
 	defaultMetricsRangeMs = int64(60 * 60 * 1000)      // 1h
 	maxMetricsRangeMs     = int64(24 * 60 * 60 * 1000) // 24h
 )
+
+var monitorIPRegionCache sync.Map // map[string]monitorIPRegionCacheItem
+
+type monitorIPRegionCacheItem struct {
+	value     string
+	expiresAt int64
+}
+
+func lookupMonitorIPRegion(ip string) string {
+	ip = strings.TrimSpace(ip)
+	if ip == "" || ip == "-" {
+		return "-"
+	}
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return "-"
+	}
+	if !parsed.IsGlobalUnicast() || parsed.IsPrivate() || parsed.IsLoopback() || parsed.IsLinkLocalUnicast() {
+		return "内网"
+	}
+	now := time.Now().UnixMilli()
+	if cached, ok := monitorIPRegionCache.Load(ip); ok {
+		item := cached.(monitorIPRegionCacheItem)
+		if item.expiresAt > now {
+			return item.value
+		}
+	}
+	value := queryMonitorIPRegion(ip)
+	if value == "" {
+		value = "-"
+	}
+	ttl := int64(10 * 60 * 1000)
+	if value != "-" {
+		ttl = int64(24 * 60 * 60 * 1000)
+	}
+	monitorIPRegionCache.Store(ip, monitorIPRegionCacheItem{value: value, expiresAt: now + ttl})
+	return value
+}
+
+func queryMonitorIPRegion(ip string) string {
+	client := &http.Client{Timeout: 1500 * time.Millisecond}
+	resp, err := client.Get("https://ipwho.is/" + ip + "?lang=zh-CN")
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	var data struct {
+		Success bool   `json:"success"`
+		Country string `json:"country"`
+		Region  string `json:"region"`
+		City    string `json:"city"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || !data.Success {
+		return ""
+	}
+	parts := make([]string, 0, 3)
+	for _, part := range []string{data.Country, data.Region, data.City} {
+		part = strings.TrimSpace(part)
+		if part == "" || part == "-" {
+			continue
+		}
+		if len(parts) > 0 && parts[len(parts)-1] == part {
+			continue
+		}
+		parts = append(parts, part)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, " ")
+}
+
+func resolveMonitorIPRegionMap(rows []repo.MonitorNodeInstanceGroupRow) map[string]string {
+	unique := make(map[string]struct{})
+	for _, row := range rows {
+		for _, ip := range []string{row.PublicIPV4, row.PublicIPV6} {
+			ip = strings.TrimSpace(ip)
+			if ip != "" {
+				unique[ip] = struct{}{}
+			}
+		}
+	}
+	regions := make(map[string]string, len(unique))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for ip := range unique {
+		ip := ip
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			region := lookupMonitorIPRegion(ip)
+			mu.Lock()
+			regions[ip] = region
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+	return regions
+}
 
 func (h *Handler) resolveServiceMonitorLimits() monitoring.ServiceMonitorLimits {
 	defaults := monitoring.DefaultServiceMonitorLimits()
@@ -194,6 +300,8 @@ type monitorNodeInstanceGroupMember struct {
 	Hostname    string  `json:"hostname"`
 	PublicIPV4  string  `json:"publicIpV4"`
 	PublicIPV6  string  `json:"publicIpV6"`
+	IPV4Region  string  `json:"publicIpV4Region"`
+	IPV6Region  string  `json:"publicIpV6Region"`
 	Status      int     `json:"status"`
 	Weight      int     `json:"weight"`
 	OnlineCount int64   `json:"onlineCount"`
@@ -247,6 +355,7 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	regionByIP := resolveMonitorIPRegionMap(rows)
 
 	groups := make([]monitorNodeInstanceGroupItem, 0)
 	groupIndex := make(map[int64]int)
@@ -276,6 +385,8 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			Hostname:    row.Hostname,
 			PublicIPV4:  row.PublicIPV4,
 			PublicIPV6:  row.PublicIPV6,
+			IPV4Region:  regionByIP[strings.TrimSpace(row.PublicIPV4)],
+			IPV6Region:  regionByIP[strings.TrimSpace(row.PublicIPV6)],
 			Status:      row.Status,
 			Weight:      row.Weight,
 			OnlineCount: row.TCPConns + row.UDPConns,
