@@ -597,6 +597,20 @@ export interface MonitorNodeInstanceGroupApiItem {
   members: MonitorNodeInstanceGroupMemberApiItem[];
 }
 
+export interface NodeTerminalExecApiData {
+  nodeId: number;
+  instanceId?: string;
+  hostname?: string;
+  command: string;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  durationMs: number;
+  timedOut: boolean;
+  truncated: boolean;
+  shell: string;
+}
+
 export interface MonitorNodeMetricsApiItem extends MonitorNodeApiItem {
   cpuUsage: number;
   memoryUsage: number;
