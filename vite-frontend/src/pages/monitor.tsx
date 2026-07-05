@@ -522,10 +522,8 @@ function NodeInstanceGroupsView({
                         >
                           <td className="px-2 py-3 text-center align-middle">
                             <span
-                              className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${member.status === 1 ? "bg-success-500 text-white" : "bg-danger-100 text-danger"}`}
-                            >
-                              ●
-                            </span>
+                              className={`inline-block h-2.5 w-2.5 rounded-full ${member.status === 1 ? "bg-success-500" : "bg-danger-500"}`}
+                            />
                           </td>
                           <td
                             className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
