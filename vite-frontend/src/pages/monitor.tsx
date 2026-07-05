@@ -166,19 +166,6 @@ const formatMonitorIPForCell = (ip?: string): string => {
   return value.length > 15 ? `${value.slice(0, 15)}...` : value;
 };
 
-const getMonitorIPCellTitle = (
-  member: MonitorNodeInstanceGroupMemberApiItem,
-): string => {
-  const parts = [
-    member.hostname ? `主机: ${member.hostname}` : "",
-    member.instanceId ? `实例: ${member.instanceId}` : "",
-    member.publicIpV4 ? `IPv4: ${member.publicIpV4}` : "",
-    member.publicIpV6 ? `IPv6: ${member.publicIpV6}` : "",
-  ];
-
-  return parts.filter(Boolean).join("\n");
-};
-
 const getMonitorRegionTitle = (
   member: MonitorNodeInstanceGroupMemberApiItem,
   family: MonitorIPFamily,
@@ -195,6 +182,73 @@ const getMonitorRegionTitle = (
 
   return parts.filter(Boolean).join("\n");
 };
+
+const copyMonitorIP = (ip: string | undefined, label: string): void => {
+  const value = ip?.trim();
+
+  if (!value) return;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      void navigator.clipboard
+        .writeText(value)
+        .then(() => toast.success(`${label}已复制到剪贴板`))
+        .catch(() => toast.error("复制失败，请手动选择文本复制"));
+
+      return;
+    }
+
+    const textArea = document.createElement("textarea");
+    const modalElement = document.querySelector('[role="dialog"]');
+    const targetContainer = modalElement || document.body;
+
+    textArea.value = value;
+    textArea.style.position = "fixed";
+    textArea.style.top = "0";
+    textArea.style.left = "-9999px";
+    textArea.style.opacity = "0";
+    targetContainer.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, 99999);
+
+    const successful = document.execCommand("copy");
+
+    targetContainer.removeChild(textArea);
+    if (successful) {
+      toast.success(`${label}已复制到剪贴板`);
+    } else {
+      toast.error("复制失败，请手动选择文本复制");
+    }
+  } catch {
+    toast.error("复制失败，请手动选择文本复制");
+  }
+};
+
+function MonitorIPCellValue({ ip, label }: { ip?: string; label: string }) {
+  const value = ip?.trim();
+
+  if (!value) {
+    return (
+      <span className="block w-full truncate px-1 leading-5 text-default-300">
+        -
+      </span>
+    );
+  }
+
+  return (
+    <button
+      className="block w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
+      title={value}
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        copyMonitorIP(value, label);
+      }}
+    >
+      {formatMonitorIPForCell(value)}
+    </button>
+  );
+}
 
 const getMonitorPrimaryDisplayIP = (
   member: MonitorNodeInstanceGroupMemberApiItem,
@@ -433,16 +487,15 @@ function NodeInstanceGroupsView({
                               {member.publicIpV6Region || "-"}
                             </div>
                           </td>
-                          <td
-                            className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
-                            title={getMonitorIPCellTitle(member)}
-                          >
-                            <div className="truncate">
-                              {formatMonitorIPForCell(member.publicIpV4)}
-                            </div>
-                            <div className="truncate">
-                              {formatMonitorIPForCell(member.publicIpV6)}
-                            </div>
+                          <td className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600">
+                            <MonitorIPCellValue
+                              ip={member.publicIpV4}
+                              label="IPv4"
+                            />
+                            <MonitorIPCellValue
+                              ip={member.publicIpV6}
+                              label="IPv6"
+                            />
                           </td>
                           <td className="px-2 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums">
                             <div className="truncate">
