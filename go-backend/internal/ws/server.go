@@ -457,10 +457,12 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	defer func() {
 		close(done)
 		needOfflineBroadcast := false
+		removedCurrentInstance := false
 		s.mu.Lock()
 		current, ok := s.nodes[nodeID][instanceID]
 		if ok && current.conn.conn == conn {
 			delete(s.nodes[nodeID], instanceID)
+			removedCurrentInstance = true
 			if len(s.nodes[nodeID]) == 0 {
 				delete(s.nodes, nodeID)
 				// 记录节点离线时间
@@ -470,7 +472,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		}
 		delete(s.byConn, conn)
 		s.mu.Unlock()
-		_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
+		if removedCurrentInstance {
+			_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
+		}
 		if needOfflineBroadcast {
 			s.failPendingForNode(nodeID, "节点连接已断开")
 			if err := s.repo.UpdateNodeStatus(nodeID, 0); err != nil {

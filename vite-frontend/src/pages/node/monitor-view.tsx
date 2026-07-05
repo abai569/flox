@@ -95,7 +95,10 @@ interface MonitorViewProps {
       onlineInstanceCount?: number;
     }
   >;
+  detailNodeId?: number | null;
+  hideList?: boolean;
   viewMode?: "list" | "grid";
+  onDetailClose?: () => void;
 }
 
 type RealtimeNodeMetric = {
@@ -210,14 +213,6 @@ function ServerCard({
   const distro = parseDistroFromVersion(node.version);
   const distroColor = getDistroColor(distro);
 
-  function setDetailNodeId(_id: any) {
-    throw new Error("Function not implemented.");
-  }
-
-  function setSelectedNodeId(_id: any) {
-    throw new Error("Function not implemented.");
-  }
-
   return (
     <Card
       className="group h-full flex flex-col overflow-hidden border border-divider bg-content1 shadow-sm transition-shadow duration-200 hover:shadow-md cursor-pointer"
@@ -257,9 +252,9 @@ function ServerCard({
                 isIconOnly
                 size="sm"
                 variant="light"
-                onPress={() => {
-                  setDetailNodeId(node.id);
-                  setSelectedNodeId(node.id);
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onPress?.();
                 }}
               >
                 <Eye className="w-4 h-4 text-primary" />
@@ -579,9 +574,32 @@ const DEFAULT_SERVICE_MONITOR_LIMITS: ServiceMonitorLimitsApiData = {
   maxTimeoutSec: 60,
 };
 
-export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
-  const [detailNodeId, setDetailNodeId] = useState<number | null>(null);
+export function MonitorView({
+  detailNodeId: controlledDetailNodeId,
+  hideList = false,
+  nodeMap,
+  viewMode = "grid",
+  onDetailClose,
+}: MonitorViewProps) {
+  const [internalDetailNodeId, setInternalDetailNodeId] = useState<
+    number | null
+  >(null);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const detailNodeId =
+    controlledDetailNodeId !== undefined
+      ? controlledDetailNodeId
+      : internalDetailNodeId;
+  const setDetailNodeId = useCallback(
+    (nextNodeId: number | null) => {
+      if (controlledDetailNodeId !== undefined) {
+        if (nextNodeId === null) onDetailClose?.();
+
+        return;
+      }
+      setInternalDetailNodeId(nextNodeId);
+    },
+    [controlledDetailNodeId, onDetailClose],
+  );
   const [metrics, setMetrics] = useState<NodeMetricApiItem[]>([]);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsTruncated, setMetricsTruncated] = useState(false);
@@ -846,6 +864,15 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
       setSelectedNodeId(preferredNodeId);
     }
   }, [preferredNodeId, selectedNodeId]);
+
+  useEffect(() => {
+    if (
+      controlledDetailNodeId != null &&
+      selectedNodeId !== controlledDetailNodeId
+    ) {
+      setSelectedNodeId(controlledDetailNodeId);
+    }
+  }, [controlledDetailNodeId, selectedNodeId]);
 
   const loadMetrics = useCallback(
     async (nodeId: number, options?: { silent?: boolean }) => {
@@ -1404,6 +1431,41 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
         )
       : serviceMonitors;
 
+  const summaryBar = !accessDenied ? (
+    <div className="flex flex-wrap items-center gap-3 mb-0">
+      <div className="flex items-center gap-2 text-xs text-default-500">
+        {wsConnected ? (
+          <LiveDot />
+        ) : (
+          <div
+            className={`w-2 h-2 rounded-full ${wsConnecting ? "bg-warning" : "bg-default-300"}`}
+          />
+        )}
+        <span>
+          {wsConnected
+            ? "实时已连接"
+            : wsConnecting
+              ? "实时连接中"
+              : "实时未连接"}
+        </span>
+      </div>
+      <Chip className="rounded-md" color="primary" size="sm" variant="flat">
+        节点 {onlineNodes.length}/{nodes.length}
+      </Chip>
+      <Chip className="rounded-md" color="secondary" size="sm" variant="flat">
+        实例 {instanceSummary.online}/{instanceSummary.total}
+      </Chip>
+      <Chip className="rounded-md" color="success" size="sm" variant="flat">
+        服务监控 成功 {monitorSummary.ok} / 失败 {monitorSummary.fail}
+      </Chip>
+      {monitorSummary.stale > 0 && (
+        <Chip className="rounded-md" color="warning" size="sm" variant="flat">
+          陈旧 {monitorSummary.stale}
+        </Chip>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="flex flex-col gap-4 w-full">
       {accessDenied && (
@@ -1421,62 +1483,11 @@ export function MonitorView({ nodeMap, viewMode = "grid" }: MonitorViewProps) {
         </Card>
       )}
 
-      {/* ====== GRID/LIST VIEW ====== */}
-      {!accessDenied && !detailNodeId && (
-        <div className="flex flex-col gap-4 w-full">
-          <div className="flex flex-wrap items-center gap-3 mb-0">
-            <div className="flex items-center gap-2 text-xs text-default-500">
-              {wsConnected ? (
-                <LiveDot />
-              ) : (
-                <div
-                  className={`w-2 h-2 rounded-full ${wsConnecting ? "bg-warning" : "bg-default-300"}`}
-                />
-              )}
-              <span>
-                {wsConnected
-                  ? "实时已连接"
-                  : wsConnecting
-                    ? "实时连接中"
-                    : "实时未连接"}
-              </span>
-            </div>
-            <Chip
-              className="rounded-md"
-              color="primary"
-              size="sm"
-              variant="flat"
-            >
-              节点 {onlineNodes.length}/{nodes.length}
-            </Chip>
-            <Chip
-              className="rounded-md"
-              color="secondary"
-              size="sm"
-              variant="flat"
-            >
-              实例 {instanceSummary.online}/{instanceSummary.total}
-            </Chip>
-            <Chip
-              className="rounded-md"
-              color="success"
-              size="sm"
-              variant="flat"
-            >
-              服务监控 成功 {monitorSummary.ok} / 失败 {monitorSummary.fail}
-            </Chip>
-            {monitorSummary.stale > 0 && (
-              <Chip
-                className="rounded-md"
-                color="warning"
-                size="sm"
-                variant="flat"
-              >
-                陈旧 {monitorSummary.stale}
-              </Chip>
-            )}
-          </div>
+      {!hideList && !detailNodeId ? summaryBar : null}
 
+      {/* ====== GRID/LIST VIEW ====== */}
+      {!accessDenied && !hideList && !detailNodeId && (
+        <div className="flex flex-col gap-4 w-full">
           {viewMode === "grid" ? (
             <div className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-md">
               <div className="flex items-center justify-between border-b border-divider bg-default-100/40 px-4 py-3">
