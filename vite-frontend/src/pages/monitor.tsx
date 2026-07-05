@@ -108,7 +108,7 @@ type TerminalLine = {
   text: string;
 };
 
-const TERMINAL_EXEC_TIMEOUT_SEC = 30;
+const TERMINAL_EXEC_TIMEOUT_SEC = 60;
 
 const MONITOR_INSTANCE_TABLE_COLUMNS = [
   "4%",
