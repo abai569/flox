@@ -173,6 +173,8 @@ const getMonitorRegionTitle = (
   const region =
     family === "v4" ? member.publicIpV4Region : member.publicIpV6Region;
   const reported = getMonitorDisplayIP(member, family);
+
+  if (!region && reported === "-") return "";
   const parts = [
     member.hostname ? `主机: ${member.hostname}` : "",
     member.instanceId ? `实例: ${member.instanceId}` : "",
@@ -182,6 +184,67 @@ const getMonitorRegionTitle = (
 
   return parts.filter(Boolean).join("\n");
 };
+
+const REGION_FLAG_BY_COUNTRY: Record<string, string> = {
+  中国: "🇨🇳",
+  香港: "🇨🇳",
+  澳门: "🇨🇳",
+  台湾: "🇨🇳",
+  日本: "🇯🇵",
+  美国: "🇺🇸",
+  新加坡: "🇸🇬",
+  韩国: "🇰🇷",
+  英国: "🇬🇧",
+  德国: "🇩🇪",
+  法国: "🇫🇷",
+  荷兰: "🇳🇱",
+  加拿大: "🇨🇦",
+  澳大利亚: "🇦🇺",
+  俄罗斯: "🇷🇺",
+  印度: "🇮🇳",
+  泰国: "🇹🇭",
+  越南: "🇻🇳",
+  菲律宾: "🇵🇭",
+  马来西亚: "🇲🇾",
+  印尼: "🇮🇩",
+  印度尼西亚: "🇮🇩",
+  土耳其: "🇹🇷",
+  巴西: "🇧🇷",
+  墨西哥: "🇲🇽",
+  意大利: "🇮🇹",
+  西班牙: "🇪🇸",
+  瑞士: "🇨🇭",
+  瑞典: "🇸🇪",
+  芬兰: "🇫🇮",
+  挪威: "🇳🇴",
+  丹麦: "🇩🇰",
+  波兰: "🇵🇱",
+  乌克兰: "🇺🇦",
+  阿联酋: "🇦🇪",
+  以色列: "🇮🇱",
+  南非: "🇿🇦",
+};
+
+const getRegionFlag = (region?: string): string => {
+  const first = region?.trim().split(/\s+/)[0] || "";
+
+  return REGION_FLAG_BY_COUNTRY[first] || "";
+};
+
+function MonitorRegionCellValue({ region }: { region?: string }) {
+  const value = region?.trim() || "";
+
+  if (!value) return <span className="block h-5" />;
+
+  const flag = getRegionFlag(value);
+
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-secondary-500/10 px-2 py-0.5 text-secondary-700">
+      {flag && <span className="shrink-0">{flag}</span>}
+      <span className="truncate">{value}</span>
+    </span>
+  );
+}
 
 const copyMonitorIP = (ip: string | undefined, label: string): void => {
   const value = ip?.trim();
@@ -229,7 +292,7 @@ function MonitorIPCellValue({ ip, label }: { ip?: string; label: string }) {
 
   if (!value) {
     return (
-      <span className="block w-full truncate px-1 leading-5 text-default-300">
+      <span className="inline-block max-w-full truncate px-1 leading-5 text-default-300">
         -
       </span>
     );
@@ -237,7 +300,7 @@ function MonitorIPCellValue({ ip, label }: { ip?: string; label: string }) {
 
   return (
     <button
-      className="block w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
+      className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
       title={value}
       type="button"
       onClick={(event) => {
@@ -476,7 +539,9 @@ function NodeInstanceGroupsView({
                             title={getMonitorRegionTitle(member, "v4")}
                           >
                             <div className="truncate">
-                              {member.publicIpV4Region || "-"}
+                              <MonitorRegionCellValue
+                                region={member.publicIpV4Region}
+                              />
                             </div>
                           </td>
                           <td
@@ -484,7 +549,9 @@ function NodeInstanceGroupsView({
                             title={getMonitorRegionTitle(member, "v6")}
                           >
                             <div className="truncate">
-                              {member.publicIpV6Region || "-"}
+                              <MonitorRegionCellValue
+                                region={member.publicIpV6Region}
+                              />
                             </div>
                           </td>
                           <td className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600">

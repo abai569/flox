@@ -331,7 +331,7 @@ func (h *Handler) bestExitProbe(ctx context.Context, nodeID int64, ip string, po
 	if node != nil && node.IsRemote == 1 {
 		pingData, err = h.tcpPingViaRemoteNode(node, ip, port, options)
 	} else {
-		pingData, err = h.tcpPingViaNode(nodeID, ip, port, options)
+		pingData, err = h.tcpPingViaNode(nodeID, "", ip, port, options)
 	}
 	if err != nil {
 		return 0, 100, err

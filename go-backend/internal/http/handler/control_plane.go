@@ -40,15 +40,29 @@ type diagnosisTarget struct {
 }
 
 type diagnosisWorkItem struct {
-	fromNodeID    int64
-	targetIP      string
-	targetPort    int
-	description   string
-	metadata      map[string]interface{}
-	toNode        chainNodeRecord
-	hasChainHop   bool
-	ipPreference  string
-	connectIpType string
+	fromNodeID     int64
+	fromInstanceID string
+	fromHostname   string
+	targetIP       string
+	targetPort     int
+	description    string
+	metadata       map[string]interface{}
+	toNode         chainNodeRecord
+	toInstanceID   string
+	toHostname     string
+	hasChainHop    bool
+	ipPreference   string
+	connectIpType  string
+	precheckError  string
+}
+
+type diagnosisNodeEndpoint struct {
+	nodeID        int64
+	nodeName      string
+	instanceID    string
+	hostname      string
+	targetHost    string
+	precheckError string
 }
 
 type diagnosisExecOptions struct {
@@ -77,7 +91,7 @@ func (h *Handler) buildDiagnosisStreamStartItems(workItems []diagnosisWorkItem) 
 	for _, workItem := range workItems {
 		targetIP := strings.TrimSpace(workItem.targetIP)
 		targetPort := workItem.targetPort
-		if workItem.hasChainHop {
+		if workItem.hasChainHop && targetIP == "" {
 			fromNode, _ := h.cachedNode(nodeCache, workItem.fromNodeID)
 			targetNode, err := h.cachedNode(nodeCache, workItem.toNode.NodeID)
 			if err == nil {
@@ -135,9 +149,9 @@ const exitTestCommandTimeout = 18 * time.Second
 const exitTestPingCount = 3
 
 var exitTestTargets = []struct {
-	name   string
-	host   string
-	port   int
+	name string
+	host string
+	port int
 }{
 	{"www.google.com", "www.google.com", 443},
 	{"www.bing.com", "www.bing.com", 443},
@@ -729,6 +743,37 @@ func (h *Handler) sendNodeCommandWithTimeout(nodeID int64, commandType string, d
 	return result, err
 }
 
+func (h *Handler) sendNodeCommandToInstanceWithTimeout(nodeID int64, instanceID string, commandType string, data interface{}, timeout time.Duration, tolerateExists bool, tolerateNotFound bool) (ws.CommandResult, error) {
+	if strings.TrimSpace(instanceID) == "" {
+		return h.sendNodeCommandWithTimeout(nodeID, commandType, data, timeout, tolerateExists, tolerateNotFound)
+	}
+	var (
+		result ws.CommandResult
+		err    error
+	)
+	if timeout <= 0 {
+		timeout = defaultNodeCommandTimeout
+	}
+
+	node, nodeErr := h.getNodeRecord(nodeID)
+	if nodeErr == nil && node != nil && node.IsRemote == 1 {
+		result, err = h.sendRemoteNodeCommandWithTimeout(node, commandType, data, timeout)
+	} else {
+		result, err = h.wsServer.SendCommandToInstance(nodeID, instanceID, commandType, data, timeout)
+	}
+	if err == nil {
+		return result, nil
+	}
+	msg := strings.ToLower(strings.TrimSpace(err.Error()))
+	if tolerateExists && isAlreadyExistsMessage(msg) {
+		return result, nil
+	}
+	if tolerateNotFound && (strings.Contains(msg, "not found") || strings.Contains(msg, "不存在")) {
+		return result, nil
+	}
+	return result, err
+}
+
 func (h *Handler) sendRemoteNodeCommand(node *nodeRecord, commandType string, data interface{}) (ws.CommandResult, error) {
 	return h.sendRemoteNodeCommandWithTimeout(node, commandType, data, 0)
 }
@@ -954,7 +999,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 		}
 	}
 
-	return forward.Name, workItems, nil
+	return forward.Name, h.expandDiagnosisWorkItemsByInstances(workItems), nil
 }
 
 func (h *Handler) diagnoseTunnelRuntime(ctx context.Context, tunnelID int64) (map[string]interface{}, error) {
@@ -1127,7 +1172,133 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 	}
 
 	tunnelType := map[bool]string{true: "端口转发", false: "隧道转发"}[tunnel.Type == 1]
-	return tunnelName, tunnelType, workItems, nil
+	return tunnelName, tunnelType, h.expandDiagnosisWorkItemsByInstances(workItems), nil
+}
+
+func (h *Handler) expandDiagnosisWorkItemsByInstances(workItems []diagnosisWorkItem) []diagnosisWorkItem {
+	if h == nil || h.repo == nil || len(workItems) == 0 {
+		return workItems
+	}
+	seen := make(map[int64]struct{})
+	nodeIDs := make([]int64, 0)
+	for _, item := range workItems {
+		if item.fromNodeID > 0 {
+			if _, ok := seen[item.fromNodeID]; !ok {
+				seen[item.fromNodeID] = struct{}{}
+				nodeIDs = append(nodeIDs, item.fromNodeID)
+			}
+		}
+		if item.hasChainHop && item.toNode.NodeID > 0 {
+			if _, ok := seen[item.toNode.NodeID]; !ok {
+				seen[item.toNode.NodeID] = struct{}{}
+				nodeIDs = append(nodeIDs, item.toNode.NodeID)
+			}
+		}
+	}
+	instancesByNode, err := h.repo.ListOnlineNodeInstancesByNodeIDs(nodeIDs)
+	if err != nil {
+		return workItems
+	}
+
+	expanded := make([]diagnosisWorkItem, 0, len(workItems))
+	for _, item := range workItems {
+		fromEndpoints := diagnosisSourceEndpoints(item.fromNodeID, instancesByNode)
+		if item.hasChainHop {
+			toEndpoints := diagnosisTargetEndpoints(item.toNode, item.ipPreference, item.connectIpType, instancesByNode)
+			for _, from := range fromEndpoints {
+				for _, to := range toEndpoints {
+					expanded = append(expanded, enrichDiagnosisWorkItem(item, from, to))
+				}
+			}
+			continue
+		}
+		for _, from := range fromEndpoints {
+			expanded = append(expanded, enrichDiagnosisWorkItem(item, from, diagnosisNodeEndpoint{}))
+		}
+	}
+	return expanded
+}
+
+func diagnosisSourceEndpoints(nodeID int64, instancesByNode map[int64][]model.NodeInstance) []diagnosisNodeEndpoint {
+	instances := instancesByNode[nodeID]
+	if len(instances) == 0 {
+		return []diagnosisNodeEndpoint{{nodeID: nodeID}}
+	}
+	endpoints := make([]diagnosisNodeEndpoint, 0, len(instances))
+	for _, inst := range instances {
+		endpoints = append(endpoints, diagnosisNodeEndpoint{
+			nodeID:     nodeID,
+			instanceID: strings.TrimSpace(inst.InstanceID),
+			hostname:   strings.TrimSpace(inst.Hostname),
+		})
+	}
+	return endpoints
+}
+
+func diagnosisTargetEndpoints(node chainNodeRecord, ipPreference string, connectIPType string, instancesByNode map[int64][]model.NodeInstance) []diagnosisNodeEndpoint {
+	instances := instancesByNode[node.NodeID]
+	if len(instances) == 0 {
+		return []diagnosisNodeEndpoint{{nodeID: node.NodeID, nodeName: node.NodeName}}
+	}
+	endpoints := make([]diagnosisNodeEndpoint, 0, len(instances))
+	for _, inst := range instances {
+		if inst.Weight <= 0 {
+			continue
+		}
+		host := pickNodeInstanceAddress(inst, connectIPType, ipPreference)
+		ep := diagnosisNodeEndpoint{
+			nodeID:     node.NodeID,
+			nodeName:   node.NodeName,
+			instanceID: strings.TrimSpace(inst.InstanceID),
+			hostname:   strings.TrimSpace(inst.Hostname),
+			targetHost: strings.TrimSpace(host),
+		}
+		if ep.targetHost == "" {
+			ep.precheckError = "目标实例无可用出口 IP"
+		}
+		endpoints = append(endpoints, ep)
+	}
+	if len(endpoints) == 0 {
+		return []diagnosisNodeEndpoint{{nodeID: node.NodeID, nodeName: node.NodeName, precheckError: "目标节点无可用在线实例"}}
+	}
+	return endpoints
+}
+
+func enrichDiagnosisWorkItem(item diagnosisWorkItem, from diagnosisNodeEndpoint, to diagnosisNodeEndpoint) diagnosisWorkItem {
+	next := item
+	next.metadata = cloneDiagnosisMetadata(item.metadata)
+	next.fromInstanceID = strings.TrimSpace(from.instanceID)
+	next.fromHostname = strings.TrimSpace(from.hostname)
+	next.toInstanceID = strings.TrimSpace(to.instanceID)
+	next.toHostname = strings.TrimSpace(to.hostname)
+	if next.fromInstanceID != "" {
+		next.metadata["fromInstanceId"] = next.fromInstanceID
+	}
+	if next.fromHostname != "" {
+		next.metadata["fromHostname"] = next.fromHostname
+	}
+	if next.toInstanceID != "" {
+		next.metadata["toInstanceId"] = next.toInstanceID
+	}
+	if next.toHostname != "" {
+		next.metadata["toHostname"] = next.toHostname
+	}
+	if strings.TrimSpace(to.targetHost) != "" {
+		next.targetIP = strings.TrimSpace(to.targetHost)
+		next.targetPort = item.toNode.Port
+	}
+	if strings.TrimSpace(to.precheckError) != "" {
+		next.precheckError = strings.TrimSpace(to.precheckError)
+	}
+	return next
+}
+
+func cloneDiagnosisMetadata(metadata map[string]interface{}) map[string]interface{} {
+	next := make(map[string]interface{}, len(metadata)+4)
+	for key, value := range metadata {
+		next[key] = value
+	}
+	return next
 }
 
 func splitChainNodeGroups(rows []chainNodeRecord) ([]chainNodeRecord, [][]chainNodeRecord, []chainNodeRecord) {
@@ -1235,12 +1406,15 @@ func newDiagnosisTimeoutItem(workItem diagnosisWorkItem, message string) map[str
 }
 
 func (h *Handler) executeDiagnosisWorkItem(workItem diagnosisWorkItem, options diagnosisExecOptions) map[string]interface{} {
+	if strings.TrimSpace(workItem.precheckError) != "" {
+		return newDiagnosisTimeoutItem(workItem, workItem.precheckError)
+	}
 	single := make([]map[string]interface{}, 0, 1)
 	nodeCache := map[int64]*nodeRecord{}
 	if workItem.metadata["sdwanCheck"] == true {
 		h.appendSdwanDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.description, workItem.metadata, options)
 	} else if workItem.hasChainHop {
-		h.appendChainHopDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.toNode, workItem.description, workItem.metadata, workItem.ipPreference, workItem.connectIpType, options)
+		h.appendChainHopDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.toNode, workItem.targetIP, workItem.targetPort, workItem.description, workItem.metadata, workItem.ipPreference, workItem.connectIpType, options)
 	} else if workItem.metadata["exitTest"] == true {
 		exitOptions := options
 		exitOptions.commandTimeout = exitTestCommandTimeout
@@ -1399,7 +1573,7 @@ func (h *Handler) appendPathDiagnosis(results *[]map[string]interface{}, nodeCac
 	if fromNode.IsRemote == 1 {
 		pingData, pingErr = h.tcpPingViaRemoteNode(fromNode, targetIP, targetPort, options)
 	} else {
-		pingData, pingErr = h.tcpPingViaNode(fromNodeID, targetIP, targetPort, options)
+		pingData, pingErr = h.tcpPingViaNode(fromNodeID, asString(metadata["fromInstanceId"]), targetIP, targetPort, options)
 	}
 	if pingErr != nil {
 		item["success"] = false
@@ -1437,7 +1611,7 @@ func (h *Handler) appendSdwanDiagnosis(results *[]map[string]interface{}, nodeCa
 		item["nodeName"] = node.Name
 	}
 
-	sdwanData, err := h.sdwanDiagViaNode(nodeID, options)
+	sdwanData, err := h.sdwanDiagViaNode(nodeID, asString(metadata["fromInstanceId"]), options)
 	if err != nil {
 		item["success"] = false
 		item["message"] = fmt.Sprintf("SDWAN 诊断失败: %v", err)
@@ -1478,17 +1652,26 @@ func (h *Handler) appendSdwanDiagnosis(results *[]map[string]interface{}, nodeCa
 	*results = append(*results, item)
 }
 
-func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nodeCache map[int64]*nodeRecord, fromNodeID int64, toNode chainNodeRecord, description string, metadata map[string]interface{}, ipPreference string, connectIpType string, options diagnosisExecOptions) {
+func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nodeCache map[int64]*nodeRecord, fromNodeID int64, toNode chainNodeRecord, targetIP string, targetPort int, description string, metadata map[string]interface{}, ipPreference string, connectIpType string, options diagnosisExecOptions) {
 	fromNode, _ := h.cachedNode(nodeCache, fromNodeID)
 	targetNode, err := h.cachedNode(nodeCache, toNode.NodeID)
 	if err != nil {
 		h.appendFailedDiagnosis(results, nodeCache, fromNodeID, "", 0, description, metadata, err.Error())
 		return
 	}
-	targetIP, targetPort, err := resolveChainProbeTarget(fromNode, targetNode, toNode.Port, ipPreference, toNode.ConnectIPType)
-	if err != nil {
-		h.appendFailedDiagnosis(results, nodeCache, fromNodeID, strings.Trim(strings.TrimSpace(targetNode.ServerIP), "[]"), toNode.Port, description, metadata, err.Error())
-		return
+	if strings.TrimSpace(targetIP) != "" {
+		if targetPort <= 0 {
+			targetPort = toNode.Port
+		}
+		if targetPort <= 0 {
+			targetPort = 443
+		}
+	} else {
+		targetIP, targetPort, err = resolveChainProbeTarget(fromNode, targetNode, toNode.Port, ipPreference, toNode.ConnectIPType)
+		if err != nil {
+			h.appendFailedDiagnosis(results, nodeCache, fromNodeID, strings.Trim(strings.TrimSpace(targetNode.ServerIP), "[]"), toNode.Port, description, metadata, err.Error())
+			return
+		}
 	}
 
 	item := newDiagnosisResultItem(fromNodeID, targetIP, targetPort, description, metadata)
@@ -1501,7 +1684,7 @@ func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nod
 	if fromNode != nil && fromNode.IsRemote == 1 {
 		pingData, pingErr = h.tcpPingViaRemoteNode(fromNode, targetIP, targetPort, options)
 	} else {
-		pingData, pingErr = h.tcpPingViaNode(fromNodeID, targetIP, targetPort, options)
+		pingData, pingErr = h.tcpPingViaNode(fromNodeID, asString(metadata["fromInstanceId"]), targetIP, targetPort, options)
 	}
 	if pingErr != nil {
 		item["success"] = false
@@ -1522,7 +1705,7 @@ func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nod
 		}
 		// TCP ping 通过后，尝试检查目标节点的服务状态（仅辅助信息，不覆盖 TCP ping 结果）
 		if targetNode != nil && targetNode.IsRemote != 1 {
-			svcState, svcErr := h.checkServiceStatusViaNode(toNode.NodeID, targetPort, options)
+			svcState, svcErr := h.checkServiceStatusViaNode(toNode.NodeID, asString(metadata["toInstanceId"]), targetPort, options)
 			if svcErr == nil {
 				item["serviceState"] = svcState
 				msg = fmt.Sprintf("%s，服务状态正常(%s)", msg, svcState)
@@ -1554,7 +1737,10 @@ func (h *Handler) appendExitTestRotation(results *[]map[string]interface{}, from
 
 	for i, t := range exitTestTargets {
 		wg.Add(1)
-		go func(idx int, target struct{ name, host string; port int }) {
+		go func(idx int, target struct {
+			name, host string
+			port       int
+		}) {
 			defer wg.Done()
 			single := make([]map[string]interface{}, 0, 1)
 			h.appendPathDiagnosis(&single, map[int64]*nodeRecord{}, fromNodeID, target.host, target.port, description, metadata, options)
@@ -1697,11 +1883,11 @@ func (h *Handler) forwardServiceNodeIDsForTunnel(forward *forwardRecord, ports [
 
 // checkServiceStatusViaNode sends a ListServices command to the target node and
 // checks whether a service is listening on the specified port with a healthy state.
-func (h *Handler) checkServiceStatusViaNode(nodeID int64, port int, options diagnosisExecOptions) (string, error) {
+func (h *Handler) checkServiceStatusViaNode(nodeID int64, instanceID string, port int, options diagnosisExecOptions) (string, error) {
 	if options.commandTimeout <= 0 {
 		options.commandTimeout = diagnosisCommandTimeout
 	}
-	res, err := h.sendNodeCommandWithTimeout(nodeID, "ListServices", map[string]interface{}{}, options.commandTimeout, false, false)
+	res, err := h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "ListServices", map[string]interface{}{}, options.commandTimeout, false, false)
 	if err != nil {
 		return "", err
 	}
@@ -1737,7 +1923,7 @@ func (h *Handler) checkServiceStatusViaNode(nodeID int64, port int, options diag
 	return "", fmt.Errorf("端口 %d 无监听服务", port)
 }
 
-func (h *Handler) tcpPingViaNode(nodeID int64, ip string, port int, options diagnosisExecOptions) (map[string]interface{}, error) {
+func (h *Handler) tcpPingViaNode(nodeID int64, instanceID string, ip string, port int, options diagnosisExecOptions) (map[string]interface{}, error) {
 	if options.commandTimeout <= 0 {
 		options.commandTimeout = diagnosisCommandTimeout
 	}
@@ -1747,7 +1933,7 @@ func (h *Handler) tcpPingViaNode(nodeID int64, ip string, port int, options diag
 	if options.pingCount <= 0 {
 		options.pingCount = 4
 	}
-	res, err := h.sendNodeCommandWithTimeout(nodeID, "TcpPing", map[string]interface{}{
+	res, err := h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "TcpPing", map[string]interface{}{
 		"ip":      ip,
 		"port":    port,
 		"count":   options.pingCount,
@@ -1762,11 +1948,11 @@ func (h *Handler) tcpPingViaNode(nodeID int64, ip string, port int, options diag
 	return res.Data, nil
 }
 
-func (h *Handler) sdwanDiagViaNode(nodeID int64, options diagnosisExecOptions) (map[string]interface{}, error) {
+func (h *Handler) sdwanDiagViaNode(nodeID int64, instanceID string, options diagnosisExecOptions) (map[string]interface{}, error) {
 	if options.commandTimeout <= 0 {
 		options.commandTimeout = diagnosisCommandTimeout
 	}
-	res, err := h.sendNodeCommandWithTimeout(nodeID, "SdwanDiag", map[string]interface{}{}, options.commandTimeout, false, false)
+	res, err := h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "SdwanDiag", map[string]interface{}{}, options.commandTimeout, false, false)
 	if err != nil {
 		return nil, err
 	}

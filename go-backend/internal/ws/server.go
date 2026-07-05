@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -65,10 +66,12 @@ const (
 )
 
 type CommandResult struct {
-	Type    string                 `json:"type"`
-	Success bool                   `json:"success"`
-	Message string                 `json:"message"`
-	Data    map[string]interface{} `json:"data,omitempty"`
+	Type       string                 `json:"type"`
+	Success    bool                   `json:"success"`
+	Message    string                 `json:"message"`
+	Data       map[string]interface{} `json:"data,omitempty"`
+	InstanceID string                 `json:"instanceId,omitempty"`
+	Hostname   string                 `json:"hostname,omitempty"`
 }
 
 type Server struct {
@@ -759,24 +762,24 @@ func (s *Server) SendCommand(nodeID int64, cmdType string, data interface{}, tim
 	if len(sessions) == 0 {
 		return CommandResult{}, errors.New("节点不在线")
 	}
+	return s.sendCommandToSessions(sessions, cmdType, data, timeout)
+}
 
-	var result CommandResult
-	var firstErr error
-	for _, ns := range sessions {
-		res, err := s.sendCommandToSession(ns, cmdType, data, timeout)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-				result = res
-			}
-			continue
-		}
-		result = res
+func (s *Server) SendCommandToInstance(nodeID int64, instanceID string, cmdType string, data interface{}, timeout time.Duration) (CommandResult, error) {
+	if s == nil {
+		return CommandResult{}, errors.New("server not initialized")
 	}
-	if firstErr != nil {
-		return result, firstErr
+	if strings.TrimSpace(cmdType) == "" {
+		return CommandResult{}, errors.New("command type is empty")
 	}
-	return result, nil
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	ns := s.activeNodeSession(nodeID, instanceID)
+	if ns == nil {
+		return CommandResult{}, errors.New("节点实例不在线")
+	}
+	return s.sendCommandToSession(ns, cmdType, data, timeout)
 }
 
 func (s *Server) activeNodeSessions(nodeID int64) []*nodeSession {
@@ -792,13 +795,112 @@ func (s *Server) activeNodeSessions(nodeID int64) []*nodeSession {
 			sessions = append(sessions, ns)
 		}
 	}
+	sort.SliceStable(sessions, func(i, j int) bool {
+		return sessions[i].instanceID < sessions[j].instanceID
+	})
 	return sessions
+}
+
+func (s *Server) activeNodeSession(nodeID int64, instanceID string) *nodeSession {
+	instanceID = normalizeInstanceID(instanceID)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	byInstance := s.nodes[nodeID]
+	if len(byInstance) == 0 {
+		return nil
+	}
+	ns := byInstance[instanceID]
+	if ns == nil || ns.conn == nil || ns.conn.conn == nil {
+		return nil
+	}
+	return ns
+}
+
+type commandSessionResult struct {
+	result CommandResult
+	err    error
+}
+
+func (s *Server) sendCommandToSessions(sessions []*nodeSession, cmdType string, data interface{}, timeout time.Duration) (CommandResult, error) {
+	if len(sessions) == 0 {
+		return CommandResult{}, errors.New("节点不在线")
+	}
+	if len(sessions) == 1 {
+		return s.sendCommandToSession(sessions[0], cmdType, data, timeout)
+	}
+
+	resultCh := make(chan commandSessionResult, len(sessions))
+	var wg sync.WaitGroup
+	for _, ns := range sessions {
+		ns := ns
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := s.sendCommandToSession(ns, cmdType, data, timeout)
+			resultCh <- commandSessionResult{result: res, err: err}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	var result CommandResult
+	var firstErr error
+	var errorResult CommandResult
+	errorsByInstance := make([]string, 0)
+	successCount := 0
+	for item := range resultCh {
+		if item.err != nil {
+			if firstErr == nil {
+				firstErr = item.err
+				errorResult = item.result
+			}
+			label := item.result.InstanceID
+			if strings.TrimSpace(item.result.Hostname) != "" {
+				label = item.result.Hostname
+			}
+			if strings.TrimSpace(label) == "" {
+				label = "unknown"
+			}
+			errorsByInstance = append(errorsByInstance, fmt.Sprintf("实例%s: %v", label, item.err))
+			continue
+		}
+		successCount++
+		result = item.result
+	}
+	if successCount == len(sessions) {
+		return result, nil
+	}
+	if successCount > 0 && !commandRequiresAllInstances(cmdType) {
+		return result, nil
+	}
+	if firstErr == nil {
+		return result, nil
+	}
+	message := strings.Join(errorsByInstance, "; ")
+	if successCount > 0 {
+		message = fmt.Sprintf("部分实例命令失败（成功 %d/%d）：%s", successCount, len(sessions), message)
+	}
+	errorResult.Success = false
+	errorResult.Message = message
+	return errorResult, errors.New(message)
+}
+
+func commandRequiresAllInstances(cmdType string) bool {
+	switch strings.TrimSpace(cmdType) {
+	case "TcpPing", "ListServices", "SdwanDiag":
+		return false
+	default:
+		return true
+	}
 }
 
 func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data interface{}, timeout time.Duration) (CommandResult, error) {
 	if ns == nil || ns.conn == nil || ns.conn.conn == nil {
 		return CommandResult{}, errors.New("节点不在线")
 	}
+	baseResult := CommandResult{InstanceID: ns.instanceID, Hostname: ns.hostname}
 
 	requestID := fmt.Sprintf("%d_%s_%d", ns.nodeID, ns.instanceID, time.Now().UnixNano())
 	ch := make(chan CommandResult, 1)
@@ -825,7 +927,7 @@ func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data inte
 	rawCmd, err := json.Marshal(cmdPayload)
 	if err != nil {
 		cleanup()
-		return CommandResult{}, err
+		return baseResult, err
 	}
 	if debugMimic {
 		log.Printf("[mimic.debug] send command node=%d instance=%s type=%s requestId=%s payload=%s", ns.nodeID, ns.instanceID, cmdType, requestID, string(rawCmd))
@@ -836,7 +938,7 @@ func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data inte
 		encrypted, err := ns.crypto.Encrypt(rawCmd)
 		if err != nil {
 			cleanup()
-			return CommandResult{}, err
+			return baseResult, err
 		}
 		wrapper := map[string]interface{}{
 			"encrypted": true,
@@ -846,7 +948,7 @@ func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data inte
 		messageData, err = json.Marshal(wrapper)
 		if err != nil {
 			cleanup()
-			return CommandResult{}, err
+			return baseResult, err
 		}
 	}
 
@@ -860,7 +962,7 @@ func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data inte
 			log.Printf("[mimic.debug] write command failed node=%d instance=%s type=%s requestId=%s err=%v", ns.nodeID, ns.instanceID, cmdType, requestID, err)
 		}
 		cleanup()
-		return CommandResult{}, err
+		return baseResult, err
 	}
 
 	select {
@@ -869,8 +971,10 @@ func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data inte
 			if debugMimic {
 				log.Printf("[mimic.debug] command channel closed node=%d instance=%s type=%s requestId=%s", ns.nodeID, ns.instanceID, cmdType, requestID)
 			}
-			return CommandResult{}, errors.New("命令通道已关闭")
+			return baseResult, errors.New("命令通道已关闭")
 		}
+		result.InstanceID = ns.instanceID
+		result.Hostname = ns.hostname
 		if !result.Success {
 			if strings.TrimSpace(result.Message) == "" {
 				result.Message = "命令执行失败"
@@ -889,7 +993,7 @@ func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data inte
 			log.Printf("[mimic.debug] command timeout node=%d instance=%s type=%s requestId=%s timeout=%s", ns.nodeID, ns.instanceID, cmdType, requestID, timeout)
 		}
 		cleanup()
-		return CommandResult{}, errors.New("等待节点响应超时")
+		return baseResult, errors.New("等待节点响应超时")
 	}
 }
 

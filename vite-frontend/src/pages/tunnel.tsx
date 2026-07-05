@@ -353,6 +353,16 @@ const renderBestExitState = (state?: BestExitState | null) => {
   );
 };
 
+const getDiagnosisInstanceLine = (
+  result: DiagnosisResult["results"][number],
+): string => {
+  const from = result.fromHostname || result.fromInstanceId || "";
+  const to = result.toHostname || result.toInstanceId || "";
+  const parts = [from ? `来源实例: ${from}` : "", to ? `目标实例: ${to}` : ""];
+
+  return parts.filter(Boolean).join(" / ");
+};
+
 export default function TunnelPage() {
   const [loading, setLoading] = useState(true);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
@@ -2453,9 +2463,10 @@ export default function TunnelPage() {
                                           : "bg-danger"
                                       }`}
                                     />
-                                    <span
-                                      className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                    <button
+                                      className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors bg-transparent text-left"
                                       title={tunnel.name}
+                                      type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         copyToClipboard(
@@ -2465,7 +2476,7 @@ export default function TunnelPage() {
                                       }}
                                     >
                                       {tunnel.name}
-                                    </span>
+                                    </button>
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 align-middle">
@@ -2544,16 +2555,17 @@ export default function TunnelPage() {
                                 </td>
                                 <td className="py-3 px-4 align-middle">
                                   {tunnel.remark ? (
-                                    <div
-                                      className="text-sm text-default-600 truncate max-w-[140px] cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block"
+                                    <button
+                                      className="text-sm text-default-600 truncate max-w-[140px] cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block bg-transparent text-left"
                                       title={tunnel.remark}
+                                      type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         copyToClipboard(tunnel.remark!, "备注");
                                       }}
                                     >
                                       {tunnel.remark}
-                                    </div>
+                                    </button>
                                   ) : (
                                     <span className="text-sm text-default-400">
                                       -
@@ -2694,9 +2706,10 @@ export default function TunnelPage() {
                                             : "bg-default-300"
                                         }`}
                                       />
-                                      <h3
-                                        className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                      <button
+                                        className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors bg-transparent text-left"
                                         title={tunnel.name}
+                                        type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           copyToClipboard(
@@ -2706,7 +2719,7 @@ export default function TunnelPage() {
                                         }}
                                       >
                                         {tunnel.name}
-                                      </h3>
+                                      </button>
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-1">
                                       <div className={tunnelTypeChipClassName}>
@@ -2931,9 +2944,10 @@ export default function TunnelPage() {
                                         <span className="font-medium text-red-500 flex-shrink-0">
                                           备注：
                                         </span>
-                                        <span
-                                          className="truncate ml-1 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block"
+                                        <button
+                                          className="truncate ml-1 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block bg-transparent text-left"
                                           title={tunnel.remark}
+                                          type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             copyToClipboard(
@@ -2943,7 +2957,7 @@ export default function TunnelPage() {
                                           }}
                                         >
                                           {tunnel.remark}
-                                        </span>
+                                        </button>
                                       </div>
                                     </div>
                                   )}
@@ -4567,6 +4581,8 @@ export default function TunnelPage() {
                                       result.diagnosing,
                                     );
                                     const isSuccess = result.success === true;
+                                    const instanceLine =
+                                      getDiagnosisInstanceLine(result);
                                     const quality = getDiagnosisQualityDisplay(
                                       result.averageTime,
                                       result.packetLoss,
@@ -4602,6 +4618,11 @@ export default function TunnelPage() {
                                               <div className="font-medium text-foreground truncate">
                                                 {result.description}
                                               </div>
+                                              {instanceLine && (
+                                                <div className="text-[11px] text-primary truncate">
+                                                  {instanceLine}
+                                                </div>
+                                              )}
                                               <div className="text-xs text-default-500 truncate">
                                                 {result.actualTarget ? (
                                                   <>
@@ -4610,9 +4631,10 @@ export default function TunnelPage() {
                                                   </>
                                                 ) : (
                                                   <>
-                                                    <span
-                                                      className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                                    <button
+                                                      className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors bg-transparent"
                                                       title={result.targetIp}
+                                                      type="button"
                                                       onClick={() =>
                                                         copyToClipboard(
                                                           result.targetIp,
@@ -4623,7 +4645,7 @@ export default function TunnelPage() {
                                                       {maskPublicIP(
                                                         result.targetIp,
                                                       )}
-                                                    </span>
+                                                    </button>
                                                     :{result.targetPort}
                                                   </>
                                                 )}
@@ -4760,6 +4782,8 @@ export default function TunnelPage() {
                               {results.map((result, index) => {
                                 const isDiagnosing = Boolean(result.diagnosing);
                                 const isSuccess = result.success === true;
+                                const instanceLine =
+                                  getDiagnosisInstanceLine(result);
                                 const quality = getDiagnosisQualityDisplay(
                                   result.averageTime,
                                   result.packetLoss,
@@ -4794,6 +4818,11 @@ export default function TunnelPage() {
                                         <div className="font-semibold text-sm text-foreground break-words">
                                           {result.description}
                                         </div>
+                                        {instanceLine && (
+                                          <div className="text-[11px] text-primary mt-0.5 break-words">
+                                            {instanceLine}
+                                          </div>
+                                        )}
                                         <div className="text-xs text-default-500 mt-0.5">
                                           {result.actualTarget ? (
                                             <>
@@ -4802,9 +4831,10 @@ export default function TunnelPage() {
                                             </>
                                           ) : (
                                             <>
-                                              <span
-                                                className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
+                                              <button
+                                                className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors bg-transparent"
                                                 title={result.targetIp}
+                                                type="button"
                                                 onClick={() =>
                                                   copyToClipboard(
                                                     result.targetIp,
@@ -4813,7 +4843,7 @@ export default function TunnelPage() {
                                                 }
                                               >
                                                 {maskPublicIP(result.targetIp)}
-                                              </span>
+                                              </button>
                                               :{result.targetPort}
                                             </>
                                           )}
@@ -5005,7 +5035,7 @@ export default function TunnelPage() {
               </ModalHeader>
               <ModalBody>
                 <p className="text-sm text-default-600">
-                  确定禁用隧道 "{tunnelToToggle?.name}"？
+                  确定禁用隧道 &quot;{tunnelToToggle?.name}&quot;？
                 </p>
                 <p className="text-xs text-default-500">
                   禁用后将暂停所有关联的转发规则，且不会在用户页面、仪表盘和转发选择中显示。

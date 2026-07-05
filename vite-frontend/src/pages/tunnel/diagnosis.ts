@@ -14,6 +14,10 @@ export interface DiagnosisEntry {
   fromInx?: number;
   toChainType?: number;
   toInx?: number;
+  fromInstanceId?: string;
+  fromHostname?: string;
+  toInstanceId?: string;
+  toHostname?: string;
 }
 
 export interface DiagnosisResult {

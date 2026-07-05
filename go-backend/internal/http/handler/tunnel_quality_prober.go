@@ -285,7 +285,7 @@ func (p *tunnelQualityProber) tcpPingNode(nodeID int64, ip string, port int, opt
 	if node != nil && node.IsRemote == 1 {
 		pingData, pingErr = h.tcpPingViaRemoteNode(node, ip, port, options)
 	} else {
-		pingData, pingErr = h.tcpPingViaNode(nodeID, ip, port, options)
+		pingData, pingErr = h.tcpPingViaNode(nodeID, "", ip, port, options)
 	}
 	if pingErr != nil {
 		return 0, 100, pingErr

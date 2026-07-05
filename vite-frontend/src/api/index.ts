@@ -136,8 +136,11 @@ export const getDashboardNodeExpiryList = () =>
   Network.post<NodeApiItem[]>("/node/list", {});
 export const updateNode = (data: NodeMutationPayload) =>
   Network.post("/node/update", data);
-export const updateNodeWeight = (nodeId: number, weight: number, instanceId?: string) =>
-  Network.post("/node/weight", { nodeId, weight, instanceId });
+export const updateNodeWeight = (
+  nodeId: number,
+  weight: number,
+  instanceId?: string,
+) => Network.post("/node/weight", { nodeId, weight, instanceId });
 export const issueNodeSDWANCert = (id: number, vpnIp?: string) =>
   Network.post<{
     vpnIp: string;
@@ -332,17 +335,19 @@ export const rollbackNode = (id: number) =>
 
 // Mimic 依赖安装
 export const installMimicDeps = (ids?: number[]) =>
-  Network.post("/node/install-mimic-deps", ids ? { ids } : {}, { timeout: 10 * 60 * 1000 });
+  Network.post("/node/install-mimic-deps", ids ? { ids } : {}, {
+    timeout: 10 * 60 * 1000,
+  });
 
 // 隧道CRUD操作 - 全部使用POST请求
 export const createTunnel = (data: TunnelMutationPayload) =>
-  Network.post("/tunnel/create", data);
+  Network.post("/tunnel/create", data, { timeout: 120000 });
 export const getTunnelList = () =>
   Network.post<TunnelApiItem[]>("/tunnel/list");
 export const getTunnelById = (id: number) =>
   Network.post<TunnelApiItem>("/tunnel/get", { id });
 export const updateTunnel = (data: TunnelMutationPayload) =>
-  Network.post("/tunnel/update", data);
+  Network.post("/tunnel/update", data, { timeout: 120000 });
 export const deleteTunnel = (id: number) =>
   Network.post("/tunnel/delete", { id });
 export const previewTunnelDelete = (id: number) =>
@@ -853,7 +858,9 @@ export const runServiceMonitor = (id: number) =>
 export const getMonitorNodes = () =>
   Network.get<MonitorNodeApiItem[]>("/monitor/nodes");
 export const getMonitorNodeInstanceGroups = () =>
-  Network.get<MonitorNodeInstanceGroupApiItem[]>("/monitor/node-instance-groups");
+  Network.get<MonitorNodeInstanceGroupApiItem[]>(
+    "/monitor/node-instance-groups",
+  );
 
 export const getMonitorNodesPublic = () =>
   Network.getPublic<MonitorNodeApiItem[]>("/monitor/public/nodes");
