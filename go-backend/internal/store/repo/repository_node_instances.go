@@ -37,13 +37,17 @@ type NodeInstanceCount struct {
 
 func normalizeNodeInstanceID(instanceID string) string {
 	instanceID = strings.TrimSpace(instanceID)
-	if instanceID == "" {
-		return "default"
+	if instanceID == "" || strings.EqualFold(instanceID, "default") {
+		return ""
 	}
 	if len(instanceID) > 100 {
 		return instanceID[:100]
 	}
 	return instanceID
+}
+
+func validNodeInstanceWhere() (string, []interface{}) {
+	return "TRIM(instance_id) <> '' AND LOWER(TRIM(instance_id)) <> ?", []interface{}{"default"}
 }
 
 func (r *Repository) UpsertNodeInstance(in NodeInstanceUpsert) error {
@@ -54,6 +58,9 @@ func (r *Repository) UpsertNodeInstance(in NodeInstanceUpsert) error {
 		return errors.New("node id is required")
 	}
 	instanceID := normalizeNodeInstanceID(in.InstanceID)
+	if instanceID == "" {
+		return nil
+	}
 	now := in.Now
 	if now <= 0 {
 		now = unixMilliNow()
@@ -137,8 +144,12 @@ func (r *Repository) MarkNodeInstanceOffline(nodeID int64, instanceID string, no
 	if now <= 0 {
 		now = unixMilliNow()
 	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return nil
+	}
 	return r.db.Model(&model.NodeInstance{}).
-		Where("node_id = ? AND instance_id = ?", nodeID, normalizeNodeInstanceID(instanceID)).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
 		Updates(map[string]interface{}{"status": 0, "updated_time": now}).Error
 }
 
@@ -147,8 +158,10 @@ func (r *Repository) CountOnlineNodeInstances(nodeID int64) (int64, error) {
 		return 0, errors.New("repository not initialized")
 	}
 	var count int64
+	where, args := validNodeInstanceWhere()
 	err := r.db.Model(&model.NodeInstance{}).
 		Where("node_id = ? AND status = ?", nodeID, 1).
+		Where(where, args...).
 		Count(&count).Error
 	return count, err
 }
@@ -160,8 +173,12 @@ func (r *Repository) UpdateNodeInstanceWeight(nodeID int64, instanceID string, w
 	if now <= 0 {
 		now = unixMilliNow()
 	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return errors.New("node instance id is required")
+	}
 	return r.db.Model(&model.NodeInstance{}).
-		Where("node_id = ? AND instance_id = ?", nodeID, normalizeNodeInstanceID(instanceID)).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
 		Updates(map[string]interface{}{"weight": weight, "updated_time": now}).Error
 }
 
@@ -173,7 +190,9 @@ func (r *Repository) ListOnlineNodeInstancesByNodeIDs(nodeIDs []int64) (map[int6
 		return map[int64][]model.NodeInstance{}, nil
 	}
 	var instances []model.NodeInstance
+	where, args := validNodeInstanceWhere()
 	err := r.db.Where("node_id IN ? AND status = ?", nodeIDs, 1).
+		Where(where, args...).
 		Order("node_id ASC, id ASC").
 		Find(&instances).Error
 	if err != nil {
@@ -200,9 +219,11 @@ func (r *Repository) CountNodeInstancesByNodeIDs(nodeIDs []int64) (map[int64]Nod
 		Online int64 `gorm:"column:online"`
 	}
 	var rows []row
+	where, args := validNodeInstanceWhere()
 	err := r.db.Model(&model.NodeInstance{}).
 		Select("node_id, COUNT(*) AS total, SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS online").
 		Where("node_id IN ?", nodeIDs).
+		Where(where, args...).
 		Group("node_id").
 		Find(&rows).Error
 	if err != nil {

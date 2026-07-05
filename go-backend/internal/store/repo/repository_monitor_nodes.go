@@ -63,6 +63,7 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 		return nil, errors.New("repository not initialized")
 	}
 
+	where, args := validNodeInstanceWhere()
 	query := r.db.Table("node AS n").
 		Select(`
 			COALESCE(n.inx, 0) AS inx,
@@ -89,7 +90,8 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 			nsi.disk_usage AS disk_usage
 		`).
 		Joins("JOIN node_instance AS nsi ON nsi.node_id = n.id").
-		Where("n.is_remote = ?", 0)
+		Where("n.is_remote = ?", 0).
+		Where(where, args...)
 
 	if len(nodeIDs) > 0 {
 		query = query.Where("n.id IN ?", nodeIDs)

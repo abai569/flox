@@ -2,11 +2,13 @@ import type {
   MonitorNodeApiItem,
   MonitorNodeInstanceGroupApiItem,
   MonitorNodeInstanceGroupMemberApiItem,
+  ServiceMonitorApiItem,
+  ServiceMonitorResultApiItem,
 } from "@/api/types";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { List, TerminalSquare, Info } from "lucide-react";
+import { ArrowDown, ArrowUp, Info, List, TerminalSquare } from "lucide-react";
 
 import { AnimatedPage } from "@/components/animated-page";
 import { Button } from "@/shadcn-bridge/heroui/button";
@@ -14,11 +16,14 @@ import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import {
   getMonitorNodes,
   getMonitorNodeInstanceGroups,
+  getServiceMonitorLatestResults,
+  getServiceMonitorList,
   updateNodeWeight,
 } from "@/api";
 import { MonitorView } from "@/pages/node/monitor-view";
 import { TunnelMonitorView } from "@/pages/node/tunnel-monitor-view";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import {
   Modal,
   ModalBody,
@@ -64,6 +69,55 @@ const formatUptime = (seconds: number): string => {
 
 type MonitorIPFamily = "v4" | "v6";
 
+type RealtimeNodeInstanceMetric = {
+  receivedAt: number;
+  hostname?: string;
+  netInSpeed: number;
+  netOutSpeed: number;
+  netInBytes: number;
+  netOutBytes: number;
+  uptime: number;
+  periodRx: number;
+  periodTx: number;
+  onlineCount: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  diskUsage: number;
+};
+
+type ServiceSummary = {
+  ok: number;
+  fail: number;
+};
+
+const isRealInstanceId = (instanceId?: string): boolean => {
+  const value = instanceId?.trim() || "";
+
+  return value !== "" && value.toLowerCase() !== "default";
+};
+
+const getInstanceMetricKey = (nodeId: number, instanceId?: string): string =>
+  `${nodeId}:${instanceId?.trim() || ""}`;
+
+const filterRealInstanceGroups = (
+  groups: MonitorNodeInstanceGroupApiItem[],
+): MonitorNodeInstanceGroupApiItem[] =>
+  groups
+    .map((group) => ({
+      ...group,
+      members: group.members.filter((member) =>
+        isRealInstanceId(member.instanceId),
+      ),
+    }))
+    .filter((group) => group.members.length > 0);
+
+const clampPercent = (value: number): number => {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  if (value >= 100) return 100;
+
+  return value;
+};
+
 const getMonitorDisplayIP = (
   member: MonitorNodeInstanceGroupMemberApiItem,
   family: MonitorIPFamily,
@@ -98,7 +152,7 @@ const getMonitorIPTitle = (
 const formatInstanceId = (instanceId?: string): string => {
   const value = instanceId?.trim() || "";
 
-  if (!value) return "默认实例";
+  if (!isRealInstanceId(value)) return "-";
   if (value.length <= 18) return value;
 
   return `${value.slice(0, 8)}...${value.slice(-6)}`;
@@ -111,17 +165,116 @@ const getInstanceName = (
 
   if (hostname) return hostname;
 
-  return formatInstanceId(member.instanceId);
+  return `实例 ${formatInstanceId(member.instanceId)}`;
 };
+
+function UsageMeter({
+  value,
+  tone,
+}: {
+  value: number;
+  tone: "cpu" | "memory" | "disk";
+}) {
+  const percent = clampPercent(value);
+  const colorClass =
+    tone === "cpu"
+      ? "bg-pink-500"
+      : tone === "memory"
+        ? "bg-violet-600"
+        : "bg-indigo-500";
+
+  return (
+    <div className="relative h-7 w-[150px] overflow-hidden rounded-md border border-default-300 bg-default-200/80">
+      <div
+        className={`absolute inset-y-0 left-0 ${colorClass}`}
+        style={{ width: `${percent}%` }}
+      />
+      <div className="relative z-10 flex h-full items-center px-2 text-xs font-bold text-white tabular-nums">
+        {percent.toFixed(1)}%
+      </div>
+    </div>
+  );
+}
+
+const mergeRealtimeMetric = (
+  member: MonitorNodeInstanceGroupMemberApiItem,
+  realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>,
+): MonitorNodeInstanceGroupMemberApiItem => {
+  const metric =
+    realtimeMetrics[getInstanceMetricKey(member.nodeId, member.instanceId)];
+
+  if (!metric) return member;
+
+  return {
+    ...member,
+    hostname: metric.hostname || member.hostname,
+    status: 1,
+    netInSpeed: metric.netInSpeed,
+    netOutSpeed: metric.netOutSpeed,
+    netInBytes: metric.netInBytes,
+    netOutBytes: metric.netOutBytes,
+    uptime: metric.uptime || member.uptime,
+    periodRx: metric.periodRx,
+    periodTx: metric.periodTx,
+    onlineCount: metric.onlineCount,
+    cpuUsage: metric.cpuUsage,
+    memoryUsage: metric.memoryUsage,
+    diskUsage: metric.diskUsage,
+  };
+};
+
+function MonitorSummaryBar({
+  wsConnected,
+  wsConnecting,
+  onlineNodeCount,
+  nodeCount,
+  onlineInstanceCount,
+  instanceCount,
+  serviceSummary,
+}: {
+  wsConnected: boolean;
+  wsConnecting: boolean;
+  onlineNodeCount: number;
+  nodeCount: number;
+  onlineInstanceCount: number;
+  instanceCount: number;
+  serviceSummary: ServiceSummary;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className="inline-flex items-center gap-2 text-default-600">
+        <span
+          className={`h-2 w-2 rounded-full ${wsConnected ? "bg-success" : wsConnecting ? "bg-warning" : "bg-default-300"}`}
+        />
+        {wsConnected
+          ? "实时已连接"
+          : wsConnecting
+            ? "实时连接中"
+            : "实时未连接"}
+      </span>
+      <span className="rounded-md bg-primary px-2.5 py-1 font-semibold text-primary-foreground">
+        节点 {onlineNodeCount}/{nodeCount}
+      </span>
+      <span className="rounded-md bg-secondary px-2.5 py-1 font-semibold text-secondary-foreground">
+        实例 {onlineInstanceCount}/{instanceCount}
+      </span>
+      <span className="rounded-md bg-success px-2.5 py-1 font-semibold text-white">
+        服务监控 成功 {serviceSummary.ok} / 失败 {serviceSummary.fail}
+      </span>
+    </div>
+  );
+}
 
 function NodeInstanceGroupsView({
   groups,
   loading,
+  realtimeMetrics,
   onEditWeight,
   onOpenDetail,
 }: {
   groups: MonitorNodeInstanceGroupApiItem[];
   loading: boolean;
+  realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>;
   onEditWeight: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onOpenDetail: (nodeId: number) => void;
 }) {
@@ -146,137 +299,182 @@ function NodeInstanceGroupsView({
   }
 
   return (
-    <div className="space-y-4">
-      {groups.map((group) => (
-        <Card
-          key={group.id}
-          className="overflow-hidden border border-divider bg-content1"
-        >
-          <CardHeader className="border-b border-divider bg-default-100/40 px-4 py-3">
-            <div className="flex flex-col gap-2 w-full md:flex-row md:items-center md:justify-between">
+    <div className="space-y-5">
+      {groups.map((group) => {
+        const members = group.members.map((member) =>
+          mergeRealtimeMetric(member, realtimeMetrics),
+        );
+        const totalOutSpeed = members.reduce(
+          (sum, member) => sum + member.netOutSpeed,
+          0,
+        );
+        const totalInSpeed = members.reduce(
+          (sum, member) => sum + member.netInSpeed,
+          0,
+        );
+
+        return (
+          <section
+            key={group.id}
+            className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-sm"
+          >
+            <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="rounded-full border border-divider px-3 py-1 text-xs font-medium text-foreground truncate">
+                <span className="rounded-full border border-default-300 px-4 py-1.5 text-sm font-medium text-secondary truncate">
                   {group.name} | ID: {group.id}
                 </span>
                 <span className="text-xs text-default-500">
-                  {group.members.length} 个实例
+                  {members.length} 个实例
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-xs font-mono">
-                <span className="rounded-md bg-secondary-500/10 px-3 py-1 text-secondary-600">
-                  ↑ {formatSpeed(group.totalOutSpeed)}
+              <div className="flex items-center gap-3 text-sm font-mono">
+                <span className="inline-flex min-w-[120px] items-center gap-2 rounded-md bg-secondary-500/15 px-4 py-2 text-secondary-700">
+                  <ArrowUp className="h-4 w-4" />
+                  {formatSpeed(totalOutSpeed)}
                 </span>
-                <span className="rounded-md bg-primary-500/10 px-3 py-1 text-primary-600">
-                  ↓ {formatSpeed(group.totalInSpeed)}
+                <span className="inline-flex min-w-[120px] items-center gap-2 rounded-md bg-primary-500/15 px-4 py-2 text-primary-700">
+                  <ArrowDown className="h-4 w-4" />
+                  {formatSpeed(totalInSpeed)}
                 </span>
               </div>
             </div>
-          </CardHeader>
-          <CardBody className="p-0">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="border-b border-divider bg-default-50 text-xs text-default-500">
-                  <tr>
-                    <th className="px-4 py-2 text-left">状态</th>
-                    <th className="px-4 py-2 text-left">节点实例</th>
-                    <th className="px-4 py-2 text-left">IPv4</th>
-                    <th className="px-4 py-2 text-left">IPv6</th>
-                    <th className="px-4 py-2 text-right">速率</th>
-                    <th className="px-4 py-2 text-right">开机时长</th>
-                    <th className="px-4 py-2 text-right">流量</th>
-                    <th className="px-4 py-2 text-right">在线数</th>
-                    <th className="px-4 py-2 text-right">权重</th>
-                    <th className="px-4 py-2 text-center">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.members.map((member) => (
-                    <tr
-                      key={`${member.nodeId}:${member.instanceId || "default"}`}
-                      className="border-b border-divider/50 last:border-b-0 hover:bg-default-50/50"
-                    >
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex h-6 w-6 items-center justify-center rounded-md ${member.status === 1 ? "bg-success-500/15 text-success-600" : "bg-danger-500/15 text-danger-600"}`}
-                        >
-                          ●
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
-                        <div>{getInstanceName(member)}</div>
-                        <div
-                          className="text-xs font-normal text-default-400"
-                          title={member.instanceId || "默认实例"}
-                        >
-                          实例 {formatInstanceId(member.instanceId)}
-                        </div>
-                      </td>
-                      <td
-                        className="px-4 py-3 text-default-600 whitespace-nowrap"
-                        title={getMonitorIPTitle(member, "v4")}
-                      >
-                        {getMonitorDisplayIP(member, "v4")}
-                      </td>
-                      <td
-                        className="px-4 py-3 text-default-600 whitespace-nowrap"
-                        title={getMonitorIPTitle(member, "v6")}
-                      >
-                        {getMonitorDisplayIP(member, "v6")}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs whitespace-nowrap">
-                        <div>{formatSpeed(member.netOutSpeed)}↑</div>
-                        <div>{formatSpeed(member.netInSpeed)}↓</div>
-                      </td>
-                      <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {formatUptime(member.uptime)}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs whitespace-nowrap">
-                        <div>{formatBytes(member.periodTx)}↑</div>
-                        <div>{formatBytes(member.periodRx)}↓</div>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono tabular-nums">
-                        {member.onlineCount}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono tabular-nums">
-                        {member.weight}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-center gap-2">
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="flat"
-                            onPress={() => onEditWeight(member)}
-                          >
-                            <List className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            isDisabled
-                            isIconOnly
-                            size="sm"
-                            variant="flat"
-                            onPress={() => toast("SSH 稍后实现")}
-                          >
-                            <TerminalSquare className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="flat"
-                            onPress={() => onOpenDetail(member.nodeId)}
-                          >
-                            <Info className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
+            <div className="px-4 pb-4">
+              <div className="overflow-x-auto">
+                <table className="min-w-[1380px] w-full text-sm">
+                  <thead className="border-b border-default-400/70 text-sm text-foreground">
+                    <tr>
+                      <th className="px-3 py-2 text-center">状态</th>
+                      <th className="px-3 py-2 text-left">节点实例</th>
+                      <th className="px-3 py-2 text-center">v4 地区</th>
+                      <th className="px-3 py-2 text-center">v6 地区</th>
+                      <th className="px-3 py-2 text-center">出口 IP</th>
+                      <th className="px-3 py-2 text-center">速率</th>
+                      <th className="px-3 py-2 text-center">开机时长</th>
+                      <th className="px-3 py-2 text-center">流量</th>
+                      <th className="px-3 py-2 text-center">CPU</th>
+                      <th className="px-3 py-2 text-center">RAM</th>
+                      <th className="px-3 py-2 text-center">存储</th>
+                      <th className="px-3 py-2 text-center">权重</th>
+                      <th className="px-3 py-2 text-center">操作</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {members.map((member) => {
+                      const instanceId = formatInstanceId(member.instanceId);
+
+                      return (
+                        <tr
+                          key={getInstanceMetricKey(
+                            member.nodeId,
+                            member.instanceId,
+                          )}
+                          className="border-b border-divider/50 last:border-b-0 hover:bg-default-50/50"
+                        >
+                          <td className="px-3 py-3 text-center">
+                            <span
+                              className={`inline-flex h-7 w-7 items-center justify-center rounded-md ${member.status === 1 ? "bg-success-500 text-white" : "bg-danger-100 text-danger"}`}
+                            >
+                              ●
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-left font-medium text-foreground whitespace-nowrap">
+                            <div>{getInstanceName(member)}</div>
+                            <div
+                              className="text-xs font-normal text-default-400"
+                              title={member.instanceId}
+                            >
+                              {instanceId}
+                            </div>
+                          </td>
+                          <td
+                            className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap"
+                            title={getMonitorIPTitle(member, "v4")}
+                          >
+                            {getMonitorDisplayIP(member, "v4")}
+                          </td>
+                          <td
+                            className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap"
+                            title={getMonitorIPTitle(member, "v6")}
+                          >
+                            {getMonitorDisplayIP(member, "v6")}
+                          </td>
+                          <td className="px-3 py-3 text-center font-mono text-xs text-default-600 whitespace-nowrap">
+                            {getMonitorPrimaryDisplayIP(member)}
+                          </td>
+                          <td className="px-3 py-3 text-center font-mono text-xs whitespace-nowrap">
+                            <div>{formatSpeed(member.netOutSpeed)}↑</div>
+                            <div>{formatSpeed(member.netInSpeed)}↓</div>
+                          </td>
+                          <td className="px-3 py-3 text-center whitespace-nowrap">
+                            {formatUptime(member.uptime)}
+                          </td>
+                          <td className="px-3 py-3 text-center font-mono text-xs whitespace-nowrap">
+                            <div>{formatBytes(member.periodTx)}↑</div>
+                            <div>{formatBytes(member.periodRx)}↓</div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex justify-center">
+                              <UsageMeter tone="cpu" value={member.cpuUsage} />
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex justify-center">
+                              <UsageMeter
+                                tone="memory"
+                                value={member.memoryUsage}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex justify-center">
+                              <UsageMeter
+                                tone="disk"
+                                value={member.diskUsage}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 text-center font-mono tabular-nums">
+                            {member.weight}
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex justify-center gap-2">
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="flat"
+                                onPress={() => onEditWeight(member)}
+                              >
+                                <List className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                isDisabled
+                                isIconOnly
+                                size="sm"
+                                variant="flat"
+                                onPress={() => toast("SSH 稍后实现")}
+                              >
+                                <TerminalSquare className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="flat"
+                                onPress={() => onOpenDetail(member.nodeId)}
+                              >
+                                <Info className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </CardBody>
-        </Card>
-      ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -286,6 +484,21 @@ export default function MonitorPage() {
   const [nodeInstanceGroups, setNodeInstanceGroups] = useState<
     MonitorNodeInstanceGroupApiItem[]
   >([]);
+  const [serviceMonitors, setServiceMonitors] = useState<
+    ServiceMonitorApiItem[]
+  >([]);
+  const [serviceMonitorResults, setServiceMonitorResults] = useState<
+    ServiceMonitorResultApiItem[]
+  >([]);
+  const [realtimeNodeStatus, setRealtimeNodeStatus] = useState<
+    Record<number, "online" | "offline">
+  >({});
+  const [realtimeInstanceMetrics, setRealtimeInstanceMetrics] = useState<
+    Record<string, RealtimeNodeInstanceMetric>
+  >({});
+  const offlineTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
   const [nodesLoading, setNodesLoading] = useState(false);
   const [nodeInstanceGroupsLoading, setNodeInstanceGroupsLoading] =
     useState(false);
@@ -348,7 +561,7 @@ export default function MonitorPage() {
         const response = await getMonitorNodeInstanceGroups();
 
         if (response.code === 0 && Array.isArray(response.data)) {
-          setNodeInstanceGroups(response.data);
+          setNodeInstanceGroups(filterRealInstanceGroups(response.data));
 
           return;
         }
@@ -389,11 +602,41 @@ export default function MonitorPage() {
     }
   }, []);
 
+  const loadServiceSummary = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+
+      try {
+        const [monitorsResponse, resultsResponse] = await Promise.all([
+          getServiceMonitorList(),
+          getServiceMonitorLatestResults(),
+        ]);
+
+        if (
+          monitorsResponse.code === 0 &&
+          Array.isArray(monitorsResponse.data)
+        ) {
+          setServiceMonitors(monitorsResponse.data);
+        }
+        if (resultsResponse.code === 0 && Array.isArray(resultsResponse.data)) {
+          setServiceMonitorResults(resultsResponse.data);
+        }
+      } catch {
+        if (!silent) toast.error("加载服务监控统计失败");
+      }
+    },
+    [],
+  );
+
   const loadNodeTab = useCallback(
     async (options?: { silent?: boolean }) => {
-      await Promise.all([loadNodes(options), loadNodeInstanceGroups(options)]);
+      await Promise.all([
+        loadNodes(options),
+        loadNodeInstanceGroups(options),
+        loadServiceSummary(options),
+      ]);
     },
-    [loadNodes, loadNodeInstanceGroups],
+    [loadNodes, loadNodeInstanceGroups, loadServiceSummary],
   );
 
   const refreshActiveTab = useCallback(() => {
@@ -408,17 +651,117 @@ export default function MonitorPage() {
   useEffect(() => {
     void loadNodes();
     void loadNodeInstanceGroups();
-  }, [loadNodes, loadNodeInstanceGroups]);
+    void loadServiceSummary();
+  }, [loadNodes, loadNodeInstanceGroups, loadServiceSummary]);
   usePullToRefresh(refreshActiveTab);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       void loadNodes({ silent: true });
       void loadNodeInstanceGroups({ silent: true });
+      void loadServiceSummary({ silent: true });
     }, 30_000);
 
     return () => window.clearInterval(timer);
-  }, [loadNodes, loadNodeInstanceGroups]);
+  }, [loadNodes, loadNodeInstanceGroups, loadServiceSummary]);
+
+  const handleRealtimeMessage = useCallback((message: any) => {
+    const nodeId = Number(message?.id ?? 0);
+
+    if (!nodeId || Number.isNaN(nodeId)) return;
+
+    const type = String(message?.type ?? "");
+    const payload = message?.data;
+
+    if (type === "status") {
+      const status = Number(payload);
+
+      if (status === 1) {
+        const timer = offlineTimersRef.current.get(nodeId);
+
+        if (timer) {
+          clearTimeout(timer);
+          offlineTimersRef.current.delete(nodeId);
+        }
+        setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
+      } else {
+        const timer = offlineTimersRef.current.get(nodeId);
+
+        if (timer) clearTimeout(timer);
+        const nextTimer = setTimeout(() => {
+          offlineTimersRef.current.delete(nodeId);
+          setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "offline" }));
+        }, 3000);
+
+        offlineTimersRef.current.set(nodeId, nextTimer);
+      }
+
+      return;
+    }
+
+    if (type !== "metric") return;
+
+    let raw = payload;
+
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch {
+        return;
+      }
+    }
+    if (!raw || typeof raw !== "object") return;
+
+    const metric = raw as Record<string, unknown>;
+    const instanceId = String(
+      metric.instanceId ?? metric.instance_id ?? "",
+    ).trim();
+
+    if (!isRealInstanceId(instanceId)) return;
+
+    const tcpConns = Number(metric.tcpConns ?? metric.tcp_conns ?? 0);
+    const udpConns = Number(metric.udpConns ?? metric.udp_conns ?? 0);
+
+    setRealtimeInstanceMetrics((prev) => ({
+      ...prev,
+      [getInstanceMetricKey(nodeId, instanceId)]: {
+        receivedAt: Date.now(),
+        hostname: String(metric.hostname ?? ""),
+        netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
+        netOutBytes: Number(
+          metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
+        ),
+        netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
+        netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
+        uptime: Number(
+          metric.uptime ??
+            prev[getInstanceMetricKey(nodeId, instanceId)]?.uptime ??
+            0,
+        ),
+        periodRx: Number(metric.periodRx ?? metric.period_bytes_received ?? 0),
+        periodTx: Number(
+          metric.periodTx ?? metric.period_bytes_transmitted ?? 0,
+        ),
+        onlineCount: tcpConns + udpConns,
+        cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
+        memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
+        diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
+      },
+    }));
+    setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
+  }, []);
+
+  const { wsConnected, wsConnecting } = useNodeRealtime({
+    onMessage: handleRealtimeMessage,
+    enabled: activeTab === "nodes" && detailNodeId == null,
+  });
+
+  useEffect(() => {
+    return () => {
+      offlineTimersRef.current.forEach((timer) => clearTimeout(timer));
+      offlineTimersRef.current.clear();
+    };
+  }, []);
 
   const openWeightModal = useCallback(
     (member: MonitorNodeInstanceGroupMemberApiItem) => {
@@ -466,19 +809,76 @@ export default function MonitorPage() {
   );
 
   const nodeMap = useMemo(() => {
+    const instanceCounts = new Map<number, { total: number; online: number }>();
+
+    nodeInstanceGroups.forEach((group) => {
+      const members = group.members.map((member) =>
+        mergeRealtimeMetric(member, realtimeInstanceMetrics),
+      );
+
+      instanceCounts.set(group.id, {
+        total: members.length,
+        online: members.filter((member) => member.status === 1).length,
+      });
+    });
+
     const list: MonitorNode[] = nodes
       .filter((n) => Number(n.id) > 0)
-      .map((n) => ({
-        id: Number(n.id),
-        name: String(n.name ?? ""),
-        connectionStatus: n.status === 1 ? "online" : "offline",
-        version: n.version,
-        instanceCount: Number(n.instanceCount ?? 0),
-        onlineInstanceCount: Number(n.onlineInstanceCount ?? 0),
-      }));
+      .map((n) => {
+        const id = Number(n.id);
+        const counts = instanceCounts.get(id);
+        const realtimeStatus = realtimeNodeStatus[id];
+
+        return {
+          id,
+          name: String(n.name ?? ""),
+          connectionStatus:
+            realtimeStatus ?? (n.status === 1 ? "online" : "offline"),
+          version: n.version,
+          instanceCount: counts?.total ?? Number(n.instanceCount ?? 0),
+          onlineInstanceCount:
+            counts?.online ?? Number(n.onlineInstanceCount ?? 0),
+        };
+      });
 
     return new Map<number, MonitorNode>(list.map((n) => [n.id, n]));
-  }, [nodes]);
+  }, [nodeInstanceGroups, nodes, realtimeInstanceMetrics, realtimeNodeStatus]);
+
+  const monitorNodes = useMemo(() => Array.from(nodeMap.values()), [nodeMap]);
+  const nodeSummary = useMemo(() => {
+    return monitorNodes.reduce(
+      (acc, node) => {
+        acc.total += 1;
+        if (node.connectionStatus === "online") acc.online += 1;
+        acc.instances += Number(node.instanceCount ?? 0);
+        acc.onlineInstances += Number(node.onlineInstanceCount ?? 0);
+
+        return acc;
+      },
+      { total: 0, online: 0, instances: 0, onlineInstances: 0 },
+    );
+  }, [monitorNodes]);
+  const serviceSummary = useMemo(() => {
+    const resultByMonitorId = new Map<number, ServiceMonitorResultApiItem>();
+
+    serviceMonitorResults.forEach((result) => {
+      resultByMonitorId.set(Number(result.monitorId), result);
+    });
+
+    return serviceMonitors.reduce<ServiceSummary>(
+      (acc, monitor) => {
+        if (monitor.enabled !== 1) return acc;
+        const result = resultByMonitorId.get(Number(monitor.id));
+
+        if (!result) return acc;
+        if (result.success === 1) acc.ok += 1;
+        else acc.fail += 1;
+
+        return acc;
+      },
+      { ok: 0, fail: 0 },
+    );
+  }, [serviceMonitorResults, serviceMonitors]);
 
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">
@@ -524,8 +924,7 @@ export default function MonitorPage() {
             variant="flat"
             onPress={() => {
               if (activeTab === "nodes") {
-                loadNodes();
-                loadNodeInstanceGroups();
+                void loadNodeTab();
               } else {
                 setTunnelRefreshTrigger((prev) => prev + 1);
               }
@@ -553,12 +952,24 @@ export default function MonitorPage() {
         <div className={activeTab === "nodes" ? "block" : "hidden"}>
           <div className="space-y-4">
             {detailNodeId == null ? (
-              <NodeInstanceGroupsView
-                groups={nodeInstanceGroups}
-                loading={nodeInstanceGroupsLoading}
-                onEditWeight={openWeightModal}
-                onOpenDetail={setDetailNodeId}
-              />
+              <>
+                <MonitorSummaryBar
+                  instanceCount={nodeSummary.instances}
+                  nodeCount={nodeSummary.total}
+                  onlineInstanceCount={nodeSummary.onlineInstances}
+                  onlineNodeCount={nodeSummary.online}
+                  serviceSummary={serviceSummary}
+                  wsConnected={wsConnected}
+                  wsConnecting={wsConnecting}
+                />
+                <NodeInstanceGroupsView
+                  groups={nodeInstanceGroups}
+                  loading={nodeInstanceGroupsLoading}
+                  realtimeMetrics={realtimeInstanceMetrics}
+                  onEditWeight={openWeightModal}
+                  onOpenDetail={setDetailNodeId}
+                />
+              </>
             ) : (
               <MonitorView
                 hideList

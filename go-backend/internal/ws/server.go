@@ -314,8 +314,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func normalizeInstanceID(instanceID string) string {
 	instanceID = strings.TrimSpace(instanceID)
-	if instanceID == "" {
-		return "default"
+	if instanceID == "" || strings.EqualFold(instanceID, "default") {
+		return ""
 	}
 	if len(instanceID) > 100 {
 		return instanceID[:100]
@@ -512,6 +512,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					Data json.RawMessage `json:"data"`
 				}
 				if err := json.Unmarshal([]byte(msg), &envelope); err == nil && len(envelope.Data) > 0 {
+					metricData := envelope.Data
 					// 解析 SystemInfo 并调用 hook
 					var sysInfo SystemInfo
 					if json.Unmarshal(envelope.Data, &sysInfo) == nil {
@@ -520,6 +521,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 						}
 						if strings.TrimSpace(sysInfo.Hostname) == "" {
 							sysInfo.Hostname = ns.hostname
+						}
+						if normalizedMetricData, err := json.Marshal(sysInfo); err == nil {
+							metricData = normalizedMetricData
 						}
 						// 缓存服务连接数
 						s.mu.Lock()
@@ -572,7 +576,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 						}
 					}
 					// 广播内层 data 给前端（保持平坦结构兼容性）
-					s.broadcastTyped(nodeID, "metric", string(envelope.Data))
+					s.broadcastTyped(nodeID, "metric", string(metricData))
 				}
 				continue
 			case "ReportPublicIP":
