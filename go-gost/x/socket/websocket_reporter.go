@@ -138,65 +138,6 @@ type CommandResponse struct {
 	RequestId string      `json:"requestId,omitempty"`
 }
 
-const (
-	terminalExecDefaultTimeoutSec = 30
-	terminalExecMaxTimeoutSec     = 60
-	terminalExecOutputLimitBytes  = 256 * 1024
-)
-
-// TerminalExecRequest runs one shell command on the node instance.
-type TerminalExecRequest struct {
-	Command    string `json:"command"`
-	TimeoutSec int    `json:"timeoutSec,omitempty"`
-}
-
-// TerminalExecResult is returned even when the command exits non-zero.
-type TerminalExecResult struct {
-	Command    string `json:"command"`
-	Stdout     string `json:"stdout"`
-	Stderr     string `json:"stderr"`
-	ExitCode   int    `json:"exitCode"`
-	DurationMs int64  `json:"durationMs"`
-	TimedOut   bool   `json:"timedOut"`
-	Truncated  bool   `json:"truncated"`
-	Shell      string `json:"shell"`
-}
-
-type terminalLimitedBuffer struct {
-	buf       bytes.Buffer
-	limit     int
-	truncated bool
-}
-
-func (b *terminalLimitedBuffer) Write(p []byte) (int, error) {
-	written := len(p)
-	if b.limit <= 0 {
-		return written, nil
-	}
-	remaining := b.limit - b.buf.Len()
-	if remaining <= 0 {
-		if len(p) > 0 {
-			b.truncated = true
-		}
-		return written, nil
-	}
-	if len(p) > remaining {
-		_, _ = b.buf.Write(p[:remaining])
-		b.truncated = true
-		return written, nil
-	}
-	_, _ = b.buf.Write(p)
-	return written, nil
-}
-
-func (b *terminalLimitedBuffer) String() string {
-	return b.buf.String()
-}
-
-func (b *terminalLimitedBuffer) Truncated() bool {
-	return b.truncated
-}
-
 // TcpPingRequest TCP ping请求结构体
 type TcpPingRequest struct {
 	IP        string `json:"ip"`
@@ -1762,13 +1703,6 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		response.Type = "ListServicesResponse"
 		response.Data = listResult
 
-	// Run one shell command for the panel terminal (read-only to config).
-	case "TerminalExec":
-		var terminalResult TerminalExecResult
-		terminalResult, err = w.handleTerminalExec(cmd.Data)
-		response.Type = "TerminalExecResponse"
-		response.Data = terminalResult
-
 	// Service monitor check (read-only)
 	case "ServiceMonitorCheck":
 		var checkResult ServiceMonitorCheckResult
@@ -1847,8 +1781,12 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		needSaveConfig = true
 
 	default:
-		err = fmt.Errorf("未知命令类型: %s", cmd.Type)
-		response.Type = "UnknownCommandResponse"
+		var handled bool
+		handled, err = w.routeCommandExtension(cmd, &response)
+		if !handled {
+			err = fmt.Errorf("未知命令类型: %s", cmd.Type)
+			response.Type = "UnknownCommandResponse"
+		}
 	}
 
 	// 只有状态变更命令才保存配置
@@ -2993,113 +2931,6 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 
 	reporter.Start()
 	return reporter
-}
-
-func (w *WebSocketReporter) handleTerminalExec(data interface{}) (TerminalExecResult, error) {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return TerminalExecResult{}, fmt.Errorf("序列化终端命令失败: %v", err)
-	}
-
-	var req TerminalExecRequest
-	if err := json.Unmarshal(jsonData, &req); err != nil {
-		return TerminalExecResult{}, fmt.Errorf("解析终端命令失败: %v", err)
-	}
-
-	command := strings.TrimSpace(req.Command)
-	if command == "" {
-		return TerminalExecResult{}, fmt.Errorf("命令不能为空")
-	}
-	if len(command) > 4096 {
-		return TerminalExecResult{}, fmt.Errorf("命令过长")
-	}
-
-	timeoutSec := req.TimeoutSec
-	if timeoutSec <= 0 {
-		timeoutSec = terminalExecDefaultTimeoutSec
-	}
-	if timeoutSec > terminalExecMaxTimeoutSec {
-		timeoutSec = terminalExecMaxTimeoutSec
-	}
-
-	shell, args, err := terminalShellCommand(command)
-	if err != nil {
-		return TerminalExecResult{}, err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, shell, args...)
-	var stdout terminalLimitedBuffer
-	var stderr terminalLimitedBuffer
-	stdout.limit = terminalExecOutputLimitBytes
-	stderr.limit = terminalExecOutputLimitBytes
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	startedAt := time.Now()
-	err = cmd.Run()
-	durationMs := time.Since(startedAt).Milliseconds()
-	timedOut := ctx.Err() == context.DeadlineExceeded
-	exitCode := 0
-
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else if timedOut {
-			exitCode = -1
-		} else {
-			return TerminalExecResult{}, fmt.Errorf("执行命令失败: %v", err)
-		}
-	}
-	if timedOut && stderr.String() == "" {
-		_, _ = stderr.Write([]byte(fmt.Sprintf("command timed out after %ds\n", timeoutSec)))
-	}
-
-	return TerminalExecResult{
-		Command:    command,
-		Stdout:     stdout.String(),
-		Stderr:     stderr.String(),
-		ExitCode:   exitCode,
-		DurationMs: durationMs,
-		TimedOut:   timedOut,
-		Truncated:  stdout.Truncated() || stderr.Truncated(),
-		Shell:      shell,
-	}, nil
-}
-
-func terminalShellCommand(command string) (string, []string, error) {
-	if runtime.GOOS == "windows" {
-		shell := strings.TrimSpace(os.Getenv("COMSPEC"))
-		if shell == "" {
-			shell = "cmd.exe"
-		}
-		if path, err := exec.LookPath(shell); err == nil {
-			shell = path
-		}
-		return shell, []string{"/C", command}, nil
-	}
-
-	if shell := strings.TrimSpace(os.Getenv("SHELL")); shell != "" {
-		if path, err := exec.LookPath(shell); err == nil {
-			return path, terminalShellArgs(path, command), nil
-		}
-	}
-	for _, shell := range []string{"/bin/bash", "/bin/sh", "bash", "sh"} {
-		if path, err := exec.LookPath(shell); err == nil {
-			return path, terminalShellArgs(path, command), nil
-		}
-	}
-	return "", nil, fmt.Errorf("找不到可用 shell")
-}
-
-func terminalShellArgs(shell string, command string) []string {
-	name := strings.ToLower(filepath.Base(shell))
-	if strings.Contains(name, "bash") || strings.Contains(name, "zsh") {
-		return []string{"-lc", command}
-	}
-	return []string{"-c", command}
 }
 
 // handleTcpPing 处理TCP ping诊断命令

@@ -5,7 +5,6 @@ import type {
   GroupPermissionApiItem,
   NodeGroupApiItem,
   NodeGroupMutationPayload,
-  NodeTerminalExecApiData,
   NodeReleaseApiItem,
   NodeApiItem,
   NodeTagApiItem,
@@ -142,14 +141,6 @@ export const updateNodeWeight = (
   weight: number,
   instanceId?: string,
 ) => Network.post("/node/weight", { nodeId, weight, instanceId });
-export const execNodeTerminalCommand = (data: {
-  nodeId: number;
-  instanceId: string;
-  command: string;
-  timeoutSec?: number;
-}) => Network.post<NodeTerminalExecApiData>("/node/terminal/exec", data, {
-  timeout: ((data.timeoutSec ?? 30) + 10) * 1000,
-});
 export const issueNodeSDWANCert = (id: number, vpnIp?: string) =>
   Network.post<{
     vpnIp: string;

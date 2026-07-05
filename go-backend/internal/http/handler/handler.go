@@ -344,7 +344,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/pause", h.nodePause)
 	mux.HandleFunc("/api/v1/node/resume", h.nodeResume)
 	mux.HandleFunc("/api/v1/node/weight", h.nodeWeightUpdate)
-	mux.HandleFunc("/api/v1/node/terminal/exec", h.nodeTerminalExec)
 	mux.HandleFunc("/api/v1/node/info", h.nodeInfo)
 	mux.HandleFunc("/api/v1/node/report-ip", h.nodeReportIP)
 	mux.HandleFunc("/api/v1/node/install-mimic-deps", h.installMimicDeps)
@@ -537,6 +536,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/flow/config", h.flowConfig)
 	mux.HandleFunc("/flow/upload", h.flowUpload)
 	mux.HandleFunc("/error", h.errorPage)
+
+	h.registerRouteExtensions(mux)
 }
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {

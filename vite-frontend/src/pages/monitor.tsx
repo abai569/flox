@@ -2,14 +2,11 @@ import type {
   MonitorNodeApiItem,
   MonitorNodeInstanceGroupApiItem,
   MonitorNodeInstanceGroupMemberApiItem,
-  NodeTerminalExecApiData,
   ServiceMonitorApiItem,
   ServiceMonitorResultApiItem,
 } from "@/api/types";
 
 import {
-  type FormEvent,
-  type KeyboardEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -23,7 +20,6 @@ import { AnimatedPage } from "@/components/animated-page";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import {
-  execNodeTerminalCommand,
   getMonitorNodes,
   getMonitorNodeInstanceGroups,
   getServiceMonitorLatestResults,
@@ -32,6 +28,10 @@ import {
 } from "@/api";
 import { MonitorView } from "@/pages/node/monitor-view";
 import { TunnelMonitorView } from "@/pages/node/tunnel-monitor-view";
+import {
+  MonitorTerminalButton,
+  MonitorTerminalProvider,
+} from "@/pages/monitor-terminal";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import {
@@ -41,7 +41,7 @@ import {
   ModalFooter,
   ModalHeader,
 } from "@/shadcn-bridge/heroui/modal";
-import { Input, Textarea } from "@/shadcn-bridge/heroui/input";
+import { Input } from "@/shadcn-bridge/heroui/input";
 
 type MonitorNode = {
   id: number;
@@ -101,14 +101,6 @@ type ServiceSummary = {
   ok: number;
   fail: number;
 };
-
-type TerminalLine = {
-  id: number;
-  tone: "input" | "stdout" | "stderr" | "system";
-  text: string;
-};
-
-const TERMINAL_EXEC_TIMEOUT_SEC = 60;
 
 const MONITOR_INSTANCE_TABLE_COLUMNS = [
   "4%",
@@ -332,40 +324,6 @@ const getMonitorPrimaryDisplayIP = (
   return v4 !== "-" ? v4 : getMonitorDisplayIP(member, "v6");
 };
 
-const getMonitorTerminalTargetLabel = (
-  member?: MonitorNodeInstanceGroupMemberApiItem | null,
-): string => {
-  if (!member) return "-";
-
-  return member.hostname || member.instanceId || member.nodeName || "-";
-};
-
-const appendTerminalOutput = (
-  lines: TerminalLine[],
-  result: NodeTerminalExecApiData,
-): TerminalLine[] => {
-  const next = [...lines];
-  const stdout = result.stdout?.trimEnd() || "";
-  const stderr = result.stderr?.trimEnd() || "";
-  const statusText = result.timedOut
-    ? `命令超时，已终止 (${result.durationMs} ms)`
-    : `退出码 ${result.exitCode}，耗时 ${result.durationMs} ms`;
-
-  if (stdout) {
-    next.push({ id: Date.now() + next.length, tone: "stdout", text: stdout });
-  }
-  if (stderr) {
-    next.push({ id: Date.now() + next.length, tone: "stderr", text: stderr });
-  }
-  next.push({
-    id: Date.now() + next.length,
-    tone: result.exitCode === 0 && !result.timedOut ? "system" : "stderr",
-    text: result.truncated ? `${statusText}，输出已截断` : statusText,
-  });
-
-  return next;
-};
-
 function UsageMeter({
   value,
   tone,
@@ -471,14 +429,12 @@ function NodeInstanceGroupsView({
   realtimeMetrics,
   onEditWeight,
   onOpenDetail,
-  onOpenTerminal,
 }: {
   groups: MonitorNodeInstanceGroupApiItem[];
   loading: boolean;
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>;
   onEditWeight: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onOpenDetail: (nodeId: number) => void;
-  onOpenTerminal: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
 }) {
   if (loading && groups.length === 0) {
     return (
@@ -664,14 +620,10 @@ function NodeInstanceGroupsView({
                               >
                                 权重
                               </Button>
-                              <Button
+                              <MonitorTerminalButton
                                 className="h-8 px-3 text-xs font-medium"
-                                size="sm"
-                                variant="flat"
-                                onPress={() => onOpenTerminal(member)}
-                              >
-                                终端
-                              </Button>
+                                member={member}
+                              />
                               <Button
                                 className="h-8 px-3 text-xs font-medium"
                                 size="sm"
@@ -725,13 +677,6 @@ export default function MonitorPage() {
     useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [weightValue, setWeightValue] = useState("");
   const [weightSaving, setWeightSaving] = useState(false);
-  const [terminalOpen, setTerminalOpen] = useState(false);
-  const [terminalTarget, setTerminalTarget] =
-    useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
-  const [terminalCommand, setTerminalCommand] = useState("");
-  const [terminalRunning, setTerminalRunning] = useState(false);
-  const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([]);
-  const terminalOutputRef = useRef<HTMLDivElement | null>(null);
   const [detailNodeId, setDetailNodeId] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
     try {
@@ -998,104 +943,6 @@ export default function MonitorPage() {
     [],
   );
 
-  const openTerminalModal = useCallback(
-    (member: MonitorNodeInstanceGroupMemberApiItem) => {
-      setTerminalTarget(member);
-      setTerminalCommand("");
-      setTerminalLines([
-        {
-          id: Date.now(),
-          tone: "system",
-          text: `已连接到 ${getMonitorTerminalTargetLabel(member)}，输入命令后执行。`,
-        },
-      ]);
-      setTerminalOpen(true);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const element = terminalOutputRef.current;
-
-    if (!element) return;
-    element.scrollTop = element.scrollHeight;
-  }, [terminalLines]);
-
-  const runTerminalCommand = useCallback(async () => {
-    if (!terminalTarget || terminalRunning) return;
-
-    const command = terminalCommand.trim();
-
-    if (!command) {
-      toast.error("请输入命令");
-
-      return;
-    }
-    const instanceId = terminalTarget.instanceId?.trim() || "";
-
-    if (!isRealInstanceId(instanceId)) {
-      toast.error("节点实例无效");
-
-      return;
-    }
-
-    const startedAt = Date.now();
-
-    setTerminalRunning(true);
-    setTerminalLines((prev) => [
-      ...prev,
-      { id: startedAt, tone: "input", text: `$ ${command}` },
-    ]);
-    try {
-      const res = await execNodeTerminalCommand({
-        nodeId: terminalTarget.nodeId,
-        instanceId,
-        command,
-        timeoutSec: TERMINAL_EXEC_TIMEOUT_SEC,
-      });
-
-      if (res.code === 0 && res.data) {
-        setTerminalLines((prev) => appendTerminalOutput(prev, res.data));
-        setTerminalCommand("");
-
-        return;
-      }
-      setTerminalLines((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          tone: "stderr",
-          text: res.msg || "命令执行失败",
-        },
-      ]);
-    } catch {
-      setTerminalLines((prev) => [
-        ...prev,
-        { id: Date.now(), tone: "stderr", text: "命令执行失败" },
-      ]);
-    } finally {
-      setTerminalRunning(false);
-    }
-  }, [terminalCommand, terminalRunning, terminalTarget]);
-
-  const handleTerminalSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      void runTerminalCommand();
-    },
-    [runTerminalCommand],
-  );
-
-  const handleTerminalCommandKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-        event.preventDefault();
-        void runTerminalCommand();
-      }
-    },
-    [runTerminalCommand],
-  );
-
   const saveWeight = useCallback(
     async (overrideWeight?: number) => {
       if (!weightTarget) return;
@@ -1205,7 +1052,8 @@ export default function MonitorPage() {
   }, [serviceMonitorResults, serviceMonitors]);
 
   return (
-    <AnimatedPage className="px-3 lg:px-6 py-8">
+    <MonitorTerminalProvider>
+      <AnimatedPage className="px-3 lg:px-6 py-8">
       <div className="mb-4 space-y-3">
         {/* 第一行：左侧按钮组 */}
         <div className="flex items-center gap-1">
@@ -1292,7 +1140,6 @@ export default function MonitorPage() {
                   realtimeMetrics={realtimeInstanceMetrics}
                   onEditWeight={openWeightModal}
                   onOpenDetail={setDetailNodeId}
-                  onOpenTerminal={openTerminalModal}
                 />
               </>
             ) : (
@@ -1368,94 +1215,7 @@ export default function MonitorPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-      <Modal
-        isDismissable={false}
-        isOpen={terminalOpen}
-        scrollBehavior="inside"
-        size="4xl"
-        onOpenChange={(open) => {
-          if (open) setTerminalOpen(true);
-        }}
-      >
-        <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">
-            <span>实例终端</span>
-            <span className="text-xs font-normal text-default-500">
-              {terminalTarget
-                ? `${terminalTarget.nodeName} / ${getMonitorTerminalTargetLabel(terminalTarget)} / ${terminalTarget.instanceId || "-"}`
-                : "-"}
-            </span>
-          </ModalHeader>
-          <ModalBody>
-            <div
-              ref={terminalOutputRef}
-              className="h-[420px] overflow-y-auto rounded-lg border border-default-300 bg-zinc-950 p-3 font-mono text-xs leading-5 text-zinc-100 shadow-inner"
-            >
-              {terminalLines.map((line) => (
-                <pre
-                  key={line.id}
-                  className={`mb-2 whitespace-pre-wrap break-words ${
-                    line.tone === "input"
-                      ? "text-sky-300"
-                      : line.tone === "stderr"
-                        ? "text-rose-300"
-                        : line.tone === "system"
-                          ? "text-emerald-300"
-                          : "text-zinc-100"
-                  }`}
-                >{line.text}</pre>
-              ))}
-              {terminalRunning ? (
-                <div className="text-amber-300">命令执行中...</div>
-              ) : null}
-            </div>
-            <form
-              className="space-y-2"
-              id="terminal-command-form"
-              onSubmit={handleTerminalSubmit}
-            >
-              <Textarea
-                className="font-mono text-xs"
-                description="Ctrl/⌘ + Enter 执行，单次命令最长 60 秒，输出超过限制会截断。"
-                isDisabled={terminalRunning}
-                label="命令"
-                minRows={2}
-                placeholder="例如：uname -a"
-                value={terminalCommand}
-                onChange={(event) => setTerminalCommand(event.target.value)}
-                onKeyDown={handleTerminalCommandKeyDown}
-              />
-            </form>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              isDisabled={terminalRunning}
-              variant="flat"
-              onPress={() => setTerminalLines([])}
-            >
-              清空
-            </Button>
-            <Button
-              color="danger"
-              variant="flat"
-              onPress={() => {
-                setTerminalOpen(false);
-                setTerminalTarget(null);
-              }}
-            >
-              关闭
-            </Button>
-            <Button
-              color="success"
-              form="terminal-command-form"
-              isLoading={terminalRunning}
-              type="submit"
-            >
-              执行
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-    </AnimatedPage>
+      </AnimatedPage>
+    </MonitorTerminalProvider>
   );
 }
