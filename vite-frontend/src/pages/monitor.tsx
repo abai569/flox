@@ -8,7 +8,7 @@ import type {
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { ArrowDown, ArrowUp, Info, List, TerminalSquare } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { AnimatedPage } from "@/components/animated-page";
 import { Button } from "@/shadcn-bridge/heroui/button";
@@ -507,7 +507,7 @@ function NodeInstanceGroupsView({
                       <th className="px-2 py-2 text-center">RAM</th>
                       <th className="px-2 py-2 text-center">存储</th>
                       <th className="px-2 py-2 text-center">权重</th>
-                      <th className="px-2 py-2 text-center">操作</th>
+                      <th className="px-2 py-2 text-left">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -603,29 +603,29 @@ function NodeInstanceGroupsView({
                           <td className="px-2 py-3 align-middle">
                             <div className="flex min-w-0 justify-center gap-2">
                               <Button
-                                isIconOnly
+                                className="h-8 px-3 text-xs font-medium"
                                 size="sm"
                                 variant="flat"
                                 onPress={() => onEditWeight(member)}
                               >
-                                <List className="h-4 w-4" />
+                                权重
                               </Button>
                               <Button
                                 isDisabled
-                                isIconOnly
+                                className="h-8 px-3 text-xs font-medium"
                                 size="sm"
                                 variant="flat"
                                 onPress={() => toast("SSH 稍后实现")}
                               >
-                                <TerminalSquare className="h-4 w-4" />
+                                终端
                               </Button>
                               <Button
-                                isIconOnly
+                                className="h-8 px-3 text-xs font-medium"
                                 size="sm"
                                 variant="flat"
                                 onPress={() => onOpenDetail(member.nodeId)}
                               >
-                                <Info className="h-4 w-4" />
+                                详情
                               </Button>
                             </div>
                           </td>
