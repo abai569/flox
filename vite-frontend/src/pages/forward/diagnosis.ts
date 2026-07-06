@@ -13,6 +13,10 @@ export interface ForwardDiagnosisEntry {
   fromInx?: number;
   toChainType?: number;
   toInx?: number;
+  fromInstanceId?: string;
+  fromHostname?: string;
+  toInstanceId?: string;
+  toHostname?: string;
   // SDWAN overlay status fields
   sdwanRunning?: boolean;
   sdwanCertMask?: number;

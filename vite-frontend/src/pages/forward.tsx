@@ -2728,7 +2728,7 @@ export default function ForwardPage() {
               }));
             }
           },
-          onItem: ({ result, progress }) => {
+          onItem: ({ index, result, progress }) => {
             setDiagnosisResult((prev) => {
               const base: ForwardDiagnosisResult = prev || {
                 forwardName: forward.name,
@@ -2736,13 +2736,20 @@ export default function ForwardPage() {
                 results: [],
               };
               const nextResults = [...base.results];
-              const existingIndex = nextResults.findIndex(
-                (item) =>
-                  item.description === result.description &&
-                  item.nodeId === result.nodeId &&
-                  item.targetIp === result.targetIp &&
-                  item.targetPort === result.targetPort,
-              );
+              const existingIndex =
+                Number.isInteger(index) &&
+                index >= 0 &&
+                index < nextResults.length
+                  ? index
+                  : nextResults.findIndex(
+                      (item) =>
+                        item.description === result.description &&
+                        item.nodeId === result.nodeId &&
+                        item.targetIp === result.targetIp &&
+                        item.targetPort === result.targetPort &&
+                        item.fromInstanceId === result.fromInstanceId &&
+                        item.toInstanceId === result.toInstanceId,
+                    );
 
               if (existingIndex >= 0) {
                 nextResults[existingIndex] = {

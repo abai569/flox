@@ -59,6 +59,15 @@ type pendingRequest struct {
 	ch         chan CommandResult
 }
 
+type NodeMessage struct {
+	NodeID     int64
+	InstanceID string
+	Hostname   string
+	Type       string
+	Raw        string
+	Data       json.RawMessage
+}
+
 const (
 	wsPingPeriod = 15 * time.Second
 	wsPongWait   = 45 * time.Second
@@ -88,6 +97,8 @@ type Server struct {
 	nodes                 map[int64]map[string]*nodeSession
 	byConn                map[*websocket.Conn]*nodeSession
 	pending               map[string]pendingRequest
+	subscribers           map[int]chan NodeMessage
+	nextSubscriberID      int
 	serviceConnections    map[int64]map[string]int           // nodeID -> serviceName -> connections
 	serviceConnUpdateTime map[int64]int64                    // nodeID -> last update time
 	forwardMetrics        map[int64]map[int64]*ForwardMetric // forwardID -> nodeID -> metric
@@ -275,6 +286,7 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		nodes:                 make(map[int64]map[string]*nodeSession),
 		byConn:                make(map[*websocket.Conn]*nodeSession),
 		pending:               make(map[string]pendingRequest),
+		subscribers:           make(map[int]chan NodeMessage),
 		serviceConnections:    make(map[int64]map[string]int),
 		serviceConnUpdateTime: make(map[int64]int64),
 		forwardMetrics:        make(map[int64]map[int64]*ForwardMetric), // forwardID -> nodeID -> metric
@@ -283,6 +295,50 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 	// 启动后台清理任务（每 2 分钟清理一次过期数据）
 	go s.cleanupStaleMetrics(2 * time.Minute)
 	return s
+}
+
+func (s *Server) SubscribeNodeMessages(buffer int) (<-chan NodeMessage, func()) {
+	if s == nil {
+		ch := make(chan NodeMessage)
+		close(ch)
+		return ch, func() {}
+	}
+	if buffer < 1 {
+		buffer = 1
+	}
+	ch := make(chan NodeMessage, buffer)
+	s.mu.Lock()
+	s.nextSubscriberID++
+	id := s.nextSubscriberID
+	s.subscribers[id] = ch
+	s.mu.Unlock()
+
+	var once sync.Once
+	unsubscribe := func() {
+		once.Do(func() {
+			s.mu.Lock()
+			if current, ok := s.subscribers[id]; ok {
+				delete(s.subscribers, id)
+				close(current)
+			}
+			s.mu.Unlock()
+		})
+	}
+	return ch, unsubscribe
+}
+
+func (s *Server) publishNodeMessage(msg NodeMessage) {
+	if s == nil {
+		return
+	}
+	s.mu.RLock()
+	for _, ch := range s.subscribers {
+		select {
+		case ch <- msg:
+		default:
+		}
+	}
+	s.mu.RUnlock()
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -649,6 +705,22 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					s.broadcastTyped(nodeID, "mimic_status", msg)
 				}
 				continue
+			case "TerminalData":
+				var envelope struct {
+					Data json.RawMessage `json:"data"`
+				}
+				_ = json.Unmarshal([]byte(msg), &envelope)
+				s.publishNodeMessage(NodeMessage{
+					NodeID:     nodeID,
+					InstanceID: ns.instanceID,
+					Hostname:   ns.hostname,
+					Type:       parsed.Type,
+					Raw:        msg,
+					Data:       envelope.Data,
+				})
+				continue
+			case "TerminalOpenResponse", "TerminalInputResponse", "TerminalResizeResponse", "TerminalCloseResponse":
+				continue
 			default:
 				// Unknown typed messages still get broadcast so future
 				// agent message types are not silently lost.
@@ -780,6 +852,24 @@ func (s *Server) SendCommandToInstance(nodeID int64, instanceID string, cmdType 
 		return CommandResult{}, errors.New("节点实例不在线")
 	}
 	return s.sendCommandToSession(ns, cmdType, data, timeout)
+}
+
+func (s *Server) SendTypedMessageToInstance(nodeID int64, instanceID string, msgType string, data interface{}) error {
+	if s == nil {
+		return errors.New("server not initialized")
+	}
+	if strings.TrimSpace(msgType) == "" {
+		return errors.New("message type is empty")
+	}
+	ns := s.activeNodeSession(nodeID, instanceID)
+	if ns == nil {
+		return errors.New("节点实例不在线")
+	}
+	payload := map[string]interface{}{
+		"type": msgType,
+		"data": data,
+	}
+	return s.writeMessageToSession(ns, payload)
 }
 
 func (s *Server) activeNodeSessions(nodeID int64) []*nodeSession {
@@ -933,31 +1023,7 @@ func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data inte
 		log.Printf("[mimic.debug] send command node=%d instance=%s type=%s requestId=%s payload=%s", ns.nodeID, ns.instanceID, cmdType, requestID, string(rawCmd))
 	}
 
-	messageData := rawCmd
-	if ns.crypto != nil {
-		encrypted, err := ns.crypto.Encrypt(rawCmd)
-		if err != nil {
-			cleanup()
-			return baseResult, err
-		}
-		wrapper := map[string]interface{}{
-			"encrypted": true,
-			"data":      encrypted,
-			"timestamp": time.Now().UnixMilli(),
-		}
-		messageData, err = json.Marshal(wrapper)
-		if err != nil {
-			cleanup()
-			return baseResult, err
-		}
-	}
-
-	ns.conn.mu.Lock()
-	_ = ns.conn.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
-	err = ns.conn.conn.WriteMessage(websocket.TextMessage, messageData)
-	_ = ns.conn.conn.SetWriteDeadline(time.Time{})
-	ns.conn.mu.Unlock()
-	if err != nil {
+	if err := s.writeMessageToSession(ns, cmdPayload); err != nil {
 		if debugMimic {
 			log.Printf("[mimic.debug] write command failed node=%d instance=%s type=%s requestId=%s err=%v", ns.nodeID, ns.instanceID, cmdType, requestID, err)
 		}
@@ -995,6 +1061,38 @@ func (s *Server) sendCommandToSession(ns *nodeSession, cmdType string, data inte
 		cleanup()
 		return baseResult, errors.New("等待节点响应超时")
 	}
+}
+
+func (s *Server) writeMessageToSession(ns *nodeSession, payload interface{}) error {
+	if ns == nil || ns.conn == nil || ns.conn.conn == nil {
+		return errors.New("节点不在线")
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	messageData := raw
+	if ns.crypto != nil {
+		encrypted, err := ns.crypto.Encrypt(raw)
+		if err != nil {
+			return err
+		}
+		wrapper := map[string]interface{}{
+			"encrypted": true,
+			"data":      encrypted,
+			"timestamp": time.Now().UnixMilli(),
+		}
+		messageData, err = json.Marshal(wrapper)
+		if err != nil {
+			return err
+		}
+	}
+	ns.conn.mu.Lock()
+	defer ns.conn.mu.Unlock()
+	_ = ns.conn.conn.SetWriteDeadline(time.Now().Add(wsWriteWait))
+	err = ns.conn.conn.WriteMessage(websocket.TextMessage, messageData)
+	_ = ns.conn.conn.SetWriteDeadline(time.Time{})
+	return err
 }
 
 func (s *Server) tryResolvePending(nodeID int64, instanceID string, message string) {
