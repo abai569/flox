@@ -336,6 +336,7 @@ func (w *WebSocketReporter) run() {
 			// 连接成功，开始发送消息
 			if w.connected {
 				w.handleConnection()
+				w.CloseTerminalSessions()
 			} else {
 				wait := backoffWithJitter(w.curBackoff)
 				// 如果连接失败，等待重试
