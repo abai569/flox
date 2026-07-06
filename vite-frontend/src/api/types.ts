@@ -576,6 +576,8 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   status: number;
   weight: number;
   onlineCount: number;
+  tcpConns?: number;
+  udpConns?: number;
   netInSpeed: number;
   netOutSpeed: number;
   netInBytes: number;

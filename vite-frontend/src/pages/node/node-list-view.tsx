@@ -875,7 +875,7 @@ export function NodeListView({
             版本
           </TableColumn>
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-right">
-            在线数
+            连接数
           </TableColumn>
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
             周期流量

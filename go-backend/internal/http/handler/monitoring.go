@@ -426,6 +426,8 @@ type monitorNodeInstanceGroupMember struct {
 	Status      int     `json:"status"`
 	Weight      int     `json:"weight"`
 	OnlineCount int64   `json:"onlineCount"`
+	TCPConns    int64   `json:"tcpConns"`
+	UDPConns    int64   `json:"udpConns"`
 	NetInSpeed  int64   `json:"netInSpeed"`
 	NetOutSpeed int64   `json:"netOutSpeed"`
 	NetInBytes  int64   `json:"netInBytes"`
@@ -511,6 +513,8 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			Status:      row.Status,
 			Weight:      row.Weight,
 			OnlineCount: row.TCPConns + row.UDPConns,
+			TCPConns:    row.TCPConns,
+			UDPConns:    row.UDPConns,
 			NetInSpeed:  row.NetInSpeed,
 			NetOutSpeed: row.NetOutSpeed,
 			NetInBytes:  row.NetInBytes,

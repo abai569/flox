@@ -92,6 +92,8 @@ type RealtimeNodeInstanceMetric = {
   periodRx: number;
   periodTx: number;
   onlineCount: number;
+  tcpConns: number;
+  udpConns: number;
   cpuUsage: number;
   memoryUsage: number;
   diskUsage: number;
@@ -125,6 +127,13 @@ const isRealInstanceId = (instanceId?: string): boolean => {
 
 const getInstanceMetricKey = (nodeId: number, instanceId?: string): string =>
   `${nodeId}:${instanceId?.trim() || ""}`;
+
+const getConnectionTooltip = (tcpConns?: number, udpConns?: number): string => {
+  const tcp = Number(tcpConns ?? 0);
+  const udp = Number(udpConns ?? 0);
+
+  return `TCP ${tcp}\nUDP ${udp}\n总计 ${tcp + udp}`;
+};
 
 const filterRealInstanceGroups = (
   groups: MonitorNodeInstanceGroupApiItem[],
@@ -375,6 +384,8 @@ const mergeRealtimeMetric = (
     periodRx: metric.periodRx,
     periodTx: metric.periodTx,
     onlineCount: metric.onlineCount,
+    tcpConns: metric.tcpConns,
+    udpConns: metric.udpConns,
     cpuUsage: metric.cpuUsage,
     memoryUsage: metric.memoryUsage,
     diskUsage: metric.diskUsage,
@@ -470,6 +481,18 @@ function NodeInstanceGroupsView({
           (sum, member) => sum + member.netInSpeed,
           0,
         );
+        const totalTCPConns = members.reduce(
+          (sum, member) => sum + Number(member.tcpConns ?? 0),
+          0,
+        );
+        const totalUDPConns = members.reduce(
+          (sum, member) => sum + Number(member.udpConns ?? 0),
+          0,
+        );
+        const groupConnectionTooltip = getConnectionTooltip(
+          totalTCPConns,
+          totalUDPConns,
+        );
 
         return (
           <section
@@ -486,11 +509,17 @@ function NodeInstanceGroupsView({
                 </span>
               </div>
               <div className="flex items-center gap-3 text-sm font-mono">
-                <span className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-secondary-500/15 px-3 py-2 text-secondary-700 tabular-nums">
+                <span
+                  className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-secondary-500/15 px-3 py-2 text-secondary-700 tabular-nums"
+                  title={groupConnectionTooltip}
+                >
                   {formatSpeed(totalOutSpeed)}
                   <ArrowUp className="h-4 w-4" />
                 </span>
-                <span className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary-500/15 px-3 py-2 text-primary-700 tabular-nums">
+                <span
+                  className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary-500/15 px-3 py-2 text-primary-700 tabular-nums"
+                  title={groupConnectionTooltip}
+                >
                   {formatSpeed(totalInSpeed)}
                   <ArrowDown className="h-4 w-4" />
                 </span>
@@ -565,7 +594,13 @@ function NodeInstanceGroupsView({
                               label="IPv6"
                             />
                           </td>
-                          <td className="px-2 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums">
+                          <td
+                            className="px-2 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums"
+                            title={getConnectionTooltip(
+                              member.tcpConns,
+                              member.udpConns,
+                            )}
+                          >
                             <div className="truncate">
                               {formatSpeed(member.netOutSpeed)}↑
                             </div>
@@ -914,6 +949,8 @@ export default function MonitorPage() {
           metric.periodTx ?? metric.period_bytes_transmitted ?? 0,
         ),
         onlineCount: tcpConns + udpConns,
+        tcpConns,
+        udpConns,
         cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
         memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
         diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),

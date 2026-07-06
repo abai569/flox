@@ -90,8 +90,6 @@ type ForwardMetric struct {
 type NetworkStats struct {
 	BytesReceived    uint64 `json:"bytes_received"`
 	BytesTransmitted uint64 `json:"bytes_transmitted"`
-	BytesRecvDelta   uint64 `json:"bytes_recv_delta"`
-	BytesSentDelta   uint64 `json:"bytes_sent_delta"`
 }
 
 // CPUInfo CPU信息
@@ -239,8 +237,11 @@ type WebSocketReporter struct {
 	nftablesMgr           NftablesManagerInterface // nftables manager (platform-specific)
 	nftablesPrevCounters  map[string]uint64        // "forwardID_protocol" → last total bytes
 	nftablesConntrackPrev map[string]uint64        // "protocol:port" → last total conntrack bytes
-	nftConnPrev           map[int64]nftables.RuleConnInfo
+	nftConnPrev           map[string]nftables.RuleConnInfo
 	nftablesPrevMu        sync.Mutex
+	agentConnMu           sync.RWMutex
+	agentTCPConns         int64
+	agentUDPConns         int64
 	nodeNetworkEnv        string               // 节点网络环境永久缓存："domestic" | "overseas" | ""（未检测）
 	mimicDaemons          map[string]*exec.Cmd // wgIF → mimic daemon cmd (P2-18)
 	mimicDaemonsMu        sync.Mutex
@@ -275,7 +276,7 @@ func NewWebSocketReporter(serverURL string, secret string) *WebSocketReporter {
 		aesCrypto:             aesCrypto,
 		nftablesPrevCounters:  make(map[string]uint64),
 		nftablesConntrackPrev: make(map[string]uint64),
-		nftConnPrev:           make(map[int64]nftables.RuleConnInfo),
+		nftConnPrev:           make(map[string]nftables.RuleConnInfo),
 		mimicDaemons:          make(map[string]*exec.Cmd),
 	}
 }
@@ -1087,10 +1088,6 @@ func (w *WebSocketReporter) handleConnection() {
 	}
 }
 
-var lastNetBytesReceived uint64
-var lastNetBytesTransmitted uint64
-var lastNetTime int64
-
 var connInfoCached ConnectionInfo
 var connInfoCachedAt int64
 var connInfoCachedMu sync.Mutex
@@ -1102,20 +1099,10 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 	memoryInfo := getMemoryInfo()
 	diskInfo := getDiskInfo()
 	loadInfo := getLoadInfo()
-	connInfo := getConnectionInfo()
-
-	now := time.Now().UnixMilli()
-	var netInSpeed, netOutSpeed int64
-	if lastNetTime > 0 {
-		deltaMs := now - lastNetTime
-		if deltaMs > 0 {
-			netInSpeed = int64(float64(networkStats.BytesRecvDelta) * 1000 / float64(deltaMs))
-			netOutSpeed = int64(float64(networkStats.BytesSentDelta) * 1000 / float64(deltaMs))
-		}
-	}
-	lastNetBytesReceived = networkStats.BytesReceived
-	lastNetBytesTransmitted = networkStats.BytesTransmitted
-	lastNetTime = now
+	serviceConnections := collectServiceConnections()
+	forwardMetrics := collectForwardMetrics()
+	netInSpeed, netOutSpeed := sumForwardMetricSpeeds(forwardMetrics)
+	connInfo := w.getAgentConnectionInfo(serviceConnections)
 
 	// 计算周期流量
 	var periodRX, periodTX uint64
@@ -1167,8 +1154,8 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 		Hostname:               hostname,
 		PublicIPV4:             publicIPV4,
 		PublicIPV6:             publicIPV6,
-		ServiceConnections:     collectServiceConnections(),
-		ForwardMetrics:         collectForwardMetrics(),
+		ServiceConnections:     serviceConnections,
+		ForwardMetrics:         forwardMetrics,
 	}
 }
 
@@ -1327,10 +1314,18 @@ func (w *WebSocketReporter) pollNftablesConnections() {
 		return
 	}
 
-	cur := make(map[int64]nftables.RuleConnInfo, len(infos))
+	cur := make(map[string]nftables.RuleConnInfo, len(infos))
+	var tcpConns, udpConns int64
 	for _, info := range infos {
-		cur[info.ForwardID] = info
-		prev := w.nftConnPrev[info.ForwardID]
+		key := fmt.Sprintf("%d_%s_%d", info.ForwardID, info.Protocol, info.Port)
+		cur[key] = info
+		switch strings.ToLower(info.Protocol) {
+		case "tcp":
+			tcpConns += int64(info.ConnCount)
+		case "udp":
+			udpConns += int64(info.ConnCount)
+		}
+		prev := w.nftConnPrev[key]
 		delta := info.ConnCount - prev.ConnCount
 		if delta == 0 {
 			continue
@@ -1346,8 +1341,8 @@ func (w *WebSocketReporter) pollNftablesConnections() {
 		)
 	}
 
-	for forwardID, prev := range w.nftConnPrev {
-		if _, ok := cur[forwardID]; ok {
+	for key, prev := range w.nftConnPrev {
+		if _, ok := cur[key]; ok {
 			continue
 		}
 		if prev.ConnCount == 0 {
@@ -1365,6 +1360,10 @@ func (w *WebSocketReporter) pollNftablesConnections() {
 	}
 
 	w.nftConnPrev = cur
+	w.agentConnMu.Lock()
+	w.agentTCPConns = tcpConns
+	w.agentUDPConns = udpConns
+	w.agentConnMu.Unlock()
 }
 
 // collectForwardMetrics 收集所有转发规则的实时指标
@@ -1399,6 +1398,15 @@ func collectForwardMetrics() []ForwardMetric {
 	return metrics
 }
 
+func sumForwardMetricSpeeds(metrics []ForwardMetric) (int64, int64) {
+	var inSpeed, outSpeed int64
+	for _, metric := range metrics {
+		inSpeed += int64(metric.InSpeed)
+		outSpeed += int64(metric.OutSpeed)
+	}
+	return inSpeed, outSpeed
+}
+
 // collectServiceConnections 收集每个服务的当前连接数
 func collectServiceConnections() map[string]int {
 	result := make(map[string]int)
@@ -1413,6 +1421,35 @@ func collectServiceConnections() map[string]int {
 		}
 	}
 	return result
+}
+
+func sumServiceConnections(connections map[string]int) int {
+	total := 0
+	for _, count := range connections {
+		if count > 0 {
+			total += count
+		}
+	}
+	return total
+}
+
+func (w *WebSocketReporter) getAgentConnectionInfo(serviceConnections map[string]int) ConnectionInfo {
+	w.agentConnMu.RLock()
+	connInfo := ConnectionInfo{TCPConns: w.agentTCPConns, UDPConns: w.agentUDPConns}
+	w.agentConnMu.RUnlock()
+	if connInfo.TCPConns != 0 || connInfo.UDPConns != 0 {
+		return connInfo
+	}
+
+	connInfo = getConnectionInfo()
+	if connInfo.TCPConns != 0 || connInfo.UDPConns != 0 {
+		return connInfo
+	}
+
+	// If per-process socket ownership is unavailable, keep the value agent-scoped
+	// by falling back to GOST service connection counters instead of host-wide stats.
+	connInfo.TCPConns = int64(sumServiceConnections(serviceConnections))
+	return connInfo
 }
 
 // encryptPayload 加密 JSON 数据，返回加密后的消息字节（若加密失败则回退到原始数据）
@@ -2735,13 +2772,6 @@ func getNetworkStats() NetworkStats {
 		stats.BytesTransmitted += io.BytesSent
 	}
 
-	if lastNetBytesReceived > 0 && stats.BytesReceived >= lastNetBytesReceived {
-		stats.BytesRecvDelta = stats.BytesReceived - lastNetBytesReceived
-	}
-	if lastNetBytesTransmitted > 0 && stats.BytesTransmitted >= lastNetBytesTransmitted {
-		stats.BytesSentDelta = stats.BytesTransmitted - lastNetBytesTransmitted
-	}
-
 	return stats
 }
 
@@ -2802,7 +2832,7 @@ func getLoadInfo() LoadInfo {
 	return loadInfo
 }
 
-// getConnectionInfo 获取连接信息
+// getConnectionInfo 获取当前 agent 进程的连接信息
 func getConnectionInfo() ConnectionInfo {
 	now := time.Now().UnixMilli()
 	const refreshEveryMs = int64((15 * time.Second) / time.Millisecond)
@@ -2816,15 +2846,24 @@ func getConnectionInfo() ConnectionInfo {
 	connInfoCachedMu.Unlock()
 
 	var connInfo ConnectionInfo
+	pid := int32(os.Getpid())
 
 	connStats, err := psnet.Connections("tcp")
 	if err == nil {
-		connInfo.TCPConns = int64(len(connStats))
+		for _, stat := range connStats {
+			if stat.Pid == pid {
+				connInfo.TCPConns++
+			}
+		}
 	}
 
 	udpStats, err := psnet.Connections("udp")
 	if err == nil {
-		connInfo.UDPConns = int64(len(udpStats))
+		for _, stat := range udpStats {
+			if stat.Pid == pid {
+				connInfo.UDPConns++
+			}
+		}
 	}
 
 	connInfoCachedMu.Lock()
