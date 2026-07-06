@@ -3369,6 +3369,7 @@ export default function NodePage() {
                                       handleDismissExpiryReminder={
                                         handleDismissExpiryReminder
                                       }
+                                      handleDNSFailover={openDNSFailoverModal}
                                       handleEdit={handleEdit}
                                       handleResetNodeTraffic={
                                         handleResetNodeTraffic
@@ -3451,6 +3452,7 @@ export default function NodePage() {
                   }
                   handleDelete={handleDelete}
                   handleDismissExpiryReminder={handleDismissExpiryReminder}
+                  handleDNSFailover={openDNSFailoverModal}
                   handleEdit={handleEdit}
                   handleResetNodeTraffic={handleResetNodeTraffic}
                   handleTogglePause={handleTogglePause}

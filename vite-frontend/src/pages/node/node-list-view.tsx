@@ -97,6 +97,7 @@ interface NodeListViewProps {
   openInstallSelector: (node: Node) => void;
   openUpgradeModal: (type: "single" | "batch", nodeId?: number) => void;
   handleEdit: (node: Node) => void;
+  handleDNSFailover?: (node: Node) => void;
   handleDelete: (node: Node) => void;
   formatTraffic: (bytes: number) => string;
   nodeGroups: any[];
@@ -126,6 +127,7 @@ function SortableTableRow({
   copyToClipboard,
   openUpgradeModal,
   handleEdit,
+  handleDNSFailover,
   handleDelete,
   formatTraffic,
   nodeGroups,
@@ -721,6 +723,15 @@ function SortableTableRow({
               </Button>
               <Button
                 className="min-h-7 px-2"
+                color="secondary"
+                size="sm"
+                variant="flat"
+                onPress={() => handleDNSFailover?.(node)}
+              >
+                DNS
+              </Button>
+              <Button
+                className="min-h-7 px-2"
                 color="success"
                 size="sm"
                 variant="flat"
@@ -763,6 +774,7 @@ export function NodeListView({
   copyToClipboard,
   openUpgradeModal,
   handleEdit,
+  handleDNSFailover,
   handleDelete,
   formatTraffic,
   nodeGroups,
@@ -974,6 +986,7 @@ export function NodeListView({
                   copyToClipboard,
                   openUpgradeModal,
                   handleEdit,
+                  handleDNSFailover,
                   handleDelete,
                   formatTraffic,
                   nodeGroups,
