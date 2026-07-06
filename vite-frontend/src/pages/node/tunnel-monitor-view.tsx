@@ -39,6 +39,7 @@ import {
   getMonitorTunnelQuality,
   getMonitorTunnelQualityHistory,
 } from "@/api";
+import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
@@ -1081,8 +1082,10 @@ export function TunnelMonitorView({
                                   className={`w-5 h-5 ${isEnabled ? "text-success" : "text-danger"}`}
                                 />
                               </div>
-                              <span
-                                className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${isEnabled ? "bg-success" : "bg-danger"}`}
+                              <StatusDot
+                                active={isEnabled}
+                                className="absolute -bottom-0.5 -right-0.5 h-3 w-3 border-2 border-background"
+                                tone={isEnabled ? "success" : "danger"}
                               />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">

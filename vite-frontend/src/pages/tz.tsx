@@ -22,6 +22,7 @@ import {
   parseDistroFromVersion,
   getDistroColor,
 } from "@/components/distro-icon";
+import { StatusDot } from "@/components/status-dot";
 import { getMonitorNodesPublicMetrics } from "@/api";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { usePublicNodeRealtime } from "@/hooks/use-public-node-realtime";
@@ -363,8 +364,10 @@ export default function TZPage() {
                   <TableRow key={node.id}>
                     <TableCell>
                       <div className="flex justify-center w-full">
-                        <div
-                          className={`w-2 h-2 rounded-full ${isOnline ? "bg-success" : "bg-danger"}`}
+                        <StatusDot
+                          active={isOnline}
+                          className="h-2 w-2"
+                          tone={isOnline ? "success" : "danger"}
                         />
                       </div>
                     </TableCell>
@@ -534,8 +537,10 @@ function ServerCard({ node }: { node: MonitorNodeMetricsApiItem }) {
                     style={{ color: isOnline ? distroColor : undefined }}
                   />
                 </div>
-                <span
-                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${isOnline ? "bg-success" : "bg-danger"}`}
+                <StatusDot
+                  active={isOnline}
+                  className="absolute -bottom-0.5 -right-0.5 h-3 w-3 border-2 border-background"
+                  tone={isOnline ? "success" : "danger"}
                 />
               </div>
               <div className="flex flex-col min-w-0 flex-1">

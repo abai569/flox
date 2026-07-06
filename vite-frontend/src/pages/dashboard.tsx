@@ -17,6 +17,7 @@ import {
   ModalFooter,
 } from "@/shadcn-bridge/heroui/modal";
 import { PageEmptyState, PageLoadingState } from "@/components/page-state";
+import { StatusDot } from "@/components/status-dot";
 import { AnnouncementBanner } from "@/pages/dashboard/components/announcement-banner";
 import { FlowChartCard } from "@/pages/dashboard/components/flow-chart-card";
 import { MetricCard } from "@/pages/dashboard/components/metric-card";
@@ -700,7 +701,7 @@ export default function DashboardPage() {
                 bottomContent={
                   storeEnabled ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                      <StatusDot active className="h-1.5 w-1.5" tone="success" />
                       <span
                         className="text-xs text-primary cursor-pointer hover:underline"
                         onClick={() => (window.location.href = "/shop")}
@@ -746,8 +747,10 @@ export default function DashboardPage() {
                     typeof userInfo.expTime === "number" &&
                     Number(userInfo.expTime) > 0 ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <div
-                        className={`w-1.5 h-1.5 rounded-full ${(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7 ? "bg-success" : "bg-warning"}`}
+                      <StatusDot
+                        active={(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7}
+                        className="h-1.5 w-1.5"
+                        tone={(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7 ? "success" : "warning"}
                       />
                       <span
                         className={`text-xs ${(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7 ? "text-success" : "text-warning"}`}
@@ -796,7 +799,7 @@ export default function DashboardPage() {
                 bottomContent={
                   (autoRenewOverride ?? userInfo.autoRenew) === 1 ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                      <StatusDot active className="h-1.5 w-1.5" tone="success" />
                       <span className="text-xs text-success">
                         自动续费运行中
                       </span>
@@ -856,7 +859,7 @@ export default function DashboardPage() {
                     ) : (
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                          <StatusDot active className="h-1.5 w-1.5" tone="success" />
                           <span className="text-success">
                             {(() => {
                               const p = autoBuyPackages.find(
@@ -887,7 +890,7 @@ export default function DashboardPage() {
                     )
                   ) : userInfo.autoBuyTraffic === 1 ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-success" />
+                      <StatusDot active className="h-1.5 w-1.5" tone="success" />
                       <span className="text-xs text-success">
                         管理员手动开启 自动购流运行中
                       </span>

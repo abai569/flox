@@ -29,6 +29,7 @@ import {
   getDistroColor,
 } from "@/components/distro-icon";
 import { SearchBar } from "@/components/search-bar";
+import { StatusDot } from "@/components/status-dot";
 import { AnimatedPage } from "@/components/animated-page";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Button } from "@/shadcn-bridge/heroui/button";
@@ -2533,9 +2534,16 @@ export default function NodePage() {
                 )}
               </div>
             </div>
-<div className="flex items-center gap-2">
-              <span
-                className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${node.paused ? "bg-yellow-500" : connectionStatusMeta.color === "success" ? "bg-emerald-500" : "bg-rose-500"}`}
+            <div className="flex items-center gap-2">
+              <StatusDot
+                active={!node.paused && connectionStatusMeta.color === "success"}
+                tone={
+                  node.paused
+                    ? "warning"
+                    : connectionStatusMeta.color === "success"
+                      ? "success"
+                      : "danger"
+                }
                 title={node.paused ? "已暂停" : connectionStatusMeta.text}
               />
               {/* 这里加上 title 属性 */}

@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import {
@@ -425,8 +426,10 @@ function MonitorSummaryBar({
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
       <span className="inline-flex items-center gap-2 text-default-600">
-        <span
-          className={`h-2 w-2 rounded-full ${wsConnected ? "bg-success" : wsConnecting ? "bg-warning" : "bg-default-300"}`}
+        <StatusDot
+          active={wsConnected}
+          className="h-2 w-2"
+          tone={wsConnected ? "success" : wsConnecting ? "warning" : "default"}
         />
         {wsConnected
           ? "实时已连接"
@@ -573,8 +576,9 @@ function NodeInstanceGroupsView({
                           className="border-b border-divider/50 last:border-b-0 hover:bg-default-50/50"
                         >
                           <td className="px-2 py-3 text-center align-middle">
-                            <span
-                              className={`inline-block h-2.5 w-2.5 rounded-full ${member.status === 1 ? "bg-success-500" : "bg-danger-500"}`}
+                            <StatusDot
+                              active={member.status === 1}
+                              tone={member.status === 1 ? "success" : "danger"}
                             />
                           </td>
                           <td

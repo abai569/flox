@@ -34,6 +34,7 @@ import {
   parseDistroFromVersion,
   getDistroColor,
 } from "@/components/distro-icon";
+import { StatusDot } from "@/components/status-dot";
 interface Node {
   id: number;
   inx?: number;
@@ -290,8 +291,15 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={`whitespace-nowrap ${rowBg}`}>
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${node.paused ? "bg-yellow-500" : connectionStatusMeta.color === "success" ? "bg-emerald-500" : "bg-rose-500"}`}
+          <StatusDot
+            active={!node.paused && connectionStatusMeta.color === "success"}
+            tone={
+              node.paused
+                ? "warning"
+                : connectionStatusMeta.color === "success"
+                  ? "success"
+                  : "danger"
+            }
             title={node.paused ? "已暂停" : connectionStatusMeta.text}
           />
           <span
