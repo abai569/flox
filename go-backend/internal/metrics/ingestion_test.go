@@ -215,8 +215,8 @@ func TestRecordNodeMetricAggregatesInstances(t *testing.T) {
 	defer r.Close()
 
 	svc := NewIngestionService(r)
-	svc.RecordNodeMetric(1, SystemInfo{CPUUsage: 20, MemoryUsage: 40, DiskUsage: 60, TCPConns: 10, UDPConns: 5, NetInSpeed: 100, NetOutSpeed: 200, BytesReceived: 1000, BytesTransmitted: 2000})
-	svc.RecordNodeMetric(1, SystemInfo{CPUUsage: 40, MemoryUsage: 60, DiskUsage: 80, TCPConns: 30, UDPConns: 15, NetInSpeed: 300, NetOutSpeed: 400, BytesReceived: 3000, BytesTransmitted: 4000})
+	svc.RecordNodeMetric(1, SystemInfo{InstanceID: "a", CPUUsage: 20, MemoryUsage: 40, DiskUsage: 60, TCPConns: 10, UDPConns: 5, NetInSpeed: 100, NetOutSpeed: 200, BytesReceived: 1000, BytesTransmitted: 2000})
+	svc.RecordNodeMetric(1, SystemInfo{InstanceID: "b", CPUUsage: 40, MemoryUsage: 60, DiskUsage: 80, TCPConns: 30, UDPConns: 15, NetInSpeed: 300, NetOutSpeed: 400, BytesReceived: 3000, BytesTransmitted: 4000})
 	svc.flushNodeMetrics()
 
 	metrics, err := r.GetNodeMetrics(1, time.Now().UnixMilli()-60000, time.Now().UnixMilli()+1000)
@@ -232,6 +232,32 @@ func TestRecordNodeMetricAggregatesInstances(t *testing.T) {
 	}
 	if m.TCPConns != 40 || m.UDPConns != 20 || m.NetInSpeed != 400 || m.NetOutSpeed != 600 {
 		t.Fatalf("expected summed network values, got tcp=%d udp=%d in=%d out=%d", m.TCPConns, m.UDPConns, m.NetInSpeed, m.NetOutSpeed)
+	}
+}
+
+func TestRecordNodeMetricKeepsLatestCumulativePerInstance(t *testing.T) {
+	r, err := repo.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	svc := NewIngestionService(r)
+	svc.RecordNodeMetric(1, SystemInfo{InstanceID: "a", BytesReceived: 1000, BytesTransmitted: 2000, PeriodBytesReceived: 100, PeriodBytesTransmitted: 200})
+	svc.RecordNodeMetric(1, SystemInfo{InstanceID: "a", BytesReceived: 1500, BytesTransmitted: 2500, PeriodBytesReceived: 150, PeriodBytesTransmitted: 250})
+	svc.RecordNodeMetric(1, SystemInfo{InstanceID: "b", BytesReceived: 3000, BytesTransmitted: 4000, PeriodBytesReceived: 300, PeriodBytesTransmitted: 400})
+	svc.flushNodeMetrics()
+
+	metrics, err := r.GetNodeMetrics(1, time.Now().UnixMilli()-60000, time.Now().UnixMilli()+1000)
+	if err != nil {
+		t.Fatalf("get metrics: %v", err)
+	}
+	if len(metrics) != 1 {
+		t.Fatalf("expected 1 metric, got %d", len(metrics))
+	}
+	m := metrics[0]
+	if m.NetInBytes != 4500 || m.NetOutBytes != 6500 || m.PeriodRx != 450 || m.PeriodTx != 650 {
+		t.Fatalf("expected latest cumulative totals, got in=%d out=%d rx=%d tx=%d", m.NetInBytes, m.NetOutBytes, m.PeriodRx, m.PeriodTx)
 	}
 }
 

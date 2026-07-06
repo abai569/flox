@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ type SystemInfo struct {
 	UDPConns               int64   `json:"udp_conns"`
 	NetInSpeed             int64   `json:"net_in_speed"`
 	NetOutSpeed            int64   `json:"net_out_speed"`
+	InstanceID             string  `json:"instance_id,omitempty"`
 }
 
 type IngestionService struct {
@@ -41,8 +43,12 @@ type IngestionService struct {
 }
 
 type nodeMetricAggregate struct {
-	nodeID                 int64
-	timestamp              int64
+	nodeID    int64
+	timestamp int64
+	instances map[string]*nodeInstanceMetricAggregate
+}
+
+type nodeInstanceMetricAggregate struct {
 	count                  int64
 	bytesReceived          uint64
 	bytesTransmitted       uint64
@@ -54,10 +60,10 @@ type nodeMetricAggregate struct {
 	load1Sum               float64
 	load5Sum               float64
 	load15Sum              float64
-	tcpConns               int64
-	udpConns               int64
-	netInSpeed             int64
-	netOutSpeed            int64
+	tcpConnsSum            int64
+	udpConnsSum            int64
+	netInSpeedSum          int64
+	netOutSpeedSum         int64
 	uptimeMax              uint64
 }
 
@@ -95,27 +101,33 @@ func (s *IngestionService) RecordNodeMetric(nodeID int64, info SystemInfo) {
 	s.nodeBufferMu.Lock()
 	agg := s.nodeBuffer[nodeID]
 	if agg == nil {
-		agg = &nodeMetricAggregate{nodeID: nodeID, timestamp: now}
+		agg = &nodeMetricAggregate{nodeID: nodeID, timestamp: now, instances: make(map[string]*nodeInstanceMetricAggregate)}
 		s.nodeBuffer[nodeID] = agg
 	}
+	instanceID := normalizeMetricInstanceID(info.InstanceID)
+	inst := agg.instances[instanceID]
+	if inst == nil {
+		inst = &nodeInstanceMetricAggregate{}
+		agg.instances[instanceID] = inst
+	}
 	agg.timestamp = now
-	agg.count++
-	agg.bytesReceived += info.BytesReceived
-	agg.bytesTransmitted += info.BytesTransmitted
-	agg.periodBytesReceived += info.PeriodBytesReceived
-	agg.periodBytesTransmitted += info.PeriodBytesTransmitted
-	agg.cpuUsageSum += info.CPUUsage
-	agg.memoryUsageSum += info.MemoryUsage
-	agg.diskUsageSum += info.DiskUsage
-	agg.load1Sum += info.Load1
-	agg.load5Sum += info.Load5
-	agg.load15Sum += info.Load15
-	agg.tcpConns += info.TCPConns
-	agg.udpConns += info.UDPConns
-	agg.netInSpeed += info.NetInSpeed
-	agg.netOutSpeed += info.NetOutSpeed
-	if info.Uptime > agg.uptimeMax {
-		agg.uptimeMax = info.Uptime
+	inst.count++
+	inst.bytesReceived = info.BytesReceived
+	inst.bytesTransmitted = info.BytesTransmitted
+	inst.periodBytesReceived = info.PeriodBytesReceived
+	inst.periodBytesTransmitted = info.PeriodBytesTransmitted
+	inst.cpuUsageSum += info.CPUUsage
+	inst.memoryUsageSum += info.MemoryUsage
+	inst.diskUsageSum += info.DiskUsage
+	inst.load1Sum += info.Load1
+	inst.load5Sum += info.Load5
+	inst.load15Sum += info.Load15
+	inst.tcpConnsSum += info.TCPConns
+	inst.udpConnsSum += info.UDPConns
+	inst.netInSpeedSum += info.NetInSpeed
+	inst.netOutSpeedSum += info.NetOutSpeed
+	if info.Uptime > inst.uptimeMax {
+		inst.uptimeMax = info.Uptime
 	}
 	s.nodeBufferSamples++
 	shouldFlush := s.nodeBufferSamples >= 200
@@ -142,27 +154,71 @@ func (s *IngestionService) flushNodeMetrics() {
 	}
 	metrics := make([]*model.NodeMetric, 0, len(buffer))
 	for _, agg := range buffer {
-		if agg == nil || agg.count <= 0 {
+		if agg == nil || len(agg.instances) == 0 {
+			continue
+		}
+		var (
+			instanceCount          int64
+			bytesReceived          uint64
+			bytesTransmitted       uint64
+			periodBytesReceived    uint64
+			periodBytesTransmitted uint64
+			cpuUsageSum            float64
+			memoryUsageSum         float64
+			diskUsageSum           float64
+			load1Sum               float64
+			load5Sum               float64
+			load15Sum              float64
+			tcpConns               int64
+			udpConns               int64
+			netInSpeed             int64
+			netOutSpeed            int64
+			uptimeMax              uint64
+		)
+		for _, inst := range agg.instances {
+			if inst == nil || inst.count <= 0 {
+				continue
+			}
+			instanceCount++
+			bytesReceived += inst.bytesReceived
+			bytesTransmitted += inst.bytesTransmitted
+			periodBytesReceived += inst.periodBytesReceived
+			periodBytesTransmitted += inst.periodBytesTransmitted
+			cpuUsageSum += inst.cpuUsageSum / float64(inst.count)
+			memoryUsageSum += inst.memoryUsageSum / float64(inst.count)
+			diskUsageSum += inst.diskUsageSum / float64(inst.count)
+			load1Sum += inst.load1Sum / float64(inst.count)
+			load5Sum += inst.load5Sum / float64(inst.count)
+			load15Sum += inst.load15Sum / float64(inst.count)
+			tcpConns += inst.tcpConnsSum / inst.count
+			udpConns += inst.udpConnsSum / inst.count
+			netInSpeed += inst.netInSpeedSum / inst.count
+			netOutSpeed += inst.netOutSpeedSum / inst.count
+			if inst.uptimeMax > uptimeMax {
+				uptimeMax = inst.uptimeMax
+			}
+		}
+		if instanceCount <= 0 {
 			continue
 		}
 		metrics = append(metrics, &model.NodeMetric{
 			NodeID:      agg.nodeID,
 			Timestamp:   agg.timestamp,
-			CPUUsage:    agg.cpuUsageSum / float64(agg.count),
-			MemUsage:    agg.memoryUsageSum / float64(agg.count),
-			DiskUsage:   agg.diskUsageSum / float64(agg.count),
-			NetInBytes:  int64(agg.bytesReceived),
-			NetOutBytes: int64(agg.bytesTransmitted),
-			NetInSpeed:  agg.netInSpeed,
-			NetOutSpeed: agg.netOutSpeed,
-			Load1:       agg.load1Sum / float64(agg.count),
-			Load5:       agg.load5Sum / float64(agg.count),
-			Load15:      agg.load15Sum / float64(agg.count),
-			TCPConns:    agg.tcpConns,
-			UDPConns:    agg.udpConns,
-			Uptime:      int64(agg.uptimeMax),
-			PeriodRx:    int64(agg.periodBytesReceived),
-			PeriodTx:    int64(agg.periodBytesTransmitted),
+			CPUUsage:    cpuUsageSum / float64(instanceCount),
+			MemUsage:    memoryUsageSum / float64(instanceCount),
+			DiskUsage:   diskUsageSum / float64(instanceCount),
+			NetInBytes:  int64(bytesReceived),
+			NetOutBytes: int64(bytesTransmitted),
+			NetInSpeed:  netInSpeed,
+			NetOutSpeed: netOutSpeed,
+			Load1:       load1Sum / float64(instanceCount),
+			Load5:       load5Sum / float64(instanceCount),
+			Load15:      load15Sum / float64(instanceCount),
+			TCPConns:    tcpConns,
+			UDPConns:    udpConns,
+			Uptime:      int64(uptimeMax),
+			PeriodRx:    int64(periodBytesReceived),
+			PeriodTx:    int64(periodBytesTransmitted),
 		})
 	}
 	if len(metrics) == 0 {
@@ -171,6 +227,14 @@ func (s *IngestionService) flushNodeMetrics() {
 	if err := s.repo.InsertNodeMetricBatch(metrics); err != nil {
 		log.Printf("monitoring write failed op=node_metric.flush count=%d err=%v", len(metrics), err)
 	}
+}
+
+func normalizeMetricInstanceID(instanceID string) string {
+	instanceID = strings.TrimSpace(instanceID)
+	if instanceID == "" || strings.EqualFold(instanceID, "default") {
+		return "default"
+	}
+	return instanceID
 }
 
 func (s *IngestionService) pruneMetrics() {

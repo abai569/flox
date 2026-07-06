@@ -32,6 +32,13 @@ import (
 
 const tunnelServiceBindRetryDelay = 150 * time.Millisecond
 
+var tunnelRedeployLocks sync.Map
+
+func tunnelRedeployLock(tunnelID int64) *sync.Mutex {
+	lock, _ := tunnelRedeployLocks.LoadOrStore(tunnelID, &sync.Mutex{})
+	return lock.(*sync.Mutex)
+}
+
 func validateAutoBuyTrafficConfig(repo *repo.Repository, autoBuyTraffic int, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold int64) error {
 	if autoBuyTraffic != 0 && autoBuyTraffic != 1 {
 		return errors.New("自动购买流量参数错误")
@@ -1553,6 +1560,13 @@ func (h *Handler) cleanupTunnelRuntime(tunnelID int64) {
 	if err != nil {
 		return
 	}
+	h.cleanupTunnelRuntimeRows(tunnelID, chainRows, 3)
+}
+
+func (h *Handler) cleanupTunnelRuntimeRows(tunnelID int64, chainRows []chainNodeRecord, maxRetries int) {
+	if h == nil || tunnelID <= 0 || len(chainRows) == 0 {
+		return
+	}
 
 	serviceName := fmt.Sprintf("%d_tls", tunnelID)
 	chainName := fmt.Sprintf("chains_%d", tunnelID)
@@ -1564,13 +1578,13 @@ func (h *Handler) cleanupTunnelRuntime(tunnelID int64) {
 			nodeName = fmt.Sprintf("node_%d", nodeID)
 		}
 		if row.ChainType == 1 {
-			h.sendNodeCommandWithRetry(nodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true, 3, "清理入口节点 "+nodeName+" 链配置")
-			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, 3, "清理入口节点 "+nodeName+" 服务")
+			h.sendNodeCommandWithRetry(nodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true, maxRetries, "清理入口节点 "+nodeName+" 链配置")
+			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, maxRetries, "清理入口节点 "+nodeName+" 服务")
 		} else if row.ChainType == 2 {
-			h.sendNodeCommandWithRetry(nodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true, 3, "清理链节点 "+nodeName+" 链配置")
-			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, 3, "清理链节点 "+nodeName+" 服务")
+			h.sendNodeCommandWithRetry(nodeID, "DeleteChains", map[string]interface{}{"chain": chainName}, false, true, maxRetries, "清理链节点 "+nodeName+" 链配置")
+			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, maxRetries, "清理链节点 "+nodeName+" 服务")
 		} else if row.ChainType == 3 {
-			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, 3, "清理出口节点 "+nodeName+" 服务")
+			h.sendNodeCommandWithRetry(nodeID, "DeleteService", map[string]interface{}{"services": []string{serviceName}}, false, true, maxRetries, "清理出口节点 "+nodeName+" 服务")
 		}
 	}
 }
@@ -1709,8 +1723,13 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	oldEntryNodeIDs, _ := h.tunnelEntryNodeIDs(id)
-
-	h.cleanupTunnelRuntime(id)
+	oldTunnel, _ := h.getTunnelRecord(id)
+	oldChainRows := make([]chainNodeRecord, 0)
+	if oldTunnel != nil && oldTunnel.Type == 2 {
+		if rows, err := h.listChainNodesForTunnel(id); err == nil {
+			oldChainRows = append(oldChainRows, rows...)
+		}
+	}
 
 	now := time.Now().UnixMilli()
 	typeVal := asInt(req["type"], 1)
@@ -1805,31 +1824,6 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newEntryNodeIDs, _ = h.tunnelEntryNodeIDs(id)
-	if !sameInt64Set(oldEntryNodeIDs, newEntryNodeIDs) {
-		h.cleanupTunnelForwardRuntimesOnRemovedEntryNodes(id, oldEntryNodeIDs, newEntryNodeIDs)
-		h.syncTunnelForwardsEntryPorts(id, newEntryNodeIDs)
-	}
-
-	if typeVal == 2 {
-		relayMode, resolveErr := h.resolveTunnelRelayMode(id)
-		if resolveErr != nil {
-			response.WriteJSON(w, response.ErrDefault(resolveErr.Error()))
-			return
-		}
-		runtimeState.Mode = relayMode
-		createdChains, createdServices, applyErr := h.applyTunnelRuntime(runtimeState)
-		if applyErr != nil {
-			h.rollbackTunnelRuntime(createdChains, createdServices, id)
-			response.WriteJSON(w, response.ErrDefault(applyErr.Error()))
-			return
-		}
-	}
-
-	if forwards, fwdErr := h.listForwardsByTunnel(id); fwdErr == nil {
-		for i := range forwards {
-			_ = h.syncForwardServices(&forwards[i], "UpdateService", true)
-		}
-	}
 
 	items, err := h.repo.ListTunnels()
 	if err != nil {
@@ -1853,15 +1847,6 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	tlsVal := asInt(req["tls"], 0)
 	socksVal := asInt(req["socks"], 0)
 	blockOtherVal := asInt(req["blockOther"], 0)
-	for _, nodeID := range newEntryNodeIDs {
-		if nodeID > 0 {
-			if currentStatus, _, _, _, _, _ := h.repo.GetNodeStatusFields(nodeID); currentStatus == 1 {
-				if err := h.applyNodeProtocolChange(nodeID, httpVal, tlsVal, socksVal, blockOtherVal); err != nil {
-					log.Printf("SetProtocol failed for node %d: %v", nodeID, err)
-				}
-			}
-		}
-	}
 
 	// 禁用隧道时级联禁用 UserTunnel + 暂停关联的转发
 	if asInt(req["status"], 1) == 0 {
@@ -1877,7 +1862,91 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	go h.redeployTunnelRuntimeAfterUpdate(id, typeVal, asInt(req["status"], 1), now, oldChainRows, oldEntryNodeIDs, newEntryNodeIDs, runtimeState, httpVal, tlsVal, socksVal, blockOtherVal)
+
 	response.WriteJSON(w, response.OK(updatedTunnel))
+}
+
+func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, status int, expectedUpdatedTime int64, oldChainRows []chainNodeRecord, oldEntryNodeIDs, newEntryNodeIDs []int64, runtimeState *tunnelCreateState, httpVal, tlsVal, socksVal, blockOtherVal int) {
+	if h == nil || tunnelID <= 0 {
+		return
+	}
+	lock := tunnelRedeployLock(tunnelID)
+	lock.Lock()
+	defer lock.Unlock()
+	defer func() {
+		if v := recover(); v != nil {
+			log.Printf("redeploy tunnel %d panic: %v", tunnelID, v)
+		}
+	}()
+	if !h.isTunnelRuntimeUpdateCurrent(tunnelID, expectedUpdatedTime) {
+		return
+	}
+	if len(oldChainRows) > 0 {
+		h.cleanupTunnelRuntimeRows(tunnelID, oldChainRows, 1)
+	}
+	if !sameInt64Set(oldEntryNodeIDs, newEntryNodeIDs) {
+		h.cleanupTunnelForwardRuntimesOnRemovedEntryNodes(tunnelID, oldEntryNodeIDs, newEntryNodeIDs)
+		h.syncTunnelForwardsEntryPorts(tunnelID, newEntryNodeIDs)
+	}
+	if status == 0 {
+		return
+	}
+	if !h.isTunnelRuntimeUpdateCurrent(tunnelID, expectedUpdatedTime) {
+		return
+	}
+	if typeVal == 2 {
+		if runtimeState == nil {
+			log.Printf("redeploy tunnel %d runtime skipped: empty runtime state", tunnelID)
+			return
+		}
+		relayMode, resolveErr := h.resolveTunnelRelayMode(tunnelID)
+		if resolveErr != nil {
+			log.Printf("redeploy tunnel %d resolve mode failed: %v", tunnelID, resolveErr)
+			return
+		}
+		runtimeState.Mode = relayMode
+		createdChains, createdServices, applyErr := h.applyTunnelRuntime(runtimeState)
+		if applyErr != nil {
+			h.rollbackTunnelRuntime(createdChains, createdServices, tunnelID)
+			log.Printf("redeploy tunnel %d runtime failed: %v", tunnelID, applyErr)
+			return
+		}
+	}
+	if forwards, fwdErr := h.listForwardsByTunnel(tunnelID); fwdErr == nil {
+		for i := range forwards {
+			if err := h.syncForwardServices(&forwards[i], "UpdateService", true); err != nil {
+				log.Printf("redeploy tunnel %d forward %d failed: %v", tunnelID, forwards[i].ID, err)
+			}
+		}
+	} else {
+		log.Printf("redeploy tunnel %d list forwards failed: %v", tunnelID, fwdErr)
+	}
+	for _, nodeID := range newEntryNodeIDs {
+		if nodeID > 0 {
+			if currentStatus, _, _, _, _, _ := h.repo.GetNodeStatusFields(nodeID); currentStatus == 1 {
+				if err := h.applyNodeProtocolChange(nodeID, httpVal, tlsVal, socksVal, blockOtherVal); err != nil {
+					log.Printf("SetProtocol failed for node %d: %v", nodeID, err)
+				}
+			}
+		}
+	}
+}
+
+func (h *Handler) isTunnelRuntimeUpdateCurrent(tunnelID int64, expectedUpdatedTime int64) bool {
+	if h == nil || tunnelID <= 0 || expectedUpdatedTime <= 0 {
+		return true
+	}
+	updatedTime, err := h.repo.GetTunnelUpdatedTime(tunnelID)
+	if err != nil {
+		log.Printf("redeploy tunnel %d version check failed: %v", tunnelID, err)
+		return false
+	}
+	if updatedTime != expectedUpdatedTime {
+		log.Printf("redeploy tunnel %d skipped: newer update detected", tunnelID)
+		return false
+	}
+	return true
 }
 
 func sameInt64Set(a, b []int64) bool {

@@ -1134,6 +1134,18 @@ func (r *Repository) UpdateTunnelTx(tx *gorm.DB, tunnelID int64, name string, ty
 		Updates(updates).Error
 }
 
+func (r *Repository) GetTunnelUpdatedTime(tunnelID int64) (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, errors.New("repository not initialized")
+	}
+	var tunnel model.Tunnel
+	err := r.db.Select("updated_time").Where("id = ?", tunnelID).First(&tunnel).Error
+	if err != nil {
+		return 0, err
+	}
+	return tunnel.UpdatedTime, nil
+}
+
 func (r *Repository) UpdateTunnelStatus(tunnelID int64, status int) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")

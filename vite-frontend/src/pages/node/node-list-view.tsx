@@ -73,7 +73,17 @@ interface NodeListViewProps {
   displayNodes: Node[];
   realtimeNodeMetrics: Record<
     number,
-    { uploadTraffic: number; downloadTraffic: number }
+    {
+      uploadTraffic: number;
+      downloadTraffic: number;
+      periodTraffic?: {
+        rx: number;
+        tx: number;
+        since: number;
+        nextReset?: number;
+        cycle?: string;
+      };
+    }
   >;
   upgradeProgress: Record<
     number,

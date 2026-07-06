@@ -115,6 +115,38 @@ declare global {
   }
 }
 const NODE_FALLBACK_REFRESH_INTERVAL_MS = 15000;
+const REALTIME_NODE_METRIC_STALE_MS = 90_000;
+
+type NodePeriodTraffic = {
+  rx: number;
+  tx: number;
+  since: number;
+  nextReset?: number;
+  cycle?: string;
+};
+
+type RealtimeNodeMetric = {
+  uploadTraffic: number;
+  downloadTraffic: number;
+  uploadSpeed: number;
+  downloadSpeed: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  diskUsage: number;
+  uptime: number;
+  load1: number;
+  load5: number;
+  load15: number;
+  tcpConns: number;
+  udpConns: number;
+  periodTraffic?: NodePeriodTraffic;
+};
+
+type RealtimeNodeInstanceMetric = RealtimeNodeMetric & {
+  nodeId: number;
+  instanceId: string;
+  receivedAt: number;
+};
 
 interface Node {
   id: number;
@@ -151,13 +183,7 @@ interface Node {
   rollbackLoading?: boolean;
   groupId?: number | null;
   secret?: string;
-  periodTraffic?: {
-    rx: number;
-    tx: number;
-    since: number;
-    nextReset?: number;
-    cycle?: string;
-  };
+  periodTraffic?: NodePeriodTraffic;
 }
 interface NodeForm {
   id: number | null;
@@ -375,6 +401,168 @@ const mergeNodeRealtimeState = (
       existingNode?.mimicError ?? incomingNode.mimicError ?? "",
   } as Node;
 };
+
+const isRealMetricInstanceId = (instanceId?: string): boolean => {
+  const value = String(instanceId ?? "").trim();
+
+  return value !== "" && value.toLowerCase() !== "default";
+};
+
+const getRealtimeInstanceKey = (nodeId: number, instanceId: string): string =>
+  `${nodeId}:${instanceId}`;
+
+const buildRealtimeNodeMetric = (
+  metric: Record<string, unknown>,
+  previous?: RealtimeNodeMetric,
+): RealtimeNodeMetric => {
+  const hasPeriodTraffic =
+    metric.periodRx !== undefined ||
+    metric.periodTx !== undefined ||
+    metric.period_bytes_received !== undefined ||
+    metric.period_bytes_transmitted !== undefined;
+
+  return {
+    uploadTraffic: Number(
+      metric.netOutBytes ??
+        metric.bytes_transmitted ??
+        previous?.uploadTraffic ??
+        0,
+    ),
+    downloadTraffic: Number(
+      metric.netInBytes ?? metric.bytes_received ?? previous?.downloadTraffic ?? 0,
+    ),
+    uploadSpeed: Number(
+      metric.netOutSpeed ?? metric.net_out_speed ?? previous?.uploadSpeed ?? 0,
+    ),
+    downloadSpeed: Number(
+      metric.netInSpeed ?? metric.net_in_speed ?? previous?.downloadSpeed ?? 0,
+    ),
+    cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? previous?.cpuUsage ?? 0),
+    memoryUsage: Number(
+      metric.memoryUsage ?? metric.memory_usage ?? previous?.memoryUsage ?? 0,
+    ),
+    diskUsage: Number(
+      metric.diskUsage ?? metric.disk_usage ?? previous?.diskUsage ?? 0,
+    ),
+    uptime: Number(metric.uptime ?? previous?.uptime ?? 0),
+    load1: Number(metric.load1 ?? previous?.load1 ?? 0),
+    load5: Number(metric.load5 ?? previous?.load5 ?? 0),
+    load15: Number(metric.load15 ?? previous?.load15 ?? 0),
+    tcpConns: Number(metric.tcpConns ?? metric.tcp_conns ?? previous?.tcpConns ?? 0),
+    udpConns: Number(metric.udpConns ?? metric.udp_conns ?? previous?.udpConns ?? 0),
+    periodTraffic: hasPeriodTraffic
+      ? {
+          rx: Number(metric.periodRx ?? metric.period_bytes_received ?? 0),
+          tx: Number(metric.periodTx ?? metric.period_bytes_transmitted ?? 0),
+          since: Number(
+            metric.baselineRecordedAt ?? metric.baseline_recorded_at ?? 0,
+          ),
+          nextReset: Number(metric.nextResetAt ?? metric.next_reset_at ?? 0),
+          cycle: String(metric.renewalCycle ?? metric.renewal_cycle ?? ""),
+        }
+      : previous?.periodTraffic,
+  };
+};
+
+const aggregateRealtimeNodeMetrics = (
+  nodeId: number,
+  instanceMetrics: Record<string, RealtimeNodeInstanceMetric>,
+  fallback?: RealtimeNodeMetric,
+): RealtimeNodeMetric | undefined => {
+  const now = Date.now();
+  const metrics = Object.values(instanceMetrics).filter(
+    (item) =>
+      item.nodeId === nodeId && now - item.receivedAt <= REALTIME_NODE_METRIC_STALE_MS,
+  );
+
+  if (metrics.length === 0) {
+    return fallback;
+  }
+
+  const usageCount = metrics.length;
+  const total = metrics.reduce(
+    (acc, item) => {
+      acc.uploadTraffic += item.uploadTraffic;
+      acc.downloadTraffic += item.downloadTraffic;
+      acc.uploadSpeed += item.uploadSpeed;
+      acc.downloadSpeed += item.downloadSpeed;
+      acc.cpuUsage += item.cpuUsage;
+      acc.memoryUsage += item.memoryUsage;
+      acc.diskUsage += item.diskUsage;
+      acc.load1 += item.load1;
+      acc.load5 += item.load5;
+      acc.load15 += item.load15;
+      acc.tcpConns += item.tcpConns;
+      acc.udpConns += item.udpConns;
+      acc.uptime = Math.max(acc.uptime, item.uptime);
+      if (item.periodTraffic) {
+        acc.periodSeen = true;
+        acc.periodRx += item.periodTraffic.rx;
+        acc.periodTx += item.periodTraffic.tx;
+        if (item.periodTraffic.since > 0) {
+          acc.periodSince =
+            acc.periodSince > 0
+              ? Math.min(acc.periodSince, item.periodTraffic.since)
+              : item.periodTraffic.since;
+        }
+        if ((item.periodTraffic.nextReset ?? 0) > acc.periodNextReset) {
+          acc.periodNextReset = item.periodTraffic.nextReset ?? 0;
+        }
+        if (!acc.periodCycle && item.periodTraffic.cycle) {
+          acc.periodCycle = item.periodTraffic.cycle;
+        }
+      }
+
+      return acc;
+    },
+    {
+      uploadTraffic: 0,
+      downloadTraffic: 0,
+      uploadSpeed: 0,
+      downloadSpeed: 0,
+      cpuUsage: 0,
+      memoryUsage: 0,
+      diskUsage: 0,
+      uptime: 0,
+      load1: 0,
+      load5: 0,
+      load15: 0,
+      tcpConns: 0,
+      udpConns: 0,
+      periodSeen: false,
+      periodRx: 0,
+      periodTx: 0,
+      periodSince: 0,
+      periodNextReset: 0,
+      periodCycle: "",
+    },
+  );
+
+  return {
+    uploadTraffic: total.uploadTraffic,
+    downloadTraffic: total.downloadTraffic,
+    uploadSpeed: total.uploadSpeed,
+    downloadSpeed: total.downloadSpeed,
+    cpuUsage: usageCount > 0 ? total.cpuUsage / usageCount : 0,
+    memoryUsage: usageCount > 0 ? total.memoryUsage / usageCount : 0,
+    diskUsage: usageCount > 0 ? total.diskUsage / usageCount : 0,
+    uptime: total.uptime,
+    load1: usageCount > 0 ? total.load1 / usageCount : 0,
+    load5: usageCount > 0 ? total.load5 / usageCount : 0,
+    load15: usageCount > 0 ? total.load15 / usageCount : 0,
+    tcpConns: total.tcpConns,
+    udpConns: total.udpConns,
+    periodTraffic: total.periodSeen
+      ? {
+          rx: total.periodRx,
+          tx: total.periodTx,
+          since: total.periodSince,
+          nextReset: total.periodNextReset,
+          cycle: total.periodCycle,
+        }
+      : fallback?.periodTraffic,
+  };
+};
 const SortableItem = ({
   id,
   children,
@@ -426,33 +614,13 @@ export default function NodePage() {
   const [nodeOrder, setNodeOrder] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [realtimeNodeMetrics, setRealtimeNodeMetrics] = useState<
-    Record<
-      number,
-      {
-        uploadTraffic: number;
-        downloadTraffic: number;
-        uploadSpeed: number;
-        downloadSpeed: number;
-        cpuUsage: number;
-        memoryUsage: number;
-        diskUsage: number;
-        uptime: number;
-        load1: number;
-        load5: number;
-        load15: number;
-        tcpConns: number;
-        udpConns: number;
-        periodTraffic?: {
-          rx: number;
-          tx: number;
-          since: number;
-          nextReset?: number;
-          cycle?: string;
-        };
-      }
-    >
+    Record<number, RealtimeNodeMetric>
+  >({});
+  const [realtimeNodeInstanceMetrics, setRealtimeNodeInstanceMetrics] = useState<
+    Record<string, RealtimeNodeInstanceMetric>
   >({});
   const realtimeNodeMetricsRef = useRef(realtimeNodeMetrics);
+  const realtimeNodeInstanceMetricsRef = useRef(realtimeNodeInstanceMetrics);
   const [localSearchKeyword, setLocalSearchKeyword] = useLocalStorageState(
     "node-search-keyword-local",
     "",
@@ -670,6 +838,10 @@ export default function NodePage() {
     realtimeNodeMetricsRef.current = realtimeNodeMetrics;
   }, [realtimeNodeMetrics]);
 
+  useEffect(() => {
+    realtimeNodeInstanceMetricsRef.current = realtimeNodeInstanceMetrics;
+  }, [realtimeNodeInstanceMetrics]);
+
   const handleNodeOffline = useCallback((nodeId: number) => {
     setNodeList((prev) =>
       prev.map((node) => {
@@ -760,12 +932,15 @@ export default function NodePage() {
 
           for (const node of nodesData) {
             if (node.periodTraffic && !next[node.id]) {
-              next[node.id] = {
-                ...next[node.id],
-                uploadTraffic: node.periodTraffic.tx ?? 0,
-                downloadTraffic: node.periodTraffic.rx ?? 0,
-                periodTraffic: node.periodTraffic,
-              };
+              next[node.id] = buildRealtimeNodeMetric({
+                netOutBytes: node.periodTraffic.tx ?? 0,
+                netInBytes: node.periodTraffic.rx ?? 0,
+                period_bytes_received: node.periodTraffic.rx ?? 0,
+                period_bytes_transmitted: node.periodTraffic.tx ?? 0,
+                baseline_recorded_at: node.periodTraffic.since ?? 0,
+                next_reset_at: node.periodTraffic.nextReset ?? 0,
+                renewal_cycle: node.periodTraffic.cycle ?? "",
+              });
               changed = true;
             }
           }
@@ -975,39 +1150,42 @@ export default function NodePage() {
       clearOfflineTimer(nodeId);
       const metric =
         typeof messageData === "string" ? JSON.parse(messageData) : messageData;
+      if (!metric || typeof metric !== "object") return;
+      const metricData = metric as Record<string, unknown>;
+      const instanceId = String(
+        metricData.instanceId ?? metricData.instance_id ?? "",
+      ).trim();
 
-      setRealtimeNodeMetrics((prev) => {
-        return {
-          ...prev,
-          [nodeId]: {
-            ...prev[nodeId],
-            uploadTraffic: Number(
-              metric.netOutBytes ??
-              metric.bytes_transmitted ??
-              prev[nodeId]?.uploadTraffic ??
-              0,
-            ),
-            downloadTraffic: Number(
-              metric.netInBytes ??
-              metric.bytes_received ??
-              prev[nodeId]?.downloadTraffic ??
-              0,
-            ),
-            // 周期流量（新字段）
-            periodTraffic:
-              metric.period_bytes_received !== undefined ||
-                metric.period_bytes_transmitted !== undefined
-                ? {
-                  rx: Number(metric.period_bytes_received ?? 0),
-                  tx: Number(metric.period_bytes_transmitted ?? 0),
-                  since: metric.baseline_recorded_at || 0,
-                  nextReset: metric.next_reset_at || 0,
-                  cycle: metric.renewal_cycle || "",
-                }
-                : prev[nodeId]?.periodTraffic,
-          },
+      if (isRealMetricInstanceId(instanceId)) {
+        const previousInstance =
+          realtimeNodeInstanceMetricsRef.current[
+            getRealtimeInstanceKey(nodeId, instanceId)
+          ];
+        const nextInstanceMetric: RealtimeNodeInstanceMetric = {
+          ...buildRealtimeNodeMetric(metricData, previousInstance),
+          nodeId,
+          instanceId,
+          receivedAt: Date.now(),
         };
-      });
+        const nextInstanceMetrics = {
+          ...realtimeNodeInstanceMetricsRef.current,
+          [getRealtimeInstanceKey(nodeId, instanceId)]: nextInstanceMetric,
+        };
+
+        realtimeNodeInstanceMetricsRef.current = nextInstanceMetrics;
+        setRealtimeNodeInstanceMetrics(nextInstanceMetrics);
+        setRealtimeNodeMetrics((prev) => ({
+          ...prev,
+          [nodeId]:
+            aggregateRealtimeNodeMetrics(nodeId, nextInstanceMetrics, prev[nodeId]) ??
+            nextInstanceMetric,
+        }));
+      } else {
+        setRealtimeNodeMetrics((prev) => ({
+          ...prev,
+          [nodeId]: buildRealtimeNodeMetric(metricData, prev[nodeId]),
+        }));
+      }
       setNodeList((prev) =>
         prev.map((node) => {
           if (node.id !== nodeId) return node;

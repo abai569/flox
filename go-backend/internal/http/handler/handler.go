@@ -251,6 +251,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 			UDPConns:               info.UDPConns,
 			NetInSpeed:             info.NetInSpeed,
 			NetOutSpeed:            info.NetOutSpeed,
+			InstanceID:             info.InstanceID,
 		}
 		h.metrics.RecordNodeMetric(nodeID, metricInfo)
 		h.maybeCheckNodeTraffic(nodeID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
