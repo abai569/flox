@@ -128,11 +128,24 @@ const isRealInstanceId = (instanceId?: string): boolean => {
 const getInstanceMetricKey = (nodeId: number, instanceId?: string): string =>
   `${nodeId}:${instanceId?.trim() || ""}`;
 
-const getConnectionTooltip = (tcpConns?: number, udpConns?: number): string => {
+const getInstanceConnectionTooltip = (
+  tcpConns?: number,
+  udpConns?: number,
+): string => {
   const tcp = Number(tcpConns ?? 0);
   const udp = Number(udpConns ?? 0);
 
-  return `TCP ${tcp}\nUDP ${udp}\n总计 ${tcp + udp}`;
+  return `TCP ${tcp}\nUDP ${udp}`;
+};
+
+const getGroupConnectionTooltip = (
+  tcpConns?: number,
+  udpConns?: number,
+): string => {
+  const tcp = Number(tcpConns ?? 0);
+  const udp = Number(udpConns ?? 0);
+
+  return `TCP 总和 ${tcp}\nUDP 总和 ${udp}`;
 };
 
 const filterRealInstanceGroups = (
@@ -489,7 +502,7 @@ function NodeInstanceGroupsView({
           (sum, member) => sum + Number(member.udpConns ?? 0),
           0,
         );
-        const groupConnectionTooltip = getConnectionTooltip(
+        const groupConnectionTooltip = getGroupConnectionTooltip(
           totalTCPConns,
           totalUDPConns,
         );
@@ -596,7 +609,7 @@ function NodeInstanceGroupsView({
                           </td>
                           <td
                             className="px-2 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums"
-                            title={getConnectionTooltip(
+                            title={getInstanceConnectionTooltip(
                               member.tcpConns,
                               member.udpConns,
                             )}
