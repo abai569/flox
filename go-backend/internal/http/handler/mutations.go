@@ -4755,7 +4755,7 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		}
 		state.Nodes[nodeID] = node
 	}
-	instances, err := h.repo.ListOnlineNodeInstancesByNodeIDs(state.NodeIDList)
+	instances, err := h.repo.ListOnlineNodeInstancesByNodeIDsTx(tx, state.NodeIDList)
 	if err != nil {
 		return nil, err
 	}

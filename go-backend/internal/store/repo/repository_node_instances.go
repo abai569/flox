@@ -186,12 +186,19 @@ func (r *Repository) ListOnlineNodeInstancesByNodeIDs(nodeIDs []int64) (map[int6
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
+	return r.ListOnlineNodeInstancesByNodeIDsTx(r.db, nodeIDs)
+}
+
+func (r *Repository) ListOnlineNodeInstancesByNodeIDsTx(tx *gorm.DB, nodeIDs []int64) (map[int64][]model.NodeInstance, error) {
+	if tx == nil {
+		return nil, errors.New("database unavailable")
+	}
 	if len(nodeIDs) == 0 {
 		return map[int64][]model.NodeInstance{}, nil
 	}
 	var instances []model.NodeInstance
 	where, args := validNodeInstanceWhere()
-	err := r.db.Where("node_id IN ? AND status = ?", nodeIDs, 1).
+	err := tx.Where("node_id IN ? AND status = ?", nodeIDs, 1).
 		Where(where, args...).
 		Order("node_id ASC, id ASC").
 		Find(&instances).Error
