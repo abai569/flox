@@ -22,6 +22,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { NodeGroupManager } from "./node/node-group-manager";
+import { NodeDNSFailoverModal } from "./node/dns-failover-modal";
 
 import {
   DistroIcon,
@@ -747,6 +748,8 @@ export default function NodePage() {
   const [upgradeTargetNodeId, setUpgradeTargetNodeId] = useState<number | null>(
     null,
   );
+  const [dnsFailoverModalOpen, setDNSFailoverModalOpen] = useState(false);
+  const [dnsFailoverNode, setDNSFailoverNode] = useState<Node | null>(null);
   const [ghfastURL, setGhfastURL] = useState<string>("https://ghfast.top");
   const [latestVersion, setLatestVersion] = useState<string>("");
   const [releases, setReleases] = useState<
@@ -1415,6 +1418,10 @@ export default function NodePage() {
       flowResetTime: node.flowResetTime || 1,
     });
     setDialogVisible(true);
+  };
+  const openDNSFailoverModal = (node: Node) => {
+    setDNSFailoverNode(node);
+    setDNSFailoverModalOpen(true);
   };
   const handleRegenerateSecret = () => {
     const bytes = new Uint8Array(16);
@@ -2889,7 +2896,7 @@ export default function NodePage() {
                 更新
               </Button>
             </div>
-            <div className="grid gap-2 grid-cols-4">
+            <div className="grid gap-2 grid-cols-5">
               <Button
                 className="min-h-8 w-full"
                 color="primary"
@@ -2898,6 +2905,15 @@ export default function NodePage() {
                 onPress={() => handleEdit(node)}
               >
                 编辑
+              </Button>
+              <Button
+                className="min-h-8 w-full"
+                color="secondary"
+                size="sm"
+                variant="flat"
+                onPress={() => openDNSFailoverModal(node)}
+              >
+                DNS
               </Button>
               <Button
                 className="min-h-8 w-full"
@@ -3857,6 +3873,11 @@ export default function NodePage() {
           )}
         </ModalContent>
       </Modal>
+      <NodeDNSFailoverModal
+        isOpen={dnsFailoverModalOpen}
+        node={dnsFailoverNode}
+        onOpenChange={setDNSFailoverModalOpen}
+      />
       {/* 删除确认弹窗 */}
       <Modal
         backdrop="blur"

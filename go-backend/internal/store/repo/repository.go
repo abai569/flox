@@ -206,6 +206,7 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.NftablesRule{},
 		&model.Node{},
 		&model.NodeInstance{},
+		&model.NodeDNSFailover{},
 		&model.SpeedLimit{},
 		&model.StatisticsFlow{},
 		&model.Tunnel{},

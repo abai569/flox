@@ -24,7 +24,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(14)
+	h.jobsWG.Add(15)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -41,6 +41,7 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runNodeNotifyCooldownLoop(ctx)
 	go h.runTelegramBotLoop(ctx)
 	go h.runSDWANReconcileLoop(ctx)
+	go h.runDNSFailoverLoop(ctx)
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier != middleware.TierFree {
