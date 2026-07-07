@@ -2,6 +2,7 @@ package repo
 
 import (
 	"errors"
+	"sort"
 	"strings"
 
 	"go-backend/internal/store/model"
@@ -72,30 +73,35 @@ func (r *Repository) UpsertNodeInstance(in NodeInstanceUpsert) error {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
+		displayIndex, err := r.nextNodeInstanceDisplayIndex(in.NodeID)
+		if err != nil {
+			return err
+		}
 		inst := model.NodeInstance{
-			NodeID:      in.NodeID,
-			InstanceID:  instanceID,
-			Hostname:    strings.TrimSpace(in.Hostname),
-			PublicIPV4:  strings.TrimSpace(in.PublicIPV4),
-			PublicIPV6:  strings.TrimSpace(in.PublicIPV6),
-			Version:     strings.TrimSpace(in.Version),
-			Status:      1,
-			Weight:      1,
-			NetInSpeed:  in.NetInSpeed,
-			NetOutSpeed: in.NetOutSpeed,
-			NetInBytes:  in.NetInBytes,
-			NetOutBytes: in.NetOutBytes,
-			TCPConns:    in.TCPConns,
-			UDPConns:    in.UDPConns,
-			Uptime:      in.Uptime,
-			PeriodRx:    in.PeriodRx,
-			PeriodTx:    in.PeriodTx,
-			CPUUsage:    in.CPUUsage,
-			MemUsage:    in.MemUsage,
-			DiskUsage:   in.DiskUsage,
-			LastSeenAt:  now,
-			CreatedTime: now,
-			UpdatedTime: now,
+			NodeID:       in.NodeID,
+			InstanceID:   instanceID,
+			Hostname:     strings.TrimSpace(in.Hostname),
+			PublicIPV4:   strings.TrimSpace(in.PublicIPV4),
+			PublicIPV6:   strings.TrimSpace(in.PublicIPV6),
+			Version:      strings.TrimSpace(in.Version),
+			Status:       1,
+			Weight:       1,
+			DisplayIndex: displayIndex,
+			NetInSpeed:   in.NetInSpeed,
+			NetOutSpeed:  in.NetOutSpeed,
+			NetInBytes:   in.NetInBytes,
+			NetOutBytes:  in.NetOutBytes,
+			TCPConns:     in.TCPConns,
+			UDPConns:     in.UDPConns,
+			Uptime:       in.Uptime,
+			PeriodRx:     in.PeriodRx,
+			PeriodTx:     in.PeriodTx,
+			CPUUsage:     in.CPUUsage,
+			MemUsage:     in.MemUsage,
+			DiskUsage:    in.DiskUsage,
+			LastSeenAt:   now,
+			CreatedTime:  now,
+			UpdatedTime:  now,
 		}
 		return r.db.Create(&inst).Error
 	}
@@ -205,11 +211,14 @@ func (r *Repository) ListNodeInstances(nodeID int64) ([]model.NodeInstance, erro
 	if nodeID <= 0 {
 		return nil, errors.New("node id is required")
 	}
+	if err := r.EnsureNodeInstanceDisplayIndexes([]int64{nodeID}); err != nil {
+		return nil, err
+	}
 	var instances []model.NodeInstance
 	where, args := validNodeInstanceWhere()
 	err := r.db.Where("node_id = ?", nodeID).
 		Where(where, args...).
-		Order("id ASC").
+		Order("display_index ASC, id ASC").
 		Find(&instances).Error
 	return instances, err
 }
@@ -230,9 +239,12 @@ func (r *Repository) ListOnlineNodeInstancesByNodeIDsTx(tx *gorm.DB, nodeIDs []i
 	}
 	var instances []model.NodeInstance
 	where, args := validNodeInstanceWhere()
+	if err := r.EnsureNodeInstanceDisplayIndexes(nodeIDs); err != nil {
+		return nil, err
+	}
 	err := tx.Where("node_id IN ? AND status = ?", nodeIDs, 1).
 		Where(where, args...).
-		Order("node_id ASC, id ASC").
+		Order("node_id ASC, display_index ASC, id ASC").
 		Find(&instances).Error
 	if err != nil {
 		return nil, err
@@ -280,4 +292,100 @@ func (r *Repository) PruneStaleNodeInstances(cutoffMs int64) error {
 	}
 	return r.db.Where("status = ? AND last_seen_at < ?", 0, cutoffMs).
 		Delete(&model.NodeInstance{}).Error
+}
+
+func (r *Repository) DeleteNodeInstance(nodeID int64, instanceID string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if nodeID <= 0 {
+		return errors.New("node id is required")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return errors.New("node instance id is required")
+	}
+	return r.db.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Delete(&model.NodeInstance{}).Error
+}
+
+func (r *Repository) EnsureNodeInstanceDisplayIndexes(nodeIDs []int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	nodeSet := make(map[int64]struct{})
+	for _, id := range nodeIDs {
+		if id > 0 {
+			nodeSet[id] = struct{}{}
+		}
+	}
+	var ids []int64
+	if len(nodeSet) > 0 {
+		ids = make([]int64, 0, len(nodeSet))
+		for id := range nodeSet {
+			ids = append(ids, id)
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	}
+	var instances []model.NodeInstance
+	where, args := validNodeInstanceWhere()
+	query := r.db.Where(where, args...)
+	if len(ids) > 0 {
+		query = query.Where("node_id IN ?", ids)
+	}
+	if err := query.Order("node_id ASC, display_index ASC, id ASC").Find(&instances).Error; err != nil {
+		return err
+	}
+	usedByNode := make(map[int64]map[int]struct{})
+	missingByNode := make(map[int64][]model.NodeInstance)
+	for _, inst := range instances {
+		if usedByNode[inst.NodeID] == nil {
+			usedByNode[inst.NodeID] = make(map[int]struct{})
+		}
+		if inst.DisplayIndex > 0 {
+			usedByNode[inst.NodeID][inst.DisplayIndex] = struct{}{}
+			continue
+		}
+		missingByNode[inst.NodeID] = append(missingByNode[inst.NodeID], inst)
+	}
+	for nodeID, missing := range missingByNode {
+		for _, inst := range missing {
+			next := firstFreeDisplayIndex(usedByNode[nodeID])
+			usedByNode[nodeID][next] = struct{}{}
+			if err := r.db.Model(&model.NodeInstance{}).
+				Where("id = ?", inst.ID).
+				Update("display_index", next).Error; err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *Repository) nextNodeInstanceDisplayIndex(nodeID int64) (int, error) {
+	var indexes []int
+	where, args := validNodeInstanceWhere()
+	err := r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ?", nodeID).
+		Where(where, args...).
+		Where("display_index > 0").
+		Pluck("display_index", &indexes).Error
+	if err != nil {
+		return 0, err
+	}
+	used := make(map[int]struct{}, len(indexes))
+	for _, index := range indexes {
+		if index > 0 {
+			used[index] = struct{}{}
+		}
+	}
+	return firstFreeDisplayIndex(used), nil
+}
+
+func firstFreeDisplayIndex(used map[int]struct{}) int {
+	for i := 1; ; i++ {
+		if _, ok := used[i]; !ok {
+			return i
+		}
+	}
 }

@@ -1243,7 +1243,9 @@ func (s *Server) broadcastTyped(nodeID int64, msgType string, data string) {
 	raw, _ := json.Marshal(payload)
 	msg := string(raw)
 	s.broadcastToAdmins(msg)
-	s.broadcastToPublics(msg)
+	if msgType != "metric" {
+		s.broadcastToPublics(msg)
+	}
 }
 
 func (s *Server) BroadcastToAdmins(message string) {

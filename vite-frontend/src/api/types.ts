@@ -569,6 +569,7 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   nodeId: number;
   nodeName: string;
   instanceId?: string;
+  displayIndex?: number;
   hostname?: string;
   publicIpV4?: string;
   publicIpV6?: string;
@@ -601,10 +602,42 @@ export interface MonitorNodeInstanceGroupApiItem {
   members: MonitorNodeInstanceGroupMemberApiItem[];
 }
 
+export interface MonitorPublicNodeInstanceGroupMemberApiItem {
+  nodeId: number;
+  nodeName: string;
+  displayIndex: number;
+  publicIpV4Region?: string;
+  publicIpV6Region?: string;
+  status: number;
+  onlineCount: number;
+  tcpConns?: number;
+  udpConns?: number;
+  netInSpeed: number;
+  netOutSpeed: number;
+  netInBytes: number;
+  netOutBytes: number;
+  uptime: number;
+  periodRx: number;
+  periodTx: number;
+  cpuUsage: number;
+  memoryUsage: number;
+  diskUsage: number;
+}
+
+export interface MonitorPublicNodeInstanceGroupApiItem {
+  id: number;
+  name: string;
+  status: number;
+  totalInSpeed: number;
+  totalOutSpeed: number;
+  members: MonitorPublicNodeInstanceGroupMemberApiItem[];
+}
+
 export interface NodeInstancePortApiItem {
   id: number;
   nodeId: number;
   instanceId: string;
+  displayIndex?: number;
   hostname?: string;
   publicIpV4?: string;
   publicIpV6?: string;

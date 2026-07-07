@@ -25,6 +25,7 @@ import {
   getMonitorNodeInstanceGroups,
   getServiceMonitorLatestResults,
   getServiceMonitorList,
+  deleteNodeInstancePort,
   updateNodeWeight,
 } from "@/api";
 import { MonitorView } from "@/pages/node/monitor-view";
@@ -82,7 +83,6 @@ type MonitorIPFamily = "v4" | "v6";
 
 type RealtimeNodeInstanceMetric = {
   receivedAt: number;
-  hostname?: string;
   publicIpV4?: string;
   publicIpV6?: string;
   netInSpeed: number;
@@ -106,18 +106,19 @@ type ServiceSummary = {
 };
 
 const MONITOR_INSTANCE_TABLE_COLUMNS = [
-  "4%",
-  "9%",
-  "9%",
-  "10%",
-  "8%",
-  "7%",
-  "8%",
-  "10%",
-  "10%",
-  "10%",
+  "3%",
   "5%",
-  "10%",
+  "8%",
+  "8%",
+  "9%",
+  "7%",
+  "6%",
+  "7%",
+  "9%",
+  "9%",
+  "9%",
+  "4%",
+  "16%",
 ] as const;
 
 const isRealInstanceId = (instanceId?: string): boolean => {
@@ -128,6 +129,15 @@ const isRealInstanceId = (instanceId?: string): boolean => {
 
 const getInstanceMetricKey = (nodeId: number, instanceId?: string): string =>
   `${nodeId}:${instanceId?.trim() || ""}`;
+
+const getDisplayInstanceLabel = (
+  displayIndex?: number,
+  fallbackIndex?: number,
+): string => {
+  const index = Number(displayIndex || 0);
+
+  return `实例 ${index > 0 ? index : fallbackIndex || "-"}`;
+};
 
 const getInstanceConnectionTooltip = (
   tcpConns?: number,
@@ -386,7 +396,6 @@ const mergeRealtimeMetric = (
 
   return {
     ...member,
-    hostname: metric.hostname || member.hostname,
     publicIpV4: metric.publicIpV4 || member.publicIpV4,
     publicIpV6: metric.publicIpV6 || member.publicIpV6,
     status: 1,
@@ -456,12 +465,14 @@ function NodeInstanceGroupsView({
   realtimeMetrics,
   onEditWeight,
   onOpenDetail,
+  onDeleteInstance,
 }: {
   groups: MonitorNodeInstanceGroupApiItem[];
   loading: boolean;
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>;
   onEditWeight: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onOpenDetail: (nodeId: number, instanceId: string) => void;
+  onDeleteInstance: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
 }) {
   if (loading && groups.length === 0) {
     return (
@@ -541,9 +552,9 @@ function NodeInstanceGroupsView({
                 </span>
               </div>
             </div>
-            <div className="px-4 pb-4">
-              <div className="overflow-x-auto">
-                <table className="min-w-[1220px] w-full table-fixed text-sm">
+            <div className="px-3 pb-4">
+              <div className="overflow-hidden">
+                <table className="w-full table-fixed text-sm">
                   <colgroup>
                     {MONITOR_INSTANCE_TABLE_COLUMNS.map((width, index) => (
                       <col key={index} style={{ width }} />
@@ -551,22 +562,23 @@ function NodeInstanceGroupsView({
                   </colgroup>
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
-                      <th className="px-2 py-2 text-center">状态</th>
-                      <th className="px-2 py-2 text-center">v4 地区</th>
-                      <th className="px-2 py-2 text-center">v6 地区</th>
-                      <th className="px-2 py-2 text-center">出口 IP</th>
-                      <th className="px-2 py-2 text-center">速率</th>
-                      <th className="px-2 py-2 text-center">开机时长</th>
-                      <th className="px-2 py-2 text-center">流量</th>
-                      <th className="px-2 py-2 text-center">CPU</th>
-                      <th className="px-2 py-2 text-center">RAM</th>
-                      <th className="px-2 py-2 text-center">存储</th>
-                      <th className="px-2 py-2 text-center">权重</th>
-                      <th className="px-2 py-2 text-left">操作</th>
+                      <th className="px-1 py-2 text-center">状态</th>
+                      <th className="px-1 py-2 text-center">实例</th>
+                      <th className="px-1 py-2 text-center">v4 地区</th>
+                      <th className="px-1 py-2 text-center">v6 地区</th>
+                      <th className="px-1 py-2 text-center">出口 IP</th>
+                      <th className="px-1 py-2 text-center">速率</th>
+                      <th className="px-1 py-2 text-center">开机时长</th>
+                      <th className="px-1 py-2 text-center">流量</th>
+                      <th className="px-1 py-2 text-center">CPU</th>
+                      <th className="px-1 py-2 text-center">RAM</th>
+                      <th className="px-1 py-2 text-center">存储</th>
+                      <th className="px-1 py-2 text-center">权重</th>
+                      <th className="px-1 py-2 text-center">操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {members.map((member) => {
+                    {members.map((member, memberIndex) => {
                       return (
                         <tr
                           key={getInstanceMetricKey(
@@ -575,14 +587,20 @@ function NodeInstanceGroupsView({
                           )}
                           className="border-b border-divider/50 last:border-b-0 hover:bg-default-50/50"
                         >
-                          <td className="px-2 py-3 text-center align-middle">
+                          <td className="px-1 py-3 text-center align-middle">
                             <StatusDot
                               active={member.status === 1}
                               tone={member.status === 1 ? "success" : "danger"}
                             />
                           </td>
+                          <td className="px-1 py-3 text-center align-middle font-medium whitespace-nowrap">
+                            {getDisplayInstanceLabel(
+                              member.displayIndex,
+                              memberIndex + 1,
+                            )}
+                          </td>
                           <td
-                            className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
+                            className="px-1 py-3 text-center align-middle font-mono text-xs text-default-600"
                             title={getMonitorRegionIPTitle(member, "v4")}
                           >
                             <div className="truncate">
@@ -592,7 +610,7 @@ function NodeInstanceGroupsView({
                             </div>
                           </td>
                           <td
-                            className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600"
+                            className="px-1 py-3 text-center align-middle font-mono text-xs text-default-600"
                             title={getMonitorRegionIPTitle(member, "v6")}
                           >
                             <div className="truncate">
@@ -601,7 +619,7 @@ function NodeInstanceGroupsView({
                               />
                             </div>
                           </td>
-                          <td className="px-2 py-3 text-center align-middle font-mono text-xs text-default-600">
+                          <td className="px-1 py-3 text-center align-middle font-mono text-xs text-default-600">
                             <MonitorIPCellValue
                               ip={member.publicIpV4}
                               label="IPv4"
@@ -612,7 +630,7 @@ function NodeInstanceGroupsView({
                             />
                           </td>
                           <td
-                            className="px-2 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums"
+                            className="px-1 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums"
                             title={getInstanceConnectionTooltip(
                               member.tcpConns,
                               member.udpConns,
@@ -625,12 +643,12 @@ function NodeInstanceGroupsView({
                               {formatSpeed(member.netInSpeed)}↓
                             </div>
                           </td>
-                          <td className="px-2 py-3 text-center align-middle">
+                          <td className="px-1 py-3 text-center align-middle">
                             <div className="truncate">
                               {formatUptime(member.uptime)}
                             </div>
                           </td>
-                          <td className="px-2 py-3 text-center align-middle font-mono text-xs">
+                          <td className="px-1 py-3 text-center align-middle font-mono text-xs">
                             <div className="truncate">
                               {formatBytes(member.periodTx)}↑
                             </div>
@@ -638,12 +656,12 @@ function NodeInstanceGroupsView({
                               {formatBytes(member.periodRx)}↓
                             </div>
                           </td>
-                          <td className="px-2 py-3 align-middle">
+                          <td className="px-1 py-3 align-middle">
                             <div className="flex min-w-0 justify-center">
                               <UsageMeter tone="cpu" value={member.cpuUsage} />
                             </div>
                           </td>
-                          <td className="px-2 py-3 align-middle">
+                          <td className="px-1 py-3 align-middle">
                             <div className="flex min-w-0 justify-center">
                               <UsageMeter
                                 tone="memory"
@@ -651,7 +669,7 @@ function NodeInstanceGroupsView({
                               />
                             </div>
                           </td>
-                          <td className="px-2 py-3 align-middle">
+                          <td className="px-1 py-3 align-middle">
                             <div className="flex min-w-0 justify-center">
                               <UsageMeter
                                 tone="disk"
@@ -659,13 +677,13 @@ function NodeInstanceGroupsView({
                               />
                             </div>
                           </td>
-                          <td className="px-2 py-3 text-center align-middle font-mono tabular-nums">
+                          <td className="px-1 py-3 text-center align-middle font-mono tabular-nums">
                             <div className="truncate">{member.weight}</div>
                           </td>
-                          <td className="px-2 py-3 align-middle">
-                            <div className="flex min-w-0 justify-center gap-2">
+                          <td className="px-1 py-3 align-middle">
+                            <div className="flex min-w-0 justify-center gap-1">
                               <Button
-                                className="h-8 px-3 text-xs font-medium"
+                                className="h-8 px-2 text-xs font-medium"
                                 size="sm"
                                 variant="flat"
                                 onPress={() => onEditWeight(member)}
@@ -673,11 +691,20 @@ function NodeInstanceGroupsView({
                                 权重
                               </Button>
                               <MonitorTerminalButton
-                                className="h-8 px-3 text-xs font-medium"
+                                className="h-8 px-2 text-xs font-medium"
                                 member={member}
                               />
                               <Button
-                                className="h-8 px-3 text-xs font-medium"
+                                className="h-8 px-2 text-xs font-medium"
+                                size="sm"
+                                variant="flat"
+                                color="danger"
+                                onPress={() => onDeleteInstance(member)}
+                              >
+                                删除
+                              </Button>
+                              <Button
+                                className="h-8 px-2 text-xs font-medium"
                                 size="sm"
                                 variant="flat"
                                 onPress={() =>
@@ -734,6 +761,9 @@ export default function MonitorPage() {
     useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [weightValue, setWeightValue] = useState("");
   const [weightSaving, setWeightSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] =
+    useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
   const [detailTarget, setDetailTarget] = useState<{
     nodeId: number;
     instanceId: string;
@@ -956,7 +986,6 @@ export default function MonitorPage() {
       ...prev,
       [getInstanceMetricKey(nodeId, instanceId)]: {
         receivedAt: Date.now(),
-        hostname: String(metric.hostname ?? ""),
         publicIpV4: String(metric.publicIpV4 ?? metric.public_ip_v4 ?? ""),
         publicIpV6: String(metric.publicIpV6 ?? metric.public_ip_v6 ?? ""),
         netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
@@ -1041,6 +1070,30 @@ export default function MonitorPage() {
     },
     [loadNodes, loadNodeInstanceGroups, weightTarget, weightValue],
   );
+
+  const deleteInstance = useCallback(async () => {
+    if (!deleteTarget?.instanceId) return;
+    setDeleteSaving(true);
+    try {
+      const res = await deleteNodeInstancePort(
+        deleteTarget.nodeId,
+        deleteTarget.instanceId,
+      );
+
+      if (res.code === 0) {
+        toast.success("实例已删除");
+        setDeleteTarget(null);
+        await loadNodeInstanceGroups({ silent: true });
+        await loadNodes({ silent: true });
+      } else {
+        toast.error(res.msg || "删除实例失败");
+      }
+    } catch {
+      toast.error("删除实例失败");
+    } finally {
+      setDeleteSaving(false);
+    }
+  }, [deleteTarget, loadNodeInstanceGroups, loadNodes]);
 
   const nodeMap = useMemo(() => {
     const instanceCounts = new Map<number, { total: number; online: number }>();
@@ -1202,6 +1255,7 @@ export default function MonitorPage() {
                   loading={nodeInstanceGroupsLoading}
                   realtimeMetrics={realtimeInstanceMetrics}
                   onEditWeight={openWeightModal}
+                  onDeleteInstance={setDeleteTarget}
                   onOpenDetail={(nodeId, instanceId) =>
                     setDetailTarget({ nodeId, instanceId })
                   }
@@ -1238,10 +1292,7 @@ export default function MonitorPage() {
               </div>
               <div>
                 节点实例:{" "}
-                {weightTarget?.hostname ||
-                  weightTarget?.instanceId ||
-                  weightTarget?.nodeName ||
-                  "-"}
+                {getDisplayInstanceLabel(weightTarget?.displayIndex)}
               </div>
               <div>当前权重: {weightTarget?.weight ?? "-"}</div>
               <div className="text-default-500">
@@ -1277,6 +1328,30 @@ export default function MonitorPage() {
               onPress={() => saveWeight()}
             >
               确认
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      <Modal isOpen={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <ModalContent>
+          <ModalHeader>删除实例</ModalHeader>
+          <ModalBody>
+            <div className="space-y-2 text-sm text-default-600">
+              <div>
+                确认删除 {deleteTarget?.nodeName || "节点"} 的{" "}
+                {getDisplayInstanceLabel(deleteTarget?.displayIndex)}？
+              </div>
+              <div>
+                删除后该编号会释放，新上线实例会优先占用这个编号。若该实例仍在线，继续上报后会重新出现。
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setDeleteTarget(null)}>
+              取消
+            </Button>
+            <Button color="danger" isLoading={deleteSaving} onPress={deleteInstance}>
+              删除
             </Button>
           </ModalFooter>
         </ModalContent>

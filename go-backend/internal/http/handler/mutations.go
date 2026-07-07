@@ -799,7 +799,7 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
 		serverIP,
 		nullableText(asString(req["serverIpV4"])),
 		nullableText(asString(req["serverIpV6"])),
-		defaultString(asString(req["port"]), "1000-65535"),
+		defaultString(asString(req["port"]), "10000-65535"),
 		nullableText(asString(req["interfaceName"])),
 		nullableText(""),
 		nullableText(strings.TrimSpace(asString(req["remark"]))),
@@ -913,7 +913,7 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 		nullableText(asString(req["serverIpV4"])),
 		nullableText(asString(req["serverIpV6"])),
 		nullableText(asString(req["intranetIp"])),
-		defaultString(asString(req["port"]), "1000-65535"),
+		defaultString(asString(req["port"]), "10000-65535"),
 		nullableText(asString(req["interfaceName"])),
 		nullableText(asString(req["extraIPs"])),
 		nullableText(asString(req["remoteConfig"])),
@@ -5708,7 +5708,7 @@ func (h *Handler) getUsedPorts(nodeID int64) (map[int]bool, error) {
 func (h *Handler) parseEffectivePortsForNode(nodeID int64) ([]int, error) {
 	portRange, err := h.repo.GetNodePortRange(nodeID)
 	if err != nil || strings.TrimSpace(portRange) == "" {
-		portRange = "1000-65535"
+		portRange = "10000-65535"
 	}
 	ports, err := parsePorts(portRange)
 	if err != nil || len(ports) == 0 {

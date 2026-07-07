@@ -90,6 +90,7 @@ const Network = {
         .get(path, {
           params: data,
           timeout: options.timeout ?? 30000,
+          headers: getToken() ? { Authorization: getToken() } : undefined,
         })
         .then(function (response: AxiosResponse<ApiResponse<T>>) {
           resolve(response.data);

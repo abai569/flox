@@ -310,6 +310,7 @@ func autoMigrateAll(db *gorm.DB) error {
 	// 迁移：为现有用户设置初始流量配额
 	_ = db.Model(&model.User{}).Where("base_flow = 0").Update("base_flow", gorm.Expr("\"flow\""))
 	_ = db.Model(&model.Node{}).Where("LOWER(TRIM(server_ip)) = ?", "auto").Update("server_ip", "")
+	_ = db.Model(&model.Node{}).Where("TRIM(port) = ?", "1000-65535").Update("port", "10000-65535")
 	_ = db.Where("TRIM(instance_id) = '' OR LOWER(TRIM(instance_id)) = ?", "default").Delete(&model.NodeInstance{})
 	for _, table := range []string{"node_instance_metric", "monitor_node_ips", "node_server_instance"} {
 		if db.Migrator().HasTable(table) {

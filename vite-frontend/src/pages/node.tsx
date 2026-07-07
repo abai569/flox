@@ -1388,7 +1388,7 @@ export default function NodePage() {
       intranetIp: node.intranetIp || "",
       serverIpV4: node.serverIpV4 || "",
       serverIpV6: node.serverIpV6 || "",
-      port: node.port || "",
+      port: node.port === "1000-65535" ? "10000-65535" : node.port || "",
       tcpListenAddr: node.tcpListenAddr || "[::]",
       udpListenAddr: node.udpListenAddr || "[::]",
       interfaceName: (node as any).interfaceName || "",

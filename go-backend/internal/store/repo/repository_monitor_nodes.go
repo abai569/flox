@@ -7,29 +7,30 @@ import (
 )
 
 type MonitorNodeInstanceGroupRow struct {
-	Inx         int64   `gorm:"column:inx"`
-	NodeID      int64   `gorm:"column:node_id"`
-	NodeName    string  `gorm:"column:node_name"`
-	NodeStatus  int     `gorm:"column:node_status"`
-	InstanceID  string  `gorm:"column:instance_id"`
-	Hostname    string  `gorm:"column:hostname"`
-	PublicIPV4  string  `gorm:"column:public_ip_v4"`
-	PublicIPV6  string  `gorm:"column:public_ip_v6"`
-	Status      int     `gorm:"column:status"`
-	Weight      int     `gorm:"column:weight"`
-	PortRange   string  `gorm:"column:port_range"`
-	NetInSpeed  int64   `gorm:"column:net_in_speed"`
-	NetOutSpeed int64   `gorm:"column:net_out_speed"`
-	NetInBytes  int64   `gorm:"column:net_in_bytes"`
-	NetOutBytes int64   `gorm:"column:net_out_bytes"`
-	TCPConns    int64   `gorm:"column:tcp_conns"`
-	UDPConns    int64   `gorm:"column:udp_conns"`
-	Uptime      int64   `gorm:"column:uptime"`
-	PeriodRx    int64   `gorm:"column:period_rx"`
-	PeriodTx    int64   `gorm:"column:period_tx"`
-	CPUUsage    float64 `gorm:"column:cpu_usage"`
-	MemUsage    float64 `gorm:"column:mem_usage"`
-	DiskUsage   float64 `gorm:"column:disk_usage"`
+	Inx          int64   `gorm:"column:inx"`
+	NodeID       int64   `gorm:"column:node_id"`
+	NodeName     string  `gorm:"column:node_name"`
+	NodeStatus   int     `gorm:"column:node_status"`
+	InstanceID   string  `gorm:"column:instance_id"`
+	DisplayIndex int     `gorm:"column:display_index"`
+	Hostname     string  `gorm:"column:hostname"`
+	PublicIPV4   string  `gorm:"column:public_ip_v4"`
+	PublicIPV6   string  `gorm:"column:public_ip_v6"`
+	Status       int     `gorm:"column:status"`
+	Weight       int     `gorm:"column:weight"`
+	PortRange    string  `gorm:"column:port_range"`
+	NetInSpeed   int64   `gorm:"column:net_in_speed"`
+	NetOutSpeed  int64   `gorm:"column:net_out_speed"`
+	NetInBytes   int64   `gorm:"column:net_in_bytes"`
+	NetOutBytes  int64   `gorm:"column:net_out_bytes"`
+	TCPConns     int64   `gorm:"column:tcp_conns"`
+	UDPConns     int64   `gorm:"column:udp_conns"`
+	Uptime       int64   `gorm:"column:uptime"`
+	PeriodRx     int64   `gorm:"column:period_rx"`
+	PeriodTx     int64   `gorm:"column:period_tx"`
+	CPUUsage     float64 `gorm:"column:cpu_usage"`
+	MemUsage     float64 `gorm:"column:mem_usage"`
+	DiskUsage    float64 `gorm:"column:disk_usage"`
 }
 
 func (r *Repository) ListMonitorNodes() ([]model.Node, error) {
@@ -63,6 +64,9 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
+	if err := r.EnsureNodeInstanceDisplayIndexes(nodeIDs); err != nil {
+		return nil, err
+	}
 
 	where, args := validNodeInstanceWhere()
 	query := r.db.Table("node AS n").
@@ -72,6 +76,7 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 			n.name AS node_name,
 			n.status AS node_status,
 			nsi.instance_id AS instance_id,
+			nsi.display_index AS display_index,
 			COALESCE(nsi.hostname, '') AS hostname,
 			COALESCE(nsi.public_ip_v4, '') AS public_ip_v4,
 			COALESCE(nsi.public_ip_v6, '') AS public_ip_v6,
@@ -100,6 +105,6 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 	}
 
 	var rows []MonitorNodeInstanceGroupRow
-	err := query.Order("n.inx ASC, n.id ASC, nsi.status DESC, nsi.id ASC").Scan(&rows).Error
+	err := query.Order("n.inx ASC, n.id ASC, nsi.status DESC, nsi.display_index ASC, nsi.id ASC").Scan(&rows).Error
 	return rows, err
 }

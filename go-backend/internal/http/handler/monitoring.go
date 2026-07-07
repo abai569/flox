@@ -415,30 +415,31 @@ func (h *Handler) monitorTunnelListHandler(w http.ResponseWriter, r *http.Reques
 }
 
 type monitorNodeInstanceGroupMember struct {
-	NodeID      int64   `json:"nodeId"`
-	NodeName    string  `json:"nodeName"`
-	InstanceID  string  `json:"instanceId"`
-	Hostname    string  `json:"hostname"`
-	PublicIPV4  string  `json:"publicIpV4"`
-	PublicIPV6  string  `json:"publicIpV6"`
-	IPV4Region  string  `json:"publicIpV4Region"`
-	IPV6Region  string  `json:"publicIpV6Region"`
-	Status      int     `json:"status"`
-	Weight      int     `json:"weight"`
-	PortRange   string  `json:"portRange"`
-	OnlineCount int64   `json:"onlineCount"`
-	TCPConns    int64   `json:"tcpConns"`
-	UDPConns    int64   `json:"udpConns"`
-	NetInSpeed  int64   `json:"netInSpeed"`
-	NetOutSpeed int64   `json:"netOutSpeed"`
-	NetInBytes  int64   `json:"netInBytes"`
-	NetOutBytes int64   `json:"netOutBytes"`
-	Uptime      int64   `json:"uptime"`
-	PeriodRx    int64   `json:"periodRx"`
-	PeriodTx    int64   `json:"periodTx"`
-	CPUUsage    float64 `json:"cpuUsage"`
-	MemoryUsage float64 `json:"memoryUsage"`
-	DiskUsage   float64 `json:"diskUsage"`
+	NodeID       int64   `json:"nodeId"`
+	NodeName     string  `json:"nodeName"`
+	InstanceID   string  `json:"instanceId"`
+	DisplayIndex int     `json:"displayIndex"`
+	Hostname     string  `json:"hostname"`
+	PublicIPV4   string  `json:"publicIpV4"`
+	PublicIPV6   string  `json:"publicIpV6"`
+	IPV4Region   string  `json:"publicIpV4Region"`
+	IPV6Region   string  `json:"publicIpV6Region"`
+	Status       int     `json:"status"`
+	Weight       int     `json:"weight"`
+	PortRange    string  `json:"portRange"`
+	OnlineCount  int64   `json:"onlineCount"`
+	TCPConns     int64   `json:"tcpConns"`
+	UDPConns     int64   `json:"udpConns"`
+	NetInSpeed   int64   `json:"netInSpeed"`
+	NetOutSpeed  int64   `json:"netOutSpeed"`
+	NetInBytes   int64   `json:"netInBytes"`
+	NetOutBytes  int64   `json:"netOutBytes"`
+	Uptime       int64   `json:"uptime"`
+	PeriodRx     int64   `json:"periodRx"`
+	PeriodTx     int64   `json:"periodTx"`
+	CPUUsage     float64 `json:"cpuUsage"`
+	MemoryUsage  float64 `json:"memoryUsage"`
+	DiskUsage    float64 `json:"diskUsage"`
 }
 
 type monitorNodeInstanceGroupItem struct {
@@ -448,6 +449,37 @@ type monitorNodeInstanceGroupItem struct {
 	TotalInSpeed  int64                            `json:"totalInSpeed"`
 	TotalOutSpeed int64                            `json:"totalOutSpeed"`
 	Members       []monitorNodeInstanceGroupMember `json:"members"`
+}
+
+type monitorPublicNodeInstanceGroupMember struct {
+	NodeID       int64   `json:"nodeId"`
+	NodeName     string  `json:"nodeName"`
+	DisplayIndex int     `json:"displayIndex"`
+	IPV4Region   string  `json:"publicIpV4Region"`
+	IPV6Region   string  `json:"publicIpV6Region"`
+	Status       int     `json:"status"`
+	OnlineCount  int64   `json:"onlineCount"`
+	TCPConns     int64   `json:"tcpConns"`
+	UDPConns     int64   `json:"udpConns"`
+	NetInSpeed   int64   `json:"netInSpeed"`
+	NetOutSpeed  int64   `json:"netOutSpeed"`
+	NetInBytes   int64   `json:"netInBytes"`
+	NetOutBytes  int64   `json:"netOutBytes"`
+	Uptime       int64   `json:"uptime"`
+	PeriodRx     int64   `json:"periodRx"`
+	PeriodTx     int64   `json:"periodTx"`
+	CPUUsage     float64 `json:"cpuUsage"`
+	MemoryUsage  float64 `json:"memoryUsage"`
+	DiskUsage    float64 `json:"diskUsage"`
+}
+
+type monitorPublicNodeInstanceGroupItem struct {
+	ID            int64                                  `json:"id"`
+	Name          string                                 `json:"name"`
+	Status        int                                    `json:"status"`
+	TotalInSpeed  int64                                  `json:"totalInSpeed"`
+	TotalOutSpeed int64                                  `json:"totalOutSpeed"`
+	Members       []monitorPublicNodeInstanceGroupMember `json:"members"`
 }
 
 func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *http.Request) {
@@ -503,30 +535,100 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 		}
 		seenMembers[row.NodeID][memberKey] = struct{}{}
 		member := monitorNodeInstanceGroupMember{
-			NodeID:      row.NodeID,
-			NodeName:    row.NodeName,
-			InstanceID:  row.InstanceID,
-			Hostname:    row.Hostname,
-			PublicIPV4:  row.PublicIPV4,
-			PublicIPV6:  row.PublicIPV6,
-			IPV4Region:  regionByIP[strings.TrimSpace(row.PublicIPV4)],
-			IPV6Region:  regionByIP[strings.TrimSpace(row.PublicIPV6)],
-			Status:      row.Status,
-			Weight:      row.Weight,
-			PortRange:   row.PortRange,
-			OnlineCount: row.TCPConns + row.UDPConns,
-			TCPConns:    row.TCPConns,
-			UDPConns:    row.UDPConns,
-			NetInSpeed:  row.NetInSpeed,
-			NetOutSpeed: row.NetOutSpeed,
-			NetInBytes:  row.NetInBytes,
-			NetOutBytes: row.NetOutBytes,
-			Uptime:      row.Uptime,
-			PeriodRx:    row.PeriodRx,
-			PeriodTx:    row.PeriodTx,
-			CPUUsage:    row.CPUUsage,
-			MemoryUsage: row.MemUsage,
-			DiskUsage:   row.DiskUsage,
+			NodeID:       row.NodeID,
+			NodeName:     row.NodeName,
+			InstanceID:   row.InstanceID,
+			DisplayIndex: row.DisplayIndex,
+			Hostname:     row.Hostname,
+			PublicIPV4:   row.PublicIPV4,
+			PublicIPV6:   row.PublicIPV6,
+			IPV4Region:   regionByIP[strings.TrimSpace(row.PublicIPV4)],
+			IPV6Region:   regionByIP[strings.TrimSpace(row.PublicIPV6)],
+			Status:       row.Status,
+			Weight:       row.Weight,
+			PortRange:    row.PortRange,
+			OnlineCount:  row.TCPConns + row.UDPConns,
+			TCPConns:     row.TCPConns,
+			UDPConns:     row.UDPConns,
+			NetInSpeed:   row.NetInSpeed,
+			NetOutSpeed:  row.NetOutSpeed,
+			NetInBytes:   row.NetInBytes,
+			NetOutBytes:  row.NetOutBytes,
+			Uptime:       row.Uptime,
+			PeriodRx:     row.PeriodRx,
+			PeriodTx:     row.PeriodTx,
+			CPUUsage:     row.CPUUsage,
+			MemoryUsage:  row.MemUsage,
+			DiskUsage:    row.DiskUsage,
+		}
+		groups[idx].Members = append(groups[idx].Members, member)
+		groups[idx].TotalInSpeed += row.NetInSpeed
+		groups[idx].TotalOutSpeed += row.NetOutSpeed
+	}
+
+	response.WriteJSON(w, response.OK(groups))
+}
+
+func (h *Handler) monitorPublicNodeInstanceGroupsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	cfg, err := h.repo.GetConfigByName("login_monitor_link")
+	if err != nil || cfg == nil || cfg.Value != "true" {
+		response.WriteJSON(w, response.OK([]monitorPublicNodeInstanceGroupItem{}))
+		return
+	}
+
+	rows, err := h.repo.ListMonitorNodeInstanceGroups(nil)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	regionByIP := resolveMonitorIPRegionMap(rows)
+
+	groups := make([]monitorPublicNodeInstanceGroupItem, 0)
+	groupIndex := make(map[int64]int)
+	seenMembers := make(map[int64]map[string]struct{})
+	for _, row := range rows {
+		idx, exists := groupIndex[row.NodeID]
+		if !exists {
+			groupIndex[row.NodeID] = len(groups)
+			idx = len(groups)
+			groups = append(groups, monitorPublicNodeInstanceGroupItem{
+				ID:      row.NodeID,
+				Name:    row.NodeName,
+				Status:  row.NodeStatus,
+				Members: make([]monitorPublicNodeInstanceGroupMember, 0),
+			})
+			seenMembers[row.NodeID] = make(map[string]struct{})
+		}
+		memberKey := strconv.FormatInt(row.NodeID, 10) + ":" + row.InstanceID
+		if _, ok := seenMembers[row.NodeID][memberKey]; ok {
+			continue
+		}
+		seenMembers[row.NodeID][memberKey] = struct{}{}
+		member := monitorPublicNodeInstanceGroupMember{
+			NodeID:       row.NodeID,
+			NodeName:     row.NodeName,
+			DisplayIndex: row.DisplayIndex,
+			IPV4Region:   regionByIP[strings.TrimSpace(row.PublicIPV4)],
+			IPV6Region:   regionByIP[strings.TrimSpace(row.PublicIPV6)],
+			Status:       row.Status,
+			OnlineCount:  row.TCPConns + row.UDPConns,
+			TCPConns:     row.TCPConns,
+			UDPConns:     row.UDPConns,
+			NetInSpeed:   row.NetInSpeed,
+			NetOutSpeed:  row.NetOutSpeed,
+			NetInBytes:   row.NetInBytes,
+			NetOutBytes:  row.NetOutBytes,
+			Uptime:       row.Uptime,
+			PeriodRx:     row.PeriodRx,
+			PeriodTx:     row.PeriodTx,
+			CPUUsage:     row.CPUUsage,
+			MemoryUsage:  row.MemUsage,
+			DiskUsage:    row.DiskUsage,
 		}
 		groups[idx].Members = append(groups[idx].Members, member)
 		groups[idx].TotalInSpeed += row.NetInSpeed

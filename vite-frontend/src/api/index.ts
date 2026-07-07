@@ -51,6 +51,7 @@ import type {
   ServiceMonitorMutationPayload,
   MonitorNodeApiItem,
   MonitorNodeInstanceGroupApiItem,
+  MonitorPublicNodeInstanceGroupApiItem,
   MonitorNodeMetricsApiItem,
   NodeInstancePortApiData,
   MonitorTunnelApiItem,
@@ -152,6 +153,8 @@ export const saveNodeInstancePort = (
   portRange: string,
 ) =>
   Network.post("/node/instance-port/save", { nodeId, instanceId, portRange });
+export const deleteNodeInstancePort = (nodeId: number, instanceId: string) =>
+  Network.post("/node/instance-port/delete", { nodeId, instanceId });
 export const issueNodeSDWANCert = (id: number, vpnIp?: string) =>
   Network.post<{
     vpnIp: string;
@@ -881,6 +884,11 @@ export const getMonitorNodesPublic = () =>
 export const getMonitorNodesPublicMetrics = () =>
   Network.getPublic<MonitorNodeMetricsApiItem[]>(
     "/monitor/public/nodes/metrics",
+  );
+
+export const getMonitorPublicNodeInstanceGroups = () =>
+  Network.getPublic<MonitorPublicNodeInstanceGroupApiItem[]>(
+    "/monitor/public/node-instance-groups",
   );
 
 export const getMonitorAccess = () =>
