@@ -3526,9 +3526,13 @@ func (r *Repository) InsertNodeMetricBatch(metrics []*model.NodeMetric) error {
 	return r.db.CreateInBatches(metrics, 100).Error
 }
 
-func (r *Repository) GetNodeMetrics(nodeID int64, startMs, endMs int64, instanceID string) ([]model.NodeMetric, error) {
+func (r *Repository) GetNodeMetrics(nodeID int64, startMs, endMs int64, instanceIDOpt ...string) ([]model.NodeMetric, error) {
 	if r == nil || r.db == nil {
 		return nil, nil
+	}
+	instanceID := ""
+	if len(instanceIDOpt) > 0 {
+		instanceID = instanceIDOpt[0]
 	}
 	instanceID = strings.TrimSpace(instanceID)
 	where := "node_id = ? AND timestamp >= ? AND timestamp <= ?"
