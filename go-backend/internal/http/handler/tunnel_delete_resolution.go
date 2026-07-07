@@ -518,7 +518,7 @@ func (h *Handler) planSingleTunnelDeleteForwardMigration(forward *forwardRecord,
 		if err := validateRemoteNodePort(node, targetPort); err != nil {
 			return tunnelForwardMigrationPlan{}, err
 		}
-		if err := validateLocalNodePort(node, targetPort); err != nil {
+		if err := h.validateLocalNodePort(node, targetPort); err != nil {
 			return tunnelForwardMigrationPlan{}, err
 		}
 		if err := h.validateForwardPortAvailability(node, targetPort, forward.ID); err != nil {

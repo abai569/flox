@@ -3526,9 +3526,18 @@ func (r *Repository) InsertNodeMetricBatch(metrics []*model.NodeMetric) error {
 	return r.db.CreateInBatches(metrics, 100).Error
 }
 
-func (r *Repository) GetNodeMetrics(nodeID int64, startMs, endMs int64) ([]model.NodeMetric, error) {
+func (r *Repository) GetNodeMetrics(nodeID int64, startMs, endMs int64, instanceID string) ([]model.NodeMetric, error) {
 	if r == nil || r.db == nil {
 		return nil, nil
+	}
+	instanceID = strings.TrimSpace(instanceID)
+	where := "node_id = ? AND timestamp >= ? AND timestamp <= ?"
+	args := []interface{}{nodeID, startMs, endMs}
+	if instanceID != "" {
+		where += " AND instance_id = ?"
+		args = append(args, instanceID)
+	} else {
+		where += " AND (instance_id = '' OR instance_id IS NULL)"
 	}
 
 	rangeMs := endMs - startMs
@@ -3538,7 +3547,7 @@ func (r *Repository) GetNodeMetrics(nodeID int64, startMs, endMs int64) ([]model
 	// For short ranges, return raw data (full resolution).
 	if rangeMs <= maxRawRangeMs {
 		var metrics []model.NodeMetric
-		err := r.db.Where("node_id = ? AND timestamp >= ? AND timestamp <= ?", nodeID, startMs, endMs).
+		err := r.db.Where(where, args...).
 			Order("timestamp ASC").
 			Limit(5000).
 			Find(&metrics).Error
@@ -3559,6 +3568,7 @@ func (r *Repository) GetNodeMetrics(nodeID int64, startMs, endMs int64) ([]model
 		Select(
 			fmt.Sprintf(
 				"%d AS node_id, "+
+					"%s AS instance_id, "+
 					"CAST(%s AS BIGINT) AS timestamp, "+
 					"AVG(cpu_usage) AS cpu_usage, "+
 					"AVG(mem_usage) AS mem_usage, "+
@@ -3573,10 +3583,10 @@ func (r *Repository) GetNodeMetrics(nodeID int64, startMs, endMs int64) ([]model
 					"CAST(AVG(tcp_conns) AS BIGINT) AS tcp_conns, "+
 					"CAST(AVG(udp_conns) AS BIGINT) AS udp_conns, "+
 					"CAST(MAX(uptime) AS BIGINT) AS uptime",
-				nodeID, bucketExpr,
+				nodeID, quoteSQLLiteral(instanceID), bucketExpr,
 			),
 		).
-		Where("node_id = ? AND timestamp >= ? AND timestamp <= ?", nodeID, startMs, endMs).
+		Where(where, args...).
 		Group(groupExpr).
 		Order("timestamp ASC").
 		Limit(targetPoints + 100). // safety margin

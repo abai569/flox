@@ -348,6 +348,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/dns-failover/get", h.nodeDNSFailoverGet)
 	mux.HandleFunc("/api/v1/node/dns-failover/save", h.nodeDNSFailoverSave)
 	mux.HandleFunc("/api/v1/node/dns-failover/sync", h.nodeDNSFailoverSync)
+	mux.HandleFunc("/api/v1/node/instance-port/list", h.nodeInstancePortList)
+	mux.HandleFunc("/api/v1/node/instance-port/save", h.nodeInstancePortSave)
 	mux.HandleFunc("/api/v1/node/info", h.nodeInfo)
 	mux.HandleFunc("/api/v1/node/report-ip", h.nodeReportIP)
 	mux.HandleFunc("/api/v1/node/install-mimic-deps", h.installMimicDeps)

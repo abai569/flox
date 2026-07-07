@@ -2236,7 +2236,7 @@ func (h *Handler) resolvePortForNewEntryNode(nodeID int64, referencePort int, fo
 	}
 
 	// Check if referencePort is within the node's allowed range.
-	if validateLocalNodePort(node, referencePort) == nil &&
+	if h.validateLocalNodePort(node, referencePort) == nil &&
 		validateRemoteNodePort(node, referencePort) == nil {
 		// In range — check availability.
 		occupied, occErr := h.repo.HasOtherForwardOnNodePort(nodeID, referencePort, forwardID)
@@ -2256,16 +2256,11 @@ func (h *Handler) resolvePortForNewEntryNode(nodeID int64, referencePort int, fo
 // pickRandomPortForNode picks a random available port from a single node's
 // port range, excluding ports already occupied by other forwards or chains.
 func (h *Handler) pickRandomPortForNode(nodeID int64) int {
-	portRange, err := h.repo.GetNodePortRange(nodeID)
+	nodePorts, err := h.parseEffectivePortsForNode(nodeID)
 	if err != nil {
 		return 0
 	}
-	if portRange == "" {
-		portRange = "1000-65535"
-	}
-
-	nodePorts, err := parsePorts(portRange)
-	if err != nil || len(nodePorts) == 0 {
+	if len(nodePorts) == 0 {
 		return 0
 	}
 
@@ -3068,7 +3063,7 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
 			return
 		}
-		if err := validateLocalNodePort(node, port); err != nil {
+		if err := h.validateLocalNodePort(node, port); err != nil {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
 			return
 		}
@@ -3258,7 +3253,7 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
 			return
 		}
-		if err := validateLocalNodePort(node, port); err != nil {
+		if err := h.validateLocalNodePort(node, port); err != nil {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
 			return
 		}
@@ -4095,7 +4090,7 @@ func (h *Handler) forwardBatchChangeTunnel(w http.ResponseWriter, r *http.Reques
 				portRangeErr = validateErr
 				break
 			}
-			if validateErr := validateLocalNodePort(nd, p); validateErr != nil {
+			if validateErr := h.validateLocalNodePort(nd, p); validateErr != nil {
 				portRangeOk = false
 				portRangeErr = validateErr
 				break
@@ -5609,15 +5604,7 @@ func (h *Handler) pickTunnelPort(tunnelID int64) int {
 	firstNode := true
 
 	for _, nodeID := range entryNodes {
-		portRange, err := h.repo.GetNodePortRange(nodeID)
-		if err != nil {
-			continue
-		}
-		if portRange == "" {
-			portRange = "1000-65535"
-		}
-
-		nodePorts, err := parsePorts(portRange)
+		nodePorts, err := h.parseEffectivePortsForNode(nodeID)
 		if err != nil {
 			continue
 		}
@@ -5689,12 +5676,7 @@ func (h *Handler) createChainNodePorts(forwardID int64, tunnelID int64) error {
 
 // pickChainNodePort 从节点的端口范围中随机分配一个可用端口
 func (h *Handler) pickChainNodePort(nodeID int64) (int, error) {
-	portRange, err := h.repo.GetNodePortRange(nodeID)
-	if err != nil || portRange == "" {
-		portRange = "1000-65535"
-	}
-
-	nodePorts, err := parsePorts(portRange)
+	nodePorts, err := h.parseEffectivePortsForNode(nodeID)
 	if err != nil {
 		return 0, err
 	}
@@ -5721,6 +5703,47 @@ func (h *Handler) pickChainNodePort(nodeID int64) (int, error) {
 
 func (h *Handler) getUsedPorts(nodeID int64) (map[int]bool, error) {
 	return h.repo.GetUsedPortsOnNodeAsMap(nodeID)
+}
+
+func (h *Handler) parseEffectivePortsForNode(nodeID int64) ([]int, error) {
+	portRange, err := h.repo.GetNodePortRange(nodeID)
+	if err != nil || strings.TrimSpace(portRange) == "" {
+		portRange = "1000-65535"
+	}
+	ports, err := parsePorts(portRange)
+	if err != nil || len(ports) == 0 {
+		return ports, err
+	}
+	instances, err := h.repo.ListNodeInstances(nodeID)
+	if err != nil || len(instances) == 0 {
+		return ports, nil
+	}
+	common := ports
+	for _, inst := range instances {
+		instanceRange := strings.TrimSpace(inst.PortRange)
+		if instanceRange == "" {
+			continue
+		}
+		instancePorts, err := parsePorts(instanceRange)
+		if err != nil || len(instancePorts) == 0 {
+			return nil, err
+		}
+		allowed := make(map[int]bool, len(instancePorts))
+		for _, p := range instancePorts {
+			allowed[p] = true
+		}
+		next := common[:0]
+		for _, p := range common {
+			if allowed[p] {
+				next = append(next, p)
+			}
+		}
+		common = next
+		if len(common) == 0 {
+			return nil, nil
+		}
+	}
+	return common, nil
 }
 
 func parsePorts(portRange string) ([]int, error) {
@@ -6201,22 +6224,20 @@ func asInt64Slice(v interface{}) []int64 {
 	return ids
 }
 
-func validateLocalNodePort(node *nodeRecord, port int) error {
+func (h *Handler) validateLocalNodePort(node *nodeRecord, port int) error {
 	if node == nil || node.IsRemote == 1 || port <= 0 {
 		return nil
 	}
-	portRange := strings.TrimSpace(node.PortRange)
-	if portRange == "" {
+	ports, err := h.parseEffectivePortsForNode(node.ID)
+	if err != nil || len(ports) == 0 {
 		return nil
 	}
-	minPort, maxPort := parsePortRangeMinMax(portRange)
-	if minPort <= 0 || maxPort <= 0 {
-		return nil
+	for _, allowed := range ports {
+		if allowed == port {
+			return nil
+		}
 	}
-	if port < minPort || port > maxPort {
-		return fmt.Errorf("端口 %d 超出节点 %s 允许范围 %d-%d", port, node.Name, minPort, maxPort)
-	}
-	return nil
+	return fmt.Errorf("端口 %d 超出节点 %s 允许范围", port, node.Name)
 }
 
 func validateRemoteNodePort(node *nodeRecord, port int) error {

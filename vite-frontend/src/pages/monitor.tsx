@@ -461,7 +461,7 @@ function NodeInstanceGroupsView({
   loading: boolean;
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>;
   onEditWeight: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
-  onOpenDetail: (nodeId: number) => void;
+  onOpenDetail: (nodeId: number, instanceId: string) => void;
 }) {
   if (loading && groups.length === 0) {
     return (
@@ -680,7 +680,12 @@ function NodeInstanceGroupsView({
                                 className="h-8 px-3 text-xs font-medium"
                                 size="sm"
                                 variant="flat"
-                                onPress={() => onOpenDetail(member.nodeId)}
+                                onPress={() =>
+                                  onOpenDetail(
+                                    member.nodeId,
+                                    member.instanceId || "",
+                                  )
+                                }
                               >
                                 详情
                               </Button>
@@ -729,7 +734,11 @@ export default function MonitorPage() {
     useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [weightValue, setWeightValue] = useState("");
   const [weightSaving, setWeightSaving] = useState(false);
-  const [detailNodeId, setDetailNodeId] = useState<number | null>(null);
+  const [detailTarget, setDetailTarget] = useState<{
+    nodeId: number;
+    instanceId: string;
+  } | null>(null);
+  const detailNodeId = detailTarget?.nodeId ?? null;
   const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
     try {
       const saved = localStorage.getItem("monitor-view-mode");
@@ -1193,16 +1202,19 @@ export default function MonitorPage() {
                   loading={nodeInstanceGroupsLoading}
                   realtimeMetrics={realtimeInstanceMetrics}
                   onEditWeight={openWeightModal}
-                  onOpenDetail={setDetailNodeId}
+                  onOpenDetail={(nodeId, instanceId) =>
+                    setDetailTarget({ nodeId, instanceId })
+                  }
                 />
               </>
             ) : (
               <MonitorView
                 hideList
                 detailNodeId={detailNodeId}
+                detailInstanceId={detailTarget?.instanceId ?? null}
                 nodeMap={nodeMap}
                 viewMode={viewMode}
-                onDetailClose={() => setDetailNodeId(null)}
+                onDetailClose={() => setDetailTarget(null)}
               />
             )}
           </div>

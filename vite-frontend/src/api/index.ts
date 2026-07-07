@@ -52,6 +52,7 @@ import type {
   MonitorNodeApiItem,
   MonitorNodeInstanceGroupApiItem,
   MonitorNodeMetricsApiItem,
+  NodeInstancePortApiData,
   MonitorTunnelApiItem,
   TunnelQualityApiItem,
   MonitorAccessApiData,
@@ -141,6 +142,16 @@ export const updateNodeWeight = (
   weight: number,
   instanceId?: string,
 ) => Network.post("/node/weight", { nodeId, weight, instanceId });
+export const getNodeInstancePorts = (nodeId: number) =>
+  Network.get<NodeInstancePortApiData>("/node/instance-port/list", {
+    nodeId: String(nodeId),
+  });
+export const saveNodeInstancePort = (
+  nodeId: number,
+  instanceId: string,
+  portRange: string,
+) =>
+  Network.post("/node/instance-port/save", { nodeId, instanceId, portRange });
 export const issueNodeSDWANCert = (id: number, vpnIp?: string) =>
   Network.post<{
     vpnIp: string;
@@ -773,11 +784,13 @@ export const getNodeMetrics = (
   nodeId: number,
   start?: number,
   end?: number,
+  instanceId?: string,
 ) => {
   const params: Record<string, string> = {};
 
   if (start) params.start = String(start);
   if (end) params.end = String(end);
+  if (instanceId?.trim()) params.instanceId = instanceId.trim();
 
   return Network.get<NodeMetricApiItem[]>(
     `/monitor/nodes/${nodeId}/metrics`,

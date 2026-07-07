@@ -425,6 +425,7 @@ type monitorNodeInstanceGroupMember struct {
 	IPV6Region  string  `json:"publicIpV6Region"`
 	Status      int     `json:"status"`
 	Weight      int     `json:"weight"`
+	PortRange   string  `json:"portRange"`
 	OnlineCount int64   `json:"onlineCount"`
 	TCPConns    int64   `json:"tcpConns"`
 	UDPConns    int64   `json:"udpConns"`
@@ -512,6 +513,7 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			IPV6Region:  regionByIP[strings.TrimSpace(row.PublicIPV6)],
 			Status:      row.Status,
 			Weight:      row.Weight,
+			PortRange:   row.PortRange,
 			OnlineCount: row.TCPConns + row.UDPConns,
 			TCPConns:    row.TCPConns,
 			UDPConns:    row.UDPConns,
@@ -572,7 +574,8 @@ func (h *Handler) handleNodeMetrics(w http.ResponseWriter, r *http.Request, node
 		return
 	}
 
-	metrics, err := h.repo.GetNodeMetrics(nodeID, startMs, endMs)
+	instanceID := strings.TrimSpace(r.URL.Query().Get("instanceId"))
+	metrics, err := h.repo.GetNodeMetrics(nodeID, startMs, endMs, instanceID)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return

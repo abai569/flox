@@ -153,6 +153,7 @@ type NodeInstance struct {
 	Version     string  `gorm:"column:version;type:varchar(100);default:''"`
 	Status      int     `gorm:"column:status;not null;default:1"`
 	Weight      int     `gorm:"column:weight;not null;default:1"`
+	PortRange   string  `gorm:"column:port_range;type:varchar(255);default:''"`
 	NetInSpeed  int64   `gorm:"column:net_in_speed;default:0"`
 	NetOutSpeed int64   `gorm:"column:net_out_speed;default:0"`
 	NetInBytes  int64   `gorm:"column:net_in_bytes;default:0"`
@@ -759,7 +760,8 @@ type UserForwardDetail struct {
 type NodeMetric struct {
 	ID          int64   `gorm:"primaryKey;autoIncrement" json:"id"`
 	NodeID      int64   `gorm:"column:node_id;not null;index:idx_node_metric_node_time,priority:1" json:"nodeId"`
-	Timestamp   int64   `gorm:"not null;index:idx_node_metric_node_time,priority:2;index:idx_node_metric_time" json:"timestamp"`
+	InstanceID  string  `gorm:"column:instance_id;type:varchar(100);default:'';index:idx_node_metric_instance_time,priority:1" json:"instanceId,omitempty"`
+	Timestamp   int64   `gorm:"not null;index:idx_node_metric_node_time,priority:2;index:idx_node_metric_instance_time,priority:2;index:idx_node_metric_time" json:"timestamp"`
 	CPUUsage    float64 `gorm:"column:cpu_usage" json:"cpuUsage"`
 	MemUsage    float64 `gorm:"column:mem_usage" json:"memoryUsage"`
 	DiskUsage   float64 `gorm:"column:disk_usage" json:"diskUsage"`

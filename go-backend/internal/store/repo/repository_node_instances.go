@@ -182,6 +182,38 @@ func (r *Repository) UpdateNodeInstanceWeight(nodeID int64, instanceID string, w
 		Updates(map[string]interface{}{"weight": weight, "updated_time": now}).Error
 }
 
+func (r *Repository) UpdateNodeInstancePortRange(nodeID int64, instanceID string, portRange string, now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if now <= 0 {
+		now = unixMilliNow()
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return errors.New("node instance id is required")
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Updates(map[string]interface{}{"port_range": strings.TrimSpace(portRange), "updated_time": now}).Error
+}
+
+func (r *Repository) ListNodeInstances(nodeID int64) ([]model.NodeInstance, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	if nodeID <= 0 {
+		return nil, errors.New("node id is required")
+	}
+	var instances []model.NodeInstance
+	where, args := validNodeInstanceWhere()
+	err := r.db.Where("node_id = ?", nodeID).
+		Where(where, args...).
+		Order("id ASC").
+		Find(&instances).Error
+	return instances, err
+}
+
 func (r *Repository) ListOnlineNodeInstancesByNodeIDs(nodeIDs []int64) (map[int64][]model.NodeInstance, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")

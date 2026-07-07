@@ -480,6 +480,7 @@ export interface BackupImportPayload {
 export interface NodeMetricApiItem {
   id: number;
   nodeId: number;
+  instanceId?: string;
   timestamp: number;
   cpuUsage: number;
   memoryUsage: number;
@@ -575,6 +576,7 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   publicIpV6Region?: string;
   status: number;
   weight: number;
+  portRange?: string;
   onlineCount: number;
   tcpConns?: number;
   udpConns?: number;
@@ -597,6 +599,25 @@ export interface MonitorNodeInstanceGroupApiItem {
   totalInSpeed: number;
   totalOutSpeed: number;
   members: MonitorNodeInstanceGroupMemberApiItem[];
+}
+
+export interface NodeInstancePortApiItem {
+  id: number;
+  nodeId: number;
+  instanceId: string;
+  hostname?: string;
+  publicIpV4?: string;
+  publicIpV6?: string;
+  status: number;
+  weight: number;
+  portRange?: string;
+}
+
+export interface NodeInstancePortApiData {
+  nodeId: number;
+  nodeName: string;
+  nodePortRange: string;
+  instances: NodeInstancePortApiItem[];
 }
 
 export interface MonitorNodeMetricsApiItem extends MonitorNodeApiItem {

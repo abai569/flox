@@ -98,6 +98,7 @@ interface NodeListViewProps {
   openUpgradeModal: (type: "single" | "batch", nodeId?: number) => void;
   handleEdit: (node: Node) => void;
   handleDNSFailover?: (node: Node) => void;
+  handleInstancePort?: (node: Node) => void;
   handleDelete: (node: Node) => void;
   formatTraffic: (bytes: number) => string;
   nodeGroups: any[];
@@ -128,6 +129,7 @@ function SortableTableRow({
   openUpgradeModal,
   handleEdit,
   handleDNSFailover,
+  handleInstancePort,
   handleDelete,
   formatTraffic,
   nodeGroups,
@@ -732,6 +734,15 @@ function SortableTableRow({
               </Button>
               <Button
                 className="min-h-7 px-2"
+                color="primary"
+                size="sm"
+                variant="flat"
+                onPress={() => handleInstancePort?.(node)}
+              >
+                端口
+              </Button>
+              <Button
+                className="min-h-7 px-2"
                 color="success"
                 size="sm"
                 variant="flat"
@@ -775,6 +786,7 @@ export function NodeListView({
   openUpgradeModal,
   handleEdit,
   handleDNSFailover,
+  handleInstancePort,
   handleDelete,
   formatTraffic,
   nodeGroups,
@@ -987,6 +999,7 @@ export function NodeListView({
                   openUpgradeModal,
                   handleEdit,
                   handleDNSFailover,
+                  handleInstancePort,
                   handleDelete,
                   formatTraffic,
                   nodeGroups,

@@ -97,6 +97,7 @@ interface MonitorViewProps {
     }
   >;
   detailNodeId?: number | null;
+  detailInstanceId?: string | null;
   hideList?: boolean;
   viewMode?: "list" | "grid";
   onDetailClose?: () => void;
@@ -118,6 +119,14 @@ type RealtimeNodeMetric = {
   udpConns: number;
   uptime: number;
 };
+
+type RealtimeNodeInstanceMetric = RealtimeNodeMetric & {
+  nodeId: number;
+  instanceId: string;
+};
+
+const getInstanceMetricKey = (nodeId: number, instanceId?: string): string =>
+  `${nodeId}:${instanceId?.trim() || ""}`;
 
 const isSupportedMonitorType = (t: string): t is "tcp" | "icmp" =>
   t === "tcp" || t === "icmp";
@@ -579,6 +588,7 @@ const DEFAULT_SERVICE_MONITOR_LIMITS: ServiceMonitorLimitsApiData = {
 
 export function MonitorView({
   detailNodeId: controlledDetailNodeId,
+  detailInstanceId: controlledDetailInstanceId,
   hideList = false,
   nodeMap,
   viewMode = "grid",
@@ -722,6 +732,9 @@ export function MonitorView({
   const [realtimeNodeMetrics, setRealtimeNodeMetrics] = useState<
     Record<number, RealtimeNodeMetric>
   >({});
+  const [realtimeInstanceMetrics, setRealtimeInstanceMetrics] = useState<
+    Record<string, RealtimeNodeInstanceMetric>
+  >({});
   const offlineTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
@@ -815,6 +828,9 @@ export function MonitorView({
       const metric = raw as Record<string, unknown>;
       const receivedAt = Date.now();
       const incomingUptime = Number(metric.uptime ?? 0);
+      const instanceId = String(
+        metric.instanceId ?? metric.instance_id ?? "",
+      ).trim();
 
       setRealtimeNodeMetrics((prev) => {
         const normalized: RealtimeNodeMetric = {
@@ -841,6 +857,33 @@ export function MonitorView({
           [nodeId]: normalized,
         };
       });
+      if (instanceId) {
+        setRealtimeInstanceMetrics((prev) => {
+          const key = getInstanceMetricKey(nodeId, instanceId);
+          const normalized: RealtimeNodeInstanceMetric = {
+            nodeId,
+            instanceId,
+            receivedAt,
+            cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
+            memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
+            diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
+            netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
+            netOutBytes: Number(
+              metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
+            ),
+            netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
+            netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
+            load1: Number(metric.load1 ?? 0),
+            load5: Number(metric.load5 ?? 0),
+            load15: Number(metric.load15 ?? 0),
+            tcpConns: Number(metric.tcpConns ?? metric.tcp_conns ?? 0),
+            udpConns: Number(metric.udpConns ?? metric.udp_conns ?? 0),
+            uptime: incomingUptime || prev[key]?.uptime || 0,
+          };
+
+          return { ...prev, [key]: normalized };
+        });
+      }
       setRealtimeNodeStatus((prev) => ({
         ...prev,
         [nodeId]: "online",
@@ -878,14 +921,23 @@ export function MonitorView({
   }, [controlledDetailNodeId, selectedNodeId]);
 
   const loadMetrics = useCallback(
-    async (nodeId: number, options?: { silent?: boolean }) => {
+    async (
+      nodeId: number,
+      instanceId?: string | null,
+      options?: { silent?: boolean },
+    ) => {
       const silent = options?.silent ?? false;
 
       if (!silent) setMetricsLoading(true);
       try {
         const end = Date.now();
         const start = end - metricsRangeMs;
-        const response = await getNodeMetrics(nodeId, start, end);
+        const response = await getNodeMetrics(
+          nodeId,
+          start,
+          end,
+          instanceId || undefined,
+        );
 
         if (response.code === 0 && Array.isArray(response.data)) {
           setAccessDenied(null);
@@ -1079,18 +1131,20 @@ export function MonitorView({
 
   useEffect(() => {
     if (selectedNodeId) {
-      loadMetrics(selectedNodeId);
+      loadMetrics(selectedNodeId, controlledDetailInstanceId);
     }
-  }, [selectedNodeId, loadMetrics]);
+  }, [selectedNodeId, controlledDetailInstanceId, loadMetrics]);
 
   useEffect(() => {
     if (!selectedNodeId) return;
     const timer = window.setInterval(() => {
-      void loadMetrics(selectedNodeId, { silent: true });
+      void loadMetrics(selectedNodeId, controlledDetailInstanceId, {
+        silent: true,
+      });
     }, 15_000);
 
     return () => window.clearInterval(timer);
-  }, [selectedNodeId, loadMetrics]);
+  }, [selectedNodeId, controlledDetailInstanceId, loadMetrics]);
 
   useEffect(() => {
     if (!resultsModalOpen || !resultsMonitorId) return;
@@ -1424,7 +1478,13 @@ export function MonitorView({
   const detailNode =
     detailNodeId != null ? nodes.find((n) => n.id === detailNodeId) : null;
   const detailRealtimeMetric =
-    detailNodeId != null ? realtimeNodeMetrics[detailNodeId] || null : null;
+    detailNodeId != null && controlledDetailInstanceId
+      ? realtimeInstanceMetrics[
+          getInstanceMetricKey(detailNodeId, controlledDetailInstanceId)
+        ] || null
+      : detailNodeId != null
+        ? realtimeNodeMetrics[detailNodeId] || null
+        : null;
 
   // Service monitors filtered for the detail node (0 = panel-executed, show all in that case)
   const detailServiceMonitors =
@@ -1775,6 +1835,17 @@ export function MonitorView({
                 <h3 className="text-lg font-bold text-foreground">
                   {detailNode?.name || `节点 #${detailNodeId}`}
                 </h3>
+                {controlledDetailInstanceId ? (
+                  <Chip
+                    className="flex h-6 max-w-[220px] items-center rounded-md font-mono text-xs"
+                    size="sm"
+                    variant="flat"
+                  >
+                    <span className="truncate">
+                      实例 {controlledDetailInstanceId}
+                    </span>
+                  </Chip>
+                ) : null}
                 <Chip
                   className="flex h-6 items-center rounded-md font-medium"
                   color={

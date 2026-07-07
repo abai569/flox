@@ -152,7 +152,7 @@ func (s *IngestionService) flushNodeMetrics() {
 	if s.repo == nil {
 		return
 	}
-	metrics := make([]*model.NodeMetric, 0, len(buffer))
+	metrics := make([]*model.NodeMetric, 0, len(buffer)*2)
 	for _, agg := range buffer {
 		if agg == nil || len(agg.instances) == 0 {
 			continue
@@ -175,9 +175,31 @@ func (s *IngestionService) flushNodeMetrics() {
 			netOutSpeed            int64
 			uptimeMax              uint64
 		)
-		for _, inst := range agg.instances {
+		for instanceID, inst := range agg.instances {
 			if inst == nil || inst.count <= 0 {
 				continue
+			}
+			if instanceID != "" {
+				metrics = append(metrics, &model.NodeMetric{
+					NodeID:      agg.nodeID,
+					InstanceID:  instanceID,
+					Timestamp:   agg.timestamp,
+					CPUUsage:    inst.cpuUsageSum / float64(inst.count),
+					MemUsage:    inst.memoryUsageSum / float64(inst.count),
+					DiskUsage:   inst.diskUsageSum / float64(inst.count),
+					NetInBytes:  int64(inst.bytesReceived),
+					NetOutBytes: int64(inst.bytesTransmitted),
+					NetInSpeed:  inst.netInSpeedSum / inst.count,
+					NetOutSpeed: inst.netOutSpeedSum / inst.count,
+					Load1:       inst.load1Sum / float64(inst.count),
+					Load5:       inst.load5Sum / float64(inst.count),
+					Load15:      inst.load15Sum / float64(inst.count),
+					TCPConns:    inst.tcpConnsSum / inst.count,
+					UDPConns:    inst.udpConnsSum / inst.count,
+					Uptime:      int64(inst.uptimeMax),
+					PeriodRx:    int64(inst.periodBytesReceived),
+					PeriodTx:    int64(inst.periodBytesTransmitted),
+				})
 			}
 			instanceCount++
 			bytesReceived += inst.bytesReceived
@@ -262,5 +284,5 @@ func (s *IngestionService) GetLatestMetric(nodeID int64) (*model.NodeMetric, err
 }
 
 func (s *IngestionService) GetMetrics(nodeID int64, startMs, endMs int64) ([]model.NodeMetric, error) {
-	return s.repo.GetNodeMetrics(nodeID, startMs, endMs)
+	return s.repo.GetNodeMetrics(nodeID, startMs, endMs, "")
 }

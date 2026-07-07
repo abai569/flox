@@ -17,6 +17,7 @@ type MonitorNodeInstanceGroupRow struct {
 	PublicIPV6  string  `gorm:"column:public_ip_v6"`
 	Status      int     `gorm:"column:status"`
 	Weight      int     `gorm:"column:weight"`
+	PortRange   string  `gorm:"column:port_range"`
 	NetInSpeed  int64   `gorm:"column:net_in_speed"`
 	NetOutSpeed int64   `gorm:"column:net_out_speed"`
 	NetInBytes  int64   `gorm:"column:net_in_bytes"`
@@ -76,6 +77,7 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 			COALESCE(nsi.public_ip_v6, '') AS public_ip_v6,
 			nsi.status AS status,
 			nsi.weight AS weight,
+			COALESCE(nsi.port_range, '') AS port_range,
 			nsi.net_in_speed AS net_in_speed,
 			nsi.net_out_speed AS net_out_speed,
 			nsi.net_in_bytes AS net_in_bytes,
