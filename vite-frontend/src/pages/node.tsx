@@ -1422,8 +1422,8 @@ export default function NodePage() {
     });
     setDialogVisible(true);
   };
-  const openDNSFailoverModal = (node: Node) => {
-    setDNSFailoverNode(node);
+  const openDNSFailoverPicker = () => {
+    setDNSFailoverNode(null);
     setDNSFailoverModalOpen(true);
   };
 
@@ -2904,7 +2904,7 @@ export default function NodePage() {
                 更新
               </Button>
             </div>
-            <div className="grid gap-2 grid-cols-6">
+            <div className="grid gap-2 grid-cols-5">
               <Button
                 className="min-h-8 w-full"
                 color="primary"
@@ -2913,15 +2913,6 @@ export default function NodePage() {
                 onPress={() => handleEdit(node)}
               >
                 编辑
-              </Button>
-              <Button
-                className="min-h-8 w-full"
-                color="secondary"
-                size="sm"
-                variant="flat"
-                onPress={() => openDNSFailoverModal(node)}
-              >
-                DNS
               </Button>
               <Button
                 className="min-h-8 w-full"
@@ -3136,6 +3127,15 @@ export default function NodePage() {
                   onPress={() => setGroupManagerOpen(true)}
                 >
                   分组
+                </Button>
+                {/* 新增按钮 */}
+                <Button
+                  color="success"
+                  size="sm"
+                  variant="flat"
+                  onPress={openDNSFailoverPicker}
+                >
+                  DNS
                 </Button>
                 {/* 新增按钮 */}
                 <Button
@@ -3386,7 +3386,6 @@ export default function NodePage() {
                                       handleDismissExpiryReminder={
                                         handleDismissExpiryReminder
                                       }
-                                      handleDNSFailover={openDNSFailoverModal}
                                       handleEdit={handleEdit}
                                       handleInstancePort={openInstancePortModal}
                                       handleResetNodeTraffic={
@@ -3470,7 +3469,6 @@ export default function NodePage() {
                   }
                   handleDelete={handleDelete}
                   handleDismissExpiryReminder={handleDismissExpiryReminder}
-                  handleDNSFailover={openDNSFailoverModal}
                   handleEdit={handleEdit}
                   handleInstancePort={openInstancePortModal}
                   handleResetNodeTraffic={handleResetNodeTraffic}
@@ -3897,6 +3895,7 @@ export default function NodePage() {
       <NodeDNSFailoverModal
         isOpen={dnsFailoverModalOpen}
         node={dnsFailoverNode}
+        nodes={nodeList}
         onOpenChange={setDNSFailoverModalOpen}
       />
       <NodeInstancePortModal
