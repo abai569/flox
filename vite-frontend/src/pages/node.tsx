@@ -658,7 +658,7 @@ export default function NodePage() {
       intranetIp: "",
       serverIpV4: "",
       serverIpV6: "",
-      port: "10000-65535",
+      port: "",
       tcpListenAddr: "[::]",
       udpListenAddr: "[::]",
       interfaceName: "",
@@ -1256,7 +1256,7 @@ export default function NodePage() {
     portStr: string,
   ): { valid: boolean; error?: string } => {
     if (!portStr || !portStr.trim()) {
-      return { valid: false, error: "请输入端口" };
+      return { valid: true };
     }
     const trimmed = portStr.trim();
 
@@ -1388,7 +1388,7 @@ export default function NodePage() {
       intranetIp: node.intranetIp || "",
       serverIpV4: node.serverIpV4 || "",
       serverIpV6: node.serverIpV6 || "",
-      port: node.port || "10000-65535",
+      port: node.port || "",
       tcpListenAddr: node.tcpListenAddr || "[::]",
       udpListenAddr: node.udpListenAddr || "[::]",
       interfaceName: (node as any).interfaceName || "",
@@ -3743,7 +3743,7 @@ export default function NodePage() {
                       classNames={{
                         input: "font-medium",
                       }}
-                      description="支持单个端口(80)、多个端口(80,443)或端口范围(10000-65535)，多个范围可用逗号分隔"
+                      description="可选：支持单个端口(80)、多个端口(80,443)或端口范围(10000-65535)，留空使用默认范围"
                       errorMessage={errors.port}
                       isInvalid={!!errors.port}
                       label="可用端口"
