@@ -1846,7 +1846,7 @@ export default function NodePage() {
         );
 
         if (res.code === 0) {
-          toast.success(`节点升级命令已发送，节点将自动重启`);
+          toast.success("已向该节点所有在线实例发送更新命令");
         } else {
           toast.error(res.msg || "升级失败");
         }
@@ -1879,7 +1879,7 @@ export default function NodePage() {
 
         if (res.code === 0) {
           toast.success(
-            `批量升级命令已发送到 ${selectedLocalIds.length} 个节点`,
+            `已向 ${selectedLocalIds.length} 个节点的所有在线实例发送更新命令`,
           );
           setSelectedIds(new Set());
           setSelectMode(false);
