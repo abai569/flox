@@ -29,7 +29,7 @@ import {
   updateNodeWeight,
 } from "@/api";
 import { MonitorView } from "@/pages/node/monitor-view";
-import { TunnelMonitorView } from "@/pages/node/tunnel-monitor-view";
+import { TunnelMonitorView } from "@/pages/tunnel/tunnel-monitor-view";
 import {
   MonitorTerminalButton,
   MonitorTerminalProvider,
@@ -415,26 +415,16 @@ const mergeRealtimeMetric = (
   };
 };
 
-function MonitorSummaryBar({
+function MonitorRealtimeStatus({
   wsConnected,
   wsConnecting,
-  onlineNodeCount,
-  nodeCount,
-  onlineInstanceCount,
-  instanceCount,
-  serviceSummary,
 }: {
   wsConnected: boolean;
   wsConnecting: boolean;
-  onlineNodeCount: number;
-  nodeCount: number;
-  onlineInstanceCount: number;
-  instanceCount: number;
-  serviceSummary: ServiceSummary;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs">
-      <span className="inline-flex items-center gap-2 text-default-600">
+    <div className="flex items-center overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
+      <span className="inline-flex shrink-0 items-center gap-2 text-default-600">
         <StatusDot
           active={wsConnected}
           className="h-2 w-2"
@@ -446,13 +436,32 @@ function MonitorSummaryBar({
             ? "实时连接中"
             : "实时未连接"}
       </span>
-      <span className="rounded-md bg-primary px-2.5 py-1 font-semibold text-primary-foreground">
+    </div>
+  );
+}
+
+function MonitorSummaryBar({
+  onlineNodeCount,
+  nodeCount,
+  onlineInstanceCount,
+  instanceCount,
+  serviceSummary,
+}: {
+  onlineNodeCount: number;
+  nodeCount: number;
+  onlineInstanceCount: number;
+  instanceCount: number;
+  serviceSummary: ServiceSummary;
+}) {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
+      <span className="shrink-0 rounded-md bg-primary px-2.5 py-1 font-semibold text-primary-foreground">
         节点 {onlineNodeCount}/{nodeCount}
       </span>
-      <span className="rounded-md bg-secondary px-2.5 py-1 font-semibold text-secondary-foreground">
+      <span className="shrink-0 rounded-md bg-secondary px-2.5 py-1 font-semibold text-secondary-foreground">
         实例 {onlineInstanceCount}/{instanceCount}
       </span>
-      <span className="rounded-md bg-success px-2.5 py-1 font-semibold text-white">
+      <span className="shrink-0 rounded-md bg-success px-2.5 py-1 font-semibold text-white">
         服务监控 成功 {serviceSummary.ok} / 失败 {serviceSummary.fail}
       </span>
     </div>
@@ -526,35 +535,35 @@ function NodeInstanceGroupsView({
             key={group.id}
             className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-sm"
           >
-            <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="rounded-md border border-default-300 px-4 py-1.5 text-sm font-medium text-secondary truncate">
+            <div className="flex w-full items-center gap-2 px-3 py-3 md:justify-start md:px-4 md:py-4">
+              <div className="flex min-w-0 shrink items-center gap-2 md:flex-none">
+                <span className="min-w-0 max-w-[82px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[140px] md:max-w-none md:px-4 md:text-sm">
                   {group.name} | ID: {group.id}
                 </span>
-                <span className="text-xs text-default-500">
+                <span className="shrink-0 text-xs text-default-500">
                   {members.length} 个实例
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-sm font-mono">
+              <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-xs md:flex-none md:gap-2 md:text-sm">
                 <span
-                  className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-secondary-500/15 px-3 py-2 text-secondary-700 tabular-nums"
+                  className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-secondary-500/15 px-1 text-secondary-700 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3"
                   title={groupConnectionTooltip}
                 >
                   {formatSpeed(totalOutSpeed)}
-                  <ArrowUp className="h-4 w-4" />
+                  <ArrowUp className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 </span>
                 <span
-                  className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary-500/15 px-3 py-2 text-primary-700 tabular-nums"
+                  className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-primary-500/15 px-1 text-primary-700 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3"
                   title={groupConnectionTooltip}
                 >
                   {formatSpeed(totalInSpeed)}
-                  <ArrowDown className="h-4 w-4" />
+                  <ArrowDown className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 </span>
               </div>
             </div>
             <div className="px-3 pb-4">
-              <div className="overflow-hidden">
-                <table className="w-full table-fixed text-sm">
+              <div className="overflow-x-auto overscroll-x-contain md:overflow-hidden">
+                <table className="w-full min-w-[1040px] table-fixed text-sm md:min-w-0">
                   <colgroup>
                     {MONITOR_INSTANCE_TABLE_COLUMNS.map((width, index) => (
                       <col key={index} style={{ width }} />
@@ -562,19 +571,19 @@ function NodeInstanceGroupsView({
                   </colgroup>
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
-                      <th className="px-1 py-2 text-center">状态</th>
-                      <th className="px-1 py-2 text-center">实例</th>
-                      <th className="px-1 py-2 text-center">v4 地区</th>
-                      <th className="px-1 py-2 text-center">v6 地区</th>
-                      <th className="px-1 py-2 text-center">出口 IP</th>
-                      <th className="px-1 py-2 text-center">速率</th>
-                      <th className="px-1 py-2 text-center">开机时长</th>
-                      <th className="px-1 py-2 text-center">流量</th>
-                      <th className="px-1 py-2 text-center">CPU</th>
-                      <th className="px-1 py-2 text-center">RAM</th>
-                      <th className="px-1 py-2 text-center">存储</th>
-                      <th className="px-1 py-2 text-center">权重</th>
-                      <th className="px-1 py-2 text-center">操作</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">状态</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">实例名称</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">v4 地区</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">v6 地区</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">出口 IP</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">速率</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">开机时长</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">流量</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">CPU</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">RAM</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">存储</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">权重</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-start">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -681,9 +690,10 @@ function NodeInstanceGroupsView({
                             <div className="truncate">{member.weight}</div>
                           </td>
                           <td className="px-1 py-3 align-middle">
-                            <div className="flex min-w-0 justify-center gap-1">
+                            <div className="flex min-w-0 justify-start gap-1 whitespace-nowrap">
                               <Button
-                                className="h-8 px-2 text-xs font-medium"
+                                className="h-8 shrink-0 px-2 text-xs font-medium"
+                                color="primary"
                                 size="sm"
                                 variant="flat"
                                 onPress={() => onEditWeight(member)}
@@ -691,11 +701,11 @@ function NodeInstanceGroupsView({
                                 权重
                               </Button>
                               <MonitorTerminalButton
-                                className="h-8 px-2 text-xs font-medium"
+                                className="h-8 shrink-0 px-2 text-xs font-medium"
                                 member={member}
                               />
                               <Button
-                                className="h-8 px-2 text-xs font-medium"
+                                className="h-8 shrink-0 px-2 text-xs font-medium"
                                 size="sm"
                                 variant="flat"
                                 color="danger"
@@ -704,7 +714,8 @@ function NodeInstanceGroupsView({
                                 删除
                               </Button>
                               <Button
-                                className="h-8 px-2 text-xs font-medium"
+                                className="h-8 shrink-0 px-2 text-xs font-medium"
+                                color="success"
                                 size="sm"
                                 variant="flat"
                                 onPress={() =>
@@ -769,7 +780,7 @@ export default function MonitorPage() {
     instanceId: string;
   } | null>(null);
   const detailNodeId = detailTarget?.nodeId ?? null;
-  const [viewMode, setViewMode] = useState<"list" | "grid">(() => {
+  const [viewMode] = useState<"list" | "grid">(() => {
     try {
       const saved = localStorage.getItem("monitor-view-mode");
 
@@ -797,20 +808,6 @@ export default function MonitorPage() {
   }, [activeTab]);
   const [tunnelsLoading, setTunnelsLoading] = useState(false);
   const [tunnelRefreshTrigger, setTunnelRefreshTrigger] = useState(0);
-
-  const toggleViewMode = useCallback(() => {
-    setViewMode((prev) => {
-      const next = prev === "list" ? "grid" : "list";
-
-      try {
-        localStorage.setItem("monitor-view-mode", next);
-      } catch {
-        /* ignore */
-      }
-
-      return next;
-    });
-  }, []);
 
   const loadNodeInstanceGroups = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -1173,15 +1170,15 @@ export default function MonitorPage() {
       <div className="mb-4 space-y-3">
         {/* 第一行：左侧按钮组 */}
         <div className="flex items-center gap-1">
-          {/* 卡片/列表切换 - 黄色 */}
-          <Button
+          {/* 卡片/列表切换 - 暂停使用 */}
+          {/* <Button
             color="warning"
             size="sm"
             variant="flat"
             onPress={toggleViewMode}
           >
             {viewMode === "grid" ? "列表" : "卡片"}
-          </Button>
+          </Button> */}
           {/* 节点按钮 - 蓝色 */}
           <Button
             color="primary"
@@ -1221,9 +1218,15 @@ export default function MonitorPage() {
             刷新
           </Button>
         </div>
+        {activeTab === "nodes" && detailNodeId == null ? (
+          <MonitorRealtimeStatus
+            wsConnected={wsConnected}
+            wsConnecting={wsConnecting}
+          />
+        ) : null}
         {/* 第二行：副标题 */}
         <div className="text-xs text-default-500 truncate">
-          实时节点状态 + 隧道质量检测 + 历史指标图表 + 服务监控 (TCP/ICMP)
+          实时节点状态 + 隧道质量检测 + 历史指标图表 + 服务监控
         </div>
         {nodesError && activeTab === "nodes" ? (
           <Card>
@@ -1247,8 +1250,6 @@ export default function MonitorPage() {
                   onlineInstanceCount={nodeSummary.onlineInstances}
                   onlineNodeCount={nodeSummary.online}
                   serviceSummary={serviceSummary}
-                  wsConnected={wsConnected}
-                  wsConnecting={wsConnecting}
                 />
                 <NodeInstanceGroupsView
                   groups={nodeInstanceGroups}

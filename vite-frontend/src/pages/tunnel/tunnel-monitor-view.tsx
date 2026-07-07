@@ -1050,7 +1050,7 @@ export function TunnelMonitorView({
         </Card>
       ) : null}
 
-      {viewMode === "grid" ? (
+      {false && viewMode === "grid" ? (
         <div className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-md">
           <div className="flex items-center justify-between border-b border-divider bg-default-100/40 px-4 py-3">
             <span className="text-sm font-semibold text-foreground">

@@ -281,17 +281,7 @@ function SortableTableRow({
           </svg>
         </div>
       </TableCell>
-      <TableCell className={`text-center ${rowBg}`}>
-        {(node as any).mimicStatus === "ok" || (node as any).mimicStatus === "deps_ready" ? (
-          <span className="text-green-500" title="WGM 就绪">✅</span>
-        ) : (node as any).mimicStatus ? (
-          <span
-            className="text-red-500 cursor-help"
-            title={(node as any).mimicError || "WGM 未就绪"}
-          >❌</span>
-        ) : null}
-      </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex items-center gap-2 min-w-0">
           <StatusDot
             active={!node.paused && connectionStatusMeta.color === "success"}
@@ -316,7 +306,7 @@ function SortableTableRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         {node.groupId && node.groupId > 0 ? (
           (() => {
             const group = nodeGroups.find((g: any) => g.id == node.groupId);
@@ -343,7 +333,7 @@ function SortableTableRow({
           </div>
         )}
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg} align-middle`}>
+      <TableCell className={`whitespace-nowrap px-1 align-middle ${rowBg}`}>
         <div className="flex flex-col gap-1 min-w-[160px] py-1">
           <div className="flex justify-between items-center min-w-0 gap-3">
             <span className="text-default-500 text-[11px] flex-shrink-0">
@@ -487,7 +477,7 @@ function SortableTableRow({
           </div>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg} align-middle`}>
+      <TableCell className={`whitespace-nowrap px-1 align-middle ${rowBg}`}>
         {!isRemoteNode ? (
           <div className="flex flex-col gap-1 min-w-[100px] justify-center">
             {upgradeProgress?.[node.id]?.percent !== undefined &&
@@ -529,16 +519,18 @@ function SortableTableRow({
           </Chip>
         )}
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
-        <div className="flex justify-end">
+      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
+        <div className="flex justify-center">
           <span className="text-sm font-mono text-default-600 tabular-nums">
             {node.connectionStatus === "online" ? (node.onlineCount ?? 0) : "-"}
           </span>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
-        <div className="flex items-center justify-end gap-1">
-          <span className="text-sm text-danger-600 dark:text-danger-400">
+      <TableCell
+        className={`w-[120px] min-w-[120px] max-w-[120px] whitespace-nowrap ${rowBg}`}
+      >
+        <div className="flex w-[104px] items-center justify-end gap-1">
+          <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
             {realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   (realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0) +
@@ -565,9 +557,11 @@ function SortableTableRow({
           )}
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
-        <div className="flex justify-end">
-          <span className="text-sm text-success-700 dark:text-success-300">
+      <TableCell
+        className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap ${rowBg}`}
+      >
+        <div className="flex w-[96px] justify-end">
+          <span className="truncate text-sm text-success-700 dark:text-success-300">
             {realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0,
@@ -576,9 +570,11 @@ function SortableTableRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
-        <div className="flex justify-end">
-          <span className="text-sm text-primary-700 dark:text-primary-300">
+      <TableCell
+        className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap ${rowBg}`}
+      >
+        <div className="flex w-[96px] justify-end">
+          <span className="truncate text-sm text-primary-700 dark:text-primary-300">
             {realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0,
@@ -587,7 +583,17 @@ function SortableTableRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`text-center ${rowBg}`}>
+        {(node as any).mimicStatus === "ok" || (node as any).mimicStatus === "deps_ready" ? (
+          <span className="text-green-500" title="WGM 就绪">✅</span>
+        ) : (node as any).mimicStatus ? (
+          <span
+            className="text-red-500 cursor-help"
+            title={(node as any).mimicError || "WGM 未就绪"}
+          >❌</span>
+        ) : null}
+      </TableCell>
+      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         {node.remark?.trim() ? (
           <span
             className="text-sm max-w-[120px] cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block"
@@ -663,14 +669,14 @@ function SortableTableRow({
           <span className="text-sm text-default-400">-</span>
         )}
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
-        <div className="flex justify-start gap-1">
+      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
+        <div className="flex min-w-0 justify-start gap-1 whitespace-nowrap">
           {!isRemoteNode && (
             <>
               <Dropdown>
                 <DropdownTrigger>
                   <Button
-                    className="min-h-7 px-2"
+                    className="min-h-7 shrink-0 px-2"
                     color="success"
                     isLoading={node.copyLoading}
                     size="sm"
@@ -702,7 +708,7 @@ function SortableTableRow({
                 </DropdownMenu>
               </Dropdown>
               <Button
-                className="min-h-7 px-2"
+                className="min-h-7 shrink-0 px-2"
                 color="warning"
                 isDisabled={node.connectionStatus !== "online"}
                 isLoading={node.upgradeLoading}
@@ -713,7 +719,7 @@ function SortableTableRow({
                 更新
               </Button>
               <Button
-                className="min-h-7 px-2"
+                className="min-h-7 shrink-0 px-2"
                 color="primary"
                 size="sm"
                 variant="flat"
@@ -722,7 +728,7 @@ function SortableTableRow({
                 编辑
               </Button>
               <Button
-                className="min-h-7 px-2"
+                className="min-h-7 shrink-0 px-2"
                 color="primary"
                 size="sm"
                 variant="flat"
@@ -731,7 +737,7 @@ function SortableTableRow({
                 端口
               </Button>
               <Button
-                className="min-h-7 px-2"
+                className="min-h-7 shrink-0 px-2"
                 color="success"
                 size="sm"
                 variant="flat"
@@ -740,7 +746,7 @@ function SortableTableRow({
                 归零
               </Button>
               <Button
-                className="min-h-7 px-2"
+                className="min-h-7 shrink-0 px-2"
                 color={node.paused ? "success" : "warning"}
                 size="sm"
                 variant="flat"
@@ -751,7 +757,7 @@ function SortableTableRow({
             </>
           )}
           <Button
-            className="min-h-7 px-2"
+            className="min-h-7 shrink-0 px-2"
             color="danger"
             size="sm"
             variant="flat"
@@ -815,19 +821,16 @@ export function NodeListView({
               />
             </div>
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[40px] text-center">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             排序
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[60px] text-center">
-            WGM
-          </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             节点名称
             <span className="text-xs text-primary-500 font-normal">
               ^{displayNodes.length}个
             </span>
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[120px] text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             <Select
               aria-label="按分组筛选"
               className="w-full min-w-[100px]"
@@ -888,28 +891,31 @@ export function NodeListView({
               ))}
             </Select>
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[200px] text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             地址
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[90px] text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             版本
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-right">
-            连接数
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
+            在线数
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
+          <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[120px] max-w-[120px] text-right">
             周期流量
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
+          <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[110px] max-w-[110px] text-right">
             上行流量
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-right">
+          <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[110px] max-w-[110px] text-right">
             下行流量
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[150px] text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[60px] text-center">
+            WGM
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             备注
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             <Select
               aria-label="按到期状态筛选"
               className="w-full min-w-[160px]"
@@ -944,7 +950,7 @@ export function NodeListView({
               </SelectItem>
             </Select>
           </TableColumn>
-          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             操作
           </TableColumn>
         </TableHeader>

@@ -10,7 +10,6 @@ import { AnimatedPage } from "@/components/animated-page";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
-import { Link } from "@/shadcn-bridge/heroui/link";
 import { getMonitorPublicNodeInstanceGroups } from "@/api";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { usePublicNodeRealtime } from "@/hooks/use-public-node-realtime";
@@ -146,33 +145,29 @@ function InstanceRows({
             key={group.id}
             className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-sm"
           >
-            <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex min-w-0 items-center gap-2">
-                <StatusDot
-                  active={group.status === 1}
-                  tone={group.status === 1 ? "success" : "danger"}
-                />
-                <span className="truncate rounded-md border border-default-300 px-4 py-1.5 text-sm font-medium text-secondary">
+            <div className="flex w-full items-center gap-2 px-3 py-3 md:justify-start md:px-4 md:py-4">
+              <div className="flex min-w-0 shrink items-center gap-2 md:flex-none">
+                <span className="min-w-0 max-w-[82px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[140px] md:max-w-none md:px-4 md:text-sm">
                   {group.name} | ID: {group.id}
                 </span>
-                <span className="text-xs text-default-500">
+                <span className="shrink-0 text-xs text-default-500">
                   {group.members.length} 个实例
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-sm font-mono">
-                <span className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-secondary-500/15 px-3 py-2 text-secondary-700 tabular-nums">
+              <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-xs md:flex-none md:gap-2 md:text-sm">
+                <span className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-secondary-500/15 px-1 text-secondary-700 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3">
                   {formatSpeed(totalOutSpeed)}
-                  <ArrowUp className="h-4 w-4" />
+                  <ArrowUp className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 </span>
-                <span className="inline-flex h-10 w-[176px] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md bg-primary-500/15 px-3 py-2 text-primary-700 tabular-nums">
+                <span className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-primary-500/15 px-1 text-primary-700 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3">
                   {formatSpeed(totalInSpeed)}
-                  <ArrowDown className="h-4 w-4" />
+                  <ArrowDown className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 </span>
               </div>
             </div>
-            <div className="px-4 pb-4">
-              <div className="overflow-x-auto">
-                <table className="min-w-[1040px] w-full table-fixed text-sm">
+            <div className="px-3 pb-4">
+              <div className="overflow-x-auto overscroll-x-contain md:overflow-hidden">
+                <table className="w-full min-w-[920px] table-fixed text-sm md:min-w-0">
                   <colgroup>
                     {INSTANCE_TABLE_COLUMNS.map((width, index) => (
                       <col key={index} style={{ width }} />
@@ -180,16 +175,16 @@ function InstanceRows({
                   </colgroup>
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
-                      <th className="px-2 py-2 text-center">状态</th>
-                      <th className="px-2 py-2 text-center">实例</th>
-                      <th className="px-2 py-2 text-center">v4 地区</th>
-                      <th className="px-2 py-2 text-center">v6 地区</th>
-                      <th className="px-2 py-2 text-center">速率</th>
-                      <th className="px-2 py-2 text-center">开机时长</th>
-                      <th className="px-2 py-2 text-center">流量</th>
-                      <th className="px-2 py-2 text-center">CPU</th>
-                      <th className="px-2 py-2 text-center">RAM</th>
-                      <th className="px-2 py-2 text-center">存储</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">状态</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">实例</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">v4 地区</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">v6 地区</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">速率</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">开机时长</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">流量</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">CPU</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">RAM</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">存储</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -217,39 +212,39 @@ function InstanceRow({
 }) {
   return (
     <tr className="border-b border-divider/50 last:border-b-0 hover:bg-default-50/50">
-      <td className="px-2 py-3 text-center align-middle">
+      <td className="px-1 py-3 text-center align-middle">
         <StatusDot
           active={member.status === 1}
           tone={member.status === 1 ? "success" : "danger"}
         />
       </td>
-      <td className="px-2 py-3 text-center align-middle font-medium whitespace-nowrap">
+      <td className="px-1 py-3 text-center align-middle font-medium whitespace-nowrap">
         {getInstanceLabel(member.displayIndex)}
       </td>
-      <td className="px-2 py-3 text-center align-middle">
+      <td className="px-1 py-3 text-center align-middle">
         <RegionCell value={member.publicIpV4Region} />
       </td>
-      <td className="px-2 py-3 text-center align-middle">
+      <td className="px-1 py-3 text-center align-middle">
         <RegionCell value={member.publicIpV6Region} />
       </td>
-      <td className="px-2 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums">
+      <td className="px-1 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums">
         <div className="truncate">{formatSpeed(member.netOutSpeed)}↑</div>
         <div className="truncate">{formatSpeed(member.netInSpeed)}↓</div>
       </td>
-      <td className="px-2 py-3 text-center align-middle">
+      <td className="px-1 py-3 text-center align-middle">
         <div className="truncate">{formatUptime(member.uptime)}</div>
       </td>
-      <td className="px-2 py-3 text-center align-middle font-mono text-xs">
+      <td className="px-1 py-3 text-center align-middle font-mono text-xs">
         <div className="truncate">{formatBytes(member.periodTx)}↑</div>
         <div className="truncate">{formatBytes(member.periodRx)}↓</div>
       </td>
-      <td className="px-2 py-3 align-middle">
+      <td className="px-1 py-3 align-middle">
         <UsageMeter tone="cpu" value={member.cpuUsage} />
       </td>
-      <td className="px-2 py-3 align-middle">
+      <td className="px-1 py-3 align-middle">
         <UsageMeter tone="memory" value={member.memoryUsage} />
       </td>
-      <td className="px-2 py-3 align-middle">
+      <td className="px-1 py-3 align-middle">
         <UsageMeter tone="disk" value={member.diskUsage} />
       </td>
     </tr>
@@ -342,6 +337,16 @@ export default function TZPage() {
       <div className="mb-4 space-y-3">
         <div className="flex items-center gap-1">
           <Button
+            color="primary"
+            size="sm"
+            variant="flat"
+            onPress={() => {
+              window.location.href = "/";
+            }}
+          >
+            返回
+          </Button>
+          <Button
             color="secondary"
             isLoading={loading}
             size="sm"
@@ -350,14 +355,11 @@ export default function TZPage() {
           >
             刷新
           </Button>
-          <Link className="ml-auto text-xs" color="foreground" href="/">
-            返回
-          </Link>
         </div>
 
         {!error && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-2 text-default-600">
+          <div className="flex items-center gap-4 overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
+            <span className="inline-flex shrink-0 items-center gap-2 text-default-600">
               <StatusDot
                 active={wsConnected}
                 className="h-2 w-2"
@@ -371,16 +373,20 @@ export default function TZPage() {
                   ? "实时连接中"
                   : "实时未连接"}
             </span>
-            <span className="rounded-md bg-primary px-2.5 py-1 font-semibold text-primary-foreground">
+            <div className="text-xs text-default-500">  实时节点状态</div>
+          </div>        
+        )}
+        
+        {!error && (
+          <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
+            <span className="shrink-0 rounded-md bg-primary px-2.5 py-1 font-semibold text-primary-foreground">
               节点 {onlineNodeCount}/{nodeCount}
             </span>
-            <span className="rounded-md bg-secondary px-2.5 py-1 font-semibold text-secondary-foreground">
+            <span className="shrink-0 rounded-md bg-secondary px-2.5 py-1 font-semibold text-secondary-foreground">
               实例 {onlineInstanceCount}/{instanceCount}
             </span>
           </div>
         )}
-
-        <div className="text-xs text-default-500">节点实例实时状态（公开探针）</div>
 
         {error ? (
           <Card>

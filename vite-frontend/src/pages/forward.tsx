@@ -251,19 +251,12 @@ const FORWARD_GROUP_COLLAPSED_CONFIG_KEY = "forward_group_collapsed_map";
 const FORWARD_GROUP_ORDER_LOCAL_STORAGE_PREFIX = "forward-group-order";
 const FORWARD_GROUP_COLLAPSED_LOCAL_STORAGE_PREFIX = "forward-group-collapsed";
 const FORWARD_TUNNEL_GROUP_SORTABLE_PREFIX = "forward-tunnel-group";
-const FORWARD_GROUPED_TABLE_MIN_WIDTH_CLASS = "min-w-[1370px]";
+const FORWARD_GROUPED_TABLE_MIN_WIDTH_CLASS = "";
 const FORWARD_GROUPED_TABLE_COLUMN_CLASS = {
-  select: "w-14",
-  drag: "w-14 pl-2",
-  name: "w-[180px]",
-  inAddr: "w-[160px]",
-  inPort: "w-[80px]",
-  targetAddr: "w-[120px]",
-  targetPort: "w-[80px]",
-  strategy: "w-[90px]",
+  select: "w-12",
+  drag: "w-12 pl-1",
   totalFlow: "w-[110px]",
-  status: "w-[90px]",
-  actions: "w-[160px] text-right pr-4",
+  realtimeSpeed: "w-[120px]",
 } as const;
 const normalizeForwardUserName = (userName?: string): string => {
   const normalized = (userName || UNKNOWN_FORWARD_USER_NAME).trim();
@@ -845,7 +838,7 @@ const SortableTableRow = ({
 
   return (
     <TableRow key={forward.id} ref={setNodeRef} style={style as any}>
-      <TableCell className={rowBg}>
+      <TableCell className={`w-12 px-1 ${rowBg}`}>
         <div className="flex items-center justify-center h-full">
           <Checkbox
             isSelected={selectedIds.has(forward.id)}
@@ -853,9 +846,9 @@ const SortableTableRow = ({
           />
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`w-12 px-1 text-center ${rowBg}`}>
         <div
-          className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors flex-shrink-0"
+          className="mx-auto flex w-fit cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
           {...attributes}
           {...listeners}
         >
@@ -869,9 +862,9 @@ const SortableTableRow = ({
           </svg>
         </div>
       </TableCell>
-      {/* 添加用户名单元格 */}
+      {/* 用户名单元格 */}
       {isAdmin && (
-        <TableCell className={`whitespace-nowrap ${rowBg}`}>
+        <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
           <span className="text-sm text-foreground">
             {forward.userRemark && forward.userRemark.trim()
               ? forward.userRemark.trim()
@@ -879,7 +872,7 @@ const SortableTableRow = ({
           </span>
         </TableCell>
       )}
-      <TableCell className={`whitespace-nowrap text-foreground ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap px-1 text-foreground ${rowBg}`}>
         <span
           className="cursor-pointer hover:text-primary transition-colors text-foreground text-sm"
           onClick={() => copyToClipboard(forward.name, "规则名称")}
@@ -912,7 +905,7 @@ const SortableTableRow = ({
           )}
         </span>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`px-1 ${rowBg}`}>
         <div className="flex items-center gap-1.5 overflow-hidden">
           <svg
             className="w-3.5 h-3.5 text-primary hover:text-primary-600 cursor-pointer shrink-0 transition-colors"
@@ -956,7 +949,7 @@ const SortableTableRow = ({
           </span>
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`px-1 text-center ${rowBg}`}>
         <span
           className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
           onClick={() => copyToClipboard(forward.inPort.toString(), "入口端口")}
@@ -964,7 +957,7 @@ const SortableTableRow = ({
           {forward.inPort}
         </span>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`px-1 ${rowBg}`}>
         <div className="flex items-center gap-1.5 overflow-hidden">
           <svg
             className="w-3.5 h-3.5 text-primary hover:text-primary-600 cursor-pointer shrink-0 transition-colors"
@@ -991,7 +984,7 @@ const SortableTableRow = ({
           )}
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`px-1 text-center ${rowBg}`}>
         <span
           className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
           onClick={() => copyToClipboard(remotePortOnly, "落地端口")}
@@ -999,7 +992,7 @@ const SortableTableRow = ({
           {remotePortOnly}
         </span>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`w-[110px] whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex items-center gap-1">
           <Button
             isIconOnly
@@ -1028,7 +1021,7 @@ const SortableTableRow = ({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`w-[120px] whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex flex-col gap-1 w-full">
           <span
             className="block w-full min-w-[80px] min-h-[20px] px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400"
@@ -1046,30 +1039,31 @@ const SortableTableRow = ({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
-        <ConnectionCountCell
-          current={forward.currentConnections ?? 0}
-          max={forward.maxConnections ?? 0}
-        />
+      <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
+        <div className="flex justify-center">
+          <ConnectionCountCell
+            current={forward.currentConnections ?? 0}
+            max={forward.maxConnections ?? 0}
+          />
+        </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
         <span
           className={`text-sm font-medium ${forward.expiryTime && forward.expiryTime > 0 && isExpirySoon(forward.expiryTime) ? "text-danger-600 dark:text-danger-400 font-bold" : "text-foreground"}`}
         >
           {formatExpiryTime(forward.expiryTime)}
         </span>
       </TableCell>
-      <TableCell className={rowBg}>
-        <div className="flex items-center gap-2.5 whitespace-nowrap">
-          <div
-            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${forward.serviceRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-warning-500/10 text-warning-600 dark:text-warning-400"}`}
+      <TableCell className={`px-1 text-center ${rowBg}`}>
+        <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
+          <div className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${forward.serviceRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-warning-500/10 text-warning-600 dark:text-warning-400"}`}
           >
             {forward.serviceRunning ? "正常" : "暂停"}
           </div>
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
-        <div className="flex justify-start gap-1.5 pl-2">
+      <TableCell className={`px-1 ${rowBg}`}>
+        <div className="flex justify-start gap-1.5">
           <Button
             className="min-h-7 px-2"
             color={forward.serviceRunning ? "success" : "warning"}
@@ -1190,7 +1184,7 @@ const SortableCompactTableRow = ({
 
   return (
     <TableRow key={forward.id} ref={setNodeRef} style={style as any}>
-      <TableCell className={rowBg}>
+      <TableCell className={`w-12 px-1 ${rowBg}`}>
         <div className="flex items-center justify-center h-full">
           <Checkbox
             isSelected={selectedIds.has(forward.id)}
@@ -1198,9 +1192,9 @@ const SortableCompactTableRow = ({
           />
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`w-12 px-1 text-center ${rowBg}`}>
         <div
-          className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors flex-shrink-0"
+          className="mx-auto flex w-fit cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
           {...attributes}
           {...listeners}
         >
@@ -1216,7 +1210,7 @@ const SortableCompactTableRow = ({
       </TableCell>
       {/* 添加用户名单元格 */}
       {isAdmin && (
-        <TableCell className={`whitespace-nowrap ${rowBg}`}>
+        <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
           <span className="text-sm text-foreground">
             {forward.userRemark && forward.userRemark.trim()
               ? forward.userRemark.trim()
@@ -1224,7 +1218,7 @@ const SortableCompactTableRow = ({
           </span>
         </TableCell>
       )}
-      <TableCell className={`whitespace-nowrap text-foreground ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap px-1 text-foreground ${rowBg}`}>
         <span
           className="cursor-pointer hover:text-primary transition-colors text-foreground text-sm"
           onClick={() => copyToClipboard(forward.name, "规则名称")}
@@ -1257,7 +1251,7 @@ const SortableCompactTableRow = ({
           )}
         </span>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex items-center">
           <span className="font-medium text-foreground text-sm">
             {forward.tunnelName}
@@ -1268,7 +1262,7 @@ const SortableCompactTableRow = ({
           </span>
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`px-1 ${rowBg}`}>
         <div className="flex items-center gap-1.5 overflow-hidden">
           <svg
             className="w-3.5 h-3.5 text-primary hover:text-primary-600 cursor-pointer shrink-0 transition-colors"
@@ -1312,7 +1306,7 @@ const SortableCompactTableRow = ({
           </span>
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`px-1 text-center ${rowBg}`}>
         <span
           className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
           onClick={() => copyToClipboard(forward.inPort.toString(), "入口端口")}
@@ -1320,7 +1314,7 @@ const SortableCompactTableRow = ({
           {forward.inPort}
         </span>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`px-1 ${rowBg}`}>
         <div className="flex items-center gap-1.5 overflow-hidden">
           <svg
             className="w-3.5 h-3.5 text-primary hover:text-primary-600 cursor-pointer shrink-0 transition-colors"
@@ -1347,7 +1341,7 @@ const SortableCompactTableRow = ({
           )}
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
+      <TableCell className={`px-1 text-center ${rowBg}`}>
         <span
           className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
           onClick={() => copyToClipboard(remotePortOnly, "落地端口")}
@@ -1355,7 +1349,7 @@ const SortableCompactTableRow = ({
           {remotePortOnly}
         </span>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`w-[110px] whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex items-center gap-1">
           <Button
             isIconOnly
@@ -1384,7 +1378,7 @@ const SortableCompactTableRow = ({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`w-[120px] whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex flex-col gap-1 w-full">
           <span
             className="block w-full min-w-[80px] min-h-[20px] px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400"
@@ -1402,21 +1396,23 @@ const SortableCompactTableRow = ({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
-        <ConnectionCountCell
-          current={forward.currentConnections ?? 0}
-          max={forward.maxConnections ?? 0}
-        />
+      <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
+        <div className="flex justify-center">
+          <ConnectionCountCell
+            current={forward.currentConnections ?? 0}
+            max={forward.maxConnections ?? 0}
+          />
+        </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
         <span
           className={`text-sm font-medium ${forward.expiryTime && forward.expiryTime > 0 && isExpirySoon(forward.expiryTime) ? "text-danger-600 dark:text-danger-400 font-bold" : "text-foreground"}`}
         >
           {formatExpiryTime(forward.expiryTime)}
         </span>
       </TableCell>
-      <TableCell className={rowBg}>
-        <div className="flex items-center gap-2.5 whitespace-nowrap">
+      <TableCell className={`px-1 text-center ${rowBg}`}>
+        <div className="flex items-center justify-center gap-2.5 whitespace-nowrap">
           <div
             className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${forward.serviceRunning ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-warning-500/10 text-warning-600 dark:text-warning-400"}`}
           >
@@ -1424,8 +1420,8 @@ const SortableCompactTableRow = ({
           </div>
         </div>
       </TableCell>
-      <TableCell className={rowBg}>
-        <div className="flex justify-start gap-1.5 pl-2">
+      <TableCell className={`px-1 ${rowBg}`}>
+        <div className="flex justify-start gap-1.5">
           <Button
             className="min-h-7 px-2"
             color={forward.serviceRunning ? "success" : "warning"}
@@ -4857,7 +4853,7 @@ export default function ForwardPage() {
                     >
                       <TableHeader>
                         {true && (
-                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-14 text-left">
+                          <TableColumn className="w-12 whitespace-nowrap px-1 text-left">
                             {/* @ts-ignore */}
                             <div className="flex items-center justify-center h-full">
                               <Checkbox
@@ -4868,12 +4864,12 @@ export default function ForwardPage() {
                             </div>
                           </TableColumn>
                         )}
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-16 pl-2 text-left">
+                        <TableColumn className="w-12 whitespace-nowrap px-1 py-2 text-center">
                           排序
                         </TableColumn>
                         {/* <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">用户名</TableColumn> */}
                         {isAdmin && (
-                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                             <Select
                               aria-label="按用户筛选"
                               className="w-full min-w-[80px]"
@@ -4911,14 +4907,14 @@ export default function ForwardPage() {
                             </Select>
                           </TableColumn>
                         )}
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                           规则名称
                           <span className="text-xs text-primary-500 font-normal">
                             ^{sortedForwards.length}个
                           </span>
                         </TableColumn>
                         {/* <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">隧道倍率</TableColumn> */}
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                           <Select
                             aria-label="按所属隧道筛选"
                             className="w-full"
@@ -4976,36 +4972,36 @@ export default function ForwardPage() {
                             ))}
                           </Select>
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                           入口地址
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[65px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           端口
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                           落地地址
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[65px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           端口
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                        <TableColumn className={`whitespace-nowrap px-1 py-2 text-left ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.totalFlow}`}>
                           用量
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                        <TableColumn className={`whitespace-nowrap px-1 py-2 text-left ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.realtimeSpeed}`}>
                           实时带宽
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[90px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 py-2 text-center">
                           连接数
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           有效期
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           状态
                         </TableColumn>
                         <TableColumn
                           align="left"
-                          className="whitespace-nowrap flex-shrink-0 min-w-[220px] pl-4"
+                          className="whitespace-nowrap px-1 text-start"
                         >
                           操作
                         </TableColumn>
@@ -5215,7 +5211,7 @@ export default function ForwardPage() {
                                         FORWARD_GROUPED_TABLE_MIN_WIDTH_CLASS
                                       }
                                       classNames={{
-                                        th: "bg-default-100/50 text-default-600 font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
+                                        th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
                                         td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
                                         tr: "hover:bg-default-50/50 transition-colors",
                                         wrapper: "bg-content1",
@@ -5223,7 +5219,7 @@ export default function ForwardPage() {
                                     >
                                       <TableHeader>
                                         <TableColumn
-                                          className={`whitespace-nowrap flex-shrink-0 ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.select} text-left`}
+                                          className={`whitespace-nowrap px-1 py-2 ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.select} text-left`}
                                         >
                                           <div className="flex items-center justify-center h-full">
                                             <Checkbox
@@ -5233,12 +5229,12 @@ export default function ForwardPage() {
                                             />
                                           </div>
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-16 pl-2 text-left">
+                                        <TableColumn className="w-12 whitespace-nowrap px-1 py-2 text-center">
                                           排序
                                         </TableColumn>
                                         {/* <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">用户名</TableColumn> */}
                                         {isAdmin && (
-                                          <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                                          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                                             <Select
                                               aria-label="按用户筛选"
                                               className="w-full min-w-[80px]"
@@ -5298,43 +5294,43 @@ export default function ForwardPage() {
                                             </Select>
                                           </TableColumn>
                                         )}
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                                           规则名称
                                           <span className="text-xs text-primary-500 font-normal">
                                             ^{tunnel.items.length}个
                                           </span>
                                         </TableColumn>
                                         {/* {isAdmin && <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">速度限制</TableColumn>} */}
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                                           入口地址
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[65px] text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           端口
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[110px] text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                                           落地地址
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[65px] text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           端口
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                                        <TableColumn className={`whitespace-nowrap px-1 py-2 text-left ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.totalFlow}`}>
                                           用量
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
+                                        <TableColumn className={`whitespace-nowrap px-1 py-2 text-left ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.realtimeSpeed}`}>
                                           实时带宽
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[90px] text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           连接数
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           有效期
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           状态
                                         </TableColumn>
                                         <TableColumn
                                           align="left"
-                                          className="whitespace-nowrap flex-shrink-0 min-w-[220px] pl-4 text-left"
+                                          className="whitespace-nowrap px-1 py-2 text-start"
                                         >
                                           操作
                                         </TableColumn>
