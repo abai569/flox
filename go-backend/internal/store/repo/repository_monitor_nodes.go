@@ -13,6 +13,7 @@ type MonitorNodeInstanceGroupRow struct {
 	NodeStatus   int     `gorm:"column:node_status"`
 	InstanceID   string  `gorm:"column:instance_id"`
 	DisplayIndex int     `gorm:"column:display_index"`
+	DisplayName  string  `gorm:"column:display_name"`
 	Hostname     string  `gorm:"column:hostname"`
 	PublicIPV4   string  `gorm:"column:public_ip_v4"`
 	PublicIPV6   string  `gorm:"column:public_ip_v6"`
@@ -77,6 +78,7 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 			n.status AS node_status,
 			nsi.instance_id AS instance_id,
 			nsi.display_index AS display_index,
+			COALESCE(nsi.display_name, '') AS display_name,
 			COALESCE(nsi.hostname, '') AS hostname,
 			COALESCE(nsi.public_ip_v4, '') AS public_ip_v4,
 			COALESCE(nsi.public_ip_v6, '') AS public_ip_v6,

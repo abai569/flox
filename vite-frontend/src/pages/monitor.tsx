@@ -27,7 +27,7 @@ import {
   getServiceMonitorLatestResults,
   getServiceMonitorList,
   deleteNodeInstancePort,
-  updateNodeWeight,
+  updateNodeInstanceProfile,
 } from "@/api";
 import { MonitorView } from "@/pages/node/monitor-view";
 import { TunnelMonitorView } from "@/pages/tunnel/tunnel-monitor-view";
@@ -138,6 +138,50 @@ const getDisplayInstanceLabel = (
   const index = Number(displayIndex || 0);
 
   return `实例 ${index > 0 ? index : fallbackIndex || "-"}`;
+};
+
+const getDisplayInstanceName = (
+  member?: Pick<MonitorNodeInstanceGroupMemberApiItem, "displayName" | "displayIndex"> | null,
+  fallbackIndex?: number,
+): string => {
+  const displayName = member?.displayName?.trim();
+
+  return displayName || getDisplayInstanceLabel(member?.displayIndex, fallbackIndex);
+};
+
+const validatePortRange = (value: string): string | null => {
+  const portRange = value.trim();
+
+  if (!portRange) return null;
+  for (const part of portRange.split(",")) {
+    const item = part.trim();
+
+    if (!item) return "端口范围格式错误";
+    if (item.includes("-")) {
+      const pieces = item.split("-");
+
+      if (pieces.length !== 2) return "端口范围格式错误";
+      const start = Number(pieces[0].trim());
+      const end = Number(pieces[1].trim());
+
+      if (
+        !Number.isInteger(start) ||
+        !Number.isInteger(end) ||
+        start < 1 ||
+        end > 65535 ||
+        start >= end
+      ) {
+        return "端口范围必须在 1-65535 之间，且起始端口小于结束端口";
+      }
+      continue;
+    }
+    const port = Number(item);
+
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      return "端口必须在 1-65535 之间";
+    }
+  }
+  return null;
 };
 
 const getInstanceConnectionTooltip = (
@@ -445,14 +489,14 @@ function NodeInstanceGroupsView({
   groups,
   loading,
   realtimeMetrics,
-  onEditWeight,
+  onEditInstance,
   onOpenDetail,
   onDeleteInstance,
 }: {
   groups: MonitorNodeInstanceGroupApiItem[];
   loading: boolean;
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>;
-  onEditWeight: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onEditInstance: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onOpenDetail: (nodeId: number, instanceId: string) => void;
   onDeleteInstance: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
 }) {
@@ -555,7 +599,7 @@ function NodeInstanceGroupsView({
                       <th className="whitespace-nowrap px-1 py-2 text-center">CPU</th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">RAM</th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">存储</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">权重</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">实例权重</th>
                       <th className="whitespace-nowrap px-1 py-2 text-start">操作</th>
                     </tr>
                   </thead>
@@ -576,10 +620,7 @@ function NodeInstanceGroupsView({
                             />
                           </td>
                           <td className="px-1 py-3 text-center align-middle font-medium whitespace-nowrap">
-                            {getDisplayInstanceLabel(
-                              member.displayIndex,
-                              memberIndex + 1,
-                            )}
+                            {getDisplayInstanceName(member, memberIndex + 1)}
                           </td>
                           <td
                             className="px-1 py-3 text-center align-middle font-mono text-xs text-default-600"
@@ -669,9 +710,9 @@ function NodeInstanceGroupsView({
                                 color="primary"
                                 size="sm"
                                 variant="flat"
-                                onPress={() => onEditWeight(member)}
+                                onPress={() => onEditInstance(member)}
                               >
-                                权重
+                                编辑
                               </Button>
                               <MonitorTerminalButton
                                 className="h-8 shrink-0 px-2 text-xs font-medium"
@@ -740,11 +781,13 @@ export default function MonitorPage() {
   const [nodeInstanceGroupsLoading, setNodeInstanceGroupsLoading] =
     useState(false);
   const [nodesError, setNodesError] = useState<string | null>(null);
-  const [weightModalOpen, setWeightModalOpen] = useState(false);
-  const [weightTarget, setWeightTarget] =
+  const [instanceEditModalOpen, setInstanceEditModalOpen] = useState(false);
+  const [instanceEditTarget, setInstanceEditTarget] =
     useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [instanceDisplayNameValue, setInstanceDisplayNameValue] = useState("");
   const [weightValue, setWeightValue] = useState("");
-  const [weightSaving, setWeightSaving] = useState(false);
+  const [instancePortRangeValue, setInstancePortRangeValue] = useState("");
+  const [instanceEditSaving, setInstanceEditSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] =
     useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
@@ -996,49 +1039,74 @@ export default function MonitorPage() {
     };
   }, []);
 
-  const openWeightModal = useCallback(
+  const openInstanceEditModal = useCallback(
     (member: MonitorNodeInstanceGroupMemberApiItem) => {
-      setWeightTarget(member);
+      setInstanceEditTarget(member);
+      setInstanceDisplayNameValue(member.displayName?.trim() || "");
       setWeightValue(String(member.weight ?? 1));
-      setWeightModalOpen(true);
+      setInstancePortRangeValue(member.portRange?.trim() || "");
+      setInstanceEditModalOpen(true);
     },
     [],
   );
 
-  const saveWeight = useCallback(
+  const saveInstanceProfile = useCallback(
     async (overrideWeight?: number) => {
-      if (!weightTarget) return;
+      if (!instanceEditTarget?.instanceId) return;
       const nextWeight = overrideWeight ?? Number(weightValue);
+      const displayName = instanceDisplayNameValue.trim();
+      const portRange = instancePortRangeValue.trim();
 
       if (!Number.isFinite(nextWeight) || nextWeight < 0) {
         toast.error("权重不能小于 0");
 
         return;
       }
-      setWeightSaving(true);
+      if (displayName.length > 100) {
+        toast.error("实例名称不能超过 100 个字符");
+
+        return;
+      }
+      const portRangeError = validatePortRange(portRange);
+
+      if (portRangeError) {
+        toast.error(portRangeError);
+
+        return;
+      }
+      setInstanceEditSaving(true);
       try {
-        const res = await updateNodeWeight(
-          weightTarget.nodeId,
-          Math.floor(nextWeight),
-          weightTarget.instanceId,
-        );
+        const res = await updateNodeInstanceProfile({
+          nodeId: instanceEditTarget.nodeId,
+          instanceId: instanceEditTarget.instanceId,
+          displayName,
+          weight: Math.floor(nextWeight),
+          portRange,
+        });
 
         if (res.code === 0) {
-          toast.success("权重已更新，正在重新下发线路配置");
-          setWeightModalOpen(false);
-          setWeightTarget(null);
+          toast.success("实例配置已更新，正在重新下发线路配置");
+          setInstanceEditModalOpen(false);
+          setInstanceEditTarget(null);
           await loadNodeInstanceGroups({ silent: true });
           await loadNodes({ silent: true });
         } else {
-          toast.error(res.msg || "更新权重失败");
+          toast.error(res.msg || "更新实例配置失败");
         }
       } catch {
-        toast.error("更新权重失败");
+        toast.error("更新实例配置失败");
       } finally {
-        setWeightSaving(false);
+        setInstanceEditSaving(false);
       }
     },
-    [loadNodes, loadNodeInstanceGroups, weightTarget, weightValue],
+    [
+      instanceDisplayNameValue,
+      instanceEditTarget,
+      instancePortRangeValue,
+      loadNodes,
+      loadNodeInstanceGroups,
+      weightValue,
+    ],
   );
 
   const deleteInstance = useCallback(async () => {
@@ -1232,7 +1300,7 @@ export default function MonitorPage() {
                   groups={nodeInstanceGroups}
                   loading={nodeInstanceGroupsLoading}
                   realtimeMetrics={realtimeInstanceMetrics}
-                  onEditWeight={openWeightModal}
+                  onEditInstance={openInstanceEditModal}
                   onDeleteInstance={setDeleteTarget}
                   onOpenDetail={(nodeId, instanceId) =>
                     setDetailTarget({ nodeId, instanceId })
@@ -1259,53 +1327,56 @@ export default function MonitorPage() {
           />
         </div>
       </>
-      <Modal isOpen={weightModalOpen} onOpenChange={setWeightModalOpen}>
+      <Modal isOpen={instanceEditModalOpen} onOpenChange={setInstanceEditModalOpen}>
         <ModalContent>
-          <ModalHeader>更改权重</ModalHeader>
+          <ModalHeader>编辑实例</ModalHeader>
           <ModalBody>
             <div className="space-y-3 text-sm">
               <div>
-                IP:{" "}
-                {weightTarget ? getMonitorPrimaryDisplayIP(weightTarget) : "-"}
+                实例名称:{" "}
+                {getDisplayInstanceLabel(instanceEditTarget?.displayIndex)}
               </div>
               <div>
-                节点实例:{" "}
-                {getDisplayInstanceLabel(weightTarget?.displayIndex)}
+                IP:{" "}
+                {instanceEditTarget ? getMonitorPrimaryDisplayIP(instanceEditTarget) : "-"}
               </div>
-              <div>当前权重: {weightTarget?.weight ?? "-"}</div>
               <div className="text-default-500">
                 权重 0 即不在隧道转发中使用此节点实例。
-              </div>
-              <div className="text-default-500">
-                建议：组内配置最低的机器设置为 1 权重，高配机器根据 CPU
-                核心数等适量增加权重。
+                建议：组内配置最低的机器设置为 1 权重，高配机器根据 CPU 核心数等适量增加权重。
               </div>
               <Input
-                label="权重"
-                min={0}
-                type="number"
-                value={weightValue}
-                onChange={(event) => setWeightValue(event.target.value)}
+                label="实例名称"
+                placeholder={getDisplayInstanceLabel(instanceEditTarget?.displayIndex)}
+                value={instanceDisplayNameValue}
+                onChange={(event) => setInstanceDisplayNameValue(event.target.value)}
               />
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input
+                  label="端口范围"
+                  placeholder="留空则使用节点端口范围"
+                  value={instancePortRangeValue}
+                  onChange={(event) => setInstancePortRangeValue(event.target.value)}
+                />
+                <Input
+                  label="实例权重"
+                  min={0}
+                  type="number"
+                  value={weightValue}
+                  onChange={(event) => setWeightValue(event.target.value)}
+                />
+              </div>
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button
-              color="danger"
-              isDisabled={weightSaving}
-              onPress={() => saveWeight(0)}
-            >
-              清空权重
-            </Button>
-            <Button variant="flat" onPress={() => setWeightModalOpen(false)}>
+            <Button variant="flat" onPress={() => setInstanceEditModalOpen(false)}>
               取消
             </Button>
             <Button
-              color="success"
-              isLoading={weightSaving}
-              onPress={() => saveWeight()}
+              color="primary"
+              isLoading={instanceEditSaving}
+              onPress={() => saveInstanceProfile()}
             >
-              确认
+              保存
             </Button>
           </ModalFooter>
         </ModalContent>

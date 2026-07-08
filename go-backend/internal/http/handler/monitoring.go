@@ -419,6 +419,7 @@ type monitorNodeInstanceGroupMember struct {
 	NodeName     string  `json:"nodeName"`
 	InstanceID   string  `json:"instanceId"`
 	DisplayIndex int     `json:"displayIndex"`
+	DisplayName  string  `json:"displayName"`
 	Hostname     string  `json:"hostname"`
 	PublicIPV4   string  `json:"publicIpV4"`
 	PublicIPV6   string  `json:"publicIpV6"`
@@ -455,6 +456,7 @@ type monitorPublicNodeInstanceGroupMember struct {
 	NodeID       int64   `json:"nodeId"`
 	NodeName     string  `json:"nodeName"`
 	DisplayIndex int     `json:"displayIndex"`
+	DisplayName  string  `json:"displayName"`
 	IPV4Region   string  `json:"publicIpV4Region"`
 	IPV6Region   string  `json:"publicIpV6Region"`
 	Status       int     `json:"status"`
@@ -539,6 +541,7 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			NodeName:     row.NodeName,
 			InstanceID:   row.InstanceID,
 			DisplayIndex: row.DisplayIndex,
+			DisplayName:  strings.TrimSpace(row.DisplayName),
 			Hostname:     row.Hostname,
 			PublicIPV4:   row.PublicIPV4,
 			PublicIPV6:   row.PublicIPV6,
@@ -613,6 +616,7 @@ func (h *Handler) monitorPublicNodeInstanceGroupsHandler(w http.ResponseWriter, 
 			NodeID:       row.NodeID,
 			NodeName:     row.NodeName,
 			DisplayIndex: row.DisplayIndex,
+			DisplayName:  strings.TrimSpace(row.DisplayName),
 			IPV4Region:   regionByIP[strings.TrimSpace(row.PublicIPV4)],
 			IPV6Region:   regionByIP[strings.TrimSpace(row.PublicIPV6)],
 			Status:       row.Status,

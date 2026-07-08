@@ -570,6 +570,7 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   nodeName: string;
   instanceId?: string;
   displayIndex?: number;
+  displayName?: string;
   hostname?: string;
   publicIpV4?: string;
   publicIpV6?: string;
@@ -606,6 +607,7 @@ export interface MonitorPublicNodeInstanceGroupMemberApiItem {
   nodeId: number;
   nodeName: string;
   displayIndex: number;
+  displayName?: string;
   publicIpV4Region?: string;
   publicIpV6Region?: string;
   status: number;
@@ -638,6 +640,7 @@ export interface NodeInstancePortApiItem {
   nodeId: number;
   instanceId: string;
   displayIndex?: number;
+  displayName?: string;
   hostname?: string;
   publicIpV4?: string;
   publicIpV6?: string;

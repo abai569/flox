@@ -57,7 +57,10 @@ const clampPercent = (value: number): number => {
   return value;
 };
 
-const getInstanceLabel = (displayIndex?: number): string => {
+const getInstanceLabel = (displayIndex?: number, displayName?: string): string => {
+  const name = displayName?.trim();
+
+  if (name) return name;
   const index = Number(displayIndex || 0);
 
   return `实例 ${index > 0 ? index : "-"}`;
@@ -219,7 +222,7 @@ function InstanceRow({
         />
       </td>
       <td className="px-1 py-3 text-center align-middle font-medium whitespace-nowrap">
-        {getInstanceLabel(member.displayIndex)}
+        {getInstanceLabel(member.displayIndex, member.displayName)}
       </td>
       <td className="px-1 py-3 text-center align-middle">
         <RegionCell value={member.publicIpV4Region} />

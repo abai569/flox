@@ -23,7 +23,6 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { NodeGroupManager } from "./node/node-group-manager";
 import { NodeDNSFailoverModal } from "./node/dns-failover-modal";
-import { NodeInstancePortModal } from "./node/instance-port-modal";
 
 import {
   DistroIcon,
@@ -751,8 +750,6 @@ export default function NodePage() {
   );
   const [dnsFailoverModalOpen, setDNSFailoverModalOpen] = useState(false);
   const [dnsFailoverNode, setDNSFailoverNode] = useState<Node | null>(null);
-  const [instancePortModalOpen, setInstancePortModalOpen] = useState(false);
-  const [instancePortNode, setInstancePortNode] = useState<Node | null>(null);
   const [ghfastURL, setGhfastURL] = useState<string>("https://ghfast.top");
   const [latestVersion, setLatestVersion] = useState<string>("");
   const [releases, setReleases] = useState<
@@ -1427,10 +1424,6 @@ export default function NodePage() {
     setDNSFailoverModalOpen(true);
   };
 
-  const openInstancePortModal = (node: Node) => {
-    setInstancePortNode(node);
-    setInstancePortModalOpen(true);
-  };
   const handleRegenerateSecret = () => {
     const bytes = new Uint8Array(16);
 
@@ -2940,7 +2933,7 @@ export default function NodePage() {
                 更新
               </Button>
             </div>
-            <div className="grid gap-2 grid-cols-5">
+            <div className="grid gap-2 grid-cols-4">
               <Button
                 className="min-h-8 w-full"
                 color="primary"
@@ -2949,15 +2942,6 @@ export default function NodePage() {
                 onPress={() => handleEdit(node)}
               >
                 编辑
-              </Button>
-              <Button
-                className="min-h-8 w-full"
-                color="primary"
-                size="sm"
-                variant="flat"
-                onPress={() => openInstancePortModal(node)}
-              >
-                端口
               </Button>
               <Button
                 className="min-h-8 w-full"
@@ -3423,7 +3407,6 @@ export default function NodePage() {
                                         handleDismissExpiryReminder
                                       }
                                       handleEdit={handleEdit}
-                                      handleInstancePort={openInstancePortModal}
                                       handleResetNodeTraffic={
                                         handleResetNodeTraffic
                                       }
@@ -3506,7 +3489,6 @@ export default function NodePage() {
                   handleDelete={handleDelete}
                   handleDismissExpiryReminder={handleDismissExpiryReminder}
                   handleEdit={handleEdit}
-                  handleInstancePort={openInstancePortModal}
                   handleResetNodeTraffic={handleResetNodeTraffic}
                   handleTogglePause={handleTogglePause}
                   handleViewNodeTrafficLogs={handleViewNodeTrafficLogs}
@@ -3933,11 +3915,6 @@ export default function NodePage() {
         node={dnsFailoverNode}
         nodes={nodeList}
         onOpenChange={setDNSFailoverModalOpen}
-      />
-      <NodeInstancePortModal
-        isOpen={instancePortModalOpen}
-        node={instancePortNode}
-        onOpenChange={setInstancePortModalOpen}
       />
       {/* 删除确认弹窗 */}
       <Modal

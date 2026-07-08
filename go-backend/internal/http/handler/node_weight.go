@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,9 +26,11 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		NodeID     int64  `json:"nodeId"`
-		InstanceID string `json:"instanceId"`
-		Weight     int    `json:"weight"`
+		NodeID      int64  `json:"nodeId"`
+		InstanceID  string `json:"instanceId"`
+		DisplayName string `json:"displayName"`
+		Weight      int    `json:"weight"`
+		PortRange   string `json:"portRange"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -45,8 +49,18 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(req.InstanceID) != "" {
-		if err := h.repo.UpdateNodeInstanceWeight(req.NodeID, req.InstanceID, req.Weight, time.Now().UnixMilli()); err != nil {
+	instanceID := strings.TrimSpace(req.InstanceID)
+	portRange := strings.TrimSpace(req.PortRange)
+	if instanceID != "" {
+		if err := validateNodeWeightInstancePortRange(portRange); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+		if len([]rune(strings.TrimSpace(req.DisplayName))) > 100 {
+			response.WriteJSON(w, response.ErrDefault("实例名称不能超过100个字符"))
+			return
+		}
+		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Weight, portRange, time.Now().UnixMilli()); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
@@ -59,8 +73,39 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 
 	go h.redeployNodeRuntime(req.NodeID)
 	response.WriteJSON(w, response.OK(map[string]interface{}{
-		"nodeId":     req.NodeID,
-		"instanceId": req.InstanceID,
-		"weight":     req.Weight,
+		"nodeId":      req.NodeID,
+		"instanceId":  instanceID,
+		"displayName": strings.TrimSpace(req.DisplayName),
+		"weight":      req.Weight,
+		"portRange":   portRange,
 	}))
+}
+
+func validateNodeWeightInstancePortRange(value string) error {
+	if value == "" {
+		return nil
+	}
+	for _, part := range strings.Split(value, ",") {
+		item := strings.TrimSpace(part)
+		if item == "" {
+			return errors.New("端口范围格式错误")
+		}
+		if strings.Contains(item, "-") {
+			pieces := strings.Split(item, "-")
+			if len(pieces) != 2 {
+				return errors.New("端口范围格式错误")
+			}
+			start, err1 := strconv.Atoi(strings.TrimSpace(pieces[0]))
+			end, err2 := strconv.Atoi(strings.TrimSpace(pieces[1]))
+			if err1 != nil || err2 != nil || start < 1 || end > 65535 || start >= end {
+				return errors.New("端口范围必须在 1-65535 之间，且起始端口小于结束端口")
+			}
+			continue
+		}
+		port, err := strconv.Atoi(item)
+		if err != nil || port < 1 || port > 65535 {
+			return errors.New("端口必须在 1-65535 之间")
+		}
+	}
+	return nil
 }

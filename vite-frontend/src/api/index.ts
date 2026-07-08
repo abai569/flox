@@ -143,6 +143,13 @@ export const updateNodeWeight = (
   weight: number,
   instanceId?: string,
 ) => Network.post("/node/weight", { nodeId, weight, instanceId });
+export const updateNodeInstanceProfile = (data: {
+  nodeId: number;
+  instanceId: string;
+  displayName: string;
+  weight: number;
+  portRange: string;
+}) => Network.post("/node/weight", data);
 export const getNodeInstancePorts = (nodeId: number) =>
   Network.get<NodeInstancePortApiData>("/node/instance-port/list", {
     nodeId: String(nodeId),
