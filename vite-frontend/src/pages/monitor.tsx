@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { MetricPill } from "@/components/metric-pill";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
@@ -435,34 +436,6 @@ function MonitorRealtimeStatus({
           : wsConnecting
             ? "实时连接中"
             : "实时未连接"}
-      </span>
-    </div>
-  );
-}
-
-function MonitorSummaryBar({
-  onlineNodeCount,
-  nodeCount,
-  onlineInstanceCount,
-  instanceCount,
-  serviceSummary,
-}: {
-  onlineNodeCount: number;
-  nodeCount: number;
-  onlineInstanceCount: number;
-  instanceCount: number;
-  serviceSummary: ServiceSummary;
-}) {
-  return (
-    <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
-      <span className="shrink-0 rounded-md bg-primary px-2.5 py-1 font-semibold text-primary-foreground">
-        节点 {onlineNodeCount}/{nodeCount}
-      </span>
-      <span className="shrink-0 rounded-md bg-secondary px-2.5 py-1 font-semibold text-secondary-foreground">
-        实例 {onlineInstanceCount}/{instanceCount}
-      </span>
-      <span className="shrink-0 rounded-md bg-success px-2.5 py-1 font-semibold text-white">
-        服务监控 成功 {serviceSummary.ok} / 失败 {serviceSummary.fail}
       </span>
     </div>
   );
@@ -1244,13 +1217,17 @@ export default function MonitorPage() {
           <div className="space-y-4">
             {detailNodeId == null ? (
               <>
-                <MonitorSummaryBar
-                  instanceCount={nodeSummary.instances}
-                  nodeCount={nodeSummary.total}
-                  onlineInstanceCount={nodeSummary.onlineInstances}
-                  onlineNodeCount={nodeSummary.online}
-                  serviceSummary={serviceSummary}
-                />
+                <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
+                  <MetricPill tone="primary">
+                    节点 {nodeSummary.online}/{nodeSummary.total}
+                  </MetricPill>
+                  <MetricPill tone="secondary">
+                    实例 {nodeSummary.onlineInstances}/{nodeSummary.instances}
+                  </MetricPill>
+                  <MetricPill tone="success">
+                    服务监控 成功 {serviceSummary.ok} / 失败 {serviceSummary.fail}
+                  </MetricPill>
+                </div>
                 <NodeInstanceGroupsView
                   groups={nodeInstanceGroups}
                   loading={nodeInstanceGroupsLoading}

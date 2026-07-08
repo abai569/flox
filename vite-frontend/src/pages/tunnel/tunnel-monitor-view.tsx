@@ -39,6 +39,7 @@ import {
   getMonitorTunnelQuality,
   getMonitorTunnelQualityHistory,
 } from "@/api";
+import { MetricPill } from "@/components/metric-pill";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
@@ -1032,9 +1033,9 @@ export function TunnelMonitorView({
             <span>每秒探测 · 更新于 {lastQualityUpdate}</span>
           </div>
         )}
-        <Chip className="rounded-md" color="primary" size="sm" variant="flat">
+        <MetricPill tone="primary">
           隧道 {tunnelStats.enabled}/{tunnelStats.total}
-        </Chip>
+        </MetricPill>
         {/* <div className="ml-auto">
           <Button isLoading={tunnelsLoading} size="sm" variant="flat" onPress={() => loadTunnels()}>
             刷新

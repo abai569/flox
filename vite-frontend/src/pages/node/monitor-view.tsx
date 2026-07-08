@@ -42,6 +42,7 @@ import {
   parseDistroFromVersion,
   getDistroColor,
 } from "@/components/distro-icon";
+import { MetricPill } from "@/components/metric-pill";
 import { StatusDot } from "@/components/status-dot";
 import {
   getNodeMetrics,
@@ -1512,19 +1513,19 @@ export function MonitorView({
               : "实时未连接"}
         </span>
       </div>
-      <span className="shrink-0 rounded bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-primary-foreground">
+      <MetricPill tone="primary">
         节点 {onlineNodes.length}/{nodes.length}
-      </span>
-      <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-secondary-foreground">
+      </MetricPill>
+      <MetricPill tone="secondary">
         实例 {instanceSummary.online}/{instanceSummary.total}
-      </span>
-      <span className="shrink-0 rounded bg-success px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-white">
+      </MetricPill>
+      <MetricPill tone="success">
         服务监控 成功 {monitorSummary.ok} / 失败 {monitorSummary.fail}
-      </span>
+      </MetricPill>
       {monitorSummary.stale > 0 && (
-        <span className="shrink-0 rounded bg-warning px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-warning-foreground">
+        <MetricPill tone="warning">
           陈旧 {monitorSummary.stale}
-        </span>
+        </MetricPill>
       )}
     </div>
   ) : null;
