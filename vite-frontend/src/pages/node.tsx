@@ -1827,6 +1827,24 @@ export default function NodePage() {
   };
   const handleConfirmUpgrade = async () => {
     const version = selectedVersion || undefined;
+    const isNodeNotOnlineMessage = (value: unknown) =>
+      String(value || "").includes("节点不在线");
+    const markUpgradeNodesOffline = (nodeIds: number[]) => {
+      const offlineIds = new Set(nodeIds);
+
+      setNodeList((prev) =>
+        prev.map((node) =>
+          offlineIds.has(node.id)
+            ? {
+              ...node,
+              connectionStatus: "offline" as const,
+              systemInfo: null,
+            }
+            : node,
+        ),
+      );
+      setTimeout(() => loadNodes({ silent: true }), 500);
+    };
 
     if (upgradeTarget === "single" && upgradeTargetNodeId) {
       setUpgradeModalOpen(false);
@@ -1848,6 +1866,9 @@ export default function NodePage() {
         if (res.code === 0) {
           toast.success("已向该节点所有在线实例发送更新命令");
         } else {
+          if (isNodeNotOnlineMessage(res.msg)) {
+            markUpgradeNodesOffline([upgradeTargetNodeId]);
+          }
           toast.error(res.msg || "升级失败");
         }
       } catch {
@@ -1878,6 +1899,21 @@ export default function NodePage() {
         );
 
         if (res.code === 0) {
+          const responseData = res.data as { results?: unknown } | undefined;
+          const results = Array.isArray(responseData?.results)
+            ? responseData.results
+            : [];
+          const offlineNodeIds = results
+            .filter(
+              (item: any) =>
+                item && item.success === false && isNodeNotOnlineMessage(item.message),
+            )
+            .map((item: any) => Number(item.id))
+            .filter((id: number) => Number.isFinite(id));
+
+          if (offlineNodeIds.length > 0) {
+            markUpgradeNodesOffline(offlineNodeIds);
+          }
           toast.success(
             `已向 ${selectedLocalIds.length} 个节点的所有在线实例发送更新命令`,
           );

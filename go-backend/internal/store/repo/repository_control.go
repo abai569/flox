@@ -117,6 +117,23 @@ func (r *Repository) ListActiveForwardIDsByNode(nodeID int64) ([]int64, error) {
 	return ids, nil
 }
 
+func (r *Repository) MarkRuntimeNodesOffline(now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if now <= 0 {
+		now = unixMilliNow()
+	}
+	if err := r.db.Model(&model.Node{}).
+		Where("status <> ?", 0).
+		Updates(map[string]interface{}{"status": 0, "updated_time": now}).Error; err != nil {
+		return err
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("status <> ?", 0).
+		Updates(map[string]interface{}{"status": 0, "updated_time": now}).Error
+}
+
 func (r *Repository) ListForwardPorts(forwardID int64) ([]model.ForwardPortRecord, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")

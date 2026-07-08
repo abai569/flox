@@ -40,6 +40,9 @@ func New(cfg config.Config) (*App, error) {
 	default:
 		return nil, fmt.Errorf("unsupported DB_TYPE %q", cfg.DBType)
 	}
+	if err := r.MarkRuntimeNodesOffline(time.Now().UnixMilli()); err != nil {
+		return nil, fmt.Errorf("mark runtime nodes offline: %w", err)
+	}
 
 	h := handler.New(r, cfg.JWTSecret, cfg.FloxVersion)
 	router := httpserver.NewRouter(h, cfg.JWTSecret, r)
