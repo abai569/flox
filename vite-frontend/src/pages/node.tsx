@@ -750,9 +750,8 @@ export default function NodePage() {
   );
   const [dnsFailoverModalOpen, setDNSFailoverModalOpen] = useState(false);
   const [dnsFailoverNode, setDNSFailoverNode] = useState<Node | null>(null);
-  const [dnsFailoverSelectedNodeIds, setDNSFailoverSelectedNodeIds] = useState<
-    number[]
-  >([]);
+  const [dnsFailoverSelectedNodeIds, setDNSFailoverSelectedNodeIds] =
+    useLocalStorageState<number[]>("dns-failover-selected-nodes", []);
   const [ghfastURL, setGhfastURL] = useState<string>("https://ghfast.top");
   const [latestVersion, setLatestVersion] = useState<string>("");
   const [releases, setReleases] = useState<
