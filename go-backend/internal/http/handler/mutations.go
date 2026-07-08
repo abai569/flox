@@ -3467,8 +3467,6 @@ func (h *Handler) forwardDelete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.deleteForwardDynamicLimiter(forward)
-
 	if err := h.deleteForwardByID(id); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return

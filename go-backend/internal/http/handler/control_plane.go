@@ -356,11 +356,6 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	}
 	h.syncFloxChainTunnel(forward, tunnel)
 
-	// ✅ 动态限速器名称
-	var dynamicLimiterName string
-	if forward.SpeedLimitEnabled && forward.SpeedLimit > 0 {
-		dynamicLimiterName = fmt.Sprintf("forward_%d_speed", forward.ID)
-	}
 	serviceBase := buildForwardServiceBaseWithResolvedUserTunnel(forward.ID, forward.UserID, userTunnelID)
 	tunnelTLSProtocol, err := h.isTunnelSelectedTLSProtocol(forward.TunnelID)
 	if err != nil {
@@ -368,22 +363,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	}
 
 	for _, fp := range ports {
-		// ✅ 应用动态限速器
-		if dynamicLimiterName != "" {
-			if err := h.ensureDynamicLimiterOnNode(fp.NodeID, dynamicLimiterName, forward.SpeedLimit); err != nil {
-				if isNodeOfflineOrTimeoutError(err) {
-					node, _ := h.getNodeRecord(fp.NodeID)
-					nodeName := fmt.Sprintf("%d", fp.NodeID)
-					if node != nil && strings.TrimSpace(node.Name) != "" {
-						nodeName = strings.TrimSpace(node.Name)
-					}
-					warnings = append(warnings, fmt.Sprintf("节点 %s 不在线，已跳过下发", nodeName))
-				} else {
-					return nil, err
-				}
-			}
-		} else if limiterID != nil && speed != nil {
-			// 旧的限速逻辑
+		if limiterID != nil && speed != nil {
 			if err := h.ensureLimiterOnNode(fp.NodeID, *limiterID, *speed); err != nil {
 				if isNodeOfflineOrTimeoutError(err) {
 					node, _ := h.getNodeRecord(fp.NodeID)
@@ -2135,12 +2115,6 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 		strategy = "fifo"
 	}
 
-	// ✅ 动态限速器名称
-	var dynamicLimiterName string
-	if forward.SpeedLimitEnabled && forward.SpeedLimit > 0 {
-		dynamicLimiterName = fmt.Sprintf("forward_%d_speed", forward.ID)
-	}
-
 	for _, protocol := range protocols {
 		listenerAddr := node.TCPListenAddr
 		if protocol == "udp" {
@@ -2249,10 +2223,8 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 		if len(meta) > 0 {
 			service["metadata"] = meta
 		}
-		// ✅ 应用限速器（优先使用动态限速器）
-		if dynamicLimiterName != "" {
-			service["limiter"] = dynamicLimiterName
-		} else if limiterID != nil && *limiterID > 0 {
+		// 应用限速器
+		if limiterID != nil && *limiterID > 0 {
 			service["limiter"] = strconv.FormatInt(*limiterID, 10)
 		}
 		services = append(services, service)
@@ -2415,6 +2387,7 @@ func (h *Handler) ensureLimiterOnNode(nodeID int64, limiterID int64, speed int) 
 }
 
 // ✅ 新增：确保 Forward 动态限速器存在（所有入口节点）
+// Deprecated: 动态限速器已废弃，统一使用 speed_id 限速规则。
 func (h *Handler) ensureForwardDynamicLimiter(forward *forwardRecord, limiterName string) error {
 	ports, err := h.listForwardPorts(forward.ID)
 	if err != nil {
@@ -2431,47 +2404,42 @@ func (h *Handler) ensureForwardDynamicLimiter(forward *forwardRecord, limiterNam
 	return nil
 }
 
-// ✅ 新增：在节点上创建/更新动态限速器
+// Deprecated: 动态限速器已废弃，统一使用 speed_id 限速规则。
 func (h *Handler) ensureDynamicLimiterOnNode(nodeID int64, limiterName string, speedLimit int) error {
-	// 构建限速器配置
-	// gost traffic limiter 使用 MB/s 作为单位（通过 units.ParseBase2Bytes 解析）
-	// 前端输入是 Mbps，需要转换：MB/s = Mbps / 8
-	// 配置格式："$ <in> <out>"，其中 $ 是 ServiceLimitKey
 	var limits []string
 	if speedLimit > 0 {
-		// 上下行使用相同的限速值
 		speedMB := float64(speedLimit) / 8.0
 		limits = []string{fmt.Sprintf("$ %.1fMB %.1fMB", speedMB, speedMB)}
 	} else {
-		// 没设置限速，删除限速器
 		_, _ = h.sendNodeCommand(nodeID, "DeleteLimiters", map[string]interface{}{
 			"limiter": limiterName,
 		}, false, true)
 		return nil
 	}
 
-	// 先尝试删除已存在的限速器（确保更新时配置被刷新）
-	_, _ = h.sendNodeCommand(nodeID, "DeleteLimiters", map[string]interface{}{
-		"limiter": limiterName,
-	}, false, true)
-
-	// 等待一小段时间让删除生效
-	time.Sleep(100 * time.Millisecond)
-
-	// 创建新的限速器
 	addPayload := map[string]interface{}{
 		"name":   limiterName,
 		"limits": limits,
 	}
 
 	if _, err := h.sendNodeCommand(nodeID, "AddLimiters", addPayload, false, false); err != nil {
-		return err
+		if !isAlreadyExistsMessage(err.Error()) {
+			return err
+		}
+		updatePayload := map[string]interface{}{
+			"name":   limiterName,
+			"limits": limits,
+		}
+		if _, updateErr := h.sendNodeCommand(nodeID, "UpdateLimiters", buildLimiterUpdatePayload(limiterName, updatePayload), false, false); updateErr != nil {
+			return updateErr
+		}
 	}
 
 	return nil
 }
 
 // ✅ 新增：删除 Forward 动态限速器
+// Deprecated: 动态限速器已废弃，统一使用 speed_id 限速规则。
 func (h *Handler) deleteForwardDynamicLimiter(forward *forwardRecord) {
 	limiterName := fmt.Sprintf("forward_%d_speed", forward.ID)
 	ports, _ := h.listForwardPorts(forward.ID)
