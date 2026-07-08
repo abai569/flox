@@ -231,6 +231,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 	h.qualityProber = newTunnelQualityProber(h)
 	h.wsServer.SetNodeOnlineHook(h.onNodeOnline)
 	h.wsServer.SetNodeOfflineHook(h.onNodeOffline)
+	h.wsServer.SetNodeInstanceOfflineHook(h.onNodeInstanceOffline)
 	h.wsServer.SetNodeMetricHook(func(nodeID int64, info ws.SystemInfo) {
 		metricInfo := metrics.SystemInfo{
 			Uptime:                 info.Uptime,

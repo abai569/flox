@@ -84,12 +84,13 @@ type CommandResult struct {
 }
 
 type Server struct {
-	repo          *repo.Repository
-	jwtSecret     string
-	upgrader      websocket.Upgrader
-	onNodeOnline  func(nodeID int64)
-	onNodeOffline func(nodeID int64)
-	onNodeMetric  func(nodeID int64, info SystemInfo)
+	repo                  *repo.Repository
+	jwtSecret             string
+	upgrader              websocket.Upgrader
+	onNodeOnline          func(nodeID int64)
+	onNodeOffline         func(nodeID int64)
+	onNodeInstanceOffline func(nodeID int64, instanceID string)
+	onNodeMetric          func(nodeID int64, info SystemInfo)
 
 	mu                    sync.RWMutex
 	admins                map[*connWrap]struct{}
@@ -162,6 +163,15 @@ func (s *Server) SetNodeOfflineHook(fn func(nodeID int64)) {
 	}
 	s.mu.Lock()
 	s.onNodeOffline = fn
+	s.mu.Unlock()
+}
+
+func (s *Server) SetNodeInstanceOfflineHook(fn func(nodeID int64, instanceID string)) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.onNodeInstanceOffline = fn
 	s.mu.Unlock()
 }
 
@@ -519,6 +529,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		close(done)
 		needOfflineBroadcast := false
 		removedCurrentInstance := false
+		var instanceOfflineHook func(nodeID int64, instanceID string)
 		s.mu.Lock()
 		current, ok := s.nodes[nodeID][instanceID]
 		if ok && current.conn.conn == conn {
@@ -532,6 +543,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 			}
 		}
 		delete(s.byConn, conn)
+		if removedCurrentInstance {
+			instanceOfflineHook = s.onNodeInstanceOffline
+		}
 		s.mu.Unlock()
 		if removedCurrentInstance {
 			_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
@@ -549,6 +563,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 			if offlineHook != nil {
 				go offlineHook(nodeID)
 			}
+		}
+		if removedCurrentInstance && instanceOfflineHook != nil {
+			go instanceOfflineHook(nodeID, instanceID)
 		}
 		_ = conn.Close()
 	}()
@@ -1206,13 +1223,16 @@ func (s *Server) DisconnectNode(nodeID int64) {
 
 	s.nodeOfflineTime[nodeID] = time.Now().Unix()
 
+	offlineInstanceIDs := make([]string, 0, len(sessions))
 	for instanceID, ns := range sessions {
 		if ns.conn != nil && ns.conn.conn != nil {
 			_ = ns.conn.conn.Close()
 			delete(s.byConn, ns.conn.conn)
 		}
 		_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
+		offlineInstanceIDs = append(offlineInstanceIDs, instanceID)
 	}
+	instanceOfflineHook := s.onNodeInstanceOffline
 	delete(s.nodes, nodeID)
 	s.mu.Unlock()
 
@@ -1221,6 +1241,12 @@ func (s *Server) DisconnectNode(nodeID int64) {
 		fmt.Printf("⚠️ 更新节点%d离线状态失败：%v\n", nodeID, err)
 	}
 	s.broadcastStatus(nodeID, 0)
+
+	if instanceOfflineHook != nil {
+		for _, instanceID := range offlineInstanceIDs {
+			go instanceOfflineHook(nodeID, instanceID)
+		}
+	}
 
 	s.mu.RLock()
 	offlineHook := s.onNodeOffline

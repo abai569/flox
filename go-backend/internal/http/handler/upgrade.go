@@ -422,6 +422,23 @@ func (h *Handler) onNodeOffline(nodeID int64) {
 	go h.notifyNodeOffline(nodeID)
 }
 
+func (h *Handler) onNodeInstanceOffline(nodeID int64, instanceID string) {
+	h.redeployNodeTargetRuntime(nodeID)
+}
+
+func (h *Handler) redeployNodeTargetRuntime(nodeID int64) {
+	tunnelIDs, err := h.repo.ListActiveTargetTunnelIDsByNode(nodeID)
+	if err != nil {
+		fmt.Printf("redeploy: list target tunnels for node %d failed: %v\n", nodeID, err)
+		return
+	}
+	for _, tunnelID := range tunnelIDs {
+		if err := h.redeployTunnelAndForwards(tunnelID); err != nil {
+			fmt.Printf("redeploy: target tunnel %d failed on node %d: %v\n", tunnelID, nodeID, err)
+		}
+	}
+}
+
 func getNodeNotifyState(nodeID int64) *nodeNotifyState {
 	state, exists := notifyStates[nodeID]
 	if !exists {

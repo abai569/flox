@@ -83,6 +83,23 @@ func (r *Repository) ListActiveTunnelIDsByNode(nodeID int64) ([]int64, error) {
 	return ids, nil
 }
 
+func (r *Repository) ListActiveTargetTunnelIDsByNode(nodeID int64) ([]int64, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var ids []int64
+	err := r.db.Model(&model.ChainTunnel{}).
+		Joins("JOIN tunnel ON tunnel.id = chain_tunnel.tunnel_id").
+		Where("chain_tunnel.node_id = ? AND chain_tunnel.chain_type IN ? AND tunnel.status = 1", nodeID, []string{"2", "3"}).
+		Select("DISTINCT chain_tunnel.tunnel_id").
+		Order("chain_tunnel.tunnel_id ASC").
+		Pluck("chain_tunnel.tunnel_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func (r *Repository) ListActiveForwardIDsByNode(nodeID int64) ([]int64, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
