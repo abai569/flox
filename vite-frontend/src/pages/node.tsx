@@ -750,6 +750,9 @@ export default function NodePage() {
   );
   const [dnsFailoverModalOpen, setDNSFailoverModalOpen] = useState(false);
   const [dnsFailoverNode, setDNSFailoverNode] = useState<Node | null>(null);
+  const [dnsFailoverSelectedNodeIds, setDNSFailoverSelectedNodeIds] = useState<
+    number[]
+  >([]);
   const [ghfastURL, setGhfastURL] = useState<string>("https://ghfast.top");
   const [latestVersion, setLatestVersion] = useState<string>("");
   const [releases, setReleases] = useState<
@@ -1419,8 +1422,8 @@ export default function NodePage() {
     });
     setDialogVisible(true);
   };
-  const openDNSFailoverPicker = () => {
-    setDNSFailoverNode(null);
+  const openDNSFailoverPicker = (node?: Node) => {
+    setDNSFailoverNode(node ?? null);
     setDNSFailoverModalOpen(true);
   };
 
@@ -3153,7 +3156,7 @@ export default function NodePage() {
                   color="success"
                   size="sm"
                   variant="flat"
-                  onPress={openDNSFailoverPicker}
+                  onPress={() => openDNSFailoverPicker()}
                 >
                   DNS
                 </Button>
@@ -3915,6 +3918,8 @@ export default function NodePage() {
         node={dnsFailoverNode}
         nodes={nodeList}
         onOpenChange={setDNSFailoverModalOpen}
+        selectedNodeIds={dnsFailoverSelectedNodeIds}
+        onSelectedNodeIdsChange={setDNSFailoverSelectedNodeIds}
       />
       {/* 删除确认弹窗 */}
       <Modal
