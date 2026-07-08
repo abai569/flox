@@ -1512,19 +1512,19 @@ export function MonitorView({
               : "实时未连接"}
         </span>
       </div>
-      <Chip className="rounded-md" color="primary" size="sm" variant="flat">
+      <span className="shrink-0 rounded bg-primary px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-primary-foreground">
         节点 {onlineNodes.length}/{nodes.length}
-      </Chip>
-      <Chip className="rounded-md" color="secondary" size="sm" variant="flat">
+      </span>
+      <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-secondary-foreground">
         实例 {instanceSummary.online}/{instanceSummary.total}
-      </Chip>
-      <Chip className="rounded-md" color="success" size="sm" variant="flat">
+      </span>
+      <span className="shrink-0 rounded bg-success px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-white">
         服务监控 成功 {monitorSummary.ok} / 失败 {monitorSummary.fail}
-      </Chip>
+      </span>
       {monitorSummary.stale > 0 && (
-        <Chip className="rounded-md" color="warning" size="sm" variant="flat">
+        <span className="shrink-0 rounded bg-warning px-1.5 py-0.5 text-[10px] font-semibold leading-4 text-warning-foreground">
           陈旧 {monitorSummary.stale}
-        </Chip>
+        </span>
       )}
     </div>
   ) : null;
