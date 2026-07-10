@@ -40,27 +40,30 @@ type diagnosisTarget struct {
 }
 
 type diagnosisWorkItem struct {
-	fromNodeID     int64
-	fromInstanceID string
-	fromHostname   string
-	targetIP       string
-	targetPort     int
-	description    string
-	metadata       map[string]interface{}
-	toNode         chainNodeRecord
-	toInstanceID   string
-	toHostname     string
-	hasChainHop    bool
-	ipPreference   string
-	connectIpType  string
-	precheckError  string
+	fromNodeID               int64
+	fromInstanceID           string
+	fromInstanceDisplayName  string
+	fromInstanceDisplayIndex int
+	targetIP                 string
+	targetPort               int
+	description              string
+	metadata                 map[string]interface{}
+	toNode                   chainNodeRecord
+	toInstanceID             string
+	toInstanceDisplayName    string
+	toInstanceDisplayIndex   int
+	hasChainHop              bool
+	ipPreference             string
+	connectIpType            string
+	precheckError            string
 }
 
 type diagnosisNodeEndpoint struct {
 	nodeID        int64
 	nodeName      string
 	instanceID    string
-	hostname      string
+	displayName   string
+	displayIndex  int
 	targetHost    string
 	precheckError string
 }
@@ -1207,9 +1210,10 @@ func diagnosisSourceEndpoints(nodeID int64, instancesByNode map[int64][]model.No
 	endpoints := make([]diagnosisNodeEndpoint, 0, len(instances))
 	for _, inst := range instances {
 		endpoints = append(endpoints, diagnosisNodeEndpoint{
-			nodeID:     nodeID,
-			instanceID: strings.TrimSpace(inst.InstanceID),
-			hostname:   strings.TrimSpace(inst.Hostname),
+			nodeID:       nodeID,
+			instanceID:   strings.TrimSpace(inst.InstanceID),
+			displayName:  strings.TrimSpace(inst.DisplayName),
+			displayIndex: inst.DisplayIndex,
 		})
 	}
 	return endpoints
@@ -1227,11 +1231,12 @@ func diagnosisTargetEndpoints(node chainNodeRecord, ipPreference string, connect
 		}
 		host := pickNodeInstanceAddress(inst, connectIPType, ipPreference)
 		ep := diagnosisNodeEndpoint{
-			nodeID:     node.NodeID,
-			nodeName:   node.NodeName,
-			instanceID: strings.TrimSpace(inst.InstanceID),
-			hostname:   strings.TrimSpace(inst.Hostname),
-			targetHost: strings.TrimSpace(host),
+			nodeID:       node.NodeID,
+			nodeName:     node.NodeName,
+			instanceID:   strings.TrimSpace(inst.InstanceID),
+			displayName:  strings.TrimSpace(inst.DisplayName),
+			displayIndex: inst.DisplayIndex,
+			targetHost:   strings.TrimSpace(host),
 		}
 		if ep.targetHost == "" {
 			ep.precheckError = "目标实例无可用出口 IP"
@@ -1248,20 +1253,28 @@ func enrichDiagnosisWorkItem(item diagnosisWorkItem, from diagnosisNodeEndpoint,
 	next := item
 	next.metadata = cloneDiagnosisMetadata(item.metadata)
 	next.fromInstanceID = strings.TrimSpace(from.instanceID)
-	next.fromHostname = strings.TrimSpace(from.hostname)
+	next.fromInstanceDisplayName = strings.TrimSpace(from.displayName)
+	next.fromInstanceDisplayIndex = from.displayIndex
 	next.toInstanceID = strings.TrimSpace(to.instanceID)
-	next.toHostname = strings.TrimSpace(to.hostname)
+	next.toInstanceDisplayName = strings.TrimSpace(to.displayName)
+	next.toInstanceDisplayIndex = to.displayIndex
 	if next.fromInstanceID != "" {
 		next.metadata["fromInstanceId"] = next.fromInstanceID
 	}
-	if next.fromHostname != "" {
-		next.metadata["fromHostname"] = next.fromHostname
+	if next.fromInstanceDisplayName != "" {
+		next.metadata["fromInstanceDisplayName"] = next.fromInstanceDisplayName
+	}
+	if next.fromInstanceDisplayIndex > 0 {
+		next.metadata["fromInstanceDisplayIndex"] = next.fromInstanceDisplayIndex
 	}
 	if next.toInstanceID != "" {
 		next.metadata["toInstanceId"] = next.toInstanceID
 	}
-	if next.toHostname != "" {
-		next.metadata["toHostname"] = next.toHostname
+	if next.toInstanceDisplayName != "" {
+		next.metadata["toInstanceDisplayName"] = next.toInstanceDisplayName
+	}
+	if next.toInstanceDisplayIndex > 0 {
+		next.metadata["toInstanceDisplayIndex"] = next.toInstanceDisplayIndex
 	}
 	if strings.TrimSpace(to.targetHost) != "" {
 		next.targetIP = strings.TrimSpace(to.targetHost)

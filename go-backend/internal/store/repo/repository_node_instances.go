@@ -260,7 +260,7 @@ func (r *Repository) ListOnlineNodeInstancesByNodeIDsTx(tx *gorm.DB, nodeIDs []i
 	}
 	var instances []model.NodeInstance
 	where, args := validNodeInstanceWhere()
-	if err := r.EnsureNodeInstanceDisplayIndexes(nodeIDs); err != nil {
+	if err := r.ensureNodeInstanceDisplayIndexesTx(tx, nodeIDs); err != nil {
 		return nil, err
 	}
 	err := tx.Where("node_id IN ? AND status = ?", nodeIDs, 1).
@@ -334,6 +334,13 @@ func (r *Repository) EnsureNodeInstanceDisplayIndexes(nodeIDs []int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
+	return r.ensureNodeInstanceDisplayIndexesTx(r.db, nodeIDs)
+}
+
+func (r *Repository) ensureNodeInstanceDisplayIndexesTx(tx *gorm.DB, nodeIDs []int64) error {
+	if tx == nil {
+		return errors.New("database unavailable")
+	}
 	nodeSet := make(map[int64]struct{})
 	for _, id := range nodeIDs {
 		if id > 0 {
@@ -350,7 +357,7 @@ func (r *Repository) EnsureNodeInstanceDisplayIndexes(nodeIDs []int64) error {
 	}
 	var instances []model.NodeInstance
 	where, args := validNodeInstanceWhere()
-	query := r.db.Where(where, args...)
+	query := tx.Where(where, args...)
 	if len(ids) > 0 {
 		query = query.Where("node_id IN ?", ids)
 	}
@@ -373,7 +380,7 @@ func (r *Repository) EnsureNodeInstanceDisplayIndexes(nodeIDs []int64) error {
 		for _, inst := range missing {
 			next := firstFreeDisplayIndex(usedByNode[nodeID])
 			usedByNode[nodeID][next] = struct{}{}
-			if err := r.db.Model(&model.NodeInstance{}).
+			if err := tx.Model(&model.NodeInstance{}).
 				Where("id = ?", inst.ID).
 				Update("display_index", next).Error; err != nil {
 				return err

@@ -241,6 +241,12 @@ export interface TunnelDiagnosisApiItem {
   fromInx?: number;
   toChainType?: number;
   toInx?: number;
+  fromInstanceId?: string;
+  fromInstanceDisplayName?: string;
+  fromInstanceDisplayIndex?: number;
+  toInstanceId?: string;
+  toInstanceDisplayName?: string;
+  toInstanceDisplayIndex?: number;
   [key: string]: unknown;
 }
 

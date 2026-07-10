@@ -5708,40 +5708,41 @@ func (h *Handler) parseEffectivePortsForNode(nodeID int64) ([]int, error) {
 	if err != nil || strings.TrimSpace(portRange) == "" {
 		portRange = "10000-65535"
 	}
-	ports, err := parsePorts(portRange)
-	if err != nil || len(ports) == 0 {
-		return ports, err
+	nodePorts, err := parsePorts(portRange)
+	if err != nil || len(nodePorts) == 0 {
+		return nodePorts, err
 	}
 	instances, err := h.repo.ListNodeInstances(nodeID)
 	if err != nil || len(instances) == 0 {
-		return ports, nil
+		return nodePorts, nil
 	}
-	common := ports
+	seen := make(map[int]struct{})
+	effective := make([]int, 0)
 	for _, inst := range instances {
 		instanceRange := strings.TrimSpace(inst.PortRange)
 		if instanceRange == "" {
+			for _, port := range nodePorts {
+				if _, ok := seen[port]; ok {
+					continue
+				}
+				seen[port] = struct{}{}
+				effective = append(effective, port)
+			}
 			continue
 		}
 		instancePorts, err := parsePorts(instanceRange)
 		if err != nil || len(instancePorts) == 0 {
 			return nil, err
 		}
-		allowed := make(map[int]bool, len(instancePorts))
-		for _, p := range instancePorts {
-			allowed[p] = true
-		}
-		next := common[:0]
-		for _, p := range common {
-			if allowed[p] {
-				next = append(next, p)
+		for _, port := range instancePorts {
+			if _, ok := seen[port]; ok {
+				continue
 			}
-		}
-		common = next
-		if len(common) == 0 {
-			return nil, nil
+			seen[port] = struct{}{}
+			effective = append(effective, port)
 		}
 	}
-	return common, nil
+	return effective, nil
 }
 
 func parsePorts(portRange string) ([]int, error) {

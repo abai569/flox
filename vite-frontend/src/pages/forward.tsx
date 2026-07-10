@@ -2980,6 +2980,26 @@ export default function ForwardPage() {
 
     return ip;
   };
+  const getDiagnosisInstanceLine = (
+    result: ForwardDiagnosisResult["results"][number],
+  ): string => {
+    const from =
+      result.fromInstanceDisplayName ||
+      (result.fromInstanceDisplayIndex
+        ? `实例 ${result.fromInstanceDisplayIndex}`
+        : result.fromInstanceId || "");
+    const to =
+      result.toInstanceDisplayName ||
+      (result.toInstanceDisplayIndex
+        ? `实例 ${result.toInstanceDisplayIndex}`
+        : result.toInstanceId || "");
+    const parts = [
+      from ? `来源实例: ${from}` : "",
+      to ? `目标实例: ${to}` : "",
+    ];
+
+    return parts.filter(Boolean).join(" / ");
+  };
   // 复制所有地址
   const copyAllAddresses = () => {
     if (addressList.length === 0) return;
@@ -6469,11 +6489,13 @@ export default function ForwardPage() {
                                       result.diagnosing,
                                     );
                                     const isSuccess = result.success === true;
+                                    const instanceLine =
+                                      getDiagnosisInstanceLine(result);
                                     const quality =
                                       getForwardDiagnosisQualityDisplay(
-                                        result.averageTime,
-                                        result.packetLoss,
-                                      );
+                                      result.averageTime,
+                                      result.packetLoss,
+                                    );
 
                                     return (
                                       <tr
@@ -6505,6 +6527,11 @@ export default function ForwardPage() {
                                               <div className="font-medium text-foreground truncate">
                                                 {result.description}
                                               </div>
+                                              {instanceLine && (
+                                                <div className="text-[11px] text-primary truncate">
+                                                  {instanceLine}
+                                                </div>
+                                              )}
                                               <div className="text-xs text-default-500 truncate">
                                                 <span
                                                   className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"
@@ -6737,11 +6764,13 @@ export default function ForwardPage() {
                               {results.map((result, index) => {
                                 const isDiagnosing = Boolean(result.diagnosing);
                                 const isSuccess = result.success === true;
+                                const instanceLine =
+                                  getDiagnosisInstanceLine(result);
                                 const quality =
                                   getForwardDiagnosisQualityDisplay(
-                                    result.averageTime,
-                                    result.packetLoss,
-                                  );
+                                  result.averageTime,
+                                  result.packetLoss,
+                                );
 
                                 return (
                                   <div
@@ -6772,6 +6801,11 @@ export default function ForwardPage() {
                                         <div className="font-semibold text-sm text-foreground break-words">
                                           {result.description}
                                         </div>
+                                        {instanceLine && (
+                                          <div className="text-[11px] text-primary mt-0.5 break-words">
+                                            {instanceLine}
+                                          </div>
+                                        )}
                                         <div className="text-xs text-default-500 mt-0.5">
                                           <span
                                             className="cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors"

@@ -356,8 +356,16 @@ const renderBestExitState = (state?: BestExitState | null) => {
 const getDiagnosisInstanceLine = (
   result: DiagnosisResult["results"][number],
 ): string => {
-  const from = result.fromHostname || result.fromInstanceId || "";
-  const to = result.toHostname || result.toInstanceId || "";
+  const from =
+    result.fromInstanceDisplayName ||
+    (result.fromInstanceDisplayIndex
+      ? `实例 ${result.fromInstanceDisplayIndex}`
+      : result.fromInstanceId || "");
+  const to =
+    result.toInstanceDisplayName ||
+    (result.toInstanceDisplayIndex
+      ? `实例 ${result.toInstanceDisplayIndex}`
+      : result.toInstanceId || "");
   const parts = [from ? `来源实例: ${from}` : "", to ? `目标实例: ${to}` : ""];
 
   return parts.filter(Boolean).join(" / ");

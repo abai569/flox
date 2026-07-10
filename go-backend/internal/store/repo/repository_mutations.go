@@ -1235,7 +1235,37 @@ func (r *Repository) pickNodePortTx(tx *gorm.DB, nodeID int64, allocated map[int
 		return 0, err
 	}
 
-	candidates := parsePortRangeSpec(node.Port)
+	nodePortRange := strings.TrimSpace(node.Port)
+	if nodePortRange == "" {
+		nodePortRange = "10000-65535"
+	}
+	nodeCandidates := parsePortRangeSpec(nodePortRange)
+	candidates := nodeCandidates
+	var instances []model.NodeInstance
+	where, args := validNodeInstanceWhere()
+	if err := tx.Where("node_id = ?", nodeID).
+		Where(where, args...).
+		Order("display_index ASC, id ASC").
+		Find(&instances).Error; err != nil {
+		return 0, err
+	}
+	if len(instances) > 0 {
+		seen := make(map[int]struct{})
+		candidates = make([]int, 0)
+		for _, instance := range instances {
+			instanceCandidates := nodeCandidates
+			if instancePortRange := strings.TrimSpace(instance.PortRange); instancePortRange != "" {
+				instanceCandidates = parsePortRangeSpec(instancePortRange)
+			}
+			for _, candidate := range instanceCandidates {
+				if _, ok := seen[candidate]; ok {
+					continue
+				}
+				seen[candidate] = struct{}{}
+				candidates = append(candidates, candidate)
+			}
+		}
+	}
 	if len(candidates) == 0 {
 		nodeName, err := r.GetNodeNameTx(tx, nodeID)
 		if err != nil || nodeName == "" {
