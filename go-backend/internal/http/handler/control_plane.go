@@ -297,23 +297,35 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		return nil, err
 	}
 
-	// Determine limiter from forward's SpeedID first, fallback to UserTunnel's limiter
+	// Determine limiter from inline forward speed first, then SpeedID, then UserTunnel.
 	var limiterID *int64
 	var speed *int
+	limiterName := ""
+	inlineLimiterName := forwardInlineSpeedLimiterName(forward.ID)
 
-	if forward.SpeedID.Valid && forward.SpeedID.Int64 > 0 {
+	if forward.SpeedLimitEnabled && forward.SpeedLimit > 0 {
+		limiterName = inlineLimiterName
+		speedVal := forward.SpeedLimit
+		speed = &speedVal
+	}
+
+	if speed == nil && forward.SpeedID.Valid && forward.SpeedID.Int64 > 0 {
 		// Forward has its own speed limit
 		speedVal, err := h.repo.GetSpeedLimitSpeed(forward.SpeedID.Int64)
 		if err == nil && speedVal > 0 {
 			limiterID = &forward.SpeedID.Int64
 			speed = &speedVal
+			limiterName = strconv.FormatInt(forward.SpeedID.Int64, 10)
 		}
 	}
 
-	if limiterID == nil {
+	if speed == nil {
 		// Fall back to UserTunnel speed limit
 		limiterID = utLimiterID
 		speed = utSpeed
+		if limiterID != nil && *limiterID > 0 {
+			limiterName = strconv.FormatInt(*limiterID, 10)
+		}
 	}
 
 	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
@@ -355,7 +367,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		}
 	}
 	if strings.EqualFold(forward.Mode, forwardModeSDWAN) && tunnel != nil && tunnel.Type == 2 {
-		return h.syncSDWANChainForwardServicesWithWarnings(forward, tunnel, ports, userTunnelID)
+		return h.syncSDWANChainForwardServicesWithWarnings(forward, tunnel, ports, userTunnelID, limiterName, speed)
 	}
 	h.syncFloxChainTunnel(forward, tunnel)
 
@@ -366,8 +378,8 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	}
 
 	for _, fp := range ports {
-		if limiterID != nil && speed != nil {
-			if err := h.ensureLimiterOnNode(fp.NodeID, *limiterID, *speed); err != nil {
+		if speed != nil && strings.TrimSpace(limiterName) != "" {
+			if err := h.ensureNamedLimiterOnNode(fp.NodeID, limiterName, *speed); err != nil {
 				if isNodeOfflineOrTimeoutError(err) {
 					node, _ := h.getNodeRecord(fp.NodeID)
 					nodeName := fmt.Sprintf("%d", fp.NodeID)
@@ -379,13 +391,15 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 				}
 				return nil, err
 			}
+		} else {
+			_, _ = h.sendNodeCommand(fp.NodeID, "DeleteLimiters", map[string]interface{}{"limiter": inlineLimiterName}, false, true)
 		}
 
 		node, err := h.getNodeRecord(fp.NodeID)
 		if err != nil {
 			return nil, err
 		}
-		services := buildForwardServiceConfigs(serviceBase, forward, tunnel, node, fp.Port, strings.TrimSpace(fp.InIP), limiterID, tunnelTLSProtocol)
+		services := buildForwardServiceConfigsWithLimiterName(serviceBase, forward, tunnel, node, fp.Port, strings.TrimSpace(fp.InIP), limiterName, tunnelTLSProtocol)
 		_, err = h.sendNodeCommand(node.ID, method, services, true, false)
 		if err != nil && allowFallbackAdd && method == "UpdateService" {
 			if isNotFoundError(err) {
@@ -400,7 +414,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		}
 		if err != nil && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isCannotAssignRequestedAddressError(err) {
 			var warning string
-			warning, err = h.fallbackForwardPortToDefaultBind(forward, tunnel, node, fp, serviceBase, limiterID, tunnelTLSProtocol)
+			warning, err = h.fallbackForwardPortToDefaultBind(forward, tunnel, node, fp, serviceBase, limiterName, tunnelTLSProtocol)
 			if err == nil && warning != "" {
 				warnings = append(warnings, warning)
 			}
@@ -433,7 +447,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	return warnings, nil
 }
 
-func (h *Handler) fallbackForwardPortToDefaultBind(forward *forwardRecord, tunnel *tunnelRecord, node *nodeRecord, fp forwardPortRecord, serviceBase string, limiterID *int64, tunnelTLSProtocol bool) (string, error) {
+func (h *Handler) fallbackForwardPortToDefaultBind(forward *forwardRecord, tunnel *tunnelRecord, node *nodeRecord, fp forwardPortRecord, serviceBase string, limiterName string, tunnelTLSProtocol bool) (string, error) {
 	if h == nil || forward == nil || tunnel == nil || node == nil {
 		return "", errors.New("invalid bind fallback context")
 	}
@@ -450,7 +464,7 @@ func (h *Handler) fallbackForwardPortToDefaultBind(forward *forwardRecord, tunne
 	}
 
 	time.Sleep(150 * time.Millisecond)
-	defaultServices := buildForwardServiceConfigs(serviceBase, forward, tunnel, node, fp.Port, "", limiterID, tunnelTLSProtocol)
+	defaultServices := buildForwardServiceConfigsWithLimiterName(serviceBase, forward, tunnel, node, fp.Port, "", limiterName, tunnelTLSProtocol)
 	if _, err := h.sendNodeCommand(node.ID, "AddService", defaultServices, true, false); err != nil {
 		return "", err
 	}
@@ -2117,6 +2131,14 @@ func compactErrorMessage(msg string) string {
 }
 
 func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel *tunnelRecord, node *nodeRecord, port int, bindIP string, limiterID *int64, tunnelTLSProtocol bool) []map[string]interface{} {
+	limiterName := ""
+	if limiterID != nil && *limiterID > 0 {
+		limiterName = strconv.FormatInt(*limiterID, 10)
+	}
+	return buildForwardServiceConfigsWithLimiterName(baseName, forward, tunnel, node, port, bindIP, limiterName, tunnelTLSProtocol)
+}
+
+func buildForwardServiceConfigsWithLimiterName(baseName string, forward *forwardRecord, tunnel *tunnelRecord, node *nodeRecord, port int, bindIP string, limiterName string, tunnelTLSProtocol bool) []map[string]interface{} {
 	protocols := []string{"tcp", "udp"}
 	if strings.EqualFold(forward.Mode, forwardModeMimic) {
 		protocols = []string{"tcp"}
@@ -2237,8 +2259,8 @@ func buildForwardServiceConfigs(baseName string, forward *forwardRecord, tunnel 
 			service["metadata"] = meta
 		}
 		// 应用限速器
-		if limiterID != nil && *limiterID > 0 {
-			service["limiter"] = strconv.FormatInt(*limiterID, 10)
+		if strings.TrimSpace(limiterName) != "" {
+			service["limiter"] = strings.TrimSpace(limiterName)
 		}
 		services = append(services, service)
 	}
@@ -2392,7 +2414,11 @@ func asBool(v interface{}, def bool) bool {
 }
 
 func (h *Handler) ensureLimiterOnNode(nodeID int64, limiterID int64, speed int) error {
-	if err := h.upsertLimiterOnNode(nodeID, limiterID, speed); err != nil {
+	return h.ensureNamedLimiterOnNode(nodeID, strconv.FormatInt(limiterID, 10), speed)
+}
+
+func (h *Handler) ensureNamedLimiterOnNode(nodeID int64, name string, speed int) error {
+	if err := h.upsertNamedLimiterOnNode(nodeID, name, speed); err != nil {
 		return fmt.Errorf("限速规则下发失败：%w", err)
 	}
 
@@ -2454,7 +2480,7 @@ func (h *Handler) ensureDynamicLimiterOnNode(nodeID int64, limiterName string, s
 // ✅ 新增：删除 Forward 动态限速器
 // Deprecated: 动态限速器已废弃，统一使用 speed_id 限速规则。
 func (h *Handler) deleteForwardDynamicLimiter(forward *forwardRecord) {
-	limiterName := fmt.Sprintf("forward_%d_speed", forward.ID)
+	limiterName := forwardInlineSpeedLimiterName(forward.ID)
 	ports, _ := h.listForwardPorts(forward.ID)
 
 	for _, fp := range ports {
@@ -2469,9 +2495,17 @@ func (h *Handler) deleteForwardDynamicLimiter(forward *forwardRecord) {
 }
 
 func buildLimiterAddPayload(limiterID int64, speed int) (string, map[string]interface{}) {
+	return buildLimiterAddPayloadByName(strconv.FormatInt(limiterID, 10), speed)
+}
+
+func forwardInlineSpeedLimiterName(forwardID int64) string {
+	return fmt.Sprintf("forward_%d_speed", forwardID)
+}
+
+func buildLimiterAddPayloadByName(name string, speed int) (string, map[string]interface{}) {
 	rate := float64(speed) / 8.0
 	limitStr := fmt.Sprintf("$ %.1fMB %.1fMB", rate, rate)
-	name := strconv.FormatInt(limiterID, 10)
+	name = strings.TrimSpace(name)
 
 	return name, map[string]interface{}{
 		"name":   name,
@@ -2487,7 +2521,11 @@ func buildLimiterUpdatePayload(name string, data map[string]interface{}) map[str
 }
 
 func (h *Handler) upsertLimiterOnNode(nodeID int64, limiterID int64, speed int) error {
-	name, addPayload := buildLimiterAddPayload(limiterID, speed)
+	return h.upsertNamedLimiterOnNode(nodeID, strconv.FormatInt(limiterID, 10), speed)
+}
+
+func (h *Handler) upsertNamedLimiterOnNode(nodeID int64, name string, speed int) error {
+	name, addPayload := buildLimiterAddPayloadByName(name, speed)
 	if _, err := h.sendNodeCommand(nodeID, "AddLimiters", addPayload, false, false); err != nil {
 		if !isAlreadyExistsMessage(err.Error()) {
 			return err

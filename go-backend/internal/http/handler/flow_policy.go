@@ -412,6 +412,15 @@ func (h *Handler) speedLimiterExists(name string) bool {
 	if name == "" {
 		return false
 	}
+	if strings.HasPrefix(name, "forward_") && strings.HasSuffix(name, "_speed") {
+		forwardIDText := strings.TrimSuffix(strings.TrimPrefix(name, "forward_"), "_speed")
+		forwardID, err := strconv.ParseInt(forwardIDText, 10, 64)
+		if err != nil || forwardID <= 0 {
+			return false
+		}
+		forward, err := h.getForwardRecord(forwardID)
+		return err == nil && forward != nil && forward.SpeedLimitEnabled && forward.SpeedLimit > 0
+	}
 	id, err := strconv.ParseInt(name, 10, 64)
 	if err != nil {
 		return false

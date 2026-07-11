@@ -406,6 +406,34 @@ func TestBuildForwardServiceConfigs_DefaultListenAddrWhenBindIPEmpty(t *testing.
 		t.Fatalf("expected udp addr [::]:22001, got %q", udpAddr)
 	}
 }
+
+func TestBuildForwardServiceConfigsWithLimiterNameUsesInlineLimiter(t *testing.T) {
+	forward := &forwardRecord{RemoteAddr: "1.2.3.4:80", Strategy: "fifo", TunnelID: 7}
+	node := &nodeRecord{TCPListenAddr: "0.0.0.0", UDPListenAddr: "0.0.0.0"}
+	services := buildForwardServiceConfigsWithLimiterName("1_2_0", forward, nil, node, 22001, "", "forward_31_speed", false)
+	if len(services) != 2 {
+		t.Fatalf("expected 2 services, got %d", len(services))
+	}
+	for _, svc := range services {
+		if got := svc["limiter"]; got != "forward_31_speed" {
+			t.Fatalf("expected inline limiter name, got %#v", got)
+		}
+	}
+}
+
+func TestBuildLimiterAddPayloadByNameUsesMbpsAsBytesPerSecond(t *testing.T) {
+	name, payload := buildLimiterAddPayloadByName("forward_31_speed", 10)
+	if name != "forward_31_speed" {
+		t.Fatalf("expected limiter name forward_31_speed, got %q", name)
+	}
+	limits, ok := payload["limits"].([]string)
+	if !ok || len(limits) != 1 {
+		t.Fatalf("expected one limiter rule, got %#v", payload["limits"])
+	}
+	if limits[0] != "$ 1.2MB 1.2MB" {
+		t.Fatalf("expected 10 Mbps to become 1.2MB/s, got %q", limits[0])
+	}
+}
 func TestBuildForwardServiceConfigs_BindIPAlreadyContainsPort(t *testing.T) {
 	forward := &forwardRecord{RemoteAddr: "1.2.3.4:80", Strategy: "fifo", TunnelID: 7}
 	node := &nodeRecord{TCPListenAddr: "[::]", UDPListenAddr: "[::]"}
@@ -529,9 +557,12 @@ func TestBuildSDWANExitServiceConfigsPreservesDomainTargets(t *testing.T) {
 	h := &Handler{}
 	forward := &forwardRecord{RemoteAddr: "dynamic.example.com:443", Strategy: "fifo", TunnelID: 7, Mode: forwardModeSDWAN}
 	node := &nodeRecord{}
-	services, err := h.buildSDWANExitServiceConfigs("1_2_0_tcp", "tcp", node, 22000, forward)
+	services, err := h.buildSDWANExitServiceConfigs("1_2_0_tcp", "tcp", node, 22000, forward, "forward_31_speed")
 	if err != nil {
 		t.Fatalf("buildSDWANExitServiceConfigs returned error: %v", err)
+	}
+	if got := services[0]["limiter"]; got != "forward_31_speed" {
+		t.Fatalf("expected SDWAN exit limiter name, got %#v", got)
 	}
 
 	assertForwarderNodeAddr(t, services, "dynamic.example.com:443")
