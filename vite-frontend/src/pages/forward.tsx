@@ -2430,8 +2430,12 @@ export default function ForwardPage() {
           ]);
 
         if (tunnelsRes.code === 0) {
-          setTunnels(tunnelsRes.data || []);
-          setAllTunnels((tunnelsRes.data || []) as Tunnel[]);
+          const visibleTunnels = ((tunnelsRes.data || []) as Tunnel[]).filter(
+            (tunnel) => !isManualTunnel(tunnel),
+          );
+
+          setTunnels(visibleTunnels);
+          setAllTunnels(visibleTunnels);
         }
         if (forwardsRes.code === 0) {
           await applyForwardList(
