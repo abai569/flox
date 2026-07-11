@@ -2733,7 +2733,7 @@ export default function UserPage() {
         isOpen={isUserModalOpen}
         placement="center"
         scrollBehavior="inside"
-        size="md"
+        size="lg"
         onClose={onUserModalClose}
       >
         <ModalContent>

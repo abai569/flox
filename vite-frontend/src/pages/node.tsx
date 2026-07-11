@@ -3536,7 +3536,7 @@ export default function NodePage() {
         isOpen={dialogVisible}
         placement="center"
         scrollBehavior="inside"
-        size="xl"
+        size="lg"
         onOpenChange={(open) => {
           if (!open && !isEdit) resetDraft();
           setDialogVisible(open);
