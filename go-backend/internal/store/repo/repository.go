@@ -1152,7 +1152,8 @@ func (r *Repository) ListForwards() ([]map[string]interface{}, error) {
 		}
 		tunnelName := row.TunnelName
 		trafficRatio := row.TrafficRatio
-		if isManualTunnelNameRemark(row.TunnelName, row.TunnelRemark) {
+		isManualTunnel := isManualTunnelNameRemark(row.TunnelName, row.TunnelRemark)
+		if isManualTunnel {
 			manualName, manualRatio, ok, err := buildManualForwardTunnelDisplay(r.db, row.TunnelID)
 			if err != nil {
 				return nil, err
@@ -1166,6 +1167,7 @@ func (r *Repository) ListForwards() ([]map[string]interface{}, error) {
 			"id": row.ID, "userId": row.UserID, "userName": row.UserName, "userRemark": row.UserRemark,
 			"name": row.Name, "tunnelId": row.TunnelID, "tunnelName": tunnelName,
 			"tunnelTrafficRatio": trafficRatio,
+			"isManualTunnel":     isManualTunnel,
 			"inIp":               nullableForwardIngress(inIP), "inPort": nullableInt64(inPort),
 			"remoteAddr": row.RemoteAddr, "strategy": row.Strategy,
 			"inFlow": row.InFlow, "outFlow": row.OutFlow,
@@ -1250,7 +1252,8 @@ func (r *Repository) ListForwardsPage(page, pageSize int) ([]map[string]interfac
 		}
 		tunnelName := row.TunnelName
 		trafficRatio := row.TrafficRatio
-		if isManualTunnelNameRemark(row.TunnelName, row.TunnelRemark) {
+		isManualTunnel := isManualTunnelNameRemark(row.TunnelName, row.TunnelRemark)
+		if isManualTunnel {
 			manualName, manualRatio, ok, err := buildManualForwardTunnelDisplay(r.db, row.TunnelID)
 			if err != nil {
 				return nil, err
@@ -1264,6 +1267,7 @@ func (r *Repository) ListForwardsPage(page, pageSize int) ([]map[string]interfac
 			"id": row.ID, "userId": row.UserID, "userName": row.UserName, "userRemark": row.UserRemark,
 			"name": row.Name, "tunnelId": row.TunnelID, "tunnelName": tunnelName,
 			"tunnelTrafficRatio": trafficRatio,
+			"isManualTunnel":     isManualTunnel,
 			"inIp":               nullableForwardIngress(inIP), "inPort": nullableInt64(inPort),
 			"remoteAddr": row.RemoteAddr, "strategy": row.Strategy,
 			"inFlow": row.InFlow, "outFlow": row.OutFlow,

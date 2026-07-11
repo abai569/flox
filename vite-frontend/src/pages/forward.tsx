@@ -58,6 +58,7 @@ import { Switch } from "@/shadcn-bridge/heroui/switch";
 import { Alert } from "@/shadcn-bridge/heroui/alert";
 import { Progress } from "@/shadcn-bridge/heroui/progress";
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
+import { Chip } from "@/shadcn-bridge/heroui/chip";
 import {
   createForward,
   getForwardList,
@@ -136,6 +137,7 @@ interface Forward {
   tunnelId: number;
   tunnelName: string;
   tunnelTrafficRatio?: number;
+  isManualTunnel?: boolean;
   inIp: string;
   inPort: number;
   remoteAddr: string;
@@ -243,6 +245,7 @@ interface ForwardTunnelGroup {
   tunnelKey: string;
   tunnelName: string;
   tunnelTrafficRatio?: number;
+  isManualTunnel?: boolean;
   items: Forward[];
 }
 interface BatchProgressState {
@@ -347,6 +350,16 @@ const formatTunnelTrafficRatio = (value?: number): string => {
 
   return `${parseFloat(ratio.toFixed(2))}x`;
 };
+const ManualTunnelChip = ({ className = "" }: { className?: string }) => (
+  <Chip
+    className={`h-5 w-5 min-w-5 rounded-full px-0 py-0 text-[8px] font-bold leading-none inline-flex items-center justify-center ${className}`}
+    color="success"
+    size="sm"
+    variant="flat"
+  >
+    DIY
+  </Chip>
+);
 const formatExpiryTime = (expiryTime: number | null | undefined): string => {
   if (!expiryTime || expiryTime <= 0) {
     return "永久";
@@ -610,6 +623,7 @@ const mapForwardApiItems = (items: ForwardApiItem[]): Forward[] => {
     tunnelId: forward.tunnelId ?? 0,
     tunnelName: forward.tunnelName || "",
     tunnelTrafficRatio: normalizeTunnelTrafficRatio(forward.tunnelTrafficRatio),
+    isManualTunnel: forward.isManualTunnel === true,
     inIp: forward.inIp || "",
     inPort: forward.inPort ?? 0,
     remoteAddr: forward.remoteAddr || "",
@@ -716,6 +730,7 @@ const SortableTunnelGroupContainer = ({
               <path d="m6 9 6 6 6-6" />
             </svg>
           </Button>
+          {tunnel.isManualTunnel && <ManualTunnelChip />}
           <span className={titleClassName}>{tunnel.tunnelName}</span>
           {/* 隧道倍率标识 - 统一 10px 字体 */}
           <span className="text-primary-600 font-bold text-[10px] mr-1.5">
@@ -1278,6 +1293,7 @@ const SortableCompactTableRow = ({
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex items-center">
+          {forward.isManualTunnel && <ManualTunnelChip className="mr-1.5" />}
           <span className="font-medium text-foreground text-sm">
             {forward.tunnelName}
           </span>
@@ -4350,6 +4366,7 @@ export default function ForwardPage() {
           tunnelTrafficRatio: normalizeTunnelTrafficRatio(
             forward.tunnelTrafficRatio,
           ),
+          isManualTunnel: forward.isManualTunnel === true,
           items: [forward],
         });
 
@@ -4370,6 +4387,9 @@ export default function ForwardPage() {
         existingTunnelGroup.tunnelTrafficRatio = normalizeTunnelTrafficRatio(
           forward.tunnelTrafficRatio,
         );
+      }
+      if (forward.isManualTunnel) {
+        existingTunnelGroup.isManualTunnel = true;
       }
     });
     const groups = Array.from(userGroupMap.values()).map((group) => {
@@ -4868,6 +4888,7 @@ export default function ForwardPage() {
           <div className="flex-1 min-w-0 w-full pl-0.5">
             <div className="flex items-center justify-between gap-2 mt-0.5">
               <span className="text-xs text-foreground truncate flex items-center">
+                {forward.isManualTunnel && <ManualTunnelChip className="mr-1" />}
                 <span className="truncate">
                   {normalizeForwardTunnelName(forward.tunnelName)}
                 </span>

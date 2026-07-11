@@ -76,6 +76,7 @@ export interface ForwardApiItem {
   status: number;
   tunnelName?: string;
   tunnelTrafficRatio?: number;
+  isManualTunnel?: boolean;
   inIp?: string;
   inPort?: number;
   remoteAddr?: string;
