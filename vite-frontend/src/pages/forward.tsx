@@ -128,6 +128,7 @@ const getForwardModeEnabledState = () => ({
 });
 const MANUAL_TUNNEL_SELECT_KEY = "__manual__";
 const MANUAL_TUNNEL_REMARK = "自行组建隧道";
+const LEGACY_MANUAL_TUNNEL_REMARK = "手动组建隧道";
 
 interface Forward {
   id: number;
@@ -1834,12 +1835,49 @@ export default function ForwardPage() {
     setManualOutNodeId([]);
     setManualFocusedInputs({});
   };
+  const getAutoManualInIp = (selectedIds: number[]): string => {
+    return selectedIds
+      .map((id) => {
+        const node = nodes.find((item) => item.id === id);
+
+        return (
+          node?.serverIpV4 ||
+          node?.serverIpV6 ||
+          node?.intranetIp ||
+          node?.serverIp ||
+          ""
+        ).trim();
+      })
+      .filter(Boolean)
+      .join("\n");
+  };
+  const manualExpectedInIp = useMemo(
+    () => getAutoManualInIp(manualInNodeId.map((item) => item.nodeId)),
+    [manualInNodeId, nodes],
+  );
+  const isManualInIpOutdated = useMemo(() => {
+    if (!manualExpectedInIp.trim()) return false;
+
+    const normalize = (value: string) =>
+      value
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .join("\n");
+
+    return normalize(manualInIp) !== normalize(manualExpectedInIp);
+  }, [manualExpectedInIp, manualInIp]);
   const isManualTunnel = (tunnel?: Tunnel | null): boolean => {
     if (!tunnel) return false;
 
+    const remark = tunnel.remark || "";
+    const name = tunnel.name || "";
+
     return (
-      (tunnel.remark || "").includes(MANUAL_TUNNEL_REMARK) ||
-      tunnel.name.startsWith(`${MANUAL_TUNNEL_REMARK}-`)
+      remark.includes(MANUAL_TUNNEL_REMARK) ||
+      remark.includes(LEGACY_MANUAL_TUNNEL_REMARK) ||
+      name.startsWith(`${MANUAL_TUNNEL_REMARK}-`) ||
+      name.startsWith(`${LEGACY_MANUAL_TUNNEL_REMARK}-`)
     );
   };
   const toSelectedNodeIds = (keys: Iterable<unknown>): number[] => {
@@ -1853,14 +1891,16 @@ export default function ForwardPage() {
     chainType: number,
   ): ChainTunnel[] => {
     const previousMap = new Map(previous.map((item) => [item.nodeId, item]));
+    const currentProtocol = previous.find((item) => item.protocol)?.protocol || "tcp";
+    const currentStrategy = previous.find((item) => item.strategy)?.strategy || "round";
 
-    return selectedIds.map((nodeId, index) => ({
+    return selectedIds.slice(0, 1).map((nodeId, index) => ({
       ...(previousMap.get(nodeId) || {}),
       nodeId,
       chainType,
       inx: index + 1,
-      protocol: previousMap.get(nodeId)?.protocol || "tls",
-      strategy: previousMap.get(nodeId)?.strategy || "round",
+      protocol: previousMap.get(nodeId)?.protocol || currentProtocol,
+      strategy: previousMap.get(nodeId)?.strategy || currentStrategy,
     }));
   };
   const parsePortsFromInput = (value: string): number[] => {
@@ -1968,7 +2008,7 @@ export default function ForwardPage() {
         return (
           <SelectItem
             key={node.id}
-            textValue={`${node.name || ""} ${groupName} ${node.remark || ""}`}
+            textValue={node.name || ""}
           >
             <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
               <span className="w-full min-w-0 truncate text-left">
@@ -2001,16 +2041,20 @@ export default function ForwardPage() {
       });
   };
   const cleanManualNodes = (items: ChainTunnel[], chainType: number) =>
-    items.map((item, index) => ({
+    items.slice(0, 1).map((item, index) => ({
       nodeId: item.nodeId,
       chainType,
       inx: index + 1,
-      protocol: item.protocol || "tls",
+      protocol: item.protocol || "tcp",
       strategy: item.strategy || "round",
       port: item.port,
       connectIpType: item.connectIpType || "",
       connect_ip_type: item.connectIpType || "",
     }));
+  const normalizeManualNodes = (items?: ChainTunnel[]) =>
+    (items || []).slice(0, 1);
+  const normalizeManualChainNodes = (groups?: ChainTunnel[][]) =>
+    (groups || []).map((group) => normalizeManualNodes(group));
   const validateManualTunnel = (newErrors: { [key: string]: string }) => {
     const selectedIds = [
       ...manualInNodeId.map((item) => item.nodeId),
@@ -2020,15 +2064,15 @@ export default function ForwardPage() {
     const selectedSet = new Set<number>();
 
     if (manualInNodeId.length === 0) {
-      newErrors.manualInNodeId = "请至少选择一个入口节点";
+      newErrors.manualInNodeId = "请选择一个入口节点";
     }
     manualChainNodes.forEach((group, index) => {
       if (group.length === 0) {
-        newErrors[`manualChainNodes_${index}`] = `请至少选择第${index + 1}跳节点`;
+        newErrors[`manualChainNodes_${index}`] = `请选择第${index + 1}跳节点`;
       }
     });
     if (manualOutNodeId.length === 0) {
-      newErrors.manualOutNodeId = "请至少选择一个出口节点";
+      newErrors.manualOutNodeId = "请选择一个出口节点";
     }
     for (const nodeId of selectedIds) {
       if (selectedSet.has(nodeId)) {
@@ -2640,18 +2684,15 @@ export default function ForwardPage() {
     }
     if (isManualTunnel(targetTunnel)) {
       setTunnelSelectMode("manual");
-      setManualInNodeId(targetTunnel?.inNodeId || []);
+      setManualInNodeId(normalizeManualNodes(targetTunnel?.inNodeId));
       setManualInIp((targetTunnel?.inIp || "").split(",").join("\n"));
-      setManualChainNodes(
-        targetTunnel?.chainNodes && targetTunnel.chainNodes.length > 0
-          ? targetTunnel.chainNodes
-          : [],
-      );
-      setManualOutNodeId(targetTunnel?.outNodeId || []);
+      setManualChainNodes(normalizeManualChainNodes(targetTunnel?.chainNodes));
+      setManualOutNodeId(normalizeManualNodes(targetTunnel?.outNodeId));
+      setTunnelModeLocked(true);
     } else {
       setTunnelSelectMode("existing");
+      setTunnelModeLocked(false);
     }
-    setTunnelModeLocked(true);
     setErrors({});
     setModalOpen(true);
   };
@@ -5910,7 +5951,7 @@ export default function ForwardPage() {
                     <Select
                       description={
                         tunnelModeLocked
-                          ? "编辑时不能在固定隧道和自行组建之间切换"
+                          ? "自行组建规则不能切换为固定隧道"
                           : isEdit
                             ? "更改隧道将释放原端口并在新隧道分配端口"
                             : "看括号内说明选择隧道"
@@ -5936,7 +5977,7 @@ export default function ForwardPage() {
                         }
                       }}
                     >
-                      {isAdmin && (
+                      {isAdmin && (!isEdit || tunnelSelectMode === "manual") && (
                         <SelectItem key={MANUAL_TUNNEL_SELECT_KEY}>
                           极客可以自行组建隧道
                         </SelectItem>
@@ -6050,31 +6091,16 @@ export default function ForwardPage() {
                         disabledKeys={buildManualDisabledKeys({ role: "entry" })}
                         errorMessage={errors.manualInNodeId}
                         isInvalid={!!errors.manualInNodeId}
-                        label={`入口${manualInNodeId.length > 0 ? ` (已选 ${manualInNodeId.length} 个)` : ""}`}
+                        label={manualInNodeId.length > 0 ? "入口（已选 1 个）" : "入口"}
                         listboxHeader={renderNodeSelectHeader()}
                         placeholder="选择入口节点"
                         selectedKeys={manualInNodeId.map((item) => item.nodeId.toString())}
-                        selectionMode="multiple"
                         variant="bordered"
                         onSelectionChange={(keys) => {
                           const selectedIds = toSelectedNodeIds(keys);
 
                           if (!manualInIp.trim()) {
-                            const autoIps = selectedIds
-                              .map((id) => {
-                                const node = nodes.find((item) => item.id === id);
-
-                                return (
-                                  node?.serverIpV4 ||
-                                  node?.serverIpV6 ||
-                                  node?.intranetIp ||
-                                  node?.serverIp ||
-                                  ""
-                                ).trim();
-                              })
-                              .filter(Boolean);
-
-                            setManualInIp(autoIps.join("\n"));
+                            setManualInIp(getAutoManualInIp(selectedIds));
                           }
                           setManualInNodeId((prev) =>
                             mergeOrderedManualNodes(prev, selectedIds, 1),
@@ -6095,6 +6121,22 @@ export default function ForwardPage() {
                         variant="bordered"
                         onChange={(e) => setManualInIp(e.target.value)}
                       />
+                      {isManualInIpOutdated && (
+                        <div className="flex items-center justify-between bg-warning-50 dark:bg-warning-900/20 px-3 py-2 rounded-lg border border-warning-200 dark:border-warning-700/50">
+                          <span className="text-xs text-warning-600 dark:text-warning-400 font-medium">
+                            检测到入口节点 域名/IP 有变动
+                          </span>
+                          <Button
+                            className="h-6 min-h-0 text-xs px-2.5 rounded-md"
+                            color="warning"
+                            size="sm"
+                            variant="flat"
+                            onPress={() => setManualInIp(manualExpectedInIp)}
+                          >
+                            一键同步
+                          </Button>
+                        </div>
+                      )}
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-semibold text-foreground">
@@ -6137,11 +6179,10 @@ export default function ForwardPage() {
                               })}
                               errorMessage={errors[`manualChainNodes_${groupIndex}`]}
                               isInvalid={!!errors[`manualChainNodes_${groupIndex}`]}
-                              label={`节点${group.length > 0 ? ` (已选 ${group.length} 个)` : ""}`}
+                              label={group.length > 0 ? "节点（已选 1 个）" : "节点"}
                               listboxHeader={renderNodeSelectHeader()}
                               placeholder="选择当前跳节点"
                               selectedKeys={group.map((item) => item.nodeId.toString())}
-                              selectionMode="multiple"
                               size="sm"
                               variant="bordered"
                               onSelectionChange={(keys) => {
@@ -6219,53 +6260,53 @@ export default function ForwardPage() {
                               </Select>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <Input
-                              description="指定当前级被上一级连接的端口，多节点可用逗号分隔，按选择节点顺序匹配，留空按节点端口范围自动分配"
-                              errorMessage={errors[`manualChainPort_${groupIndex}`]}
-                              isInvalid={!!errors[`manualChainPort_${groupIndex}`]}
-                              label="连接端口"
-                              placeholder="例：11111,22222"
-                              size="sm"
-                              type="text"
-                              value={
-                                manualFocusedInputs[`chain_port_${groupIndex}`] ??
-                                formatManualPortsToDisplay(group)
-                              }
-                              variant="bordered"
-                              onBlur={() => {
-                                const finalValue =
-                                  manualFocusedInputs[`chain_port_${groupIndex}`] ??
-                                  formatManualPortsToDisplay(group);
-
-                                setManualFocusedInputs((prev) => {
-                                  const next = { ...prev };
-
-                                  delete next[`chain_port_${groupIndex}`];
-
-                                  return next;
-                                });
-                                setManualChainNodes((prev) => {
-                                  const next = [...prev];
-
-                                  next[groupIndex] = applyPortsToManualNodes(
-                                    next[groupIndex] || [],
-                                    finalValue,
-                                  );
-
-                                  return next;
-                                });
-                              }}
-                              onChange={(e) =>
-                                setManualFocusedInputs((prev) => ({
-                                  ...prev,
-                                  [`chain_port_${groupIndex}`]: e.target.value,
-                                }))
-                              }
-                            />
                               <Input
-                                description="多节点可用逗号分隔，按选择节点顺序匹配，v4 对应公网 v4 地址，v6 对应公网 v6 地址，lan 对应内网地址，留空自动匹配"
+                                description="指定当前级被上一级连接的端口，留空按节点端口范围自动分配"
+                                errorMessage={errors[`manualChainPort_${groupIndex}`]}
+                                isInvalid={!!errors[`manualChainPort_${groupIndex}`]}
+                                label="连接端口"
+                                placeholder="例：11111"
+                                size="sm"
+                                type="text"
+                                value={
+                                  manualFocusedInputs[`chain_port_${groupIndex}`] ??
+                                  formatManualPortsToDisplay(group)
+                                }
+                                variant="bordered"
+                                onBlur={() => {
+                                  const finalValue =
+                                    manualFocusedInputs[`chain_port_${groupIndex}`] ??
+                                    formatManualPortsToDisplay(group);
+
+                                  setManualFocusedInputs((prev) => {
+                                    const next = { ...prev };
+
+                                    delete next[`chain_port_${groupIndex}`];
+
+                                    return next;
+                                  });
+                                  setManualChainNodes((prev) => {
+                                    const next = [...prev];
+
+                                    next[groupIndex] = applyPortsToManualNodes(
+                                      next[groupIndex] || [],
+                                      finalValue,
+                                    );
+
+                                    return next;
+                                  });
+                                }}
+                                onChange={(e) =>
+                                  setManualFocusedInputs((prev) => ({
+                                    ...prev,
+                                    [`chain_port_${groupIndex}`]: e.target.value,
+                                  }))
+                                }
+                              />
+                              <Input
+                                description="v4 对应公网 v4 地址，v6 对应公网 v6 地址，lan 对应内网地址，留空自动匹配"
                                 label="连接 IP 类型"
-                                placeholder="例：lan,v4,v6"
+                                placeholder="例：lan"
                                 size="sm"
                                 type="text"
                                 value={
@@ -6311,11 +6352,10 @@ export default function ForwardPage() {
                         disabledKeys={buildManualDisabledKeys({ role: "exit" })}
                         errorMessage={errors.manualOutNodeId}
                         isInvalid={!!errors.manualOutNodeId}
-                        label={`出口${manualOutNodeId.length > 0 ? ` (已选 ${manualOutNodeId.length} 个)` : ""}`}
+                        label={manualOutNodeId.length > 0 ? "出口（已选 1 个）" : "出口"}
                         listboxHeader={renderNodeSelectHeader()}
                         placeholder="选择出口节点"
                         selectedKeys={manualOutNodeId.map((item) => item.nodeId.toString())}
-                        selectionMode="multiple"
                         variant="bordered"
                         onSelectionChange={(keys) => {
                           const selectedIds = toSelectedNodeIds(keys);
@@ -6368,45 +6408,45 @@ export default function ForwardPage() {
                         </Select>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <Input
-                        description="指定出口节点被上一级连接的端口，多节点可用逗号分隔，按选择节点顺序匹配，留空按节点端口范围自动分配"
-                        errorMessage={errors.manualOutPort}
-                        isInvalid={!!errors.manualOutPort}
-                        label="出口连接端口"
-                        placeholder="例：33333,55555"
-                        type="text"
-                        value={
-                          manualFocusedInputs.out_port ??
-                          formatManualPortsToDisplay(manualOutNodeId)
-                        }
-                        variant="bordered"
-                        onBlur={() => {
-                          const finalValue =
-                            manualFocusedInputs.out_port ??
-                            formatManualPortsToDisplay(manualOutNodeId);
-
-                          setManualFocusedInputs((prev) => {
-                            const next = { ...prev };
-
-                            delete next.out_port;
-
-                            return next;
-                          });
-                          setManualOutNodeId((prev) =>
-                            applyPortsToManualNodes(prev, finalValue),
-                          );
-                        }}
-                        onChange={(e) =>
-                          setManualFocusedInputs((prev) => ({
-                            ...prev,
-                            out_port: e.target.value,
-                          }))
-                        }
-                      />
                         <Input
-                          description="多节点可用逗号分隔，按选择节点顺序匹配，v4 对应公网 v4，v6 对应公网 v6，lan 对应内网，留空自动匹配"
+                          description="指定出口节点被上一级连接的端口，留空按节点端口范围自动分配"
+                          errorMessage={errors.manualOutPort}
+                          isInvalid={!!errors.manualOutPort}
+                          label="出口连接端口"
+                          placeholder="例：33333"
+                          type="text"
+                          value={
+                            manualFocusedInputs.out_port ??
+                            formatManualPortsToDisplay(manualOutNodeId)
+                          }
+                          variant="bordered"
+                          onBlur={() => {
+                            const finalValue =
+                              manualFocusedInputs.out_port ??
+                              formatManualPortsToDisplay(manualOutNodeId);
+
+                            setManualFocusedInputs((prev) => {
+                              const next = { ...prev };
+
+                              delete next.out_port;
+
+                              return next;
+                            });
+                            setManualOutNodeId((prev) =>
+                              applyPortsToManualNodes(prev, finalValue),
+                            );
+                          }}
+                          onChange={(e) =>
+                            setManualFocusedInputs((prev) => ({
+                              ...prev,
+                              out_port: e.target.value,
+                            }))
+                          }
+                        />
+                        <Input
+                          description="v4 对应公网 v4，v6 对应公网 v6，lan 对应内网，留空自动匹配"
                           label="连接 IP 类型"
-                          placeholder="例：v4,v6,lan"
+                          placeholder="例：v4"
                           type="text"
                           value={
                             manualFocusedInputs.out_ipType ??

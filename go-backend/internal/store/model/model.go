@@ -103,6 +103,7 @@ type Node struct {
 	ExpiryTime                   sql.NullInt64  `gorm:"column:expiry_time"`
 	RenewalCycle                 sql.NullString `gorm:"column:renewal_cycle;type:varchar(20)"`
 	Secret                       string         `gorm:"type:varchar(100);not null"`
+	TrafficRatio                 float64        `gorm:"column:traffic_ratio;not null;default:1.0"`
 	ServerIP                     string         `gorm:"column:server_ip;type:varchar(100);not null"`
 	IntranetIP                   sql.NullString `gorm:"column:intranet_ip;type:varchar(100)"`
 	ServerIPV4                   sql.NullString `gorm:"column:server_ip_v4;type:varchar(100)"`
@@ -461,32 +462,33 @@ type UserBackup struct {
 }
 
 type NodeBackup struct {
-	ID            int64  `json:"id"`
-	Name          string `json:"name"`
-	Remark        string `json:"remark,omitempty"`
-	ExpiryTime    int64  `json:"expiryTime,omitempty"`
-	RenewalCycle  string `json:"renewalCycle,omitempty"`
-	Secret        string `json:"secret"`
-	ServerIP      string `json:"serverIp"`
-	ServerIPv4    string `json:"serverIpV4,omitempty"`
-	ServerIPv6    string `json:"serverIpV6,omitempty"`
-	ExtraIPs      string `json:"extraIPs,omitempty"`
-	Port          string `json:"port"`
-	InterfaceName string `json:"interfaceName,omitempty"`
-	Version       string `json:"version,omitempty"`
-	HTTP          int    `json:"http"`
-	TLS           int    `json:"tls"`
-	Socks         int    `json:"socks"`
-	CreatedTime   int64  `json:"createdTime"`
-	UpdatedTime   int64  `json:"updatedTime,omitempty"`
-	Status        int    `json:"status"`
-	TCPListenAddr string `json:"tcpListenAddr"`
-	UDPListenAddr string `json:"udpListenAddr"`
-	Inx           int    `json:"inx"`
-	IsRemote      int    `json:"isRemote"`
-	RemoteURL     string `json:"remoteUrl,omitempty"`
-	RemoteToken   string `json:"remoteToken,omitempty"`
-	RemoteConfig  string `json:"remoteConfig,omitempty"`
+	ID            int64   `json:"id"`
+	Name          string  `json:"name"`
+	Remark        string  `json:"remark,omitempty"`
+	ExpiryTime    int64   `json:"expiryTime,omitempty"`
+	RenewalCycle  string  `json:"renewalCycle,omitempty"`
+	Secret        string  `json:"secret"`
+	TrafficRatio  float64 `json:"trafficRatio,omitempty"`
+	ServerIP      string  `json:"serverIp"`
+	ServerIPv4    string  `json:"serverIpV4,omitempty"`
+	ServerIPv6    string  `json:"serverIpV6,omitempty"`
+	ExtraIPs      string  `json:"extraIPs,omitempty"`
+	Port          string  `json:"port"`
+	InterfaceName string  `json:"interfaceName,omitempty"`
+	Version       string  `json:"version,omitempty"`
+	HTTP          int     `json:"http"`
+	TLS           int     `json:"tls"`
+	Socks         int     `json:"socks"`
+	CreatedTime   int64   `json:"createdTime"`
+	UpdatedTime   int64   `json:"updatedTime,omitempty"`
+	Status        int     `json:"status"`
+	TCPListenAddr string  `json:"tcpListenAddr"`
+	UDPListenAddr string  `json:"udpListenAddr"`
+	Inx           int     `json:"inx"`
+	IsRemote      int     `json:"isRemote"`
+	RemoteURL     string  `json:"remoteUrl,omitempty"`
+	RemoteToken   string  `json:"remoteToken,omitempty"`
+	RemoteConfig  string  `json:"remoteConfig,omitempty"`
 }
 
 type TunnelBackup struct {
@@ -690,6 +692,7 @@ type NodeRecord struct {
 	RemoteToken   string
 	RemoteConfig  string
 	Weight        int
+	TrafficRatio  float64
 }
 
 type ChainNodeRecord struct {

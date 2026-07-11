@@ -589,7 +589,7 @@ export default function TunnelPage() {
       return (
         <SelectItem
           key={node.id}
-          textValue={`${node.name || ""} ${groupName} ${node.remark || ""}`}
+          textValue={node.name || ""}
         >
           <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
             <span className="w-full min-w-0 truncate text-left">

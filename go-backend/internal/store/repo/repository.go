@@ -982,6 +982,7 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"remark":       nullableString(n.Remark),
 			"expiryTime":   nullableInt64(n.ExpiryTime),
 			"renewalCycle": nullableString(n.RenewalCycle),
+			"trafficRatio": n.TrafficRatio,
 			"ip":           n.ServerIP, "serverIp": n.ServerIP,
 			"serverHost":    nullableString(n.IntranetIP),
 			"intranetIp":    nullableString(n.IntranetIP),
@@ -2034,7 +2035,8 @@ func (r *Repository) exportNodes() ([]model.NodeBackup, error) {
 	for _, n := range nodes {
 		b := model.NodeBackup{
 			ID: n.ID, Name: n.Name, Secret: n.Secret, ServerIP: n.ServerIP,
-			Remark: n.Remark.String, RenewalCycle: n.RenewalCycle.String,
+			TrafficRatio: n.TrafficRatio,
+			Remark:       n.Remark.String, RenewalCycle: n.RenewalCycle.String,
 			Port: n.Port, HTTP: n.HTTP, TLS: n.TLS, Socks: n.Socks,
 			CreatedTime: n.CreatedTime, Status: n.Status,
 			TCPListenAddr: n.TCPListenAddr, UDPListenAddr: n.UDPListenAddr,
@@ -2422,6 +2424,10 @@ func importUsers(tx *gorm.DB, users []model.UserBackup, now int64) (int, error) 
 func importNodes(tx *gorm.DB, nodes []model.NodeBackup, now int64) (int, error) {
 	count := 0
 	for _, n := range nodes {
+		trafficRatio := n.TrafficRatio
+		if trafficRatio <= 0 {
+			trafficRatio = 1.0
+		}
 		item := model.Node{
 			ID:            n.ID,
 			Name:          n.Name,
@@ -2429,6 +2435,7 @@ func importNodes(tx *gorm.DB, nodes []model.NodeBackup, now int64) (int, error) 
 			ExpiryTime:    sql.NullInt64{Int64: n.ExpiryTime, Valid: n.ExpiryTime > 0},
 			RenewalCycle:  sql.NullString{String: n.RenewalCycle, Valid: n.RenewalCycle != ""},
 			Secret:        n.Secret,
+			TrafficRatio:  trafficRatio,
 			ServerIP:      n.ServerIP,
 			ServerIPV4:    sql.NullString{String: n.ServerIPv4, Valid: true},
 			ServerIPV6:    sql.NullString{String: n.ServerIPv6, Valid: true},
@@ -2452,7 +2459,7 @@ func importNodes(tx *gorm.DB, nodes []model.NodeBackup, now int64) (int, error) 
 		err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"name", "remark", "expiry_time", "renewal_cycle", "secret", "server_ip", "server_ip_v4", "server_ip_v6", "port", "interface_name",
+				"name", "remark", "expiry_time", "renewal_cycle", "secret", "traffic_ratio", "server_ip", "server_ip_v4", "server_ip_v6", "port", "interface_name",
 				"http", "tls", "socks", "updated_time", "status", "tcp_listen_addr", "udp_listen_addr",
 				"inx", "is_remote", "remote_url", "remote_token", "remote_config",
 			}),

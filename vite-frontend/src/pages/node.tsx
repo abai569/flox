@@ -185,6 +185,7 @@ interface Node {
   rollbackLoading?: boolean;
   groupId?: number | null;
   secret?: string;
+  trafficRatio?: number;
   periodTraffic?: NodePeriodTraffic;
 }
 interface NodeForm {
@@ -221,6 +222,7 @@ interface NodeForm {
   tls: number;
   socks: number;
   secret: string;
+  trafficRatio: number;
   trafficLimit: number;
 }
 type NodeViewMode = "grid" | "list" | "grouped";
@@ -680,6 +682,7 @@ export default function NodePage() {
       http: 0,
       tls: 0,
       socks: 0,
+      trafficRatio: 1,
       trafficLimit: 0,
       flowResetTime: 1,
     },
@@ -1363,6 +1366,9 @@ export default function NodePage() {
     if (!portValidation.valid) {
       newErrors.port = portValidation.error || "端口格式错误";
     }
+    if (!Number.isFinite(form.trafficRatio) || form.trafficRatio <= 0) {
+      newErrors.trafficRatio = "节点倍率必须大于 0";
+    }
     setErrors(newErrors);
 
     return Object.keys(newErrors).length === 0;
@@ -1416,6 +1422,7 @@ export default function NodePage() {
       http: typeof node.http === "number" ? node.http : 1,
       tls: typeof node.tls === "number" ? node.tls : 1,
       socks: typeof node.socks === "number" ? node.socks : 1,
+      trafficRatio: node.trafficRatio || 1,
       trafficLimit: (node as any).trafficLimit || 0,
       flowResetTime: node.flowResetTime || 1,
     });
@@ -2144,6 +2151,7 @@ export default function NodePage() {
                   http: form.http,
                   tls: form.tls,
                   socks: form.socks,
+                  trafficRatio: form.trafficRatio,
                   trafficLimit: form.trafficLimit,
                   flowResetTime: form.flowResetTime,
                   expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
@@ -2773,6 +2781,12 @@ export default function NodePage() {
                   {node.version ? node.version.split(" ")[0] : "未知"}
                 </span>
               </div>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-default-600">节点倍率</span>
+              <span className="font-medium text-sm text-default-700">
+                {(node.trafficRatio || 1).toFixed(2).replace(/\.00$/, "")}x
+              </span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-default-600">周期流量</span>
@@ -3739,6 +3753,24 @@ export default function NodePage() {
                         setForm((prev) => ({
                           ...prev,
                           trafficLimit: parseInt(e.target.value) || 0,
+                        }))
+                      }
+                    />
+                    <Input
+                      description="自行组建隧道按参与节点倍率相加，默认 1x"
+                      errorMessage={errors.trafficRatio}
+                      isInvalid={!!errors.trafficRatio}
+                      label="节点倍率"
+                      min={0.01}
+                      placeholder="1"
+                      step="0.01"
+                      type="number"
+                      value={String(form.trafficRatio)}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          trafficRatio: parseFloat(e.target.value) || 0,
                         }))
                       }
                     />

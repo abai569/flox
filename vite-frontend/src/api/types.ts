@@ -8,6 +8,7 @@ export interface NodeApiItem {
   renewalCycle?: "month" | "quarter" | "halfYear" | "" | "year";
   expiryReminderDismissed?: number;
   weight?: number;
+  trafficRatio?: number;
   onlineCount?: number;
   syncError?: string;
   // 周期流量统计
@@ -387,6 +388,7 @@ export interface NodeMutationPayload {
   http?: number;
   tls?: number;
   socks?: number;
+  trafficRatio?: number;
   trafficLimit?: number;
 }
 

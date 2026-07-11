@@ -262,6 +262,14 @@ export function Select<T>({
 
     onSelectionChange?.(next);
   };
+  const updateSingleSelection = (key: string) => {
+    if (isDisabled || disabled.has(key)) {
+      return;
+    }
+
+    onSelectionChange?.(new Set([key]));
+    setIsExpanded(false);
+  };
 
   const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     onChange?.(event);
@@ -363,6 +371,64 @@ export function Select<T>({
       </div>
     );
   };
+  const renderSingleListbox = () => {
+    if (!isExpanded) {
+      return null;
+    }
+
+    const placementClasses =
+      dropdownPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1";
+
+    return (
+      <div
+        ref={listboxRef}
+        className={cn(
+          "absolute left-0 z-50 w-full space-y-1 overflow-y-auto rounded-md border border-divider bg-background p-2 shadow-md max-h-56",
+          placementClasses,
+        )}
+        id={`${generatedId}-listbox`}
+        role="listbox"
+      >
+        {options.length === 0 ? (
+          <div
+            className={cn("px-2 py-1 text-default-500", textSizeClass(size))}
+          >
+            暂无可选项
+          </div>
+        ) : (
+          <>
+            {listboxHeader && (
+              <div className="rounded-md px-2 py-1 text-sm font-semibold text-foreground">
+                {listboxHeader}
+              </div>
+            )}
+            {options.map((option) => {
+              const optionDisabled = isDisabled || disabled.has(option.key);
+
+              return (
+                <button
+                  key={option.key}
+                  className={cn(
+                    "block w-full rounded-md px-2 py-1.5 text-left text-foreground",
+                    textSizeClass(size),
+                    optionDisabled
+                      ? "cursor-not-allowed opacity-60"
+                      : "hover:bg-default-100",
+                    selected.has(option.key) ? "bg-default-100" : "",
+                  )}
+                  disabled={optionDisabled}
+                  type="button"
+                  onClick={() => updateSingleSelection(option.key)}
+                >
+                  {option.content ?? option.label}
+                </button>
+              );
+            })}
+          </>
+        )}
+      </div>
+    );
+  };
 
   return (
     <FieldContainer
@@ -374,7 +440,7 @@ export function Select<T>({
       isRequired={isRequired}
       label={label}
     >
-      {selectionMode === "multiple" ? (
+      {selectionMode === "multiple" || listboxHeader ? (
         <div ref={containerRef} className={cn("relative w-full", className)}>
           <button
             aria-controls={`${generatedId}-listbox`}
@@ -409,7 +475,9 @@ export function Select<T>({
               )}
             />
           </button>
-          {renderMultipleListbox()}
+          {selectionMode === "multiple"
+            ? renderMultipleListbox()
+            : renderSingleListbox()}
         </div>
       ) : (
         <select

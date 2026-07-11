@@ -248,6 +248,7 @@ func nodeRecordFromModel(n *model.Node) *model.NodeRecord {
 		ServerIP:      n.ServerIP,
 		Status:        n.Status,
 		Weight:        n.Weight,
+		TrafficRatio:  n.TrafficRatio,
 		PortRange:     n.Port,
 		TCPListenAddr: n.TCPListenAddr, UDPListenAddr: n.UDPListenAddr,
 		IsRemote: n.IsRemote,

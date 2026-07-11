@@ -822,6 +822,7 @@ func (h *Handler) nodeCreate(w http.ResponseWriter, r *http.Request) {
 		nullableText(asString(req["extraIPs"])),
 		asInt64(req["trafficLimit"], 0),
 		asInt(req["flowResetTime"], 1),
+		asFloat(req["trafficRatio"], 1.0),
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -906,6 +907,13 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	oldSecret, _ := h.repo.GetNodeSecret(id)
+	trafficRatio := 1.0
+	if currentNode, _ := h.repo.GetNodeByID(id); currentNode != nil && currentNode.TrafficRatio > 0 {
+		trafficRatio = currentNode.TrafficRatio
+	}
+	if _, ok := req["trafficRatio"]; ok {
+		trafficRatio = asFloat(req["trafficRatio"], trafficRatio)
+	}
 
 	if err := h.repo.UpdateNode(id,
 		asString(req["name"]),
@@ -931,6 +939,7 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 		now,
 		asInt64(req["trafficLimit"], 0),
 		asInt(req["flowResetTime"], 1),
+		trafficRatio,
 	); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return

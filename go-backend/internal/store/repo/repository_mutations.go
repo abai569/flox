@@ -319,12 +319,15 @@ func (r *Repository) GetUserDefaultsForTunnel(userID int64) (flow int64, num int
 	return user.Flow, user.Num, user.ExpTime, user.FlowResetTime, nil
 }
 
-func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serverIPV6, port, interfaceName, version, remark, expiryTime, renewalCycle, groupID interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, now int64, status int, tcpAddr, udpAddr string, inx, isRemote int, remoteURL, remoteToken, remoteConfig, extraIPs interface{}, trafficLimit int64, flowResetTime int) error {
+func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serverIPV6, port, interfaceName, version, remark, expiryTime, renewalCycle, groupID interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, now int64, status int, tcpAddr, udpAddr string, inx, isRemote int, remoteURL, remoteToken, remoteConfig, extraIPs interface{}, trafficLimit int64, flowResetTime int, trafficRatio float64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 	if flowResetTime <= 0 {
 		flowResetTime = 1
+	}
+	if trafficRatio <= 0 {
+		trafficRatio = 1.0
 	}
 	node := model.Node{
 		Name:          name,
@@ -333,6 +336,7 @@ func (r *Repository) CreateNode(name, secret, serverIP string, serverIPV4, serve
 		RenewalCycle:  nullStringFromInterface(renewalCycle),
 		GroupID:       nullInt64FromInterface(groupID),
 		Secret:        secret,
+		TrafficRatio:  trafficRatio,
 		ServerIP:      serverIP,
 		ServerIPV4:    nullStringFromInterface(serverIPV4),
 		ServerIPV6:    nullStringFromInterface(serverIPV6),
@@ -407,9 +411,12 @@ func (r *Repository) UpdateNodePublicIPs(nodeID int64, ipv4, ipv6 string) error 
 		}).Error
 }
 
-func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, serverIPV6, intranetIP, port, interfaceName, extraIPs, remoteConfig, remark, expiryTime, renewalCycle, groupID, secret interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, tcpAddr, udpAddr string, now int64, trafficLimit int64, flowResetTime int) error {
+func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, serverIPV6, intranetIP, port, interfaceName, extraIPs, remoteConfig, remark, expiryTime, renewalCycle, groupID, secret interface{}, httpFlag, tlsFlag, socksFlag, blockOtherFlag int, tcpAddr, udpAddr string, now int64, trafficLimit int64, flowResetTime int, trafficRatio float64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
+	}
+	if trafficRatio <= 0 {
+		trafficRatio = 1.0
 	}
 	updates := map[string]interface{}{
 		"name":            name,
@@ -433,6 +440,7 @@ func (r *Repository) UpdateNode(id int64, name, serverIP string, serverIPV4, ser
 		"updated_time":    sql.NullInt64{Int64: now, Valid: true},
 		"traffic_limit":   trafficLimit,
 		"flow_reset_time": flowResetTime,
+		"traffic_ratio":   trafficRatio,
 	}
 	if groupID != nil {
 		updates["group_id"] = groupID
