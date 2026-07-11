@@ -197,6 +197,7 @@ interface Node {
   serverIpV6?: string;
   extraIPs?: string;
   remark?: string;
+  trafficRatio?: number;
 }
 interface ForwardForm {
   id?: number;
@@ -1989,8 +1990,9 @@ export default function ForwardPage() {
       .map((node) => node.id.toString());
   };
   const renderNodeSelectHeader = () => (
-    <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left">
+    <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left">
       <span className="w-full text-left text-foreground font-semibold">节点名称</span>
+      <span className="w-full text-center text-foreground font-semibold">倍率</span>
       <span className="w-full text-center text-foreground font-semibold">分组</span>
       <span className="w-full text-center text-foreground font-semibold">备注</span>
     </div>
@@ -2010,7 +2012,7 @@ export default function ForwardPage() {
             key={node.id}
             textValue={node.name || ""}
           >
-            <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
+            <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
               <span className="w-full min-w-0 truncate text-left">
                 {node.name}
                 {used.has(node.id) && (
@@ -2019,6 +2021,9 @@ export default function ForwardPage() {
                 {node.status !== 1 && (
                   <span className="ml-1 text-[11px] text-default-500">离线</span>
                 )}
+              </span>
+              <span className="w-full min-w-0 text-center text-default-600">
+                {(node.trafficRatio || 1).toFixed(2).replace(/\.00$/, "")}x
               </span>
               <span className="w-full min-w-0 text-center">
                 <span

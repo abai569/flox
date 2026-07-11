@@ -1627,7 +1627,7 @@ func (h *Handler) tunnelGet(w http.ResponseWriter, r *http.Request) {
 	if id <= 0 {
 		return
 	}
-	items, err := h.repo.ListTunnels()
+	items, err := h.repo.ListTunnelsIncludingManual()
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -1665,7 +1665,7 @@ func (h *Handler) tunnelToggleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 检查隧道是否存在
-	items, err := h.repo.ListTunnels()
+	items, err := h.repo.ListTunnelsIncludingManual()
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -1834,7 +1834,7 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 
 	newEntryNodeIDs, _ = h.tunnelEntryNodeIDs(id)
 
-	items, err := h.repo.ListTunnels()
+	items, err := h.repo.ListTunnelsIncludingManual()
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return

@@ -86,6 +86,18 @@ type PackageSubscription = model.PackageSubscription
 type OrderModel = model.Order
 type PaymentConfig = model.PaymentConfig
 
+const manualTunnelRemark = "自行组建隧道"
+const legacyManualTunnelRemark = "手动组建隧道"
+
+func isManualTunnelNameRemark(name, remark string) bool {
+	name = strings.TrimSpace(name)
+	remark = strings.TrimSpace(remark)
+	return strings.Contains(remark, manualTunnelRemark) ||
+		strings.Contains(remark, legacyManualTunnelRemark) ||
+		strings.HasPrefix(name, manualTunnelRemark+"-") ||
+		strings.HasPrefix(name, legacyManualTunnelRemark+"-")
+}
+
 // ─── Repository ──────────────────────────────────────────────────────
 
 type Repository struct {
@@ -1101,6 +1113,7 @@ func (r *Repository) ListForwards() ([]map[string]interface{}, error) {
 		Name              string
 		TunnelID          int64
 		TunnelName        string
+		TunnelRemark      string `gorm:"column:tunnel_remark"`
 		TrafficRatio      float64
 		RemoteAddr        string
 		Strategy          string
@@ -1120,7 +1133,7 @@ func (r *Repository) ListForwards() ([]map[string]interface{}, error) {
 
 	var rows []fwdRow
 	err := r.db.Model(&model.Forward{}).
-		Select("forward.id, forward.user_id, forward.user_name, COALESCE(user.name, '') AS user_remark, forward.name, forward.tunnel_id, COALESCE(tunnel.name, '') AS tunnel_name, COALESCE(tunnel.traffic_ratio, 1.0) AS traffic_ratio, forward.remote_addr, COALESCE(forward.strategy, 'fifo') AS strategy, forward.in_flow, forward.out_flow, forward.created_time, forward.status, forward.inx, forward.speed_id, COALESCE(forward.max_connections, 0) AS max_connections, COALESCE(forward.traffic_limit, 0) AS traffic_limit, forward.expiry_time, COALESCE(forward.speed_limit_enabled, false) AS speed_limit_enabled, COALESCE(forward.speed_limit, 0) AS speed_limit, forward.mode").
+		Select("forward.id, forward.user_id, forward.user_name, COALESCE(user.name, '') AS user_remark, forward.name, forward.tunnel_id, COALESCE(tunnel.name, '') AS tunnel_name, COALESCE(tunnel.remark, '') AS tunnel_remark, COALESCE(tunnel.traffic_ratio, 1.0) AS traffic_ratio, forward.remote_addr, COALESCE(forward.strategy, 'fifo') AS strategy, forward.in_flow, forward.out_flow, forward.created_time, forward.status, forward.inx, forward.speed_id, COALESCE(forward.max_connections, 0) AS max_connections, COALESCE(forward.traffic_limit, 0) AS traffic_limit, forward.expiry_time, COALESCE(forward.speed_limit_enabled, false) AS speed_limit_enabled, COALESCE(forward.speed_limit, 0) AS speed_limit, forward.mode").
 		Joins("LEFT JOIN tunnel ON tunnel.id = forward.tunnel_id").
 		Joins("LEFT JOIN user ON user.id = forward.user_id").
 		Order("CASE WHEN forward.inx > 0 THEN 1 ELSE 0 END ASC").
@@ -1137,10 +1150,22 @@ func (r *Repository) ListForwards() ([]map[string]interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
+		tunnelName := row.TunnelName
+		trafficRatio := row.TrafficRatio
+		if isManualTunnelNameRemark(row.TunnelName, row.TunnelRemark) {
+			manualName, manualRatio, ok, err := buildManualForwardTunnelDisplay(r.db, row.TunnelID)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				tunnelName = manualName
+				trafficRatio = manualRatio
+			}
+		}
 		item := map[string]interface{}{
 			"id": row.ID, "userId": row.UserID, "userName": row.UserName, "userRemark": row.UserRemark,
-			"name": row.Name, "tunnelId": row.TunnelID, "tunnelName": row.TunnelName,
-			"tunnelTrafficRatio": row.TrafficRatio,
+			"name": row.Name, "tunnelId": row.TunnelID, "tunnelName": tunnelName,
+			"tunnelTrafficRatio": trafficRatio,
 			"inIp":               nullableForwardIngress(inIP), "inPort": nullableInt64(inPort),
 			"remoteAddr": row.RemoteAddr, "strategy": row.Strategy,
 			"inFlow": row.InFlow, "outFlow": row.OutFlow,
@@ -1184,6 +1209,7 @@ func (r *Repository) ListForwardsPage(page, pageSize int) ([]map[string]interfac
 		Name              string
 		TunnelID          int64
 		TunnelName        string
+		TunnelRemark      string `gorm:"column:tunnel_remark"`
 		TrafficRatio      float64
 		RemoteAddr        string
 		Strategy          string
@@ -1203,7 +1229,7 @@ func (r *Repository) ListForwardsPage(page, pageSize int) ([]map[string]interfac
 
 	var rows []fwdRow
 	err := r.db.Model(&model.Forward{}).
-		Select("forward.id, forward.user_id, forward.user_name, COALESCE(user.name, '') AS user_remark, forward.name, forward.tunnel_id, COALESCE(tunnel.name, '') AS tunnel_name, COALESCE(tunnel.traffic_ratio, 1.0) AS traffic_ratio, forward.remote_addr, COALESCE(forward.strategy, 'fifo') AS strategy, forward.in_flow, forward.out_flow, forward.created_time, forward.status, forward.inx, forward.speed_id, COALESCE(forward.max_connections, 0) AS max_connections, COALESCE(forward.traffic_limit, 0) AS traffic_limit, forward.expiry_time, COALESCE(forward.speed_limit_enabled, false) AS speed_limit_enabled, COALESCE(forward.speed_limit, 0) AS speed_limit, forward.mode").
+		Select("forward.id, forward.user_id, forward.user_name, COALESCE(user.name, '') AS user_remark, forward.name, forward.tunnel_id, COALESCE(tunnel.name, '') AS tunnel_name, COALESCE(tunnel.remark, '') AS tunnel_remark, COALESCE(tunnel.traffic_ratio, 1.0) AS traffic_ratio, forward.remote_addr, COALESCE(forward.strategy, 'fifo') AS strategy, forward.in_flow, forward.out_flow, forward.created_time, forward.status, forward.inx, forward.speed_id, COALESCE(forward.max_connections, 0) AS max_connections, COALESCE(forward.traffic_limit, 0) AS traffic_limit, forward.expiry_time, COALESCE(forward.speed_limit_enabled, false) AS speed_limit_enabled, COALESCE(forward.speed_limit, 0) AS speed_limit, forward.mode").
 		Joins("LEFT JOIN tunnel ON tunnel.id = forward.tunnel_id").
 		Joins("LEFT JOIN user ON user.id = forward.user_id").
 		Order("CASE WHEN forward.inx > 0 THEN 1 ELSE 0 END ASC").
@@ -1222,10 +1248,22 @@ func (r *Repository) ListForwardsPage(page, pageSize int) ([]map[string]interfac
 		if err != nil {
 			return nil, err
 		}
+		tunnelName := row.TunnelName
+		trafficRatio := row.TrafficRatio
+		if isManualTunnelNameRemark(row.TunnelName, row.TunnelRemark) {
+			manualName, manualRatio, ok, err := buildManualForwardTunnelDisplay(r.db, row.TunnelID)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				tunnelName = manualName
+				trafficRatio = manualRatio
+			}
+		}
 		item := map[string]interface{}{
 			"id": row.ID, "userId": row.UserID, "userName": row.UserName, "userRemark": row.UserRemark,
-			"name": row.Name, "tunnelId": row.TunnelID, "tunnelName": row.TunnelName,
-			"tunnelTrafficRatio": row.TrafficRatio,
+			"name": row.Name, "tunnelId": row.TunnelID, "tunnelName": tunnelName,
+			"tunnelTrafficRatio": trafficRatio,
 			"inIp":               nullableForwardIngress(inIP), "inPort": nullableInt64(inPort),
 			"remoteAddr": row.RemoteAddr, "strategy": row.Strategy,
 			"inFlow": row.InFlow, "outFlow": row.OutFlow,
@@ -1247,6 +1285,98 @@ func (r *Repository) ListForwardsPage(page, pageSize int) ([]map[string]interfac
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func buildManualForwardTunnelDisplay(db *gorm.DB, tunnelID int64) (string, float64, bool, error) {
+	type chainRow struct {
+		ChainType    string
+		NodeID       int64
+		Inx          sql.NullInt64
+		ID           int64
+		NodeName     string  `gorm:"column:node_name"`
+		TrafficRatio float64 `gorm:"column:traffic_ratio"`
+	}
+
+	var rows []chainRow
+	if err := db.Table("chain_tunnel").
+		Select("chain_tunnel.id, chain_tunnel.chain_type, chain_tunnel.node_id, chain_tunnel.inx, COALESCE(node.name, '') AS node_name, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio").
+		Joins("LEFT JOIN node ON node.id = chain_tunnel.node_id").
+		Where("chain_tunnel.tunnel_id = ?", tunnelID).
+		Order("chain_tunnel.chain_type ASC, chain_tunnel.inx ASC, chain_tunnel.id ASC").
+		Find(&rows).Error; err != nil {
+		return "", 0, false, err
+	}
+
+	if len(rows) == 0 {
+		return "", 0, false, nil
+	}
+
+	type displayNode struct {
+		name  string
+		ratio float64
+	}
+	makeDisplayNode := func(row chainRow) displayNode {
+		name := strings.TrimSpace(row.NodeName)
+		if name == "" {
+			name = fmt.Sprintf("node_%d", row.NodeID)
+		}
+		ratio := row.TrafficRatio
+		if ratio <= 0 {
+			ratio = 1.0
+		}
+		return displayNode{name: name, ratio: ratio}
+	}
+
+	var entry *displayNode
+	var exit *displayNode
+	chainByInx := map[int64]displayNode{}
+	chainKeys := make([]int64, 0)
+
+	for _, row := range rows {
+		chainType := strings.TrimSpace(row.ChainType)
+		switch chainType {
+		case "1":
+			if entry == nil {
+				item := makeDisplayNode(row)
+				entry = &item
+			}
+		case "2":
+			inx := row.Inx.Int64
+			if !row.Inx.Valid || inx <= 0 {
+				inx = row.ID
+			}
+			if _, exists := chainByInx[inx]; !exists {
+				chainByInx[inx] = makeDisplayNode(row)
+				chainKeys = append(chainKeys, inx)
+			}
+		case "3":
+			if exit == nil {
+				item := makeDisplayNode(row)
+				exit = &item
+			}
+		}
+	}
+
+	parts := make([]string, 0, 2+len(chainKeys))
+	totalRatio := 0.0
+	if entry != nil {
+		parts = append(parts, entry.name)
+		totalRatio += entry.ratio
+	}
+	sort.Slice(chainKeys, func(i, j int) bool { return chainKeys[i] < chainKeys[j] })
+	for _, key := range chainKeys {
+		item := chainByInx[key]
+		parts = append(parts, item.name)
+		totalRatio += item.ratio
+	}
+	if exit != nil {
+		parts = append(parts, exit.name)
+		totalRatio += exit.ratio
+	}
+	if len(parts) == 0 {
+		return "", 0, false, nil
+	}
+	return strings.Join(parts, "-"), totalRatio, true, nil
 }
 
 func (r *Repository) CountForwards() (int64, error) {
@@ -1465,6 +1595,14 @@ func parseIntPort(s string) int {
 }
 
 func (r *Repository) ListTunnels() ([]map[string]interface{}, error) {
+	return r.listTunnels(false)
+}
+
+func (r *Repository) ListTunnelsIncludingManual() ([]map[string]interface{}, error) {
+	return r.listTunnels(true)
+}
+
+func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
@@ -1478,6 +1616,9 @@ func (r *Repository) ListTunnels() ([]map[string]interface{}, error) {
 	orderedIDs := make([]int64, 0, len(tunnels))
 
 	for _, t := range tunnels {
+		if !includeManual && isManualTunnelNameRemark(t.Name, nullableString(t.Remark)) {
+			continue
+		}
 		// Convert sql.NullInt64 to interface{} (int64 or nil)
 		var tunnelGroupID interface{}
 		if t.TunnelGroupID.Valid {

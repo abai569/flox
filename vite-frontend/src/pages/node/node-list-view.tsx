@@ -69,6 +69,7 @@ interface Node {
   rollbackLoading?: boolean;
   groupId?: number | null;
   onlineCount?: number;
+  trafficRatio?: number;
 }
 interface NodeListViewProps {
   displayNodes: Node[];
@@ -303,6 +304,11 @@ function SortableTableRow({
             {node.name}
           </span>
         </div>
+      </TableCell>
+      <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
+        <span className="text-sm font-medium text-default-700">
+          {(node.trafficRatio || 1).toFixed(2).replace(/\.00$/, "")}x
+        </span>
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         {node.groupId && node.groupId > 0 ? (
@@ -818,6 +824,9 @@ export function NodeListView({
               ^{displayNodes.length}个
             </span>
           </TableColumn>
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
+            倍率
+          </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             <Select
               aria-label="按分组筛选"
@@ -945,7 +954,7 @@ export function NodeListView({
         <TableBody>
           {displayNodes.length === 0 ? (
             <TableRow>
-              <TableCell className="py-16 text-center" colSpan={14}>
+              <TableCell className="py-16 text-center" colSpan={15}>
                 <div className="flex flex-col items-center justify-center">
                   <h3 className="text-base font-medium text-foreground mb-1">
                     未找到匹配的节点
