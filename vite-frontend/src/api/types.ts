@@ -893,6 +893,12 @@ export interface PayOrderResult {
   payUrl: string;
   payAddress: string;
   payAmount: string;
+  payToken?: string;
+  payType?: string;
+  qrContent?: string;
+  qrImageUrl?: string;
+  expiresAt?: number;
+  returnUrl?: string;
   orderNo: string;
 }
 
