@@ -31,8 +31,70 @@ import (
 )
 
 const tunnelServiceBindRetryDelay = 150 * time.Millisecond
+const manualTunnelFeatureConfigKey = "manual_tunnel_enabled"
+const manualTunnelRemark = "自行组建隧道"
+const legacyManualTunnelRemark = "手动组建隧道"
 
 var tunnelRedeployLocks sync.Map
+
+func isManualTunnelNameRemark(name, remark string) bool {
+	name = strings.TrimSpace(name)
+	remark = strings.TrimSpace(remark)
+
+	return strings.Contains(remark, manualTunnelRemark) ||
+		strings.Contains(remark, legacyManualTunnelRemark) ||
+		strings.HasPrefix(name, manualTunnelRemark+"-") ||
+		strings.HasPrefix(name, legacyManualTunnelRemark+"-")
+}
+
+func isManualTunnelPayload(req map[string]interface{}) bool {
+	return isManualTunnelNameRemark(asString(req["name"]), asString(req["remark"]))
+}
+
+func (h *Handler) manualTunnelFeatureEnabled() bool {
+	cfg, err := h.repo.GetConfigByName(manualTunnelFeatureConfigKey)
+	return err != nil || cfg == nil || cfg.Value != "false"
+}
+
+func (h *Handler) isManualTunnelID(tunnelID int64) (bool, error) {
+	items, err := h.repo.ListTunnelsIncludingManual()
+	if err != nil {
+		return false, err
+	}
+	for _, it := range items {
+		if asInt64(it["id"], 0) == tunnelID {
+			return isManualTunnelNameRemark(asString(it["name"]), asString(it["remark"])), nil
+		}
+	}
+	return false, errors.New("隧道不存在")
+}
+
+func (h *Handler) ensureManualTunnelAccess(userID int64, roleID int, tunnelID int64) error {
+	if roleID == 0 {
+		return nil
+	}
+	if !h.manualTunnelFeatureEnabled() {
+		return errors.New("自行组建隧道功能未开放")
+	}
+	isManual, err := h.isManualTunnelID(tunnelID)
+	if err != nil {
+		return err
+	}
+	if !isManual {
+		return errors.New("权限不足，仅管理员可操作普通隧道")
+	}
+	if err := h.ensureTunnelPermission(userID, roleID, tunnelID); err == nil {
+		return nil
+	}
+	forwards, err := h.repo.ListForwardsByUserAndTunnel(userID, tunnelID)
+	if err != nil {
+		return err
+	}
+	if len(forwards) > 0 {
+		return nil
+	}
+	return errors.New("你没有该隧道的权限")
+}
 
 func tunnelRedeployLock(tunnelID int64) *sync.Mutex {
 	lock, _ := tunnelRedeployLocks.LoadOrStore(tunnelID, &sync.Mutex{})
@@ -1373,6 +1435,21 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
+	actorUserID, actorRoleID, err := userRoleFromRequest(r)
+	if err != nil {
+		response.WriteJSON(w, response.Err(401, "无效的token或token已过期"))
+		return
+	}
+	if actorRoleID != 0 {
+		if !h.manualTunnelFeatureEnabled() {
+			response.WriteJSON(w, response.Err(403, "自行组建隧道功能未开放"))
+			return
+		}
+		if !isManualTunnelPayload(req) {
+			response.WriteJSON(w, response.Err(403, "权限不足，仅管理员可创建普通隧道"))
+			return
+		}
+	}
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier == middleware.TierBlocked {
@@ -1486,6 +1563,25 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	if err := h.replaceTunnelChainsTx(tx, tunnelID, req); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
+	}
+	if actorRoleID != 0 {
+		user, err := h.repo.GetUserByID(actorUserID)
+		if err != nil || user == nil {
+			response.WriteJSON(w, response.ErrDefault("用户不存在"))
+			return
+		}
+		if err := tx.Create(&model.UserTunnel{
+			UserID:        actorUserID,
+			TunnelID:      tunnelID,
+			Num:           0,
+			Flow:          user.Flow,
+			FlowResetTime: user.FlowResetTime,
+			ExpTime:       user.ExpTime,
+			Status:        1,
+		}).Error; err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	if typeVal == 2 {
 		_ = h.updateTunnelChainConnectIpType(tx, tunnelID, runtimeState.Nodes, runtimeState.IPPreference)
@@ -1627,6 +1723,15 @@ func (h *Handler) tunnelGet(w http.ResponseWriter, r *http.Request) {
 	if id <= 0 {
 		return
 	}
+	actorUserID, actorRoleID, err := userRoleFromRequest(r)
+	if err != nil {
+		response.WriteJSON(w, response.Err(401, "无效的token或token已过期"))
+		return
+	}
+	if err := h.ensureManualTunnelAccess(actorUserID, actorRoleID, id); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
+		return
+	}
 	items, err := h.repo.ListTunnelsIncludingManual()
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -1729,6 +1834,19 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	id := asInt64(req["id"], 0)
 	if id <= 0 {
 		response.WriteJSON(w, response.ErrDefault("隧道ID不能为空"))
+		return
+	}
+	actorUserID, actorRoleID, err := userRoleFromRequest(r)
+	if err != nil {
+		response.WriteJSON(w, response.Err(401, "无效的token或token已过期"))
+		return
+	}
+	if actorRoleID != 0 && !isManualTunnelPayload(req) {
+		response.WriteJSON(w, response.Err(403, "权限不足，仅管理员可更新普通隧道"))
+		return
+	}
+	if err := h.ensureManualTunnelAccess(actorUserID, actorRoleID, id); err != nil {
+		response.WriteJSON(w, response.Err(403, err.Error()))
 		return
 	}
 	oldEntryNodeIDs, _ := h.tunnelEntryNodeIDs(id)

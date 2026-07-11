@@ -749,6 +749,29 @@ func (h *Handler) nodeList(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	if _, roleID, err := userRoleFromRequest(r); err == nil && roleID != 0 {
+		if cfg, cfgErr := h.repo.GetConfigByName("manual_tunnel_enabled"); cfgErr == nil && cfg != nil && cfg.Value == "false" {
+			response.WriteJSON(w, response.OK([]map[string]interface{}{}))
+			return
+		}
+		safeItems := make([]map[string]interface{}, 0, len(items))
+		for _, item := range items {
+			safeItems = append(safeItems, map[string]interface{}{
+				"id":           item["id"],
+				"name":         item["name"],
+				"remark":       item["remark"],
+				"status":       item["status"],
+				"groupId":      item["groupId"],
+				"trafficRatio": item["trafficRatio"],
+				"serverIp":     item["serverIp"],
+				"serverIpV4":   item["serverIpV4"],
+				"serverIpV6":   item["serverIpV6"],
+				"extraIPs":     item["extraIPs"],
+			})
+		}
+		response.WriteJSON(w, response.OK(safeItems))
+		return
+	}
 
 	response.WriteJSON(w, response.OK(items))
 }

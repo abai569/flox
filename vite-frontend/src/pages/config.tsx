@@ -66,7 +66,27 @@ const STANDALONE_SWITCH_KEYS = [
   "payment_enabled",
   "registration_enabled",
   "login_monitor_link",
+  "manual_tunnel_enabled",
 ];
+const DEFAULT_TRUE_CONFIG_KEYS = [
+  "payment_enabled",
+  "forward_mode_nft_enabled",
+  "forward_mode_flc_enabled",
+  "forward_mode_sdw_enabled",
+  "forward_mode_mimic_enabled",
+  "manual_tunnel_enabled",
+];
+const applyConfigDefaults = (data: Record<string, string>) => {
+  const next = { ...data };
+
+  DEFAULT_TRUE_CONFIG_KEYS.forEach((key) => {
+    if (next[key] === undefined) {
+      next[key] = "true";
+    }
+  });
+
+  return next;
+};
 // 网站配置项定义
 const CONFIG_ITEMS: ConfigItem[] = [
   {
@@ -150,6 +170,12 @@ const CONFIG_ITEMS: ConfigItem[] = [
     type: "switch",
   },
   {
+    key: "manual_tunnel_enabled",
+    label: "极客可以自行组建隧道",
+    description: "开启后，普通用户可在创建规则时自行选择入口、转发链和出口节点",
+    type: "switch",
+  },
+  {
     key: "cloudflare_site_key",
     label: "Cloudflare Site Key",
     placeholder: "请输入 Cloudflare Site Key",
@@ -184,6 +210,7 @@ const getInitialConfigs = (): Record<string, string> => {
     "forward_mode_flc_enabled",
     "forward_mode_sdw_enabled",
     "forward_mode_mimic_enabled",
+    "manual_tunnel_enabled",
     "ghfast_url",
     "domestic_download_host",
     "ip",
@@ -199,11 +226,7 @@ const getInitialConfigs = (): Record<string, string> => {
 
       if (cachedValue) {
         initialConfigs[key] = cachedValue;
-      } else if (key === "payment_enabled") {
-        // 默认开启商城
-        initialConfigs[key] = "true";
-      } else if (key.startsWith("forward_mode_")) {
-        // 默认开启所有转发模式
+      } else if (DEFAULT_TRUE_CONFIG_KEYS.includes(key)) {
         initialConfigs[key] = "true";
       }
     });
@@ -270,7 +293,7 @@ export default function ConfigPage() {
       setLoading(true);
     }
     try {
-      const configData = await getCachedConfigs();
+      const configData = applyConfigDefaults(await getCachedConfigs());
       // 只有在数据有变化时才更新
       const hasDataChanged =
         JSON.stringify(configData) !== JSON.stringify(configsToCompare);

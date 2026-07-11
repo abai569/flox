@@ -127,6 +127,8 @@ const getForwardModeEnabledState = () => ({
   sdw: configCache.get("forward_mode_sdw_enabled") !== "false",
   wgm: configCache.get("forward_mode_mimic_enabled") !== "false",
 });
+const getManualTunnelEnabledState = () =>
+  configCache.get("manual_tunnel_enabled") !== "false";
 const MANUAL_TUNNEL_SELECT_KEY = "__manual__";
 const MANUAL_TUNNEL_REMARK = "自行组建隧道";
 const LEGACY_MANUAL_TUNNEL_REMARK = "自行组建隧道";
@@ -941,11 +943,11 @@ const SortableTableRow = ({
       )}
       <TableCell className={`whitespace-nowrap px-1 text-foreground ${rowBg}`}>
         <span
-          className="cursor-pointer hover:text-primary transition-colors text-foreground text-sm"
+          className="inline-flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors text-foreground text-sm"
           onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
+          <ForwardModeChip mode={forward.mode} />
           {forward.name}
-          <ForwardModeChip mode={forward.mode} className="ml-2" />
         </span>
       </TableCell>
       <TableCell className={`px-1 ${rowBg}`}>
@@ -1263,11 +1265,11 @@ const SortableCompactTableRow = ({
       )}
       <TableCell className={`whitespace-nowrap px-1 text-foreground ${rowBg}`}>
         <span
-          className="cursor-pointer hover:text-primary transition-colors text-foreground text-sm"
+          className="inline-flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors text-foreground text-sm"
           onClick={() => copyToClipboard(forward.name, "规则名称")}
         >
+          <ForwardModeChip mode={forward.mode} />
           {forward.name}
-          <ForwardModeChip mode={forward.mode} className="ml-2" />
         </span>
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
@@ -1656,6 +1658,9 @@ export default function ForwardPage() {
   const [forwardModeEnabled, setForwardModeEnabled] = useState(
     getForwardModeEnabledState,
   );
+  const [manualTunnelEnabled, setManualTunnelEnabled] = useState(
+    getManualTunnelEnabledState,
+  );
   // 批量操作相关状态
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -1670,6 +1675,7 @@ export default function ForwardPage() {
   const flcEnabled = forwardModeEnabled.flc;
   const sdwEnabled = forwardModeEnabled.sdw;
   const wgmEnabled = forwardModeEnabled.wgm;
+  const canUseManualTunnel = isAdmin || manualTunnelEnabled;
   const [batchRedeployLoading, setBatchRedeployLoading] = useState(false);
   const [batchPauseLoading, setBatchPauseLoading] = useState(false);
   const [batchResumeLoading, setBatchResumeLoading] = useState(false);
@@ -2442,7 +2448,7 @@ export default function ForwardPage() {
         if (licenseRes.code === 0) {
           setLicenseInfo(licenseRes.data || null);
         }
-        if (isAdmin) {
+        if (canUseManualTunnel) {
           const [nodesRes, nodeGroupsRes] = await Promise.all([
             getNodeList(),
             getNodeGroupList(),
@@ -2457,7 +2463,7 @@ export default function ForwardPage() {
         setLoading(false);
       }
     },
-    [isAdmin, applyForwardList],
+    [canUseManualTunnel, applyForwardList],
   );
 
   useEffect(() => {
@@ -2471,11 +2477,14 @@ export default function ForwardPage() {
 
       if (
         changedKeys &&
-        !changedKeys.some((key) => key.startsWith("forward_mode_"))
+        !changedKeys.some(
+          (key) => key.startsWith("forward_mode_") || key === "manual_tunnel_enabled",
+        )
       ) {
         return;
       }
       setForwardModeEnabled(getForwardModeEnabledState());
+      setManualTunnelEnabled(getManualTunnelEnabledState());
     };
 
     window.addEventListener("configUpdated", handleConfigUpdated);
@@ -2848,6 +2857,11 @@ export default function ForwardPage() {
   // 处理隧道选择变化
   const handleTunnelChange = (tunnelId: string) => {
     if (tunnelId === MANUAL_TUNNEL_SELECT_KEY) {
+      if (!canUseManualTunnel) {
+        toast.error("自行组建隧道功能未开放");
+
+        return;
+      }
       setTunnelSelectMode("manual");
       setInIpTouched(false);
       setForm((prev) => ({ ...prev, tunnelId: null, inIp: "" }));
@@ -2945,6 +2959,11 @@ export default function ForwardPage() {
       let submitTunnelId = form.tunnelId;
 
       if (tunnelSelectMode === "manual") {
+        if (!canUseManualTunnel) {
+          toast.error("自行组建隧道功能未开放");
+
+          return;
+        }
         if (isEdit) {
           if (!submitTunnelId) {
             toast.error("自行组建隧道缺少关联隧道ID");
@@ -4827,16 +4846,16 @@ export default function ForwardPage() {
           <div className="flex-1 min-w-0 w-full pl-0.5">
             <div className="flex items-center justify-between gap-2 mb-1">
               <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <ForwardModeChip
+                  mode={forward.mode}
+                  className="flex-shrink-0"
+                />
                 <h3
                   className="text-foreground truncate text-sm cursor-pointer hover:text-primary transition-colors"
                   onClick={() => copyToClipboard(forward.name, "规则名称")}
                 >
                   {forward.name}
                 </h3>
-                <ForwardModeChip
-                  mode={forward.mode}
-                  className="flex-shrink-0"
-                />
               </div>
               <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 bg-danger-500/10 text-danger-600 dark:text-danger-400">
                 {formatExpiryTime(forward.expiryTime)}
@@ -5965,7 +5984,7 @@ export default function ForwardPage() {
                         }
                       }}
                     >
-                      {isAdmin && (!isEdit || tunnelSelectMode === "manual") && (
+                      {canUseManualTunnel && (!isEdit || tunnelSelectMode === "manual") && (
                         <SelectItem key={MANUAL_TUNNEL_SELECT_KEY}>
                           极客可以自行组建隧道
                         </SelectItem>

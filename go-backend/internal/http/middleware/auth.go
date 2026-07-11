@@ -128,6 +128,16 @@ func requiresAdmin(path string) bool {
 	}
 
 	if strings.HasPrefix(path, "/api/v1/node/") {
+		if path == "/api/v1/node/list" {
+			return false
+		}
+		return true
+	}
+
+	if strings.HasPrefix(path, "/api/v1/node-group/") {
+		if path == "/api/v1/node-group/list" {
+			return false
+		}
 		return true
 	}
 
@@ -148,6 +158,9 @@ func requiresAdmin(path string) bool {
 
 	if strings.HasPrefix(path, "/api/v1/tunnel/") {
 		if strings.HasPrefix(path, "/api/v1/tunnel/user/tunnel") {
+			return false
+		}
+		if path == "/api/v1/tunnel/create" || path == "/api/v1/tunnel/get" || path == "/api/v1/tunnel/update" {
 			return false
 		}
 		return true
