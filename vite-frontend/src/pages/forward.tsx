@@ -127,7 +127,7 @@ const getForwardModeEnabledState = () => ({
   wgm: configCache.get("forward_mode_mimic_enabled") !== "false",
 });
 const MANUAL_TUNNEL_SELECT_KEY = "__manual__";
-const MANUAL_TUNNEL_REMARK = "手动组建隧道";
+const MANUAL_TUNNEL_REMARK = "自行组建隧道";
 
 interface Forward {
   id: number;
@@ -1950,7 +1950,7 @@ export default function ForwardPage() {
   };
   const renderNodeSelectHeader = () => (
     <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left">
-      <span className="w-full text-left text-foreground font-semibold">节点名</span>
+      <span className="w-full text-left text-foreground font-semibold">节点名称</span>
       <span className="w-full text-center text-foreground font-semibold">分组</span>
       <span className="w-full text-center text-foreground font-semibold">备注</span>
     </div>
@@ -5910,7 +5910,7 @@ export default function ForwardPage() {
                     <Select
                       description={
                         tunnelModeLocked
-                          ? "编辑时不能在固定隧道和手动组建之间切换"
+                          ? "编辑时不能在固定隧道和自行组建之间切换"
                           : isEdit
                             ? "更改隧道将释放原端口并在新隧道分配端口"
                             : "看括号内说明选择隧道"

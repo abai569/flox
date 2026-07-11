@@ -575,7 +575,7 @@ export default function TunnelPage() {
   }, []);
   const renderNodeSelectHeader = () => (
     <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left">
-      <span className="w-full text-left text-foreground font-semibold">节点名</span>
+      <span className="w-full text-left text-foreground font-semibold">节点名称</span>
       <span className="w-full text-center text-foreground font-semibold">分组</span>
       <span className="w-full text-center text-foreground font-semibold">备注</span>
     </div>
