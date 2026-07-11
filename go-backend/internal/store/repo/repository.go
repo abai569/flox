@@ -1616,7 +1616,11 @@ func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, 
 	orderedIDs := make([]int64, 0, len(tunnels))
 
 	for _, t := range tunnels {
-		if !includeManual && isManualTunnelNameRemark(t.Name, nullableString(t.Remark)) {
+		remark := ""
+		if t.Remark.Valid {
+			remark = t.Remark.String
+		}
+		if !includeManual && isManualTunnelNameRemark(t.Name, remark) {
 			continue
 		}
 		// Convert sql.NullInt64 to interface{} (int64 or nil)
