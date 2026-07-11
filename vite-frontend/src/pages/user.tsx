@@ -3623,10 +3623,10 @@ export default function UserPage() {
                                 }}
                               />
                             </TableColumn>
-                            <TableColumn className="w-[120px] sm:w-[150px]">
+                            <TableColumn className="w-[120px] sm:w-[150px] text-left text-foreground font-semibold">
                               隧道名称
                             </TableColumn>
-                            <TableColumn className="w-[120px] sm:w-[150px]">
+                            <TableColumn className="w-[120px] sm:w-[150px] text-left text-foreground font-semibold">
                               限速
                             </TableColumn>
                           </TableHeader>
