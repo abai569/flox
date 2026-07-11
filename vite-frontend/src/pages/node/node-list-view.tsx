@@ -310,7 +310,7 @@ function SortableTableRow({
           {(node.trafficRatio || 1).toFixed(2).replace(/\.00$/, "")}x
         </span>
       </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
         {node.groupId && node.groupId > 0 ? (
           (() => {
             const group = nodeGroups.find((g: any) => g.id == node.groupId);
@@ -613,9 +613,9 @@ function SortableTableRow({
           <span className="text-sm text-default-400">-</span>
         )}
       </TableCell>
-      <TableCell className={`whitespace-nowrap ${rowBg}`}>
+      <TableCell className={`whitespace-nowrap text-center ${rowBg}`}>
         {hasExpiryInfo && expiryChipProps ? (
-          <div className="relative">
+          <div className="relative inline-flex justify-center">
             <button
               ref={expiryButtonRef}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all ${expiryChipProps.className} ${expiryPopoverOpen ? "border-default-400 shadow-sm" : "border-transparent hover:border-default-300"}`}
@@ -827,13 +827,13 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             倍率
           </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             <Select
               aria-label="按分组筛选"
               className="w-full min-w-[100px]"
               classNames={{
                 trigger:
-                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors flex flex-row-reverse justify-end items-center",
+                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors flex flex-row-reverse justify-center items-center",
                 value:
                   "text-sm text-default-600 font-semibold uppercase tracking-wider p-0",
                 selectorIcon: "text-default-400 w-3.5 h-3.5 static m-0",
@@ -912,13 +912,13 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             备注
           </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             <Select
               aria-label="按到期状态筛选"
               className="w-full min-w-[160px]"
               classNames={{
                 trigger:
-                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors",
+                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors justify-center",
                 value:
                   "text-sm text-default-600 font-semibold uppercase tracking-wider p-0",
                 selectorIcon: "text-default-400 w-3.5 h-3.5 static m-0",
