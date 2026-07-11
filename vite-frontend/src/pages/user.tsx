@@ -2740,20 +2740,6 @@ export default function UserPage() {
           <ModalHeader>{isEdit ? "编辑用户" : "新增用户"}</ModalHeader>
           <ModalBody>
             <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <Switch
-                    isSelected={userForm.roleId === 0}
-                    onValueChange={(isSelected) =>
-                      setUserForm((prev) => ({
-                        ...prev,
-                        roleId: isSelected ? 0 : 1,
-                      }))
-                    }
-                  />
-                  <span className="text-sm font-medium">管理员</span>
-                </label>
-              </div>
               <Input
                 isRequired
                 label="用户名"
@@ -2772,16 +2758,25 @@ export default function UserPage() {
                   setUserForm((prev) => ({ ...prev, pwd: e.target.value }))
                 }
               />
-              {/* 👇 用户分组现在移到了这里，位于 grid 容器内 */}
-              <Input
-                description=" 例如：张三、朋友A"
-                label="备注"
-                placeholder="选填"
-                value={userForm.name || ""}
-                onChange={(e) =>
-                  setUserForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-              />
+              <Select
+                label="管理员"
+                selectedKeys={[userForm.roleId === 0 ? "1" : "0"]}
+                onSelectionChange={(keys) => {
+                  const value = Array.from(keys)[0] as string;
+
+                  setUserForm((prev) => ({
+                    ...prev,
+                    roleId: value === "1" ? 0 : 1,
+                  }));
+                }}
+              >
+                <SelectItem key="0" textValue="否">
+                  否
+                </SelectItem>
+                <SelectItem key="1" textValue="是">
+                  是
+                </SelectItem>
+              </Select>
               <DatePicker
                 showMonthAndYearPickers
                 description="新户默认3天有效期"
@@ -2859,27 +2854,35 @@ export default function UserPage() {
                   setUserForm((prev) => ({ ...prev, num: num }));
                 }}
               />
-              {userGroups.length > 0 && (
-                <Select
-                  label="用户组"
-                  placeholder="选择要加入的分组"
-                  selectedKeys={new Set((userForm.groupIds ?? []).map(String))}
-                  selectionMode="multiple"
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys as Set<string>).map(
-                      Number,
-                    );
+              <Input
+                description=" 例如：张三、朋友A"
+                label="备注"
+                placeholder="选填"
+                value={userForm.name || ""}
+                onChange={(e) =>
+                  setUserForm((prev) => ({ ...prev, name: e.target.value }))
+                }
+              />
+              <Select
+                isDisabled={userGroups.length === 0}
+                label="用户组"
+                placeholder={
+                  userGroups.length > 0 ? "选择要加入的分组" : "暂无用户组"
+                }
+                selectedKeys={new Set((userForm.groupIds ?? []).map(String))}
+                selectionMode="multiple"
+                onSelectionChange={(keys) => {
+                  const selected = Array.from(keys as Set<string>).map(Number);
 
-                    setUserForm((prev) => ({ ...prev, groupIds: selected }));
-                  }}
-                >
-                  {userGroups.map((g) => (
-                    <SelectItem key={g.id.toString()} textValue={g.name}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </Select>
-              )}
+                  setUserForm((prev) => ({ ...prev, groupIds: selected }));
+                }}
+              >
+                {userGroups.map((g) => (
+                  <SelectItem key={g.id.toString()} textValue={g.name}>
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </Select>
               <Select
                 label="归零日期"
                 selectedKeys={[userForm.flowResetTime.toString()]}
@@ -2906,6 +2909,42 @@ export default function UserPage() {
                   ))}
                 </>
               </Select>
+              <Input
+                label="续费金额 (元)"
+                min="0"
+                placeholder="选填"
+                step="1"
+                type="number"
+                value={
+                  userForm.renewalAmount > 0
+                    ? userForm.renewalAmount.toString()
+                    : ""
+                }
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+
+                  setUserForm((prev) => ({
+                    ...prev,
+                    renewalAmount: Math.round(value),
+                  }));
+                }}
+              />
+              <Input
+                label="可用余额 (元)"
+                min="0"
+                placeholder="选填"
+                step="1"
+                type="number"
+                value={userForm.balance > 0 ? userForm.balance.toString() : ""}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+
+                  setUserForm((prev) => ({
+                    ...prev,
+                    balance: Math.round(value),
+                  }));
+                }}
+              />
             </div>
             {/* 配额状态保持原样 */}
             {isEdit &&
@@ -2918,46 +2957,6 @@ export default function UserPage() {
                 </div>
               )}
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="续费金额 (元)"
-                  min="0"
-                  placeholder="选填"
-                  step="1"
-                  type="number"
-                  value={
-                    userForm.renewalAmount > 0
-                      ? userForm.renewalAmount.toString()
-                      : ""
-                  }
-                  onChange={(e) => {
-                    const value = Number(e.target.value);
-
-                    setUserForm((prev) => ({
-                      ...prev,
-                      renewalAmount: Math.round(value),
-                    }));
-                  }}
-                />
-                <Input
-                  label="可用余额 (元)"
-                  min="0"
-                  placeholder="选填"
-                  step="1"
-                  type="number"
-                  value={
-                    userForm.balance > 0 ? userForm.balance.toString() : ""
-                  }
-                  onChange={(e) => {
-                    const value = Number(e.target.value);
-
-                    setUserForm((prev) => ({
-                      ...prev,
-                      balance: Math.round(value),
-                    }));
-                  }}
-                />
-              </div>
               <div className="grid grid-cols-3 gap-4 pt-3 mt-3 border-t border-divider">
                 <div>
                   <RadioGroup
