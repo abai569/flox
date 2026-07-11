@@ -830,10 +830,11 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             <Select
               aria-label="按分组筛选"
-              className="w-full min-w-[100px]"
+              className="!w-auto !min-w-0"
               classNames={{
+                base: "!w-fit mx-auto",
                 trigger:
-                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors flex flex-row-reverse justify-center items-center",
+                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto hover:bg-default-100/50 transition-colors text-center",
                 value:
                   "text-sm text-default-600 font-semibold uppercase tracking-wider p-0",
                 selectorIcon: "text-default-400 w-3.5 h-3.5 static m-0",
@@ -915,10 +916,11 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             <Select
               aria-label="按到期状态筛选"
-              className="w-full min-w-[160px]"
+              className="!w-auto !min-w-0"
               classNames={{
+                base: "!w-fit mx-auto",
                 trigger:
-                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto gap-1.5 hover:bg-default-100/50 transition-colors justify-center",
+                  "bg-transparent border-none shadow-none p-0 min-h-0 h-auto hover:bg-default-100/50 transition-colors text-center",
                 value:
                   "text-sm text-default-600 font-semibold uppercase tracking-wider p-0",
                 selectorIcon: "text-default-400 w-3.5 h-3.5 static m-0",
