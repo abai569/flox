@@ -420,6 +420,10 @@ export interface TunnelMutationPayload {
   blockOther?: number;
 }
 
+export interface TunnelCreateApiData {
+  id: number;
+}
+
 export interface UserQuotaResetPayload {
   userId: number;
   scope?: "daily" | "monthly" | "all";

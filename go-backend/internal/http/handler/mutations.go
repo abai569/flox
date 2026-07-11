@@ -1516,7 +1516,7 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response.WriteJSON(w, response.OKEmpty())
+	response.WriteJSON(w, response.OK(map[string]interface{}{"id": tunnelID}))
 }
 
 func (h *Handler) updateTunnelChainConnectIpType(tx *gorm.DB, tunnelID int64, nodes map[int64]*nodeRecord, ipPreference string) error {

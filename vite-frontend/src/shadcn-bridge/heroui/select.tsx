@@ -11,6 +11,7 @@ type SelectionMode = "single" | "multiple";
 type SelectionValue = Iterable<React.Key> | Set<React.Key> | Array<React.Key>;
 
 interface OptionItem {
+  content?: React.ReactNode;
   disabled?: boolean;
   key: string;
   label: string;
@@ -29,6 +30,7 @@ export interface SelectProps<T = unknown> extends FieldMetaProps {
   disabledKeys?: SelectionValue;
   isDisabled?: boolean;
   items?: Iterable<T>;
+  listboxHeader?: React.ReactNode;
   onChange?: (event: React.ChangeEvent<HTMLSelectElement>) => void;
   onClick?: (event: React.MouseEvent<HTMLSelectElement>) => void;
   onSelectionChange?: (keys: Set<React.Key>) => void;
@@ -82,6 +84,7 @@ function flattenOptionsFromNode(node: React.ReactNode, options: OptionItem[]) {
         const props = child.props as SelectItemProps;
 
         options.push({
+          content: props.children,
           key,
           label: props.textValue ?? extractText(props.children) ?? key,
         });
@@ -107,6 +110,7 @@ function getOptions<T>(
         const props = rendered.props as SelectItemProps;
 
         options.push({
+          content: props.children,
           key,
           label: props.textValue ?? extractText(props.children) ?? key,
         });
@@ -156,6 +160,7 @@ export function Select<T>({
   isInvalid,
   isRequired,
   items,
+  listboxHeader,
   label,
   onChange,
   onClick,
@@ -309,41 +314,51 @@ export function Select<T>({
             暂无可选项
           </div>
         ) : (
-          options.map((option) => {
-            const optionDisabled = isDisabled || disabled.has(option.key);
-
-            return (
-              <div
-                key={option.key}
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-2 py-1.5",
-                  optionDisabled
-                    ? "cursor-not-allowed opacity-60"
-                    : "hover:bg-default-100",
-                )}
-              >
-                <BaseCheckbox
-                  checked={selected.has(option.key)}
-                  disabled={optionDisabled}
-                  onCheckedChange={(value) =>
-                    updateMultipleSelection(option.key, value === true)
-                  }
-                />
-                <button
-                  className={cn(
-                    "min-w-0 flex-1 truncate text-left text-foreground",
-                    textSizeClass(size),
-                    optionDisabled ? "cursor-not-allowed" : "cursor-pointer",
-                  )}
-                  disabled={optionDisabled}
-                  type="button"
-                  onClick={() => updateMultipleSelection(option.key)}
-                >
-                  {option.label}
-                </button>
+          <>
+            {listboxHeader && (
+              <div className="flex items-center gap-2 rounded-md px-2 py-1 text-sm font-semibold text-foreground">
+                <span className="h-4 w-4 flex-shrink-0" />
+                <div className="min-w-0 flex-1 text-left">
+                  {listboxHeader}
+                </div>
               </div>
-            );
-          })
+            )}
+            {options.map((option) => {
+              const optionDisabled = isDisabled || disabled.has(option.key);
+
+              return (
+                <div
+                  key={option.key}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md px-2 py-1.5",
+                    optionDisabled
+                      ? "cursor-not-allowed opacity-60"
+                      : "hover:bg-default-100",
+                  )}
+                >
+                  <BaseCheckbox
+                    checked={selected.has(option.key)}
+                    disabled={optionDisabled}
+                    onCheckedChange={(value) =>
+                      updateMultipleSelection(option.key, value === true)
+                    }
+                  />
+                  <button
+                    className={cn(
+                      "min-w-0 flex-1 text-left text-foreground w-full",
+                      textSizeClass(size),
+                      optionDisabled ? "cursor-not-allowed" : "cursor-pointer",
+                    )}
+                    disabled={optionDisabled}
+                    type="button"
+                    onClick={() => updateMultipleSelection(option.key)}
+                  >
+                    {option.content ?? option.label}
+                  </button>
+                </div>
+              );
+            })}
+          </>
         )}
       </div>
     );

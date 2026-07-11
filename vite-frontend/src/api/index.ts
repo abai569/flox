@@ -13,6 +13,7 @@ import type {
   SpeedLimitApiItem,
   TunnelBatchDeletePreviewApiData,
   TunnelBatchDeleteWithForwardsApiData,
+  TunnelCreateApiData,
   TunnelDeletePreviewApiData,
   TunnelDeleteWithForwardsApiData,
   TunnelDiagnosisApiData,
@@ -362,7 +363,7 @@ export const installMimicDeps = (ids?: number[]) =>
 
 // 隧道CRUD操作 - 全部使用POST请求
 export const createTunnel = (data: TunnelMutationPayload) =>
-  Network.post("/tunnel/create", data, { timeout: 120000 });
+  Network.post<TunnelCreateApiData>("/tunnel/create", data, { timeout: 120000 });
 export const getTunnelList = () =>
   Network.post<TunnelApiItem[]>("/tunnel/list");
 export const getTunnelById = (id: number) =>

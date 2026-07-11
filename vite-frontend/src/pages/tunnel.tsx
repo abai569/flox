@@ -1,5 +1,6 @@
 import type {
   BatchOperationFailure,
+  NodeGroupApiItem,
   TunnelBatchDeletePreviewApiData,
   TunnelDeletePreviewApiData,
 } from "@/api/types";
@@ -58,6 +59,7 @@ import {
   updateTunnel,
   deleteTunnelWithForwards,
   getNodeList,
+  getNodeGroupList,
   diagnoseTunnel,
   updateTunnelOrder,
   batchRedeployTunnels,
@@ -139,6 +141,7 @@ interface Node {
   id: number;
   name: string;
   status: number; // 1: 在线, 0: 离线
+  groupId?: number | null;
   intranetIp?: string; // 内网 IP
   serverIp?: string;
   serverIpV4?: string;
@@ -376,6 +379,7 @@ export default function TunnelPage() {
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [tunnelOrder, setTunnelOrder] = useState<number[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
+  const [nodeGroups, setNodeGroups] = useState<NodeGroupApiItem[]>([]);
   const [searchKeyword, setSearchKeyword] = useLocalStorageState(
     "tunnel-search-keyword",
     "",
@@ -556,13 +560,63 @@ export default function TunnelPage() {
   );
   const refreshNodes = useCallback(async () => {
     try {
-      const nodesRes = await getNodeList();
+      const [nodesRes, groupsRes] = await Promise.all([
+        getNodeList(),
+        getNodeGroupList(),
+      ]);
 
       if (nodesRes.code === 0) {
         setNodes(nodesRes.data || []);
       }
+      if (groupsRes.code === 0) {
+        setNodeGroups(groupsRes.data || []);
+      }
     } catch {}
   }, []);
+  const renderNodeSelectHeader = () => (
+    <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left">
+      <span className="w-full text-left text-foreground font-semibold">节点名</span>
+      <span className="w-full text-center text-foreground font-semibold">分组</span>
+      <span className="w-full text-center text-foreground font-semibold">备注</span>
+    </div>
+  );
+  const renderNodeSelectItems = () =>
+    nodes.map((node) => {
+      const group = nodeGroups.find((item) => item.id === node.groupId);
+      const groupName = group?.name || "未分组";
+      const groupColor = (group as any)?.color as string | undefined;
+
+      return (
+        <SelectItem
+          key={node.id}
+          textValue={`${node.name || ""} ${groupName} ${node.remark || ""}`}
+        >
+          <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
+            <span className="w-full min-w-0 truncate text-left">
+              {node.name}
+              {node.status !== 1 && (
+                <span className="ml-1 text-[11px] text-default-500">离线</span>
+              )}
+            </span>
+            <span className="w-full min-w-0 text-center">
+              <span
+                className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
+                style={
+                  groupColor
+                    ? { backgroundColor: `${groupColor}1A`, color: groupColor }
+                    : undefined
+                }
+              >
+                {groupName}
+              </span>
+            </span>
+            <span className="w-full min-w-0 truncate text-center text-default-500">
+              {node.remark || "-"}
+            </span>
+          </div>
+        </SelectItem>
+      );
+    });
   // 加载隧道分组
   const loadTunnelGroupsNew = useCallback(async () => {
     const res = await getTunnelGroupNewList();
@@ -3191,6 +3245,7 @@ export default function TunnelPage() {
                         errorMessage={errors.inNodeId}
                         isInvalid={!!errors.inNodeId}
                         label={`入口节点${form.inNodeId.length > 0 ? ` (已选 ${form.inNodeId.length} 个)` : ""}`}
+                        listboxHeader={renderNodeSelectHeader()}
                         placeholder="请选择入口节点（可多选）"
                         selectedKeys={form.inNodeId.map((ct) =>
                           ct.nodeId.toString(),
@@ -3239,49 +3294,7 @@ export default function TunnelPage() {
                           });
                         }}
                       >
-                        {nodes.map((node) => (
-                          <SelectItem
-                            key={node.id}
-                            textValue={
-                              node.remark
-                                ? `${node.name} (${node.remark})`
-                                : node.name
-                            }
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>
-                                {node.name}
-                                {node.remark && (
-                                  <span className="text-xs text-default-400 ml-1">
-                                    ({node.remark})
-                                  </span>
-                                )}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium ${node.status === 1 ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-default-500/10 text-default-500"}`}
-                                >
-                                  {node.status === 1 ? "在线" : "离线"}
-                                </div>
-                                {form.outNodeId &&
-                                  form.outNodeId.some(
-                                    (ct) => ct.nodeId === node.id,
-                                  ) && (
-                                    <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-danger-500/10 text-danger-600 dark:text-danger-400">
-                                      已选为出口
-                                    </div>
-                                  )}
-                                {getSelectedChainNodeIds().includes(
-                                  node.id,
-                                ) && (
-                                  <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                                    已选为转发链
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </SelectItem>
-                        ))}
+                        {renderNodeSelectItems()}
                       </Select>
                     </div>
                   </div>
@@ -3457,6 +3470,7 @@ export default function TunnelPage() {
                                             ]
                                       }
                                       label={`节点选择${groupNodes.filter((ct) => ct.nodeId !== -1).length > 0 ? ` (已选 ${groupNodes.filter((ct) => ct.nodeId !== -1).length} 个)` : ""}`}
+                                      listboxHeader={renderNodeSelectHeader()}
                                       placeholder="选择节点（可多选）"
                                       selectedKeys={groupNodes
                                         .filter((ct) => ct.nodeId !== -1)
@@ -3471,70 +3485,7 @@ export default function TunnelPage() {
                                         );
                                       }}
                                     >
-                                      {nodes.map((node) => (
-                                        <SelectItem
-                                          key={node.id}
-                                          textValue={
-                                            node.remark
-                                              ? `${node.name} (${node.remark})`
-                                              : node.name
-                                          }
-                                        >
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-sm">
-                                              {node.name}
-                                              {node.remark && (
-                                                <span className="text-xs text-default-400 ml-1">
-                                                  ({node.remark})
-                                                </span>
-                                              )}
-                                            </span>
-                                            <div className="flex items-center gap-2">
-                                              <Chip
-                                                color={
-                                                  node.status === 1
-                                                    ? "success"
-                                                    : "default"
-                                                }
-                                                size="sm"
-                                                variant="flat"
-                                              >
-                                                {node.status === 1
-                                                  ? "在线"
-                                                  : "离线"}
-                                              </Chip>
-                                              {form.inNodeId.some(
-                                                (ct) => ct.nodeId === node.id,
-                                              ) && (
-                                                <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400">
-                                                  已选为入口
-                                                </div>
-                                              )}
-                                              {form.outNodeId &&
-                                                form.outNodeId.some(
-                                                  (ct) => ct.nodeId === node.id,
-                                                ) && (
-                                                  <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-danger-500/10 text-danger-600 dark:text-danger-400">
-                                                    已选为出口
-                                                  </div>
-                                                )}
-                                              {(form.chainNodes || []).some(
-                                                (group, idx) =>
-                                                  idx !== groupIndex &&
-                                                  group.some(
-                                                    (ct) =>
-                                                      ct.nodeId === node.id &&
-                                                      ct.nodeId !== -1,
-                                                  ),
-                                              ) && (
-                                                <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                                                  已选为其他跳
-                                                </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        </SelectItem>
-                                      ))}
+                                      {renderNodeSelectItems()}
                                     </Select>
                                   </div>
                                 </div>
@@ -3827,6 +3778,7 @@ export default function TunnelPage() {
                                   errorMessage={errors.outNodeId}
                                   isInvalid={!!errors.outNodeId}
                                   label={`出口节点${form.outNodeId && form.outNodeId.filter((ct) => ct.nodeId !== -1).length > 0 ? ` (已选 ${form.outNodeId.filter((ct) => ct.nodeId !== -1).length} 个)` : ""}`}
+                                  listboxHeader={renderNodeSelectHeader()}
                                   placeholder="请选择出口节点（可多选）"
                                   selectedKeys={
                                     form.outNodeId
@@ -3867,56 +3819,7 @@ export default function TunnelPage() {
                                     });
                                   }}
                                 >
-                                  {nodes.map((node) => (
-                                    <SelectItem
-                                      key={node.id}
-                                      textValue={
-                                        node.remark
-                                          ? `${node.name} (${node.remark})`
-                                          : node.name
-                                      }
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <span>
-                                          {node.name}
-                                          {node.remark && (
-                                            <span className="text-xs text-default-400 ml-1">
-                                              ({node.remark})
-                                            </span>
-                                          )}
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                          <Chip
-                                            color={
-                                              node.status === 1
-                                                ? "success"
-                                                : "default"
-                                            }
-                                            size="sm"
-                                            variant="flat"
-                                          >
-                                            {node.status === 1
-                                              ? "在线"
-                                              : "离线"}
-                                          </Chip>
-                                          {form.inNodeId.some(
-                                            (ct) => ct.nodeId === node.id,
-                                          ) && (
-                                            <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-warning-500/10 text-warning-600 dark:text-warning-400">
-                                              已选为入口
-                                            </div>
-                                          )}
-                                          {getSelectedChainNodeIds().includes(
-                                            node.id,
-                                          ) && (
-                                            <div className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium bg-primary-500/10 text-primary-600 dark:text-primary-400">
-                                              已选为转发链
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </SelectItem>
-                                  ))}
+                                  {renderNodeSelectItems()}
                                 </Select>
                               </div>
                             </div>
