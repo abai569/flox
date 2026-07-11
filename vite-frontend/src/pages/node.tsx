@@ -3757,6 +3757,7 @@ export default function NodePage() {
                       }
                     />
                     <Input
+                      classNames={{ base: "md:col-span-2" }}
                       description="自行组建隧道按参与节点倍率相加，默认 1x"
                       errorMessage={errors.trafficRatio}
                       isInvalid={!!errors.trafficRatio}
