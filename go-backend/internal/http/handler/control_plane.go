@@ -2705,6 +2705,7 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 					continue
 				}
 				target4, target6 := resolveTargetDualStack(targets[0])
+				target6Host, target6Port := splitNftablesIPv6Target(target6)
 				rules = append(rules, NftablesRulePayload{
 					ForwardID:    forward.ID,
 					NodeID:       fp.NodeID,
@@ -2715,8 +2716,8 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 					Target:       target4,
 					SpeedLimit:   spdLimit,
 					ChainType:    1,
-					NextHopIPv6:  target6,
-					NextHopPort:  fp.Port,
+					NextHopIPv6:  target6Host,
+					NextHopPort:  target6Port,
 				})
 			}
 		}
@@ -2800,6 +2801,7 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 						continue
 					}
 					target4, target6 := resolveTargetDualStack(target)
+					target6Host, target6Port := splitNftablesIPv6Target(target6)
 					rules = append(rules, NftablesRulePayload{
 						ForwardID:    forward.ID,
 						NodeID:       outNode.NodeID,
@@ -2810,13 +2812,25 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 						Target:       target4,
 						SpeedLimit:   spdLimit,
 						ChainType:    3,
-						NextHopIPv6:  target6,
+						NextHopIPv6:  target6Host,
+						NextHopPort:  target6Port,
 					})
 				}
 			}
 		}
 	}
 	return rules
+}
+
+func splitNftablesIPv6Target(target string) (string, int) {
+	if strings.TrimSpace(target) == "" {
+		return "", 0
+	}
+	host, port, err := parseTargetAddress(target)
+	if err != nil || !strings.Contains(host, ":") {
+		return "", 0
+	}
+	return host, port
 }
 
 // resolveNextHopForChain 解析链节点的下一跳信息

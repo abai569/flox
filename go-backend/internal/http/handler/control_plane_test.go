@@ -622,3 +622,35 @@ func TestProcessServerAddress_NormalizesIPv6(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildNftablesRulePayloads_ChainExitIPv6Target(t *testing.T) {
+	rules := buildNftablesRulePayloads(
+		&forwardRecord{ID: 11, UserID: 22, RemoteAddr: "[2a0e:97c0:3f0:1::1086]:26200"},
+		&tunnelRecord{Type: 2},
+		[]forwardPortRecord{{NodeID: 1, Port: 18080}, {NodeID: 2, Port: 19090}},
+		[]chainNodeRecord{{NodeID: 1, ChainType: 1}, {NodeID: 2, ChainType: 3}},
+		nil,
+		0,
+		nil,
+	)
+
+	var exitRule *NftablesRulePayload
+	for i := range rules {
+		if rules[i].NodeID == 2 && rules[i].Protocol == "tcp" {
+			exitRule = &rules[i]
+			break
+		}
+	}
+	if exitRule == nil {
+		t.Fatalf("expected tcp exit rule, got %#v", rules)
+	}
+	if exitRule.Target != "" {
+		t.Fatalf("expected empty IPv4 target for IPv6-only rule, got %q", exitRule.Target)
+	}
+	if exitRule.NextHopIPv6 != "2a0e:97c0:3f0:1::1086" {
+		t.Fatalf("expected raw IPv6 host, got %q", exitRule.NextHopIPv6)
+	}
+	if exitRule.NextHopPort != 26200 {
+		t.Fatalf("expected IPv6 target port 26200, got %d", exitRule.NextHopPort)
+	}
+}

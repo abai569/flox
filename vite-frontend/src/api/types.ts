@@ -873,6 +873,7 @@ export interface OrderApiItem {
   productType: string;
   amount: number;
   payCurrency: "BALANCE" | "USDT" | "YIPAY";
+  payType?: string;
   status: number;
   payTime: number;
   payUrl: string;
