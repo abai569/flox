@@ -161,6 +161,11 @@ type NodeInstance struct {
 	RenewalCycle                 sql.NullString `gorm:"column:renewal_cycle;type:varchar(20)"`
 	ExpiryReminderDismissed      int            `gorm:"column:expiry_reminder_dismissed;not null;default:0"`
 	ExpiryReminderDismissedUntil sql.NullInt64  `gorm:"column:expiry_reminder_dismissed_until"`
+	FlowResetTime                int            `gorm:"column:flow_reset_time;not null;default:1"`
+	TrafficLimit                 int64          `gorm:"column:traffic_limit;default:0"`
+	TotalInFlow                  int64          `gorm:"column:total_in_flow;default:0"`
+	TotalOutFlow                 int64          `gorm:"column:total_out_flow;default:0"`
+	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
 	NetInSpeed                   int64          `gorm:"column:net_in_speed;default:0"`
 	NetOutSpeed                  int64          `gorm:"column:net_out_speed;default:0"`
 	NetInBytes                   int64          `gorm:"column:net_in_bytes;default:0"`

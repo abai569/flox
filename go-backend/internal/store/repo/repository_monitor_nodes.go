@@ -24,6 +24,8 @@ type MonitorNodeInstanceGroupRow struct {
 	RenewalCycle                 string  `gorm:"column:renewal_cycle"`
 	ExpiryReminderDismissed      int     `gorm:"column:expiry_reminder_dismissed"`
 	ExpiryReminderDismissedUntil int64   `gorm:"column:expiry_reminder_dismissed_until"`
+	FlowResetTime                int     `gorm:"column:flow_reset_time"`
+	TrafficLimit                 int64   `gorm:"column:traffic_limit"`
 	NetInSpeed                   int64   `gorm:"column:net_in_speed"`
 	NetOutSpeed                  int64   `gorm:"column:net_out_speed"`
 	NetInBytes                   int64   `gorm:"column:net_in_bytes"`
@@ -93,6 +95,8 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 			COALESCE(nsi.renewal_cycle, '') AS renewal_cycle,
 			COALESCE(nsi.expiry_reminder_dismissed, 0) AS expiry_reminder_dismissed,
 			COALESCE(nsi.expiry_reminder_dismissed_until, 0) AS expiry_reminder_dismissed_until,
+			COALESCE(nsi.flow_reset_time, 1) AS flow_reset_time,
+			COALESCE(nsi.traffic_limit, 0) AS traffic_limit,
 			nsi.net_in_speed AS net_in_speed,
 			nsi.net_out_speed AS net_out_speed,
 			nsi.net_in_bytes AS net_in_bytes,

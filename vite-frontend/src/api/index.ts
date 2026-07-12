@@ -152,6 +152,8 @@ export const updateNodeInstanceProfile = (data: {
   portRange: string;
   expiryTime?: number | null;
   renewalCycle?: string;
+  flowResetTime?: number;
+  trafficLimit?: number;
 }) => Network.post("/node/weight", data);
 export const getNodeInstancePorts = (nodeId: number) =>
   Network.get<NodeInstancePortApiData>("/node/instance-port/list", {
@@ -563,6 +565,13 @@ export const batchResetNodeTraffic = (
     inFlowBefore,
     outFlowBefore,
   });
+export const batchResetNodeInstanceTraffic = (data: {
+  instances: Array<{ nodeId: number; instanceId: string }>;
+  reason?: string;
+  inFlowBefore?: number;
+  outFlowBefore?: number;
+}) =>
+  Network.post<BatchOperationResult>("/node/batch-reset-traffic", data);
 export const recordNodeOfflineLog = (
   nodeId: number,
   inFlowBefore: number,

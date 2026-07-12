@@ -8,6 +8,8 @@ export interface NodeApiItem {
   renewalCycle?: "month" | "quarter" | "halfYear" | "" | "year";
   expiryReminderDismissed?: number;
   expiryReminderDismissedUntil?: number | null;
+  flowResetTime?: number;
+  trafficLimit?: number;
   expiryInstances?: NodeExpiryInstanceApiItem[];
   weight?: number;
   trafficRatio?: number;
@@ -33,6 +35,8 @@ export interface NodeExpiryInstanceApiItem {
   renewalCycle: "month" | "quarter" | "halfYear" | "" | "year";
   expiryReminderDismissed?: number;
   expiryReminderDismissedUntil?: number | null;
+  flowResetTime?: number;
+  trafficLimit?: number;
 }
 
 export interface UserApiItem {
@@ -609,6 +613,8 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   renewalCycle?: "month" | "quarter" | "halfYear" | "" | "year";
   expiryReminderDismissed?: number;
   expiryReminderDismissedUntil?: number | null;
+  flowResetTime?: number;
+  trafficLimit?: number;
   onlineCount: number;
   tcpConns?: number;
   udpConns?: number;

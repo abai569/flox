@@ -432,6 +432,8 @@ type monitorNodeInstanceGroupMember struct {
 	RenewalCycle                 string  `json:"renewalCycle"`
 	ExpiryReminderDismissed      int     `json:"expiryReminderDismissed"`
 	ExpiryReminderDismissedUntil int64   `json:"expiryReminderDismissedUntil"`
+	FlowResetTime                int     `json:"flowResetTime"`
+	TrafficLimit                 int64   `json:"trafficLimit"`
 	OnlineCount                  int64   `json:"onlineCount"`
 	TCPConns                     int64   `json:"tcpConns"`
 	UDPConns                     int64   `json:"udpConns"`
@@ -558,6 +560,8 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			RenewalCycle:                 row.RenewalCycle,
 			ExpiryReminderDismissed:      row.ExpiryReminderDismissed,
 			ExpiryReminderDismissedUntil: row.ExpiryReminderDismissedUntil,
+			FlowResetTime:                row.FlowResetTime,
+			TrafficLimit:                 row.TrafficLimit,
 			OnlineCount:                  row.TCPConns + row.UDPConns,
 			TCPConns:                     row.TCPConns,
 			UDPConns:                     row.UDPConns,

@@ -47,6 +47,17 @@ type NodeInstanceExpiryReminder struct {
 	ExpiryTime   int64
 }
 
+type NodeInstanceTrafficLimitItem struct {
+	NodeID       int64
+	InstanceID   string
+	Name         string
+	LimitGB      int64
+	Used         int64
+	Mask         int
+	TotalInFlow  int64
+	TotalOutFlow int64
+}
+
 func normalizeNodeInstanceID(instanceID string) string {
 	instanceID = strings.TrimSpace(instanceID)
 	if instanceID == "" || strings.EqualFold(instanceID, "default") {
@@ -199,7 +210,7 @@ func (r *Repository) UpdateNodeInstanceWeight(nodeID int64, instanceID string, w
 		Updates(map[string]interface{}{"weight": weight, "updated_time": now}).Error
 }
 
-func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, now int64) error {
+func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, flowResetTime int, trafficLimit int64, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -218,8 +229,11 @@ func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, 
 			"port_range":                      strings.TrimSpace(portRange),
 			"expiry_time":                     nullInt64FromInterface(expiryTime),
 			"renewal_cycle":                   nullStringFromInterface(renewalCycle),
+			"flow_reset_time":                 flowResetTime,
+			"traffic_limit":                   trafficLimit,
 			"expiry_reminder_dismissed":       0,
 			"expiry_reminder_dismissed_until": sql.NullInt64{},
+			"traffic_notified_mask":           0,
 			"updated_time":                    now,
 		}).Error
 }
@@ -304,6 +318,111 @@ func (r *Repository) ListNodeInstancesExpiringWithin(nowMs int64, days int) ([]N
 		return nil, err
 	}
 	return rows, nil
+}
+
+func (r *Repository) GetNodeInstanceTrafficLimitInfo(nodeID int64, instanceID string) (*NodeInstanceTrafficLimitItem, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if nodeID <= 0 || instanceID == "" {
+		return nil, nil
+	}
+	var item NodeInstanceTrafficLimitItem
+	err := r.db.Raw(`
+		SELECT nsi.node_id, nsi.instance_id,
+		       CASE WHEN COALESCE(nsi.display_name, '') <> '' THEN n.name || ' / ' || nsi.display_name ELSE n.name || ' / 实例 ' || nsi.display_index END AS name,
+		       nsi.traffic_limit,
+		       nsi.total_in_flow + nsi.total_out_flow AS used,
+		       nsi.traffic_notified_mask,
+		       nsi.total_in_flow,
+		       nsi.total_out_flow
+		FROM node_instance nsi
+		JOIN node n ON n.id = nsi.node_id
+		WHERE nsi.node_id = ? AND nsi.instance_id = ?
+	`, nodeID, instanceID).Scan(&item).Error
+	if err != nil {
+		return nil, err
+	}
+	if item.NodeID == 0 {
+		return nil, nil
+	}
+	return &item, nil
+}
+
+func (r *Repository) AddNodeInstanceTotalFlow(nodeID int64, instanceID string, rx, tx int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Updates(map[string]interface{}{
+			"total_in_flow":  gorm.Expr("total_in_flow + ?", rx),
+			"total_out_flow": gorm.Expr("total_out_flow + ?", tx),
+		}).Error
+}
+
+func (r *Repository) UpdateNodeInstanceTrafficNotifiedMask(nodeID int64, instanceID string, mask int) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Update("traffic_notified_mask", mask).Error
+}
+
+type NodeInstanceTrafficResetDue struct {
+	NodeID       int64
+	NodeName     string
+	InstanceID   string
+	DisplayIndex int
+	DisplayName  string
+	PeriodRx     int64
+	PeriodTx     int64
+}
+
+func (r *Repository) ListNodeInstanceMonthlyFlowResetDue(currentDay int, lastDay int) ([]NodeInstanceTrafficResetDue, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	items := make([]NodeInstanceTrafficResetDue, 0)
+	where, args := validNodeInstanceWhere()
+	query := `
+		SELECT nsi.node_id, n.name AS node_name, nsi.instance_id, nsi.display_index, COALESCE(nsi.display_name, '') AS display_name,
+		       COALESCE(latest.period_rx, 0) AS period_rx,
+		       COALESCE(latest.period_tx, 0) AS period_tx
+		FROM node_instance nsi
+		JOIN node n ON n.id = nsi.node_id
+		LEFT JOIN (
+		    SELECT nm1.node_id, nm1.instance_id, nm1.period_rx, nm1.period_tx
+		    FROM node_metric nm1
+		    INNER JOIN (
+		        SELECT node_id, instance_id, MAX(timestamp) AS max_ts
+		        FROM node_metric
+		        GROUP BY node_id, instance_id
+		    ) nm2 ON nm1.node_id = nm2.node_id AND nm1.instance_id = nm2.instance_id AND nm1.timestamp = nm2.max_ts
+		) latest ON latest.node_id = nsi.node_id AND latest.instance_id = nsi.instance_id
+		WHERE n.status = 1
+		  AND nsi.flow_reset_time != 0
+		  AND ` + where
+	args = append([]interface{}{}, args...)
+	if currentDay == lastDay {
+		query += ` AND (nsi.flow_reset_time = ? OR nsi.flow_reset_time > ?)`
+		args = append(args, currentDay, lastDay)
+	} else {
+		query += ` AND nsi.flow_reset_time = ?`
+		args = append(args, currentDay)
+	}
+	err := r.db.Raw(query, args...).Scan(&items).Error
+	return items, err
 }
 
 func renewalCycleMonths(cycle string) int {

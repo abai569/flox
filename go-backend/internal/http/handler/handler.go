@@ -65,26 +65,44 @@ func (h *Handler) TelegramBot() *telegram.Bot {
 	return h.telegramBot
 }
 
+func (h *Handler) deleteNodeTrafficCacheEntries(nodeID int64) {
+	if h == nil {
+		return
+	}
+	prefix := fmt.Sprintf("%d:", nodeID)
+	h.nodeTrafficCache.Range(func(key, value any) bool {
+		if k, ok := key.(string); ok && strings.HasPrefix(k, prefix) {
+			h.nodeTrafficCache.Delete(k)
+		}
+		return true
+	})
+}
+
 type nodeTrafficCacheEntry struct {
 	limitGB int64
 	name    string
 	mask    int32
 }
 
-func (h *Handler) maybeCheckNodeTraffic(nodeID int64, periodRx, periodTx uint64) {
+func (h *Handler) maybeCheckNodeTraffic(nodeID int64, instanceID string, periodRx, periodTx uint64) {
 	if h == nil || h.repo == nil {
 		return
 	}
-	raw, ok := h.nodeTrafficCache.Load(nodeID)
+	instanceID = strings.TrimSpace(instanceID)
+	if instanceID == "" || strings.EqualFold(instanceID, "default") {
+		return
+	}
+	cacheKey := fmt.Sprintf("%d:%s", nodeID, instanceID)
+	raw, ok := h.nodeTrafficCache.Load(cacheKey)
 	var entry *nodeTrafficCacheEntry
 	if !ok {
-		info, err := h.repo.GetNodeTrafficLimitInfo(nodeID)
+		info, err := h.repo.GetNodeInstanceTrafficLimitInfo(nodeID, instanceID)
 		if err != nil || info == nil || info.LimitGB <= 0 {
-			h.nodeTrafficCache.Store(nodeID, &nodeTrafficCacheEntry{limitGB: -1})
+			h.nodeTrafficCache.Store(cacheKey, &nodeTrafficCacheEntry{limitGB: -1})
 			return
 		}
 		entry = &nodeTrafficCacheEntry{limitGB: info.LimitGB, name: info.Name, mask: int32(info.Mask)}
-		h.nodeTrafficCache.Store(nodeID, entry)
+		h.nodeTrafficCache.Store(cacheKey, entry)
 	} else {
 		entry = raw.(*nodeTrafficCacheEntry)
 	}
@@ -127,21 +145,25 @@ func (h *Handler) maybeCheckNodeTraffic(nodeID int64, periodRx, periodTx uint64)
 
 	if changed {
 		entry.mask = mask
-		_ = h.repo.UpdateNodeTrafficNotifiedMask(nodeID, int(mask))
+		_ = h.repo.UpdateNodeInstanceTrafficNotifiedMask(nodeID, instanceID, int(mask))
 	}
 }
 
-func (h *Handler) enforceNodeTrafficLimit(nodeID int64, periodRx, periodTx uint64) {
+func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, periodRx, periodTx uint64) {
 	if h == nil || h.repo == nil || nodeID <= 0 {
 		return
 	}
+	instanceID = strings.TrimSpace(instanceID)
+	if instanceID == "" || strings.EqualFold(instanceID, "default") {
+		return
+	}
 
-	info, err := h.repo.GetNodeTrafficLimitInfo(nodeID)
+	info, err := h.repo.GetNodeInstanceTrafficLimitInfo(nodeID, instanceID)
 	if err != nil || info == nil || info.LimitGB <= 0 {
 		return
 	}
 
-	if err := h.repo.AddNodeTotalFlow(nodeID, int64(periodRx), int64(periodTx)); err != nil {
+	if err := h.repo.AddNodeInstanceTotalFlow(nodeID, instanceID, int64(periodRx), int64(periodTx)); err != nil {
 		log.Printf("ERROR: AddNodeTotalFlow node=%d failed: %v", nodeID, err)
 		return
 	}
@@ -150,8 +172,8 @@ func (h *Handler) enforceNodeTrafficLimit(nodeID int64, periodRx, periodTx uint6
 	limitBytes := info.LimitGB * 1024 * 1024 * 1024
 
 	if totalUsed >= limitBytes {
-		log.Printf("Node %d 流量超限自动暂停: %.2f GB / %.2f GB", nodeID, float64(totalUsed)/1e9, float64(limitBytes)/1e9)
-		_, _ = h.sendNodeCommand(nodeID, "PauseNode", nil, false, false)
+		log.Printf("Node %d instance %s 流量超限自动暂停: %.2f GB / %.2f GB", nodeID, instanceID, float64(totalUsed)/1e9, float64(limitBytes)/1e9)
+		_, _ = h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "PauseNode", nil, defaultNodeCommandTimeout, false, false)
 		_ = h.repo.SetNodePaused(nodeID, 1)
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficExceeded(info.Name)
@@ -255,8 +277,8 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 			InstanceID:             info.InstanceID,
 		}
 		h.metrics.RecordNodeMetric(nodeID, metricInfo)
-		h.maybeCheckNodeTraffic(nodeID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
-		h.enforceNodeTrafficLimit(nodeID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
+		h.maybeCheckNodeTraffic(nodeID, info.InstanceID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
+		h.enforceNodeTrafficLimit(nodeID, info.InstanceID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
 	})
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)

@@ -26,7 +26,6 @@ import {
   getMonitorNodeInstanceGroups,
   getServiceMonitorLatestResults,
   getServiceMonitorList,
-  deleteNodeInstancePort,
   updateNodeInstanceProfile,
 } from "@/api";
 import { MonitorView } from "@/pages/node/monitor-view";
@@ -78,23 +77,6 @@ const formatUptime = (seconds: number): string => {
   const hours = Math.floor((seconds % 86400) / 3600);
 
   return days > 0 ? `${days} 天` : `${hours} 小时`;
-};
-
-const formatDateInputValue = (timestamp?: number | null): string => {
-  if (!timestamp || timestamp <= 0) return "";
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
-
-const parseDateInputValue = (value: string): number => {
-  if (!value) return 0;
-  const timestamp = new Date(`${value}T00:00:00`).getTime();
-
-  return Number.isFinite(timestamp) ? timestamp : 0;
 };
 
 type MonitorIPFamily = "v4" | "v6";
@@ -164,41 +146,6 @@ const getDisplayInstanceName = (
   const displayName = member?.displayName?.trim();
 
   return displayName || getDisplayInstanceLabel(member?.displayIndex, fallbackIndex);
-};
-
-const validatePortRange = (value: string): string | null => {
-  const portRange = value.trim();
-
-  if (!portRange) return null;
-  for (const part of portRange.split(",")) {
-    const item = part.trim();
-
-    if (!item) return "端口范围格式错误";
-    if (item.includes("-")) {
-      const pieces = item.split("-");
-
-      if (pieces.length !== 2) return "端口范围格式错误";
-      const start = Number(pieces[0].trim());
-      const end = Number(pieces[1].trim());
-
-      if (
-        !Number.isInteger(start) ||
-        !Number.isInteger(end) ||
-        start < 1 ||
-        end > 65535 ||
-        start >= end
-      ) {
-        return "端口范围必须在 1-65535 之间，且起始端口小于结束端口";
-      }
-      continue;
-    }
-    const port = Number(item);
-
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      return "端口必须在 1-65535 之间";
-    }
-  }
-  return null;
 };
 
 const getInstanceConnectionTooltip = (
@@ -508,14 +455,12 @@ function NodeInstanceGroupsView({
   realtimeMetrics,
   onEditInstance,
   onOpenDetail,
-  onDeleteInstance,
 }: {
   groups: MonitorNodeInstanceGroupApiItem[];
   loading: boolean;
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>;
   onEditInstance: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onOpenDetail: (nodeId: number, instanceId: string) => void;
-  onDeleteInstance: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
 }) {
   if (loading && groups.length === 0) {
     return (
@@ -616,7 +561,7 @@ function NodeInstanceGroupsView({
                       <th className="whitespace-nowrap px-1 py-2 text-center">CPU</th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">RAM</th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">存储</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">实例权重</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">权重</th>
                       <th className="whitespace-nowrap px-1 py-2 text-start">操作</th>
                     </tr>
                   </thead>
@@ -729,21 +674,12 @@ function NodeInstanceGroupsView({
                                 variant="flat"
                                 onPress={() => onEditInstance(member)}
                               >
-                                编辑
+                                配置
                               </Button>
                               <MonitorTerminalButton
                                 className="h-8 shrink-0 px-2 text-xs font-medium"
                                 member={member}
                               />
-                              <Button
-                                className="h-8 shrink-0 px-2 text-xs font-medium"
-                                size="sm"
-                                variant="flat"
-                                color="danger"
-                                onPress={() => onDeleteInstance(member)}
-                              >
-                                删除
-                              </Button>
                               <Button
                                 className="h-8 shrink-0 px-2 text-xs font-medium"
                                 color="success"
@@ -801,15 +737,8 @@ export default function MonitorPage() {
   const [instanceEditModalOpen, setInstanceEditModalOpen] = useState(false);
   const [instanceEditTarget, setInstanceEditTarget] =
     useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
-  const [instanceDisplayNameValue, setInstanceDisplayNameValue] = useState("");
   const [weightValue, setWeightValue] = useState("");
-  const [instancePortRangeValue, setInstancePortRangeValue] = useState("");
-  const [instanceExpiryDateValue, setInstanceExpiryDateValue] = useState("");
-  const [instanceRenewalCycleValue, setInstanceRenewalCycleValue] = useState("");
   const [instanceEditSaving, setInstanceEditSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] =
-    useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
-  const [deleteSaving, setDeleteSaving] = useState(false);
   const [detailTarget, setDetailTarget] = useState<{
     nodeId: number;
     instanceId: string;
@@ -1061,11 +990,7 @@ export default function MonitorPage() {
   const openInstanceEditModal = useCallback(
     (member: MonitorNodeInstanceGroupMemberApiItem) => {
       setInstanceEditTarget(member);
-      setInstanceDisplayNameValue(member.displayName?.trim() || "");
       setWeightValue(String(member.weight ?? 1));
-      setInstancePortRangeValue(member.portRange?.trim() || "");
-      setInstanceExpiryDateValue(formatDateInputValue(member.expiryTime));
-      setInstanceRenewalCycleValue(member.renewalCycle || "");
       setInstanceEditModalOpen(true);
     },
     [],
@@ -1075,30 +1000,9 @@ export default function MonitorPage() {
     async (overrideWeight?: number) => {
       if (!instanceEditTarget?.instanceId) return;
       const nextWeight = overrideWeight ?? Number(weightValue);
-      const displayName = instanceDisplayNameValue.trim();
-      const portRange = instancePortRangeValue.trim();
-      const expiryTime = parseDateInputValue(instanceExpiryDateValue);
-      const renewalCycle = instanceRenewalCycleValue.trim();
 
       if (!Number.isFinite(nextWeight) || nextWeight < 0) {
         toast.error("权重不能小于 0");
-
-        return;
-      }
-      if (displayName.length > 100) {
-        toast.error("实例名称不能超过 100 个字符");
-
-        return;
-      }
-      const portRangeError = validatePortRange(portRange);
-
-      if (portRangeError) {
-        toast.error(portRangeError);
-
-        return;
-      }
-      if ((expiryTime > 0 && !renewalCycle) || (expiryTime <= 0 && renewalCycle)) {
-        toast.error("请同时设置续费周期和到期时间");
 
         return;
       }
@@ -1107,15 +1011,17 @@ export default function MonitorPage() {
         const res = await updateNodeInstanceProfile({
           nodeId: instanceEditTarget.nodeId,
           instanceId: instanceEditTarget.instanceId,
-          displayName,
+          displayName: instanceEditTarget.displayName || "",
           weight: Math.floor(nextWeight),
-          portRange,
-          expiryTime: expiryTime > 0 ? expiryTime : null,
-          renewalCycle,
+          portRange: instanceEditTarget.portRange || "",
+          expiryTime: instanceEditTarget.expiryTime || null,
+          renewalCycle: instanceEditTarget.renewalCycle || "",
+          flowResetTime: instanceEditTarget.flowResetTime || 1,
+          trafficLimit: instanceEditTarget.trafficLimit || 0,
         });
 
         if (res.code === 0) {
-          toast.success("实例配置已更新，正在重新下发线路配置");
+          toast.success("实例权重已更新，正在重新下发线路配置");
           setInstanceEditModalOpen(false);
           setInstanceEditTarget(null);
           await loadNodeInstanceGroups({ silent: true });
@@ -1130,40 +1036,12 @@ export default function MonitorPage() {
       }
     },
     [
-      instanceDisplayNameValue,
-      instanceExpiryDateValue,
       instanceEditTarget,
-      instancePortRangeValue,
-      instanceRenewalCycleValue,
       loadNodes,
       loadNodeInstanceGroups,
       weightValue,
     ],
   );
-
-  const deleteInstance = useCallback(async () => {
-    if (!deleteTarget?.instanceId) return;
-    setDeleteSaving(true);
-    try {
-      const res = await deleteNodeInstancePort(
-        deleteTarget.nodeId,
-        deleteTarget.instanceId,
-      );
-
-      if (res.code === 0) {
-        toast.success("实例已删除");
-        setDeleteTarget(null);
-        await loadNodeInstanceGroups({ silent: true });
-        await loadNodes({ silent: true });
-      } else {
-        toast.error(res.msg || "删除实例失败");
-      }
-    } catch {
-      toast.error("删除实例失败");
-    } finally {
-      setDeleteSaving(false);
-    }
-  }, [deleteTarget, loadNodeInstanceGroups, loadNodes]);
 
   const nodeMap = useMemo(() => {
     const instanceCounts = new Map<number, { total: number; online: number }>();
@@ -1333,7 +1211,6 @@ export default function MonitorPage() {
                   loading={nodeInstanceGroupsLoading}
                   realtimeMetrics={realtimeInstanceMetrics}
                   onEditInstance={openInstanceEditModal}
-                  onDeleteInstance={setDeleteTarget}
                   onOpenDetail={(nodeId, instanceId) =>
                     setDetailTarget({ nodeId, instanceId })
                   }
@@ -1361,7 +1238,7 @@ export default function MonitorPage() {
       </>
       <Modal isOpen={instanceEditModalOpen} onOpenChange={setInstanceEditModalOpen}>
         <ModalContent>
-          <ModalHeader>编辑实例</ModalHeader>
+          <ModalHeader>实例权重</ModalHeader>
           <ModalBody>
             <div className="space-y-3 text-sm">
               <div>
@@ -1377,48 +1254,12 @@ export default function MonitorPage() {
                 建议：组内配置最低的机器设置为 1 权重，高配机器根据 CPU 核心数等适量增加权重。
               </div>
               <Input
-                label="实例名称"
-                placeholder={getDisplayInstanceLabel(instanceEditTarget?.displayIndex)}
-                value={instanceDisplayNameValue}
-                onChange={(event) => setInstanceDisplayNameValue(event.target.value)}
+                label="实例权重"
+                min={0}
+                type="number"
+                value={weightValue}
+                onChange={(event) => setWeightValue(event.target.value)}
               />
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input
-                  label="端口范围"
-                  placeholder="留空则使用节点端口范围"
-                  value={instancePortRangeValue}
-                  onChange={(event) => setInstancePortRangeValue(event.target.value)}
-                />
-                <Input
-                  label="实例权重"
-                  min={0}
-                  type="number"
-                  value={weightValue}
-                  onChange={(event) => setWeightValue(event.target.value)}
-                />
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1 text-xs text-default-500">
-                  <span>续费周期</span>
-                  <select
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
-                    value={instanceRenewalCycleValue}
-                    onChange={(event) => setInstanceRenewalCycleValue(event.target.value)}
-                  >
-                    <option value="">不提醒</option>
-                    <option value="month">每月</option>
-                    <option value="quarter">每季度</option>
-                    <option value="halfYear">每半年</option>
-                    <option value="year">每年</option>
-                  </select>
-                </label>
-                <Input
-                  label="到期时间"
-                  type="date"
-                  value={instanceExpiryDateValue}
-                  onChange={(event) => setInstanceExpiryDateValue(event.target.value)}
-                />
-              </div>
             </div>
           </ModalBody>
           <ModalFooter>
@@ -1431,30 +1272,6 @@ export default function MonitorPage() {
               onPress={() => saveInstanceProfile()}
             >
               保存
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-      <Modal isOpen={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <ModalContent>
-          <ModalHeader>删除实例</ModalHeader>
-          <ModalBody>
-            <div className="space-y-2 text-sm text-default-600">
-              <div>
-                确认删除 {deleteTarget?.nodeName || "节点"} 的{" "}
-                {getDisplayInstanceLabel(deleteTarget?.displayIndex)}？
-              </div>
-              <div>
-                删除后该编号会释放，新上线实例会优先占用这个编号。若该实例仍在线，继续上报后会重新出现。
-              </div>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onPress={() => setDeleteTarget(null)}>
-              取消
-            </Button>
-            <Button color="danger" isLoading={deleteSaving} onPress={deleteInstance}>
-              删除
             </Button>
           </ModalFooter>
         </ModalContent>

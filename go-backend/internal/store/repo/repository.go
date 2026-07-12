@@ -345,18 +345,23 @@ func migrateNodeInstanceExpiryFromNode(db *gorm.DB) error {
 		RenewalCycle                 sql.NullString `gorm:"column:renewal_cycle"`
 		ExpiryReminderDismissed      int            `gorm:"column:expiry_reminder_dismissed"`
 		ExpiryReminderDismissedUntil sql.NullInt64  `gorm:"column:expiry_reminder_dismissed_until"`
+		FlowResetTime                int            `gorm:"column:flow_reset_time"`
+		TrafficLimit                 int64          `gorm:"column:traffic_limit"`
+		TotalInFlow                  int64          `gorm:"column:total_in_flow"`
+		TotalOutFlow                 int64          `gorm:"column:total_out_flow"`
+		TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask"`
 	}
 	var nodes []nodeExpirySeed
 	if err := db.Model(&model.Node{}).
-		Select("id, expiry_time, renewal_cycle, expiry_reminder_dismissed, expiry_reminder_dismissed_until").
-		Where("expiry_time IS NOT NULL AND expiry_time > 0 AND renewal_cycle IS NOT NULL AND TRIM(renewal_cycle) <> ''").
+		Select("id, expiry_time, renewal_cycle, expiry_reminder_dismissed, expiry_reminder_dismissed_until, flow_reset_time, traffic_limit, total_in_flow, total_out_flow, traffic_notified_mask").
+		Where("(expiry_time IS NOT NULL AND expiry_time > 0 AND renewal_cycle IS NOT NULL AND TRIM(renewal_cycle) <> '') OR traffic_limit > 0 OR flow_reset_time <> 1").
 		Find(&nodes).Error; err != nil {
 		return err
 	}
 	for _, node := range nodes {
 		var existing int64
 		if err := db.Model(&model.NodeInstance{}).
-			Where("node_id = ? AND expiry_time IS NOT NULL AND expiry_time > 0", node.ID).
+			Where("node_id = ? AND ((expiry_time IS NOT NULL AND expiry_time > 0) OR traffic_limit > 0 OR flow_reset_time <> 1)", node.ID).
 			Count(&existing).Error; err != nil {
 			return err
 		}
@@ -379,6 +384,11 @@ func migrateNodeInstanceExpiryFromNode(db *gorm.DB) error {
 			"renewal_cycle":                   node.RenewalCycle,
 			"expiry_reminder_dismissed":       node.ExpiryReminderDismissed,
 			"expiry_reminder_dismissed_until": node.ExpiryReminderDismissedUntil,
+			"flow_reset_time":                 node.FlowResetTime,
+			"traffic_limit":                   node.TrafficLimit,
+			"total_in_flow":                   node.TotalInFlow,
+			"total_out_flow":                  node.TotalOutFlow,
+			"traffic_notified_mask":           node.TrafficNotifiedMask,
 			"updated_time":                    unixMilliNow(),
 		}).Error; err != nil {
 			return err
@@ -387,7 +397,7 @@ func migrateNodeInstanceExpiryFromNode(db *gorm.DB) error {
 	return nil
 }
 
-func nodeInstanceExpirySummary(instances []model.NodeInstance) ([]map[string]interface{}, interface{}, interface{}, int, interface{}) {
+func nodeInstanceExpirySummary(instances []model.NodeInstance) ([]map[string]interface{}, interface{}, interface{}, int, interface{}, int, int64, int64, int64, int) {
 	items := make([]map[string]interface{}, 0)
 	var nearest *model.NodeInstance
 	for i := range instances {
@@ -411,9 +421,9 @@ func nodeInstanceExpirySummary(instances []model.NodeInstance) ([]map[string]int
 		}
 	}
 	if nearest == nil {
-		return items, nil, nil, 0, nil
+		return items, nil, nil, 0, nil, 1, 0, 0, 0, 0
 	}
-	return items, nearest.ExpiryTime.Int64, nearest.RenewalCycle.String, nearest.ExpiryReminderDismissed, nullableInt64(nearest.ExpiryReminderDismissedUntil)
+	return items, nearest.ExpiryTime.Int64, nearest.RenewalCycle.String, nearest.ExpiryReminderDismissed, nullableInt64(nearest.ExpiryReminderDismissedUntil), nearest.FlowResetTime, nearest.TrafficLimit, nearest.TotalInFlow, nearest.TotalOutFlow, nearest.TrafficNotifiedMask
 }
 
 // preparePostgresLegacySchema renames unique constraints that were created by
@@ -1089,7 +1099,7 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			return nil
 		}()
 
-		instanceExpiryItems, nearestExpiryTime, nearestRenewalCycle, nearestDismissed, nearestDismissedUntil := nodeInstanceExpirySummary(instancesByNode[n.ID])
+		instanceExpiryItems, nearestExpiryTime, nearestRenewalCycle, nearestDismissed, nearestDismissedUntil, nearestFlowResetTime, nearestTrafficLimit, nearestTotalInFlow, nearestTotalOutFlow, nearestTrafficNotifiedMask := nodeInstanceExpirySummary(instancesByNode[n.ID])
 		items = append(items, map[string]interface{}{
 			"id": n.ID, "inx": n.Inx, "name": n.Name,
 			"remark":          nullableString(n.Remark),
@@ -1115,8 +1125,12 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"secret":                       n.Secret,
 			"expiryReminderDismissed":      nearestDismissed,
 			"expiryReminderDismissedUntil": nearestDismissedUntil,
+			"flowResetTime":                nearestFlowResetTime,
 			"groupId":                      nullableInt64(n.GroupID),
-			"trafficLimit":                 n.TrafficLimit,
+			"trafficLimit":                 nearestTrafficLimit,
+			"totalInFlow":                  nearestTotalInFlow,
+			"totalOutFlow":                 nearestTotalOutFlow,
+			"trafficNotifiedMask":          nearestTrafficNotifiedMask,
 			"paused":                       n.Paused,
 			"weight":                       n.Weight,
 			"onlineCount": func() int64 {
@@ -1125,7 +1139,6 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 				}
 				return 0
 			}(),
-			"flowResetTime":    n.FlowResetTime,
 			"periodTraffic":    pt,
 			"mimic_status":     n.MimicStatus,
 			"mimic_error":      n.MimicError,

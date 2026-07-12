@@ -1227,7 +1227,7 @@ func (h *Handler) nodeUpdate(w http.ResponseWriter, r *http.Request) {
 		h.wsServer.DisconnectNode(id)
 	}
 
-	h.nodeTrafficCache.Delete(id)
+	h.deleteNodeTrafficCacheEntries(id)
 
 	response.WriteJSON(w, response.OKEmpty())
 }

@@ -1,4 +1,4 @@
-import type { NodeGroupApiItem, OfflineDeployPayload } from "@/api/types";
+import type { MonitorNodeInstanceGroupMemberApiItem, NodeGroupApiItem, OfflineDeployPayload } from "@/api/types";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
@@ -54,8 +54,6 @@ import { Progress } from "@/shadcn-bridge/heroui/progress";
 import { Accordion, AccordionItem } from "@/shadcn-bridge/heroui/accordion";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
-import { DatePicker } from "@/shadcn-bridge/heroui/date-picker";
-import { DatePresets } from "@/shadcn-bridge/heroui/date-presets";
 import {
   Dropdown,
   DropdownTrigger,
@@ -64,6 +62,10 @@ import {
   DropdownMenuSeparator,
 } from "@/shadcn-bridge/heroui/dropdown";
 import { NodeListView } from "@/pages/node/node-list-view";
+import {
+  MonitorTerminalButton,
+  MonitorTerminalProvider,
+} from "@/pages/monitor-terminal";
 import {
   createNode,
   getNodeList,
@@ -86,15 +88,17 @@ import {
   recordNodeOfflineLog,
   getNodeTrafficResetLogs,
   deleteNodeTrafficResetLog,
+  deleteNodeInstancePort,
+  getMonitorNodeInstanceGroups,
   pauseNode,
   resumeNode,
   getConfigByName,
   installMimicDeps,
+  updateNodeInstanceProfile,
   type ReleaseChannel,
 } from "@/api";
 import { compareVersions } from "@/utils/version-update";
 import { PageLoadingState } from "@/components/page-state";
-import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
 import { getConnectionStatusMeta } from "@/pages/node/display";
 import {
   getNodeRenewalSnapshot,
@@ -236,8 +240,30 @@ interface NodeForm {
   trafficRatio: number;
   trafficLimit: number;
 }
-type NodeViewMode = "grid" | "list" | "grouped";
+type NodeViewMode = "grid" | "list" | "grouped" | "instances";
 const EXPIRING_SOON_DAYS = 7;
+const DEFAULT_INSTANCE_PORT_RANGE = "10000-65535";
+const formatInstanceIPForCell = (ip?: string): string => {
+  const value = ip?.trim() || "";
+
+  if (!value) return "-";
+  if (value.includes(":")) {
+    const parts = value.split(":").filter(Boolean);
+
+    if (parts.length <= 3) return value;
+
+    return `::${parts.slice(-3).join(":")}`;
+  }
+  if (value.includes(".")) {
+    const parts = value.split(".");
+
+    if (parts.length >= 2) return `${parts[0]}.${parts[1]}.*`;
+
+    return parts[0].length > 12 ? `${parts[0].slice(0, 12)}...` : parts[0];
+  }
+
+  return value.length > 15 ? `${value.slice(0, 15)}...` : value;
+};
 
 const extractSDWANConfigPath = (raw?: string): string => {
   if (!raw) {
@@ -334,6 +360,21 @@ type NodeExpiryState = "permanent" | "healthy" | "expiringSoon" | "expired";
 type NodeFilterMode = "all" | "expiringSoon" | "expired" | "withExpiry";
 const getNodeReminderEnabled = (node: Node): boolean => {
   return !!node.expiryTime && node.expiryTime > 0 && !!node.renewalCycle;
+};
+const formatDateInputValue = (timestamp?: number | null): string => {
+  if (!timestamp || timestamp <= 0) return "";
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+const parseDateInputValue = (value: string): number => {
+  if (!value) return 0;
+  const timestamp = new Date(`${value}T00:00:00`).getTime();
+
+  return Number.isFinite(timestamp) ? timestamp : 0;
 };
 const getNodeExpiryMeta = (timestamp?: number, cycle?: NodeRenewalCycle) => {
   const renewal = getNodeRenewalSnapshot(timestamp, cycle, EXPIRING_SOON_DAYS);
@@ -624,6 +665,23 @@ const formatDate = (timestamp: number): string => {
   return new Date(timestamp).toLocaleString();
 };
 
+const formatInstanceRenewalCycle = (
+  cycle?: MonitorNodeInstanceGroupMemberApiItem["renewalCycle"],
+) => {
+  switch (cycle) {
+    case "month":
+      return "月付";
+    case "quarter":
+      return "季付";
+    case "halfYear":
+      return "半年付";
+    case "year":
+      return "年付";
+    default:
+      return "-";
+  }
+};
+
 export default function NodePage() {
   const [nodeList, setNodeList] = useState<Node[]>([]);
   const [nodeOrder, setNodeOrder] = useState<number[]>([]);
@@ -755,6 +813,19 @@ export default function NodePage() {
   } = useDisclosure();
   const [nodeToReset, setNodeToReset] = useState<Node | null>(null);
   const [resetTrafficLoading, setResetTrafficLoading] = useState(false);
+  const [nodeInstanceMembers, setNodeInstanceMembers] = useState<Record<number, MonitorNodeInstanceGroupMemberApiItem[]>>({});
+  const [instanceConfigSaving, setInstanceConfigSaving] = useState(false);
+  const [instanceConfigTarget, setInstanceConfigTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [instanceConfigForm, setInstanceConfigForm] = useState({
+    displayName: "",
+    portRange: "",
+    renewalCycle: "",
+    expiryDate: "",
+    flowResetTime: "1",
+    trafficLimit: "0",
+  });
+  const [instanceDeleteTarget, setInstanceDeleteTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [instanceDeleteSaving, setInstanceDeleteSaving] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"single" | "batch">(
     "single",
@@ -1008,6 +1079,22 @@ export default function NodePage() {
       }
     }
   }, []);
+  const loadNodeInstances = useCallback(async () => {
+    try {
+      const res = await getMonitorNodeInstanceGroups();
+      if (res.code !== 0) return;
+      const next: Record<number, MonitorNodeInstanceGroupMemberApiItem[]> = {};
+      for (const group of res.data || []) {
+        next[Number(group.id)] = group.members || [];
+      }
+      setNodeInstanceMembers(next);
+    } catch {
+      // 实例配置是辅助信息，失败时不阻塞节点列表。
+    }
+  }, []);
+  useEffect(() => {
+    void loadNodeInstances();
+  }, [loadNodeInstances]);
   const handleWebSocketMessage = (data: any) => {
     const { id, type, data: messageData } = data;
     const nodeId = Number(id);
@@ -1349,12 +1436,6 @@ export default function NodePage() {
     } else if (form.name.trim().length > 50) {
       newErrors.name = "节点名称长度不能超过50位";
     }
-    if (
-      (form.renewalCycle && !form.expiryTime) ||
-      (!form.renewalCycle && form.expiryTime)
-    ) {
-      newErrors.expiryTime = "请同时设置续费周期和续费基准时间";
-    }
     const v4 = form.serverIpV4.trim();
     const v6 = form.serverIpV6.trim();
     const intranet = form.intranetIp.trim();
@@ -1506,6 +1587,102 @@ export default function NodePage() {
       setGroupSelectorNode(null);
     } catch (error) {
       toast.error("操作失败");
+    }
+  };
+  const getInstanceLabel = (member?: MonitorNodeInstanceGroupMemberApiItem | null) => {
+    if (!member) return "实例";
+    const displayName = member.displayName?.trim();
+    if (displayName) return displayName;
+    return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
+  };
+  const getDefaultInstanceLabel = (
+    member?: MonitorNodeInstanceGroupMemberApiItem | null,
+  ) => {
+    if (!member) return "实例";
+    return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
+  };
+  const openInstanceConfigEditor = (member: MonitorNodeInstanceGroupMemberApiItem) => {
+    setInstanceConfigTarget(member);
+    setInstanceConfigForm({
+      displayName: member.displayName?.trim() || "",
+      portRange: member.portRange?.trim() || "",
+      renewalCycle: member.renewalCycle || "",
+      expiryDate: formatDateInputValue(member.expiryTime),
+      flowResetTime: String(member.flowResetTime || 1),
+      trafficLimit: String(member.trafficLimit || 0),
+    });
+  };
+  const saveInstanceConfig = async () => {
+    if (!instanceConfigTarget?.instanceId) return;
+    const expiryTime = parseDateInputValue(instanceConfigForm.expiryDate);
+    const renewalCycle = instanceConfigForm.renewalCycle.trim();
+    const flowResetTime = Number(instanceConfigForm.flowResetTime || 1);
+    const trafficLimit = Number(instanceConfigForm.trafficLimit || 0);
+    const displayName = instanceConfigForm.displayName.trim();
+    const portRange = instanceConfigForm.portRange.trim() || DEFAULT_INSTANCE_PORT_RANGE;
+    if (displayName.length > 100) {
+      toast.error("实例名称不能超过 100 个字符");
+      return;
+    }
+    if ((expiryTime > 0 && !renewalCycle) || (expiryTime <= 0 && renewalCycle)) {
+      toast.error("请同时设置续费周期和到期时间");
+      return;
+    }
+    if (!Number.isFinite(flowResetTime) || flowResetTime < 1 || flowResetTime > 31) {
+      toast.error("流量归零日必须在 1-31 之间");
+      return;
+    }
+    if (!Number.isFinite(trafficLimit) || trafficLimit < 0) {
+      toast.error("流量限额不能小于 0");
+      return;
+    }
+    setInstanceConfigSaving(true);
+    try {
+      const payload: Parameters<typeof updateNodeInstanceProfile>[0] = {
+        nodeId: instanceConfigTarget.nodeId,
+        instanceId: instanceConfigTarget.instanceId,
+        displayName,
+        weight: instanceConfigTarget.weight ?? 1,
+        portRange,
+        flowResetTime: Math.floor(flowResetTime),
+        trafficLimit: Math.floor(trafficLimit),
+      };
+      if (expiryTime > 0 && renewalCycle) {
+        payload.expiryTime = expiryTime;
+        payload.renewalCycle = renewalCycle;
+      }
+      const res = await updateNodeInstanceProfile(payload);
+      if (res.code === 0) {
+        toast.success("实例配置已保存");
+        setInstanceConfigTarget(null);
+        await loadNodeInstances();
+        await loadNodes({ silent: true });
+      } else {
+        toast.error(res.msg || "保存实例配置失败");
+      }
+    } catch {
+      toast.error("保存实例配置失败");
+    } finally {
+      setInstanceConfigSaving(false);
+    }
+  };
+  const deleteInstanceConfig = async () => {
+    if (!instanceDeleteTarget?.instanceId) return;
+    setInstanceDeleteSaving(true);
+    try {
+      const res = await deleteNodeInstancePort(instanceDeleteTarget.nodeId, instanceDeleteTarget.instanceId);
+      if (res.code === 0) {
+        toast.success("实例已删除");
+        setInstanceDeleteTarget(null);
+        await loadNodeInstances();
+        await loadNodes({ silent: true });
+      } else {
+        toast.error(res.msg || "删除实例失败");
+      }
+    } catch {
+      toast.error("删除实例失败");
+    } finally {
+      setInstanceDeleteSaving(false);
     }
   };
   // 查看节点流量归零日志
@@ -2121,8 +2298,6 @@ export default function NodePage() {
         ...rest,
         ...(secret && secret.trim() !== "" ? { secret: secret.trim() } : {}),
         remark: form.remark.trim(),
-        expiryTime: form.expiryTime,
-        renewalCycle: form.renewalCycle,
         groupId: form.groupId,
         extraIPs: form.extraIPs,
         remoteConfig: nextRemoteConfig,
@@ -2143,31 +2318,27 @@ export default function NodePage() {
           setNodeList((prev) =>
             prev.map((n) =>
               n.id === form.id
-                ? ({
-                  ...n,
-                  name: form.name,
-                  remark: form.remark.trim(),
-                  expiryTime: form.expiryTime,
-                  renewalCycle: form.renewalCycle,
-                  groupId: form.groupId,
-                  intranetIp: form.intranetIp?.trim(),
-                  serverIpV4: form.serverIpV4,
+                  ? ({
+                    ...n,
+                    name: form.name,
+                    remark: form.remark.trim(),
+                    groupId: form.groupId,
+                    intranetIp: form.intranetIp?.trim(),
+                    serverIpV4: form.serverIpV4,
                   serverIpV6: form.serverIpV6,
                   port: form.port,
                   tcpListenAddr: form.tcpListenAddr,
                   udpListenAddr: form.udpListenAddr,
                   interfaceName: form.interfaceName,
-                  remoteConfig: nextRemoteConfig,
-                  secret: form.secret || n.secret,
-                  http: form.http,
-                  tls: form.tls,
-                  socks: form.socks,
-                  trafficRatio: form.trafficRatio,
-                  trafficLimit: form.trafficLimit,
-                  flowResetTime: form.flowResetTime,
-                  expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
-                  expiryReminderDismissedUntil:
-                    n.expiryReminderDismissedUntil ?? null,
+                    remoteConfig: nextRemoteConfig,
+                    secret: form.secret || n.secret,
+                    http: form.http,
+                    tls: form.tls,
+                    socks: form.socks,
+                    trafficRatio: form.trafficRatio,
+                    expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
+                    expiryReminderDismissedUntil:
+                      n.expiryReminderDismissedUntil ?? null,
                 } as Node)
                 : n,
             ),
@@ -3051,7 +3222,8 @@ export default function NodePage() {
   };
 
   return (
-    <AnimatedPage className="px-3 lg:px-6 py-8">
+    <MonitorTerminalProvider>
+      <AnimatedPage className="px-3 lg:px-6 py-8">
       <div className="mb-6 space-y-3">
         <div className="flex flex-row items-center gap-3 overflow-x-auto pb-1">
           <div className="flex items-center gap-2">
@@ -3161,13 +3333,16 @@ export default function NodePage() {
                     // 当前是分组 (grouped) -> 切换到列表 (list)
                     // 当前是列表 (list) -> 切换到卡片 (grid)
                     // 当前是卡片 (grid) -> 切换到分组 (grouped)
-                    if (viewMode === "grouped") setViewMode("list");
+                    if (viewMode === "instances") setViewMode("list");
+                    else if (viewMode === "grouped") setViewMode("list");
                     else if (viewMode === "list") setViewMode("grid");
                     else setViewMode("grouped");
                   }}
                 >
                   {/* 按钮显示的是"下一个要切换到的视图"的名称 */}
-                  {viewMode === "grouped"
+                  {viewMode === "instances"
+                    ? "列表"
+                    : viewMode === "grouped"
                     ? "分组"
                     : viewMode === "list"
                       ? "列表"
@@ -3190,6 +3365,14 @@ export default function NodePage() {
                   onPress={() => openDNSFailoverPicker()}
                 >
                   DNS
+                </Button>
+                <Button
+                  className="bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:hover:bg-cyan-900/45"
+                  size="sm"
+                  variant="flat"
+                  onPress={() => setViewMode("instances")}
+                >
+                  实例
                 </Button>
                 {/* 新增按钮 */}
                 <Button
@@ -3500,6 +3683,187 @@ export default function NodePage() {
                 </div>
               </div>
             ))}
+          {viewMode === "instances" &&
+            (displayNodes.length === 0 ? (
+              <Card className="shadow-sm border border-divider bg-content1">
+                <CardBody className="py-16 flex flex-col items-center justify-center min-h-[200px]">
+                  <h3 className="text-base font-medium text-foreground mb-1">
+                    未找到匹配的节点
+                  </h3>
+                  <p className="text-default-500 text-sm mb-3">
+                    没有符合条件的节点配置，请调整筛选条件
+                  </p>
+                  <Button
+                    color="warning"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => {
+                      setFilterGroupId(null);
+                      setNodeFilterMode("all");
+                      setLocalSearchKeyword("");
+                    }}
+                  >
+                    归零筛选
+                  </Button>
+                </CardBody>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {displayNodes.map((node) => {
+                  const members = nodeInstanceMembers[node.id] || [];
+
+                  return (
+                    <div
+                      key={node.id}
+                      className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-sm"
+                    >
+                      <div className="flex w-full items-center gap-2 px-3 py-3 md:justify-start md:px-4 md:py-4">
+                        <div className="flex min-w-0 shrink items-center gap-2 md:flex-none">
+                          <span className="min-w-0 max-w-[82px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[140px] md:max-w-none md:px-4 md:text-sm">
+                            {node.name} | ID: {node.id}
+                          </span>
+                          <span className="shrink-0 text-xs text-default-500">
+                            {members.length} 个实例
+                          </span>
+                        </div>
+                      </div>
+                      <div className="px-3 pb-4">
+                        <div className="overflow-x-auto overscroll-x-contain md:overflow-hidden">
+                        <table className="w-full min-w-[1120px] table-fixed text-sm md:min-w-0">
+                          <thead className="border-b border-default-400/70 text-foreground">
+                            <tr>
+                              <th className="w-[84px] px-2 py-2 text-center font-medium">状态</th>
+                              <th className="w-[140px] px-2 py-2 text-center font-medium">实例名称</th>
+                              <th className="w-[170px] px-2 py-2 text-center font-medium">IPv4 / 地区</th>
+                              <th className="w-[190px] px-2 py-2 text-center font-medium">IPv6 / 地区</th>
+                              <th className="w-[120px] px-2 py-2 text-center font-medium">端口范围</th>
+                              <th className="w-[100px] px-2 py-2 text-center font-medium">续费周期</th>
+                              <th className="w-[150px] px-2 py-2 text-center font-medium">到期时间</th>
+                              <th className="w-[100px] px-2 py-2 text-center font-medium">归零日</th>
+                              <th className="w-[110px] px-2 py-2 text-center font-medium">流量限额</th>
+                              <th className="w-[180px] px-2 py-2 text-center font-medium">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {members.length === 0 ? (
+                              <tr>
+                                <td
+                                  className="px-2 py-8 text-center text-default-500"
+                                  colSpan={10}
+                                >
+                                  暂无实例上报
+                                </td>
+                              </tr>
+                            ) : (
+                              members.map((member) => (
+                                <tr
+                                  key={member.instanceId || `${member.nodeId}-${member.displayIndex || 0}`}
+                                  className="border-b border-divider/60 last:border-b-0 hover:bg-default-50/70 dark:hover:bg-default-100/10"
+                                >
+                                  <td className="px-2 py-3 text-center align-middle">
+                                    <StatusDot
+                                      active={member.status === 1}
+                                      tone={member.status === 1 ? "success" : "danger"}
+                                    />
+                                  </td>
+                                  <td className="px-2 py-3 text-center font-medium text-foreground">
+                                    <span className="block truncate">{getInstanceLabel(member)}</span>
+                                  </td>
+                                  <td className="px-2 py-3 text-center align-middle text-xs text-default-600">
+                                    {member.publicIpV4?.trim() ? (
+                                      <button
+                                        className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
+                                        title={member.publicIpV4}
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          copyToClipboard(member.publicIpV4 || "", "IPv4");
+                                        }}
+                                      >
+                                        {formatInstanceIPForCell(member.publicIpV4)}
+                                      </button>
+                                    ) : (
+                                      <span className="inline-block max-w-full truncate px-1 leading-5 text-default-300">
+                                        -
+                                      </span>
+                                    )}
+                                    <div className="truncate">
+                                      {member.publicIpV4Region || "-"}
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-3 text-center align-middle text-xs text-default-600">
+                                    {member.publicIpV6?.trim() ? (
+                                      <button
+                                        className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
+                                        title={member.publicIpV6}
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          copyToClipboard(member.publicIpV6 || "", "IPv6");
+                                        }}
+                                      >
+                                        {formatInstanceIPForCell(member.publicIpV6)}
+                                      </button>
+                                    ) : (
+                                      <span className="inline-block max-w-full truncate px-1 leading-5 text-default-300">
+                                        -
+                                      </span>
+                                    )}
+                                    <div className="truncate">
+                                      {member.publicIpV6Region || "-"}
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-3 text-center text-default-700">
+                                    {member.portRange?.trim() || "-"}
+                                  </td>
+                                  <td className="px-2 py-3 text-center text-default-700">
+                                    {formatInstanceRenewalCycle(member.renewalCycle)}
+                                  </td>
+                                  <td className="px-2 py-3 text-center text-default-700">
+                                    {member.expiryTime ? formatNodeRenewalTime(member.expiryTime) : "-"}
+                                  </td>
+                                  <td className="px-2 py-3 text-center text-default-700">
+                                    {member.flowResetTime || 1}号
+                                  </td>
+                                  <td className="px-2 py-3 text-center text-default-700">
+                                    {member.trafficLimit || 0} GB
+                                  </td>
+                                  <td className="px-2 py-3">
+                                    <div className="flex items-center justify-center gap-1 whitespace-nowrap">
+                                      <Button
+                                        color="primary"
+                                        size="sm"
+                                        variant="flat"
+                                        onPress={() => openInstanceConfigEditor(member)}
+                                      >
+                                        配置
+                                      </Button>
+                                      <MonitorTerminalButton
+                                        className="h-8 shrink-0 px-2 text-xs font-medium"
+                                        member={member}
+                                      />
+                                      <Button
+                                        color="danger"
+                                        size="sm"
+                                        variant="flat"
+                                        onPress={() => setInstanceDeleteTarget(member)}
+                                      >
+                                        删除
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           {viewMode === "list" && (
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <SortableContext
@@ -3666,114 +4030,6 @@ export default function NodePage() {
                     </FieldContainer>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select
-                      description="支持月、季、半年、年四种周期"
-                      label="续费周期"
-                      placeholder="选择续费周期"
-                      selectedKeys={
-                        form.renewalCycle ? [form.renewalCycle] : []
-                      }
-                      variant="bordered"
-                      onSelectionChange={(keys) => {
-                        const selected = Array.from(keys)[0] as
-                          | NodeRenewalCycle
-                          | undefined;
-
-                        setForm((prev) => ({
-                          ...prev,
-                          renewalCycle: selected || "",
-                        }));
-                      }}
-                    >
-                      <SelectItem key="month" textValue="月">
-                        月付
-                      </SelectItem>
-                      <SelectItem key="quarter" textValue="季">
-                        季付
-                      </SelectItem>
-                      <SelectItem key="halfYear" textValue="半年">
-                        半年付
-                      </SelectItem>
-                      <SelectItem key="year" textValue="年">
-                        年付
-                      </SelectItem>
-                    </Select>
-                    <DatePicker
-                      showMonthAndYearPickers
-                      description="系统会自动按周期同日推算下次续费时间"
-                      errorMessage={errors.expiryTime}
-                      isInvalid={!!errors.expiryTime}
-                      label="续费基准时间"
-                      permanentLabel="系统会自动按周期同日推算下次续费时间"
-                      value={timestampToCalendarDate(
-                        form.expiryTime > 0 ? form.expiryTime : null,
-                      )}
-                      onChange={(date) => {
-                        const timestamp =
-                          calendarDateToTimestamp(date, false) || 0;
-
-                        setForm((prev) => ({
-                          ...prev,
-                          expiryTime: timestamp,
-                        }));
-                      }}
-                    >
-                      <DatePresets
-                        onChange={(timestamp) => {
-                          setForm((prev) => ({
-                            ...prev,
-                            expiryTime: timestamp,
-                          }));
-                        }}
-                      />
-                    </DatePicker>
-                    <Select
-                      description="每月几号自动归零周期流量"
-                      label="流量归零日期"
-                      placeholder="选择归零日期"
-                      selectedKeys={
-                        form.flowResetTime > 0
-                          ? [String(form.flowResetTime)]
-                          : ["0"]
-                      }
-                      variant="bordered"
-                      onSelectionChange={(keys) => {
-                        const selected = Array.from(keys)[0] as
-                          | string
-                          | undefined;
-
-                        setForm((prev) => ({
-                          ...prev,
-                          flowResetTime: selected ? parseInt(selected) : 1,
-                        }));
-                      }}
-                    >
-                      <SelectItem key="0" textValue="不归零">
-                        不归零
-                      </SelectItem>
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map(
-                        (day) => (
-                          <SelectItem key={String(day)} textValue={`${day}号`}>
-                            每月{day}号
-                          </SelectItem>
-                        ),
-                      )}
-                    </Select>
-                    <Input
-                      description="该节点总流量配额，0表示不限制"
-                      label="流量限额(GB)"
-                      min={0}
-                      placeholder="0 = 不限制"
-                      type="number"
-                      value={String(form.trafficLimit)}
-                      variant="bordered"
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          trafficLimit: parseInt(e.target.value) || 0,
-                        }))
-                      }
-                    />
                     <Input
                       classNames={{ base: "md:col-span-2" }}
                       description="自行组建隧道按参与节点倍率相加，默认 1x"
@@ -4634,6 +4890,62 @@ export default function NodePage() {
         </ModalContent>
       </Modal>
 
+      <Modal isOpen={!!instanceConfigTarget} placement="center" onOpenChange={(open) => !open && setInstanceConfigTarget(null)}>
+        <ModalContent>
+          <ModalHeader>配置 {getInstanceLabel(instanceConfigTarget)}</ModalHeader>
+          <ModalBody>
+              <div className="space-y-3">
+                <Input
+                  description={instanceConfigTarget ? `留空继承 ${getDefaultInstanceLabel(instanceConfigTarget)}` : "留空继承默认实例名称"}
+                  label="实例名称"
+                  placeholder={instanceConfigTarget ? getDefaultInstanceLabel(instanceConfigTarget) : "实例 1"}
+                  value={instanceConfigForm.displayName}
+                  variant="bordered"
+                  onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                />
+                <Input
+                  description={`留空使用 ${DEFAULT_INSTANCE_PORT_RANGE}`}
+                  label="端口范围"
+                  placeholder={DEFAULT_INSTANCE_PORT_RANGE}
+                  value={instanceConfigForm.portRange}
+                  variant="bordered"
+                  onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, portRange: e.target.value }))}
+                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Select label="续费周期" selectedKeys={instanceConfigForm.renewalCycle ? [instanceConfigForm.renewalCycle] : []} variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, renewalCycle: String(Array.from(keys)[0] || "") }))}>
+                  <SelectItem key="month">月付</SelectItem>
+                  <SelectItem key="quarter">季付</SelectItem>
+                  <SelectItem key="halfYear">半年付</SelectItem>
+                  <SelectItem key="year">年付</SelectItem>
+                </Select>
+                <Input label="续费基准时间" type="date" value={instanceConfigForm.expiryDate} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, expiryDate: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <Input label="流量归零日" min={1} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
+                <Input label="流量限额(GB)" min={0} type="number" value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))} />
+              </div>
+            </div>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setInstanceConfigTarget(null)}>取消</Button>
+            <Button color="primary" isLoading={instanceConfigSaving} onPress={saveInstanceConfig}>保存</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={!!instanceDeleteTarget} placement="center" onOpenChange={(open) => !open && setInstanceDeleteTarget(null)}>
+        <ModalContent>
+          <ModalHeader>删除实例</ModalHeader>
+          <ModalBody>
+            <p className="text-sm text-default-600">确认删除 {getInstanceLabel(instanceDeleteTarget)}？删除后该编号会释放，实例继续上报后会重新出现。</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setInstanceDeleteTarget(null)}>取消</Button>
+            <Button color="danger" isLoading={instanceDeleteSaving} onPress={deleteInstanceConfig}>删除</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       {/* 删除日志确认弹窗 */}
       <Modal
         backdrop="blur"
@@ -4983,6 +5295,7 @@ export default function NodePage() {
           </ModalBody>
         </ModalContent>
       </Modal>
-    </AnimatedPage>
+      </AnimatedPage>
+    </MonitorTerminalProvider>
   );
 }

@@ -263,8 +263,8 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 	currentDay := now.Day()
 	lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, now.Location()).Day()
 
-	nodes, err := h.repo.ListNodeMonthlyFlowResetDue(currentDay, lastDay)
-	if err != nil || len(nodes) == 0 {
+	instances, err := h.repo.ListNodeInstanceMonthlyFlowResetDue(currentDay, lastDay)
+	if err != nil || len(instances) == 0 {
 		return
 	}
 
@@ -272,13 +272,15 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 	actorUserName := "system"
 	nowMs := now.UnixMilli()
 
-	for _, node := range nodes {
-		cmdResult, err := h.sendNodeCommandWithTimeout(
-			node.ID,
+	for _, inst := range instances {
+		cmdResult, err := h.sendNodeCommandToInstanceWithTimeout(
+			inst.NodeID,
+			inst.InstanceID,
 			"ResetTraffic",
 			map[string]interface{}{
-				"reason": "自动周期归零",
-				"nodeId": node.ID,
+				"reason":     "自动周期归零",
+				"nodeId":     inst.NodeID,
+				"instanceId": inst.InstanceID,
 			},
 			10*time.Second,
 			false,
@@ -286,26 +288,34 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 		)
 
 		if err != nil || !cmdResult.Success {
-			log.Printf("WARN: auto-reset node %d traffic failed: %v", node.ID, err)
+			log.Printf("WARN: auto-reset node %d instance %s traffic failed: %v", inst.NodeID, inst.InstanceID, err)
 			continue
+		}
+		instanceName := inst.DisplayName
+		if strings.TrimSpace(instanceName) == "" && inst.DisplayIndex > 0 {
+			instanceName = fmt.Sprintf("实例 %d", inst.DisplayIndex)
+		}
+		logName := inst.NodeName
+		if strings.TrimSpace(instanceName) != "" {
+			logName += " / " + instanceName
 		}
 
 		_ = h.repo.CreateNodeTrafficResetLog(&repo.NodeTrafficResetLogCreateParams{
-			NodeID:        node.ID,
-			NodeName:      node.Name,
+			NodeID:        inst.NodeID,
+			NodeName:      logName,
 			ResetTime:     nowMs,
 			OperatorID:    actorUserID,
 			OperatorName:  actorUserName,
 			Reason:        "自动周期归零",
-			InFlowBefore:  node.PeriodTx,
-			OutFlowBefore: node.PeriodRx,
+			InFlowBefore:  inst.PeriodTx,
+			OutFlowBefore: inst.PeriodRx,
 		})
 
-		_ = h.repo.UpdateNodeTrafficNotifiedMask(node.ID, 0)
-		h.nodeTrafficCache.Delete(node.ID)
+		_ = h.repo.UpdateNodeInstanceTrafficNotifiedMask(inst.NodeID, inst.InstanceID, 0)
+		h.nodeTrafficCache.Delete(fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID))
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
-			bot.SendNodeTrafficReset(node.Name, "自动周期归零")
+			bot.SendNodeTrafficReset(logName, "自动周期归零")
 		})
 	}
 }
