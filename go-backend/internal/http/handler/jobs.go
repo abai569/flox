@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -736,20 +737,20 @@ func (h *Handler) expirePackageSubscriptions() {
 	log.Printf("[packages] 已过期 %d 个套餐订阅", len(expired))
 }
 
-// checkNodeExpiryNotifications checks nodes expiring within 3 days and sends Telegram notifications.
-// Only notifies once per 24h per node to avoid spam.
+// checkNodeExpiryNotifications checks instances expiring within 3 days and sends Telegram notifications.
+// Only notifies once per 24h per instance to avoid spam.
 func (h *Handler) checkNodeExpiryNotifications(nowMs int64) {
-	nodes, err := h.repo.ListNodesExpiringWithin(nowMs, 3)
-	if err != nil || len(nodes) == 0 {
+	instances, err := h.repo.ListNodeInstancesExpiringWithin(nowMs, 3)
+	if err != nil || len(instances) == 0 {
 		return
 	}
-	for _, node := range nodes {
-		daysLeft := (node.ExpiryTime.Int64 - nowMs) / 86400000
+	for _, inst := range instances {
+		daysLeft := (inst.ExpiryTime - nowMs) / 86400000
 		if daysLeft < 1 {
 			daysLeft = 0
 		}
 
-		_ = h.repo.UpdateNodeExpiryReminderDismissedUntil(node.ID, nowMs+86400000)
+		_ = h.repo.UpdateNodeInstanceExpiryReminderDismissedUntil(inst.NodeID, inst.InstanceID, nowMs+86400000)
 
 		tier, _ := middleware.GetLicenseTier()
 		if tier == middleware.TierFree {
@@ -760,10 +761,17 @@ func (h *Handler) checkNodeExpiryNotifications(nowMs int64) {
 			continue
 		}
 
+		name := inst.NodeName
+		if inst.DisplayName != "" {
+			name += " / " + inst.DisplayName
+		} else if inst.DisplayIndex > 0 {
+			name += fmt.Sprintf(" / 实例 %d", inst.DisplayIndex)
+		}
+
 		if daysLeft <= 0 {
-			bot.SendNodeExpired(node.Name)
+			bot.SendNodeExpired(name)
 		} else {
-			bot.SendNodeExpirySoon(node.Name, int(daysLeft))
+			bot.SendNodeExpirySoon(name, int(daysLeft))
 		}
 	}
 }

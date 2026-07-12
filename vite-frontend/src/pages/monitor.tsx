@@ -80,6 +80,23 @@ const formatUptime = (seconds: number): string => {
   return days > 0 ? `${days} 天` : `${hours} 小时`;
 };
 
+const formatDateInputValue = (timestamp?: number | null): string => {
+  if (!timestamp || timestamp <= 0) return "";
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const parseDateInputValue = (value: string): number => {
+  if (!value) return 0;
+  const timestamp = new Date(`${value}T00:00:00`).getTime();
+
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
 type MonitorIPFamily = "v4" | "v6";
 
 type RealtimeNodeInstanceMetric = {
@@ -787,6 +804,8 @@ export default function MonitorPage() {
   const [instanceDisplayNameValue, setInstanceDisplayNameValue] = useState("");
   const [weightValue, setWeightValue] = useState("");
   const [instancePortRangeValue, setInstancePortRangeValue] = useState("");
+  const [instanceExpiryDateValue, setInstanceExpiryDateValue] = useState("");
+  const [instanceRenewalCycleValue, setInstanceRenewalCycleValue] = useState("");
   const [instanceEditSaving, setInstanceEditSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] =
     useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
@@ -1045,6 +1064,8 @@ export default function MonitorPage() {
       setInstanceDisplayNameValue(member.displayName?.trim() || "");
       setWeightValue(String(member.weight ?? 1));
       setInstancePortRangeValue(member.portRange?.trim() || "");
+      setInstanceExpiryDateValue(formatDateInputValue(member.expiryTime));
+      setInstanceRenewalCycleValue(member.renewalCycle || "");
       setInstanceEditModalOpen(true);
     },
     [],
@@ -1056,6 +1077,8 @@ export default function MonitorPage() {
       const nextWeight = overrideWeight ?? Number(weightValue);
       const displayName = instanceDisplayNameValue.trim();
       const portRange = instancePortRangeValue.trim();
+      const expiryTime = parseDateInputValue(instanceExpiryDateValue);
+      const renewalCycle = instanceRenewalCycleValue.trim();
 
       if (!Number.isFinite(nextWeight) || nextWeight < 0) {
         toast.error("权重不能小于 0");
@@ -1074,6 +1097,11 @@ export default function MonitorPage() {
 
         return;
       }
+      if ((expiryTime > 0 && !renewalCycle) || (expiryTime <= 0 && renewalCycle)) {
+        toast.error("请同时设置续费周期和到期时间");
+
+        return;
+      }
       setInstanceEditSaving(true);
       try {
         const res = await updateNodeInstanceProfile({
@@ -1082,6 +1110,8 @@ export default function MonitorPage() {
           displayName,
           weight: Math.floor(nextWeight),
           portRange,
+          expiryTime: expiryTime > 0 ? expiryTime : null,
+          renewalCycle,
         });
 
         if (res.code === 0) {
@@ -1101,8 +1131,10 @@ export default function MonitorPage() {
     },
     [
       instanceDisplayNameValue,
+      instanceExpiryDateValue,
       instanceEditTarget,
       instancePortRangeValue,
+      instanceRenewalCycleValue,
       loadNodes,
       loadNodeInstanceGroups,
       weightValue,
@@ -1363,6 +1395,28 @@ export default function MonitorPage() {
                   type="number"
                   value={weightValue}
                   onChange={(event) => setWeightValue(event.target.value)}
+                />
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1 text-xs text-default-500">
+                  <span>续费周期</span>
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                    value={instanceRenewalCycleValue}
+                    onChange={(event) => setInstanceRenewalCycleValue(event.target.value)}
+                  >
+                    <option value="">不提醒</option>
+                    <option value="month">每月</option>
+                    <option value="quarter">每季度</option>
+                    <option value="halfYear">每半年</option>
+                    <option value="year">每年</option>
+                  </select>
+                </label>
+                <Input
+                  label="到期时间"
+                  type="date"
+                  value={instanceExpiryDateValue}
+                  onChange={(event) => setInstanceExpiryDateValue(event.target.value)}
                 />
               </div>
             </div>

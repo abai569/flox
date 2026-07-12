@@ -324,6 +324,9 @@ func autoMigrateAll(db *gorm.DB) error {
 	_ = db.Model(&model.Node{}).Where("LOWER(TRIM(server_ip)) = ?", "auto").Update("server_ip", "")
 	_ = db.Model(&model.Node{}).Where("TRIM(port) = ?", "1000-65535").Update("port", "10000-65535")
 	_ = db.Where("TRIM(instance_id) = '' OR LOWER(TRIM(instance_id)) = ?", "default").Delete(&model.NodeInstance{})
+	if err := migrateNodeInstanceExpiryFromNode(db); err != nil {
+		return fmt.Errorf("migrate node instance expiry: %w", err)
+	}
 	for _, table := range []string{"node_instance_metric", "monitor_node_ips", "node_server_instance"} {
 		if db.Migrator().HasTable(table) {
 			if err := db.Migrator().DropTable(table); err != nil {
@@ -333,6 +336,84 @@ func autoMigrateAll(db *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func migrateNodeInstanceExpiryFromNode(db *gorm.DB) error {
+	type nodeExpirySeed struct {
+		ID                           int64          `gorm:"column:id"`
+		ExpiryTime                   sql.NullInt64  `gorm:"column:expiry_time"`
+		RenewalCycle                 sql.NullString `gorm:"column:renewal_cycle"`
+		ExpiryReminderDismissed      int            `gorm:"column:expiry_reminder_dismissed"`
+		ExpiryReminderDismissedUntil sql.NullInt64  `gorm:"column:expiry_reminder_dismissed_until"`
+	}
+	var nodes []nodeExpirySeed
+	if err := db.Model(&model.Node{}).
+		Select("id, expiry_time, renewal_cycle, expiry_reminder_dismissed, expiry_reminder_dismissed_until").
+		Where("expiry_time IS NOT NULL AND expiry_time > 0 AND renewal_cycle IS NOT NULL AND TRIM(renewal_cycle) <> ''").
+		Find(&nodes).Error; err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		var existing int64
+		if err := db.Model(&model.NodeInstance{}).
+			Where("node_id = ? AND expiry_time IS NOT NULL AND expiry_time > 0", node.ID).
+			Count(&existing).Error; err != nil {
+			return err
+		}
+		if existing > 0 {
+			continue
+		}
+		var inst model.NodeInstance
+		where, args := validNodeInstanceWhere()
+		if err := db.Where("node_id = ?", node.ID).
+			Where(where, args...).
+			Order("display_index ASC, id ASC").
+			First(&inst).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return err
+		}
+		if err := db.Model(&model.NodeInstance{}).Where("id = ?", inst.ID).Updates(map[string]interface{}{
+			"expiry_time":                     node.ExpiryTime,
+			"renewal_cycle":                   node.RenewalCycle,
+			"expiry_reminder_dismissed":       node.ExpiryReminderDismissed,
+			"expiry_reminder_dismissed_until": node.ExpiryReminderDismissedUntil,
+			"updated_time":                    unixMilliNow(),
+		}).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func nodeInstanceExpirySummary(instances []model.NodeInstance) ([]map[string]interface{}, interface{}, interface{}, int, interface{}) {
+	items := make([]map[string]interface{}, 0)
+	var nearest *model.NodeInstance
+	for i := range instances {
+		inst := &instances[i]
+		if !inst.ExpiryTime.Valid || inst.ExpiryTime.Int64 <= 0 || !inst.RenewalCycle.Valid || strings.TrimSpace(inst.RenewalCycle.String) == "" {
+			continue
+		}
+		item := map[string]interface{}{
+			"nodeId":                       inst.NodeID,
+			"instanceId":                   inst.InstanceID,
+			"displayIndex":                 inst.DisplayIndex,
+			"displayName":                  strings.TrimSpace(inst.DisplayName),
+			"expiryTime":                   inst.ExpiryTime.Int64,
+			"renewalCycle":                 inst.RenewalCycle.String,
+			"expiryReminderDismissed":      inst.ExpiryReminderDismissed,
+			"expiryReminderDismissedUntil": nullableInt64(inst.ExpiryReminderDismissedUntil),
+		}
+		items = append(items, item)
+		if nearest == nil || inst.ExpiryTime.Int64 < nearest.ExpiryTime.Int64 {
+			nearest = inst
+		}
+	}
+	if nearest == nil {
+		return items, nil, nil, 0, nil
+	}
+	return items, nearest.ExpiryTime.Int64, nearest.RenewalCycle.String, nearest.ExpiryReminderDismissed, nullableInt64(nearest.ExpiryReminderDismissedUntil)
 }
 
 // preparePostgresLegacySchema renames unique constraints that were created by
@@ -977,6 +1058,25 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 		metricMap[m.NodeID] = m
 	}
 
+	nodeIDs := make([]int64, 0, len(nodes))
+	for _, n := range nodes {
+		nodeIDs = append(nodeIDs, n.ID)
+	}
+	instancesByNode := make(map[int64][]model.NodeInstance)
+	if len(nodeIDs) > 0 {
+		_ = r.EnsureNodeInstanceDisplayIndexes(nodeIDs)
+		var instances []model.NodeInstance
+		where, args := validNodeInstanceWhere()
+		if err := r.db.Where("node_id IN ?", nodeIDs).
+			Where(where, args...).
+			Order("node_id ASC, display_index ASC, id ASC").
+			Find(&instances).Error; err == nil {
+			for _, inst := range instances {
+				instancesByNode[inst.NodeID] = append(instancesByNode[inst.NodeID], inst)
+			}
+		}
+	}
+
 	for _, n := range nodes {
 		pt := func() interface{} {
 			if m, ok := metricMap[n.ID]; ok {
@@ -989,13 +1089,15 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			return nil
 		}()
 
+		instanceExpiryItems, nearestExpiryTime, nearestRenewalCycle, nearestDismissed, nearestDismissedUntil := nodeInstanceExpirySummary(instancesByNode[n.ID])
 		items = append(items, map[string]interface{}{
 			"id": n.ID, "inx": n.Inx, "name": n.Name,
-			"remark":       nullableString(n.Remark),
-			"expiryTime":   nullableInt64(n.ExpiryTime),
-			"renewalCycle": nullableString(n.RenewalCycle),
-			"trafficRatio": n.TrafficRatio,
-			"ip":           n.ServerIP, "serverIp": n.ServerIP,
+			"remark":          nullableString(n.Remark),
+			"expiryTime":      nearestExpiryTime,
+			"renewalCycle":    nearestRenewalCycle,
+			"expiryInstances": instanceExpiryItems,
+			"trafficRatio":    n.TrafficRatio,
+			"ip":              n.ServerIP, "serverIp": n.ServerIP,
 			"serverHost":    nullableString(n.IntranetIP),
 			"intranetIp":    nullableString(n.IntranetIP),
 			"serverIpV4":    nullableString(n.ServerIPV4),
@@ -1007,15 +1109,16 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"version":       nullableString(n.Version),
 			"http":          n.HTTP, "tls": n.TLS, "socks": n.Socks, "blockOther": n.BlockOther,
 			"status": n.Status, "isRemote": n.IsRemote,
-			"remoteUrl":               nullableString(n.RemoteURL),
-			"remoteToken":             nullableString(n.RemoteToken),
-			"remoteConfig":            nullableString(n.RemoteConfig),
-			"secret":                  n.Secret,
-			"expiryReminderDismissed": n.ExpiryReminderDismissed,
-			"groupId":                 nullableInt64(n.GroupID),
-			"trafficLimit":            n.TrafficLimit,
-			"paused":                  n.Paused,
-			"weight":                  n.Weight,
+			"remoteUrl":                    nullableString(n.RemoteURL),
+			"remoteToken":                  nullableString(n.RemoteToken),
+			"remoteConfig":                 nullableString(n.RemoteConfig),
+			"secret":                       n.Secret,
+			"expiryReminderDismissed":      nearestDismissed,
+			"expiryReminderDismissedUntil": nearestDismissedUntil,
+			"groupId":                      nullableInt64(n.GroupID),
+			"trafficLimit":                 n.TrafficLimit,
+			"paused":                       n.Paused,
+			"weight":                       n.Weight,
 			"onlineCount": func() int64 {
 				if m, ok := metricMap[n.ID]; ok {
 					return m.TCPConns + m.UDPConns

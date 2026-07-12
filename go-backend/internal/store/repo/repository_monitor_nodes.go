@@ -7,31 +7,35 @@ import (
 )
 
 type MonitorNodeInstanceGroupRow struct {
-	Inx          int64   `gorm:"column:inx"`
-	NodeID       int64   `gorm:"column:node_id"`
-	NodeName     string  `gorm:"column:node_name"`
-	NodeStatus   int     `gorm:"column:node_status"`
-	InstanceID   string  `gorm:"column:instance_id"`
-	DisplayIndex int     `gorm:"column:display_index"`
-	DisplayName  string  `gorm:"column:display_name"`
-	Hostname     string  `gorm:"column:hostname"`
-	PublicIPV4   string  `gorm:"column:public_ip_v4"`
-	PublicIPV6   string  `gorm:"column:public_ip_v6"`
-	Status       int     `gorm:"column:status"`
-	Weight       int     `gorm:"column:weight"`
-	PortRange    string  `gorm:"column:port_range"`
-	NetInSpeed   int64   `gorm:"column:net_in_speed"`
-	NetOutSpeed  int64   `gorm:"column:net_out_speed"`
-	NetInBytes   int64   `gorm:"column:net_in_bytes"`
-	NetOutBytes  int64   `gorm:"column:net_out_bytes"`
-	TCPConns     int64   `gorm:"column:tcp_conns"`
-	UDPConns     int64   `gorm:"column:udp_conns"`
-	Uptime       int64   `gorm:"column:uptime"`
-	PeriodRx     int64   `gorm:"column:period_rx"`
-	PeriodTx     int64   `gorm:"column:period_tx"`
-	CPUUsage     float64 `gorm:"column:cpu_usage"`
-	MemUsage     float64 `gorm:"column:mem_usage"`
-	DiskUsage    float64 `gorm:"column:disk_usage"`
+	Inx                          int64   `gorm:"column:inx"`
+	NodeID                       int64   `gorm:"column:node_id"`
+	NodeName                     string  `gorm:"column:node_name"`
+	NodeStatus                   int     `gorm:"column:node_status"`
+	InstanceID                   string  `gorm:"column:instance_id"`
+	DisplayIndex                 int     `gorm:"column:display_index"`
+	DisplayName                  string  `gorm:"column:display_name"`
+	Hostname                     string  `gorm:"column:hostname"`
+	PublicIPV4                   string  `gorm:"column:public_ip_v4"`
+	PublicIPV6                   string  `gorm:"column:public_ip_v6"`
+	Status                       int     `gorm:"column:status"`
+	Weight                       int     `gorm:"column:weight"`
+	PortRange                    string  `gorm:"column:port_range"`
+	ExpiryTime                   int64   `gorm:"column:expiry_time"`
+	RenewalCycle                 string  `gorm:"column:renewal_cycle"`
+	ExpiryReminderDismissed      int     `gorm:"column:expiry_reminder_dismissed"`
+	ExpiryReminderDismissedUntil int64   `gorm:"column:expiry_reminder_dismissed_until"`
+	NetInSpeed                   int64   `gorm:"column:net_in_speed"`
+	NetOutSpeed                  int64   `gorm:"column:net_out_speed"`
+	NetInBytes                   int64   `gorm:"column:net_in_bytes"`
+	NetOutBytes                  int64   `gorm:"column:net_out_bytes"`
+	TCPConns                     int64   `gorm:"column:tcp_conns"`
+	UDPConns                     int64   `gorm:"column:udp_conns"`
+	Uptime                       int64   `gorm:"column:uptime"`
+	PeriodRx                     int64   `gorm:"column:period_rx"`
+	PeriodTx                     int64   `gorm:"column:period_tx"`
+	CPUUsage                     float64 `gorm:"column:cpu_usage"`
+	MemUsage                     float64 `gorm:"column:mem_usage"`
+	DiskUsage                    float64 `gorm:"column:disk_usage"`
 }
 
 func (r *Repository) ListMonitorNodes() ([]model.Node, error) {
@@ -85,6 +89,10 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 			nsi.status AS status,
 			nsi.weight AS weight,
 			COALESCE(nsi.port_range, '') AS port_range,
+			COALESCE(nsi.expiry_time, 0) AS expiry_time,
+			COALESCE(nsi.renewal_cycle, '') AS renewal_cycle,
+			COALESCE(nsi.expiry_reminder_dismissed, 0) AS expiry_reminder_dismissed,
+			COALESCE(nsi.expiry_reminder_dismissed_until, 0) AS expiry_reminder_dismissed_until,
 			nsi.net_in_speed AS net_in_speed,
 			nsi.net_out_speed AS net_out_speed,
 			nsi.net_in_bytes AS net_in_bytes,

@@ -1,9 +1,11 @@
 package repo
 
 import (
+	"database/sql"
 	"errors"
 	"sort"
 	"strings"
+	"time"
 
 	"go-backend/internal/store/model"
 	"gorm.io/gorm"
@@ -34,6 +36,15 @@ type NodeInstanceUpsert struct {
 type NodeInstanceCount struct {
 	Total  int64
 	Online int64
+}
+
+type NodeInstanceExpiryReminder struct {
+	NodeID       int64
+	NodeName     string
+	InstanceID   string
+	DisplayIndex int
+	DisplayName  string
+	ExpiryTime   int64
 }
 
 func normalizeNodeInstanceID(instanceID string) string {
@@ -188,7 +199,7 @@ func (r *Repository) UpdateNodeInstanceWeight(nodeID int64, instanceID string, w
 		Updates(map[string]interface{}{"weight": weight, "updated_time": now}).Error
 }
 
-func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, weight int, portRange string, now int64) error {
+func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -202,11 +213,110 @@ func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, 
 	return r.db.Model(&model.NodeInstance{}).
 		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
 		Updates(map[string]interface{}{
-			"display_name": strings.TrimSpace(displayName),
-			"weight":       weight,
-			"port_range":   strings.TrimSpace(portRange),
-			"updated_time": now,
+			"display_name":                    strings.TrimSpace(displayName),
+			"weight":                          weight,
+			"port_range":                      strings.TrimSpace(portRange),
+			"expiry_time":                     nullInt64FromInterface(expiryTime),
+			"renewal_cycle":                   nullStringFromInterface(renewalCycle),
+			"expiry_reminder_dismissed":       0,
+			"expiry_reminder_dismissed_until": sql.NullInt64{},
+			"updated_time":                    now,
 		}).Error
+}
+
+func (r *Repository) RefreshNodeInstanceExpiryReminder(nodeID int64, instanceID string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return errors.New("node instance id is required")
+	}
+	var inst model.NodeInstance
+	if err := r.db.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).First(&inst).Error; err != nil {
+		return err
+	}
+	if !inst.RenewalCycle.Valid || strings.TrimSpace(inst.RenewalCycle.String) == "" {
+		return errors.New("renewal_cycle not set")
+	}
+	if !inst.ExpiryTime.Valid || inst.ExpiryTime.Int64 <= 0 {
+		return errors.New("expiry_time not set")
+	}
+	months := renewalCycleMonths(inst.RenewalCycle.String)
+	now := time.Now()
+	nextExpiry := time.UnixMilli(inst.ExpiryTime.Int64)
+	for nextExpiry.Before(now) || nextExpiry.Equal(now) {
+		nextExpiry = nextExpiry.AddDate(0, months, 0)
+	}
+	nextExpiry = nextExpiry.AddDate(0, months, 0)
+	return r.db.Model(&model.NodeInstance{}).
+		Where("id = ?", inst.ID).
+		Updates(map[string]interface{}{
+			"expiry_time":                     nextExpiry.UnixMilli(),
+			"expiry_reminder_dismissed":       0,
+			"expiry_reminder_dismissed_until": sql.NullInt64{},
+			"updated_time":                    unixMilliNow(),
+		}).Error
+}
+
+func (r *Repository) UpdateNodeInstanceExpiryReminderDismissed(nodeID int64, instanceID string, dismissed int) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return errors.New("node instance id is required")
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Update("expiry_reminder_dismissed", dismissed).Error
+}
+
+func (r *Repository) UpdateNodeInstanceExpiryReminderDismissedUntil(nodeID int64, instanceID string, untilMs int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return errors.New("node instance id is required")
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Update("expiry_reminder_dismissed_until", untilMs).Error
+}
+
+func (r *Repository) ListNodeInstancesExpiringWithin(nowMs int64, days int) ([]NodeInstanceExpiryReminder, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	deadline := nowMs + int64(days)*86400000
+	twentyFourHoursMs := int64(86400000)
+	var rows []NodeInstanceExpiryReminder
+	where, args := validNodeInstanceWhere()
+	query := r.db.Table("node_instance AS nsi").
+		Select(`nsi.node_id, n.name AS node_name, nsi.instance_id, nsi.display_index, COALESCE(nsi.display_name, '') AS display_name, nsi.expiry_time`).
+		Joins("JOIN node AS n ON n.id = nsi.node_id").
+		Where(where, args...).
+		Where("nsi.expiry_time IS NOT NULL AND nsi.expiry_time > ? AND nsi.expiry_time <= ?", 0, deadline).
+		Where("nsi.expiry_reminder_dismissed_until IS NULL OR nsi.expiry_reminder_dismissed_until <= ? OR nsi.expiry_reminder_dismissed_until = 0", nowMs-twentyFourHoursMs).
+		Order("n.inx ASC, n.id ASC, nsi.display_index ASC, nsi.id ASC")
+	if err := query.Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func renewalCycleMonths(cycle string) int {
+	switch strings.TrimSpace(cycle) {
+	case "quarter":
+		return 3
+	case "halfYear":
+		return 6
+	case "year":
+		return 12
+	default:
+		return 1
+	}
 }
 
 func (r *Repository) UpdateNodeInstancePortRange(nodeID int64, instanceID string, portRange string, now int64) error {

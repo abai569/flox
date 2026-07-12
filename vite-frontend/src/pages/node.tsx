@@ -160,6 +160,7 @@ interface Node {
   flowResetTime?: number;
   expiryReminderDismissed?: number;
   expiryReminderDismissedUntil: number | null;
+  expiryInstances?: NodeExpiryInstance[];
   ip: string;
   serverIp: string;
   intranetIp?: string;
@@ -187,6 +188,16 @@ interface Node {
   secret?: string;
   trafficRatio?: number;
   periodTraffic?: NodePeriodTraffic;
+}
+interface NodeExpiryInstance {
+  nodeId: number;
+  instanceId: string;
+  displayIndex?: number;
+  displayName?: string;
+  expiryTime: number;
+  renewalCycle: NodeRenewalCycle;
+  expiryReminderDismissed?: number;
+  expiryReminderDismissedUntil?: number | null;
 }
 interface NodeForm {
   id: number | null;
@@ -1467,9 +1478,9 @@ export default function NodePage() {
       setDeleteLoading(false);
     }
   };
-  const handleDismissExpiryReminder = async (nodeId: number) => {
+  const handleDismissExpiryReminder = async (nodeId: number, instanceId?: string) => {
     try {
-      const res = await refreshNodeExpiryReminder(nodeId);
+      const res = await refreshNodeExpiryReminder(nodeId, instanceId);
 
       if (res.code === 0) {
         await loadNodes({ silent: true });
@@ -2435,16 +2446,23 @@ export default function NodePage() {
     return Array.from(groupsMap.values()).filter((g) => g.nodes.length > 0);
   }, [displayNodes, nodeGroups]);
   const renderNodeCard = (node: Node, listeners: any) => {
-    const expiryMeta = getNodeExpiryMeta(node.expiryTime, node.renewalCycle);
+    const expiryTarget =
+      node.expiryInstances?.find(
+        (item) => item.expiryTime === node.expiryTime && item.renewalCycle === node.renewalCycle,
+      ) ?? node.expiryInstances?.[0];
+    const expiryMeta = getNodeExpiryMeta(
+      expiryTarget?.expiryTime ?? node.expiryTime,
+      expiryTarget?.renewalCycle ?? node.renewalCycle,
+    );
     const connectionStatusMeta = getConnectionStatusMeta(node.connectionStatus);
     const hasRemark = Boolean(node.remark?.trim());
     const hasExpiryInfo = Boolean(
-      node.expiryTime &&
-      node.expiryTime > 0 &&
-      node.renewalCycle &&
-      (node.expiryReminderDismissed !== 1 ||
-        (node.expiryReminderDismissedUntil &&
-          node.expiryReminderDismissedUntil * 1000 < Date.now())),
+      expiryTarget?.expiryTime &&
+      expiryTarget.expiryTime > 0 &&
+      expiryTarget.renewalCycle &&
+      (expiryTarget.expiryReminderDismissed !== 1 ||
+        (expiryTarget.expiryReminderDismissedUntil &&
+          expiryTarget.expiryReminderDismissedUntil < Date.now())),
     );
     const hasInfoTrigger = hasRemark || hasExpiryInfo;
     const infoPlacement = infoPopoverPlacement[node.id] ?? "left";
@@ -2575,7 +2593,7 @@ export default function NodePage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               e.nativeEvent.stopImmediatePropagation();
-                              handleDismissExpiryReminder?.(node.id);
+                              handleDismissExpiryReminder?.(node.id, expiryTarget?.instanceId);
                               setInfoPopoverOpenId(null);
                             }}
                           >

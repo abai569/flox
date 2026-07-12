@@ -1451,7 +1451,9 @@ func (h *Handler) nodeInstallOffline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		ID int64 `json:"id"`
+		ID         int64  `json:"id"`
+		NodeID     int64  `json:"nodeId"`
+		InstanceID string `json:"instanceId"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -1545,19 +1547,32 @@ func (h *Handler) nodeRefreshExpiryReminder(w http.ResponseWriter, r *http.Reque
 	}
 
 	var req struct {
-		ID int64 `json:"id"`
+		ID         int64  `json:"id"`
+		NodeID     int64  `json:"nodeId"`
+		InstanceID string `json:"instanceId"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
 		return
 	}
 
-	if req.ID <= 0 {
+	nodeID := req.NodeID
+	if nodeID <= 0 {
+		nodeID = req.ID
+	}
+	if nodeID <= 0 {
 		response.WriteJSON(w, response.ErrDefault("节点 ID 无效"))
 		return
 	}
 
-	if err := h.repo.RefreshNodeExpiryReminder(req.ID); err != nil {
+	instanceID := strings.TrimSpace(req.InstanceID)
+	var err error
+	if instanceID != "" {
+		err = h.repo.RefreshNodeInstanceExpiryReminder(nodeID, instanceID)
+	} else {
+		err = h.repo.RefreshNodeExpiryReminder(nodeID)
+	}
+	if err != nil {
 		response.WriteJSON(w, response.Err(-2, fmt.Sprintf("更新提醒周期失败: %v", err)))
 		return
 	}
@@ -1578,17 +1593,30 @@ func (h *Handler) nodeDismissExpiryReminder(w http.ResponseWriter, r *http.Reque
 	}
 
 	var req struct {
-		ID int64 `json:"id"`
+		ID         int64  `json:"id"`
+		NodeID     int64  `json:"nodeId"`
+		InstanceID string `json:"instanceId"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
 		return
 	}
-	if req.ID <= 0 {
+	nodeID := req.NodeID
+	if nodeID <= 0 {
+		nodeID = req.ID
+	}
+	if nodeID <= 0 {
 		response.WriteJSON(w, response.ErrDefault("节点ID不能为空"))
 		return
 	}
-	if err := h.repo.UpdateNodeExpiryReminderDismissed(req.ID, 1); err != nil {
+	instanceID := strings.TrimSpace(req.InstanceID)
+	var err error
+	if instanceID != "" {
+		err = h.repo.UpdateNodeInstanceExpiryReminderDismissed(nodeID, instanceID, 1)
+	} else {
+		err = h.repo.UpdateNodeExpiryReminderDismissed(nodeID, 1)
+	}
+	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}

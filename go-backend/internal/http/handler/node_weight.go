@@ -26,11 +26,13 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		NodeID      int64  `json:"nodeId"`
-		InstanceID  string `json:"instanceId"`
-		DisplayName string `json:"displayName"`
-		Weight      int    `json:"weight"`
-		PortRange   string `json:"portRange"`
+		NodeID       int64       `json:"nodeId"`
+		InstanceID   string      `json:"instanceId"`
+		DisplayName  string      `json:"displayName"`
+		Weight       int         `json:"weight"`
+		PortRange    string      `json:"portRange"`
+		ExpiryTime   interface{} `json:"expiryTime"`
+		RenewalCycle interface{} `json:"renewalCycle"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -60,7 +62,17 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.ErrDefault("实例名称不能超过100个字符"))
 			return
 		}
-		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Weight, portRange, time.Now().UnixMilli()); err != nil {
+		renewalCycle := normalizeNodeRenewalCycle(asString(req.RenewalCycle))
+		expiryTime := asInt64(req.ExpiryTime, 0)
+		if (renewalCycle != "" && expiryTime <= 0) || (renewalCycle == "" && expiryTime > 0) {
+			response.WriteJSON(w, response.ErrDefault("请同时设置续费周期和到期时间"))
+			return
+		}
+		var expiryInput interface{}
+		if expiryTime > 0 {
+			expiryInput = expiryTime
+		}
+		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Weight, portRange, expiryInput, renewalCycle, time.Now().UnixMilli()); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
@@ -73,11 +85,13 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 
 	go h.redeployNodeRuntime(req.NodeID)
 	response.WriteJSON(w, response.OK(map[string]interface{}{
-		"nodeId":      req.NodeID,
-		"instanceId":  instanceID,
-		"displayName": strings.TrimSpace(req.DisplayName),
-		"weight":      req.Weight,
-		"portRange":   portRange,
+		"nodeId":       req.NodeID,
+		"instanceId":   instanceID,
+		"displayName":  strings.TrimSpace(req.DisplayName),
+		"weight":       req.Weight,
+		"portRange":    portRange,
+		"expiryTime":   asInt64(req.ExpiryTime, 0),
+		"renewalCycle": normalizeNodeRenewalCycle(asString(req.RenewalCycle)),
 	}))
 }
 

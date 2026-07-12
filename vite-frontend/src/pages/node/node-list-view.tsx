@@ -44,6 +44,7 @@ interface Node {
   renewalCycle?: NodeRenewalCycle;
   expiryReminderDismissed?: number;
   expiryReminderDismissedUntil: number | null;
+  expiryInstances?: NodeExpiryInstance[];
   ip: string;
   serverIp: string;
   intranetIp?: string;
@@ -70,6 +71,16 @@ interface Node {
   groupId?: number | null;
   onlineCount?: number;
   trafficRatio?: number;
+}
+interface NodeExpiryInstance {
+  nodeId: number;
+  instanceId: string;
+  displayIndex?: number;
+  displayName?: string;
+  expiryTime: number;
+  renewalCycle: NodeRenewalCycle;
+  expiryReminderDismissed?: number;
+  expiryReminderDismissedUntil?: number | null;
 }
 interface NodeListViewProps {
   displayNodes: Node[];
@@ -103,7 +114,7 @@ interface NodeListViewProps {
   nodeGroups: any[];
   filterGroupId: number | null;
   setFilterGroupId: (id: number | null) => void;
-  handleDismissExpiryReminder?: (nodeId: number) => void;
+  handleDismissExpiryReminder?: (nodeId: number, instanceId?: string) => void;
   // 新增三种对接方式的处理函数
   handleCopyOverseasInstallCommand?: (node: Node) => void;
   handleCopyOfflineInstallCommand?: (node: Node) => void;
@@ -209,18 +220,22 @@ function SortableTableRow({
     : "";
   const isRemoteNode = node.isRemote === 1;
   const connectionStatusMeta = getConnectionStatusMeta(node.connectionStatus);
+  const expiryTarget =
+    node.expiryInstances?.find(
+      (item: NodeExpiryInstance) => item.expiryTime === node.expiryTime && item.renewalCycle === node.renewalCycle,
+    ) ?? node.expiryInstances?.[0];
   const expiryMeta = getNodeRenewalSnapshot(
-    node.expiryTime,
-    node.renewalCycle,
+    expiryTarget?.expiryTime ?? node.expiryTime,
+    expiryTarget?.renewalCycle ?? node.renewalCycle,
     7,
   );
   const hasExpiryInfo = Boolean(
-    node.expiryTime &&
-      node.expiryTime > 0 &&
-      node.renewalCycle &&
-      (node.expiryReminderDismissed !== 1 ||
-        (node.expiryReminderDismissedUntil &&
-          node.expiryReminderDismissedUntil * 1000 < Date.now())),
+    expiryTarget?.expiryTime &&
+      expiryTarget.expiryTime > 0 &&
+      expiryTarget.renewalCycle &&
+      (expiryTarget.expiryReminderDismissed !== 1 ||
+        (expiryTarget.expiryReminderDismissedUntil &&
+          expiryTarget.expiryReminderDismissedUntil < Date.now())),
   );
   const getExpiryChipProps = () => {
     if (expiryMeta.state === "expired") {
@@ -638,30 +653,39 @@ function SortableTableRow({
             </button>
             {expiryPopoverOpen && (
               <div
-                className="absolute right-0 top-[calc(100%+6px)] z-[100] w-auto whitespace-nowrap flex items-center gap-4 rounded-xl border border-divider/80 bg-background/98 p-2 pl-3 shadow-xl backdrop-blur"
+                className="absolute right-0 top-[calc(100%+6px)] z-[100] min-w-[260px] whitespace-nowrap rounded-xl border border-divider/80 bg-background/98 p-3 shadow-xl backdrop-blur"
                 onClick={(e) => {
                   e.stopPropagation();
                   e.nativeEvent.stopImmediatePropagation();
                 }}
               >
-                {/* 左侧：日期显示 */}
-                <span className="text-xs font-medium text-default-700 tracking-wide">
-                  {formatNodeRenewalTime(expiryMeta.nextDueTime)}
-                </span>
+                <div className="space-y-2">
+                  {(node.expiryInstances?.length ? node.expiryInstances : expiryTarget ? [expiryTarget] : []).map((item: NodeExpiryInstance) => {
+                    const meta = getNodeRenewalSnapshot(item.expiryTime, item.renewalCycle, 7);
+                    const label = item.displayName?.trim() || (item.displayIndex ? `实例 ${item.displayIndex}` : item.instanceId);
 
-                {/* 右侧：操作按钮 */}
-                <button
-                  className="inline-flex items-center justify-center text-[12px] font-medium px-3 py-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-colors active:scale-95"
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    e.nativeEvent.stopImmediatePropagation();
-                    handleDismissExpiryReminder?.(node.id);
-                    setExpiryPopoverOpen(false);
-                  }}
-                >
-                  更新周期
-                </button>
+                    return (
+                      <div key={item.instanceId} className="flex items-center justify-between gap-4">
+                        <div className="min-w-0 text-left">
+                          <div className="truncate text-xs font-medium text-default-700">{label}</div>
+                          <div className="text-[11px] text-default-500">{formatNodeRenewalTime(meta.nextDueTime)}</div>
+                        </div>
+                        <button
+                          className="inline-flex items-center justify-center text-[12px] font-medium px-3 py-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-colors active:scale-95"
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.nativeEvent.stopImmediatePropagation();
+                            handleDismissExpiryReminder?.(node.id, item.instanceId);
+                            setExpiryPopoverOpen(false);
+                          }}
+                        >
+                          更新周期
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>

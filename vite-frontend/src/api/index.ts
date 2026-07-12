@@ -150,6 +150,8 @@ export const updateNodeInstanceProfile = (data: {
   displayName: string;
   weight: number;
   portRange: string;
+  expiryTime?: number | null;
+  renewalCycle?: string;
 }) => Network.post("/node/weight", data);
 export const getNodeInstancePorts = (nodeId: number) =>
   Network.get<NodeInstancePortApiData>("/node/instance-port/list", {
@@ -315,11 +317,11 @@ export const getNodeInstallCommandOffline = (id: number) =>
 export const updateNodeOrder = (data: {
   nodes: Array<{ id: number; inx: number }>;
 }) => Network.post("/node/update-order", data);
-export const dismissNodeExpiryReminder = (id: number) =>
-  Network.post("/node/dismiss-expiry-reminder", { id });
+export const dismissNodeExpiryReminder = (id: number, instanceId?: string) =>
+  Network.post("/node/dismiss-expiry-reminder", { id, nodeId: id, instanceId: instanceId || "" });
 
-export const refreshNodeExpiryReminder = (id: number) =>
-  Network.post("/node/refresh-expiry-reminder", { id });
+export const refreshNodeExpiryReminder = (id: number, instanceId?: string) =>
+  Network.post("/node/refresh-expiry-reminder", { id, nodeId: id, instanceId: instanceId || "" });
 export const pauseNode = (nodeId: number) =>
   Network.post("/node/pause", { nodeId });
 export const resumeNode = (nodeId: number) =>
