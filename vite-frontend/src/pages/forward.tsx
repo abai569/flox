@@ -2883,6 +2883,21 @@ export default function ForwardPage() {
       };
     });
   };
+  const buildManualTunnelName = () => {
+    const nodeName = (nodeId: number) => {
+      const node = nodes.find((item) => item.id === nodeId);
+
+      return (node?.name || `node${nodeId}`).trim().replace(/[\\/|:*?"<>\s]+/g, "-");
+    };
+    const ids = [
+      ...manualInNodeId.map((item) => item.nodeId),
+      ...manualChainNodes.flatMap((group) => group.map((item) => item.nodeId)),
+      ...manualOutNodeId.map((item) => item.nodeId),
+    ];
+    const parts = ids.map(nodeName).filter(Boolean);
+
+    return `DIY-${parts.length > 0 ? parts.join("-") : "nodes"}`.slice(0, 50);
+  };
   const buildManualTunnelPayload = (tunnelId?: number | null) => {
     const cleanedChainNodes = manualChainNodes
       .map((group, groupIndex) =>
@@ -2900,7 +2915,7 @@ export default function ForwardPage() {
 
     return {
       ...(tunnelId ? { id: tunnelId } : {}),
-      name: `${MANUAL_TUNNEL_REMARK}-${form.name || "规则"}`.slice(0, 50),
+      name: buildManualTunnelName(),
       type: 2,
       status: 1,
       flow: 1,

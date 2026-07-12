@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha1"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -94,6 +95,221 @@ func (h *Handler) ensureManualTunnelAccess(userID int64, roleID int, tunnelID in
 		return nil
 	}
 	return errors.New("你没有该隧道的权限")
+}
+
+func manualTunnelTopologyKeyFromPayload(req map[string]interface{}) string {
+	entryIDs := sortedUniqueInt64s(nodeIDsFromMaps(asMapSlice(req["inNodeId"])))
+	chainIDs := make([]int64, 0)
+	for _, hopRaw := range asAnySlice(req["chainNodes"]) {
+		chainIDs = append(chainIDs, nodeIDsFromMaps(asMapSlice(hopRaw))...)
+	}
+	chainIDs = sortedUniqueInt64s(chainIDs)
+	exitIDs := sortedUniqueInt64s(nodeIDsFromMaps(asMapSlice(req["outNodeId"])))
+	inIP := normalizeManualTunnelInIP(asString(req["inIp"]))
+
+	return fmt.Sprintf("in:%s|chain:%s|out:%s|ip:%s", joinInt64s(entryIDs), joinInt64s(chainIDs), joinInt64s(exitIDs), inIP)
+}
+
+func manualTunnelTopologyKeyFromRows(inIP string, rows []chainNodeRecord) string {
+	entryIDs := make([]int64, 0)
+	chainIDs := make([]int64, 0)
+	exitIDs := make([]int64, 0)
+	for _, row := range rows {
+		switch row.ChainType {
+		case 1:
+			entryIDs = append(entryIDs, row.NodeID)
+		case 2:
+			chainIDs = append(chainIDs, row.NodeID)
+		case 3:
+			exitIDs = append(exitIDs, row.NodeID)
+		}
+	}
+
+	return fmt.Sprintf(
+		"in:%s|chain:%s|out:%s|ip:%s",
+		joinInt64s(sortedUniqueInt64s(entryIDs)),
+		joinInt64s(sortedUniqueInt64s(chainIDs)),
+		joinInt64s(sortedUniqueInt64s(exitIDs)),
+		normalizeManualTunnelInIP(inIP),
+	)
+}
+
+func nodeIDsFromMaps(items []map[string]interface{}) []int64 {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		if id := asInt64(item["nodeId"], 0); id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func sortedUniqueInt64s(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return nil
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := ids[:0]
+	var last int64
+	for i, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if i > 0 && id == last {
+			continue
+		}
+		out = append(out, id)
+		last = id
+	}
+	return out
+}
+
+func joinInt64s(ids []int64) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(ids))
+	for _, id := range ids {
+		parts = append(parts, strconv.FormatInt(id, 10))
+	}
+	return strings.Join(parts, ",")
+}
+
+func normalizeManualTunnelInIP(value string) string {
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\r' || r == '\t'
+	})
+	items := make([]string, 0, len(fields))
+	seen := make(map[string]struct{})
+	for _, field := range fields {
+		trimmed := strings.TrimSpace(field)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		items = append(items, trimmed)
+	}
+	sort.Strings(items)
+	return strings.Join(items, ",")
+}
+
+func shortManualTunnelHash(value string) string {
+	sum := sha1.Sum([]byte(value))
+	return hex.EncodeToString(sum[:])[:8]
+}
+
+func sanitizeManualTunnelNamePart(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "node"
+	}
+	replacer := strings.NewReplacer("/", "-", "\\", "-", "|", "-", ":", "-", "*", "-", "?", "-", "\"", "", "<", "", ">", "")
+	value = replacer.Replace(value)
+	return strings.Join(strings.Fields(value), "-")
+}
+
+func (h *Handler) manualTunnelNameFromPayload(req map[string]interface{}, topologyKey string) string {
+	ids := make([]int64, 0)
+	ids = append(ids, nodeIDsFromMaps(asMapSlice(req["inNodeId"]))...)
+	for _, hopRaw := range asAnySlice(req["chainNodes"]) {
+		ids = append(ids, nodeIDsFromMaps(asMapSlice(hopRaw))...)
+	}
+	ids = append(ids, nodeIDsFromMaps(asMapSlice(req["outNodeId"]))...)
+
+	parts := make([]string, 0, len(ids))
+	seen := make(map[int64]struct{})
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		label := strconv.FormatInt(id, 10)
+		if node, err := h.getNodeRecord(id); err == nil && node != nil && strings.TrimSpace(node.Name) != "" {
+			label = node.Name
+		}
+		parts = append(parts, sanitizeManualTunnelNamePart(label))
+	}
+	if len(parts) == 0 {
+		parts = append(parts, "nodes")
+	}
+
+	base := "DIY-" + strings.Join(parts, "-")
+	runes := []rune(base)
+	if len(runes) > 48 {
+		base = string(runes[:48]) + "-" + shortManualTunnelHash(topologyKey)
+	}
+	return base
+}
+
+func (h *Handler) uniqueManualTunnelName(baseName, topologyKey string) string {
+	name := strings.TrimSpace(baseName)
+	if name == "" {
+		name = "DIY-" + shortManualTunnelHash(topologyKey)
+	}
+	for i := 0; i < 20; i++ {
+		candidate := name
+		if i > 0 {
+			candidate = fmt.Sprintf("%s-%s-%d", name, shortManualTunnelHash(topologyKey), i)
+		}
+		if exists, err := h.repo.TunnelNameExists(candidate); err == nil && !exists {
+			return candidate
+		}
+	}
+	return fmt.Sprintf("DIY-%s-%d", shortManualTunnelHash(topologyKey), time.Now().UnixNano())
+}
+
+func (h *Handler) findReusableManualTunnel(req map[string]interface{}) (int64, bool, error) {
+	topologyKey := manualTunnelTopologyKeyFromPayload(req)
+	items, err := h.repo.ListTunnelsIncludingManual()
+	if err != nil {
+		return 0, false, err
+	}
+	for _, item := range items {
+		id := asInt64(item["id"], 0)
+		if id <= 0 || asInt(item["type"], 0) != 2 || !isManualTunnelNameRemark(asString(item["name"]), asString(item["remark"])) {
+			continue
+		}
+		rows, err := h.listChainNodesForTunnel(id)
+		if err != nil {
+			return 0, false, err
+		}
+		if manualTunnelTopologyKeyFromRows(asString(item["inIp"]), rows) == topologyKey {
+			return id, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+func (h *Handler) ensureManualTunnelUserGrant(userID, tunnelID int64) error {
+	if userID <= 0 || tunnelID <= 0 {
+		return nil
+	}
+	_, _, err := h.repo.EnsureUserTunnelGrant(userID, tunnelID)
+	return err
+}
+
+func (h *Handler) cleanupManualTunnelIfUnused(tunnelID int64) error {
+	if tunnelID <= 0 {
+		return nil
+	}
+	isManual, err := h.isManualTunnelID(tunnelID)
+	if err != nil || !isManual {
+		return err
+	}
+	forwards, err := h.repo.ListForwardsByTunnel(tunnelID)
+	if err != nil {
+		return err
+	}
+	if len(forwards) > 0 {
+		return nil
+	}
+	return h.deleteTunnelByID(tunnelID)
 }
 
 func tunnelRedeployLock(tunnelID int64) *sync.Mutex {
@@ -1455,6 +1671,23 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	if tier == middleware.TierBlocked {
 		response.WriteJSON(w, response.Err(403, "授权无效，请联系管理员"))
 		return
+	}
+	if isManualTunnelPayload(req) {
+		if reusableTunnelID, ok, err := h.findReusableManualTunnel(req); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		} else if ok {
+			if actorRoleID != 0 {
+				if err := h.ensureManualTunnelUserGrant(actorUserID, reusableTunnelID); err != nil {
+					response.WriteJSON(w, response.Err(-2, err.Error()))
+					return
+				}
+			}
+			response.WriteJSON(w, response.OK(map[string]interface{}{"id": reusableTunnelID, "reused": true}))
+			return
+		}
+		topologyKey := manualTunnelTopologyKeyFromPayload(req)
+		req["name"] = h.uniqueManualTunnelName(h.manualTunnelNameFromPayload(req, topologyKey), topologyKey)
 	}
 	if tier == middleware.TierFree {
 		count, err := h.repo.CountTunnels()
@@ -3538,6 +3771,11 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if tunnelChanged {
+		if err := h.cleanupManualTunnelIfUnused(forward.TunnelID); err != nil {
+			log.Printf("forward %d 更新后清理旧自行组建隧道 %d 失败: %v", id, forward.TunnelID, err)
+		}
+	}
 	if len(warnings) > 0 {
 		response.WriteJSON(w, response.OK(map[string]interface{}{"warnings": warnings}))
 		return
@@ -3598,6 +3836,9 @@ func (h *Handler) forwardDelete(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	if err := h.cleanupManualTunnelIfUnused(forward.TunnelID); err != nil {
+		log.Printf("forward %d 清理自行组建隧道 %d 失败: %v", id, forward.TunnelID, err)
+	}
 	response.WriteJSON(w, response.OKEmpty())
 }
 func (h *Handler) forwardForceDelete(w http.ResponseWriter, r *http.Request) {
@@ -3637,6 +3878,9 @@ func (h *Handler) forwardForceDelete(w http.ResponseWriter, r *http.Request) {
 	if err := h.deleteForwardByID(id); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
+	}
+	if err := h.cleanupManualTunnelIfUnused(forward.TunnelID); err != nil {
+		log.Printf("forward %d 强制删除后清理自行组建隧道 %d 失败: %v", id, forward.TunnelID, err)
 	}
 	response.WriteJSON(w, response.OKEmpty())
 }
@@ -3880,6 +4124,9 @@ func (h *Handler) forwardBatchDelete(w http.ResponseWriter, r *http.Request) {
 			f++
 			failures = appendBatchFailure(failures, id, forward.Name, err)
 		} else {
+			if err := h.cleanupManualTunnelIfUnused(forward.TunnelID); err != nil {
+				log.Printf("forward %d 批量删除后清理自行组建隧道 %d 失败: %v", id, forward.TunnelID, err)
+			}
 			s++
 		}
 	}
