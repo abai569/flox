@@ -11,6 +11,7 @@ import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
 
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
 import { Button } from "@/shadcn-bridge/heroui/button";
+import { Progress } from "@/shadcn-bridge/heroui/progress";
 import {
   Dropdown,
   DropdownTrigger,
@@ -89,6 +90,11 @@ interface RealtimeInstanceMetric {
     rx: number;
     tx: number;
   };
+}
+interface NodeUpgradeProgress {
+  stage: string;
+  percent: number;
+  message: string;
 }
 interface NodeListViewProps {
   displayNodes: Node[];
@@ -332,6 +338,7 @@ function NodeInstanceRows({
   copyToClipboard,
   formatTraffic,
   realtimeInstanceMetrics,
+  upgradeProgress,
   onDismissExpiryReminder,
   onViewTrafficLogs,
   onConfigureInstance,
@@ -343,6 +350,7 @@ function NodeInstanceRows({
   copyToClipboard: (text: string, label: string) => void;
   formatTraffic: (bytes: number) => string;
   realtimeInstanceMetrics: Record<string, RealtimeInstanceMetric>;
+  upgradeProgress?: NodeUpgradeProgress;
   onDismissExpiryReminder?: (nodeId: number, instanceId?: string) => void;
   onViewTrafficLogs?: (node: Node) => void;
   onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
@@ -450,7 +458,23 @@ function NodeInstanceRows({
                 />
 
                 <td className="overflow-visible px-2 py-3 text-center text-default-700">
-                  {node.version ? (
+                  {upgradeProgress && upgradeProgress.percent < 100 ? (
+                    <div className="mx-auto w-[105px] space-y-1">
+                      <Progress
+                        aria-label="实例更新进度"
+                        className="w-full"
+                        color="warning"
+                        size="sm"
+                        value={upgradeProgress.percent}
+                      />
+                      <div
+                        className="truncate text-[10px] leading-tight text-warning-600"
+                        title={upgradeProgress.message}
+                      >
+                        {upgradeProgress.message || `${upgradeProgress.percent}%`}
+                      </div>
+                    </div>
+                  ) : node.version ? (
                     <div className="inline-flex items-center justify-center gap-1.5">
                       <DistroIcon
                         className="h-4 w-4 shrink-0"
@@ -685,6 +709,7 @@ function SortableTableRow({
   onResetInstanceTraffic,
   realtimeInstanceMetrics,
   isLastNode,
+  upgradeProgress,
 }: any) {
   const [expiryPopoverOpen, setExpiryPopoverOpen] = useState(false);
   const expiryButtonRef = useRef<HTMLButtonElement>(null);
@@ -1183,6 +1208,7 @@ function SortableTableRow({
             members={instanceMembers}
             node={node}
             realtimeInstanceMetrics={realtimeInstanceMetrics}
+            upgradeProgress={upgradeProgress?.[node.id]}
             onDismissExpiryReminder={handleDismissExpiryReminder}
             onViewTrafficLogs={handleViewNodeTrafficLogs}
             onConfigureInstance={onConfigureInstance}
@@ -1198,6 +1224,7 @@ function SortableTableRow({
 export function NodeListView({
   displayNodes,
   realtimeNodeMetrics,
+  upgradeProgress,
   selectedIds,
   toggleSelect,
   toggleSelectAll,
@@ -1450,6 +1477,7 @@ export function NodeListView({
                   handleTogglePause,
                   instanceMembers: nodeInstanceMembers[node.id] || [],
                   realtimeInstanceMetrics: realtimeNodeInstanceMetrics,
+                  upgradeProgress,
                   isLastNode: nodeIndex === displayNodes.length - 1,
                   isExpanded: expandedNodeIds.has(node.id),
                   onToggleExpanded: toggleExpandedNode,
