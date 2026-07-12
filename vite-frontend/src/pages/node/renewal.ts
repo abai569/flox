@@ -104,7 +104,7 @@ export const getNodeRenewalSnapshot = (
       nextDueTime,
       diffDays,
       state: "dueSoon",
-      label: diffDays === 1 ? "明天续费" : `${diffDays}天后续费`,
+      label: diffDays === 1 ? "明天到期" : `剩余${diffDays}天`,
     };
   }
 
@@ -114,7 +114,7 @@ export const getNodeRenewalSnapshot = (
     nextDueTime,
     diffDays,
     state: "scheduled",
-    label: `${diffDays}天后续费`,
+    label: `剩余${diffDays}天`,
   };
 };
 

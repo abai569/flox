@@ -622,23 +622,19 @@ function SortableTableRow({
               type="button"
               onClick={handleTogglePopover}
             >
-              <svg
-                aria-hidden="true"
-                className="h-3.5 w-3.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                />
-              </svg>
               <span className="text-xs font-medium">
                 {expiryChipProps.label}
               </span>
+              <svg
+                aria-hidden="true"
+                className={`h-3 w-3 transition-transform ${expiryPopoverOpen ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+              >
+                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
             {expiryPopoverOpen && (
               <div
@@ -928,7 +924,7 @@ export function NodeListView({
                 placeholder:
                   "text-sm text-default-600 font-semibold uppercase tracking-wider",
               }}
-              placeholder="续费提醒"
+              placeholder="到期提醒"
               selectedKeys={nodeFilterMode ? [nodeFilterMode] : []}
               size="sm"
               variant="flat"
@@ -939,13 +935,13 @@ export function NodeListView({
               }}
             >
               <SelectItem key="expiringSoon">
-                7 天内续费 ({nodeExpiryStats?.expiringSoon || 0})
+                7 天内到期 ({nodeExpiryStats?.expiringSoon || 0})
               </SelectItem>
               <SelectItem key="expired">
                 已逾期 ({nodeExpiryStats?.expired || 0})
               </SelectItem>
               <SelectItem key="withExpiry">
-                已启用续费提醒 ({nodeExpiryStats?.withExpiry || 0})
+                已启用到期提醒 ({nodeExpiryStats?.withExpiry || 0})
               </SelectItem>
             </Select>
           </TableColumn>
