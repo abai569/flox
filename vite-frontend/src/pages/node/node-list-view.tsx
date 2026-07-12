@@ -147,6 +147,7 @@ interface NodeListViewProps {
   onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onResetInstanceTraffic?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onInstallMimicDeps?: (node: Node) => void;
 }
 
 const NODE_INSTANCE_EXPANDED_STORAGE_KEY = "node-instance-expanded-node-ids";
@@ -344,6 +345,7 @@ function NodeInstanceRows({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onInstallMimicDeps,
 }: {
   node: Node;
   members: MonitorNodeInstanceGroupMemberApiItem[];
@@ -356,6 +358,7 @@ function NodeInstanceRows({
   onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onResetInstanceTraffic?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onInstallMimicDeps?: (node: Node) => void;
 }) {
   const [openExpiryInstanceId, setOpenExpiryInstanceId] = useState<string | null>(
     null,
@@ -551,7 +554,17 @@ function NodeInstanceRows({
                   {(node as any).mimicStatus === "ok" || (node as any).mimicStatus === "deps_ready" ? (
                     <span className="text-green-500" title="WGM 就绪">✅</span>
                   ) : (node as any).mimicStatus ? (
-                    <span className="text-red-500 cursor-help" title={(node as any).mimicError || "WGM 未就绪"}>❌</span>
+                    <button
+                      className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+                      title={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onInstallMimicDeps?.(node);
+                      }}
+                    >
+                      ❌
+                    </button>
                   ) : (
                     <span className="text-default-400">-</span>
                   )}
@@ -646,6 +659,7 @@ function NodeInstanceRows({
                 <td className="px-1 py-3">
                   <div className="flex items-center justify-start gap-1 whitespace-nowrap">
                     <Button
+                      className="h-7 shrink-0 px-2 text-xs font-medium"
                       color="primary"
                       size="sm"
                       variant="flat"
@@ -654,10 +668,11 @@ function NodeInstanceRows({
                       配置
                     </Button>
                     <MonitorTerminalButton
-                      className="h-8 shrink-0 px-2 text-xs font-medium"
+                      className="h-7 shrink-0 px-2 text-xs font-medium"
                       member={member}
                     />
                     <Button
+                      className="h-7 shrink-0 px-2 text-xs font-medium"
                       color="success"
                       size="sm"
                       variant="flat"
@@ -666,6 +681,7 @@ function NodeInstanceRows({
                       归零
                     </Button>
                     <Button
+                      className="h-7 shrink-0 px-2 text-xs font-medium"
                       color="danger"
                       size="sm"
                       variant="flat"
@@ -707,6 +723,7 @@ function SortableTableRow({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onInstallMimicDeps,
   realtimeInstanceMetrics,
   isLastNode,
   upgradeProgress,
@@ -1096,7 +1113,7 @@ function SortableTableRow({
       >
         {node.remark?.trim() ? (
           <span
-            className="block max-w-full cursor-pointer rounded px-1 text-sm transition-colors hover:bg-default-200/50"
+            className="inline-block max-w-full cursor-pointer rounded px-1 text-sm transition-colors hover:bg-default-200/50"
             title={node.remark.trim()}
             onClick={(e) => {
               e.stopPropagation();
@@ -1214,6 +1231,7 @@ function SortableTableRow({
             onConfigureInstance={onConfigureInstance}
             onDeleteInstance={onDeleteInstance}
             onResetInstanceTraffic={onResetInstanceTraffic}
+            onInstallMimicDeps={onInstallMimicDeps}
           />
         </TableCell>
       </TableRow>
@@ -1250,6 +1268,7 @@ export function NodeListView({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onInstallMimicDeps,
 }: NodeListViewProps) {
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(
     readExpandedNodeIds,
@@ -1257,6 +1276,14 @@ export function NodeListView({
   const isAllSelected =
     displayNodes.length > 0 &&
     displayNodes.every((node) => selectedIds.has(node.id));
+  const isAllExpanded =
+    displayNodes.length > 0 &&
+    displayNodes.every((node) => expandedNodeIds.has(node.id));
+  const expandedNodeCount = displayNodes.filter((node) =>
+    expandedNodeIds.has(node.id),
+  ).length;
+  const isPartiallyExpanded =
+    expandedNodeCount > 0 && expandedNodeCount < displayNodes.length;
 
   const toggleExpandedNode = (nodeId: number) => {
     setExpandedNodeIds(() => {
@@ -1265,6 +1292,23 @@ export function NodeListView({
       if (next.has(nodeId)) next.delete(nodeId);
       else next.add(nodeId);
 
+      localStorage.setItem(
+        NODE_INSTANCE_EXPANDED_STORAGE_KEY,
+        JSON.stringify(Array.from(next)),
+      );
+
+      return next;
+    });
+  };
+
+  const toggleAllExpandedNodes = () => {
+    setExpandedNodeIds(() => {
+      const next = readExpandedNodeIds();
+
+      displayNodes.forEach((node) => {
+        if (isAllExpanded) next.delete(node.id);
+        else next.add(node.id);
+      });
       localStorage.setItem(
         NODE_INSTANCE_EXPANDED_STORAGE_KEY,
         JSON.stringify(Array.from(next)),
@@ -1294,8 +1338,34 @@ export function NodeListView({
               />
             </div>
           </TableColumn>
-          <TableColumn className="w-[54px] whitespace-nowrap px-1 py-2 text-center">
-            展开
+          <TableColumn className="w-[64px] whitespace-nowrap px-1 py-2 text-center">
+            <button
+              className={`inline-flex items-center justify-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-default-200/70 disabled:cursor-default disabled:opacity-40 ${isPartiallyExpanded ? "text-primary" : ""}`}
+              disabled={displayNodes.length === 0}
+              title={
+                isAllExpanded
+                  ? "闭合全部实例"
+                  : isPartiallyExpanded
+                    ? `已展开 ${expandedNodeCount}/${displayNodes.length}，点击展开全部`
+                    : "展开全部实例"
+              }
+              type="button"
+              onClick={toggleAllExpandedNodes}
+            >
+              <span>展开</span>
+              <svg
+                aria-hidden="true"
+                className={`h-3.5 w-3.5 transition-transform ${isAllExpanded ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             排序
@@ -1484,6 +1554,7 @@ export function NodeListView({
                   onConfigureInstance,
                   onDeleteInstance,
                   onResetInstanceTraffic,
+                  onInstallMimicDeps,
                 }}
               />
             ))

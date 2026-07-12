@@ -838,6 +838,7 @@ export default function NodePage() {
   const [batchUpgradeLoading, setBatchUpgradeLoading] = useState(false);
   const [batchMimicLoading, setBatchMimicLoading] = useState(false);
   const [mimicResultModalOpen, setMimicResultModalOpen] = useState(false);
+  const [mimicConfirmNodes, setMimicConfirmNodes] = useState<Node[]>([]);
   const [mimicResults, setMimicResults] = useState<Array<{ nodeId: number; nodeName: string; success: boolean; message: string }>>([]);
   const [batchResetTrafficLoading, setBatchResetTrafficLoading] =
     useState(false);
@@ -2136,8 +2137,8 @@ export default function NodePage() {
       return "请手动安装：bubblewrap pahole clang-16 bpftool libbpf-dev libffi-dev";
     return "apt-get install -f -y && systemctl restart flox_agent1";
   }
-  const handleBatchMimicDeps = async () => {
-    const selectedLocalIds = Array.from(selectedIds);
+  const handleBatchMimicDeps = async (targetIds?: number[]) => {
+    const selectedLocalIds = targetIds ?? Array.from(selectedIds);
 
     if (selectedLocalIds.length === 0) {
       toast.error("请选择节点");
@@ -2181,6 +2182,13 @@ export default function NodePage() {
     } finally {
       setBatchMimicLoading(false);
     }
+  };
+  const requestMimicDepsInstall = (nodes: Node[]) => {
+    if (nodes.length === 0) {
+      toast.error("请选择节点");
+      return;
+    }
+    setMimicConfirmNodes(nodes);
   };
   const handleBatchResetTraffic = async () => {
     const selectedLocalIds = Array.from(selectedIds);
@@ -3172,7 +3180,11 @@ export default function NodePage() {
                   isLoading={batchMimicLoading}
                   size="sm"
                   variant="flat"
-                  onPress={handleBatchMimicDeps}
+                  onPress={() =>
+                    requestMimicDepsInstall(
+                      nodeList.filter((node) => selectedIds.has(node.id)),
+                    )
+                  }
                 >
                   WGM
                 </Button>
@@ -3521,6 +3533,9 @@ export default function NodePage() {
                                       onConfigureInstance={openInstanceConfigEditor}
                                       onDeleteInstance={setInstanceDeleteTarget}
                                       onResetInstanceTraffic={resetInstanceTraffic}
+                                      onInstallMimicDeps={(node) =>
+                                        requestMimicDepsInstall([node])
+                                      }
                                       openInstallSelector={openInstallSelector}
                                       openUpgradeModal={openUpgradeModal}
                                       realtimeNodeMetrics={realtimeNodeMetrics}
@@ -3604,6 +3619,7 @@ export default function NodePage() {
                   onConfigureInstance={openInstanceConfigEditor}
                   onDeleteInstance={setInstanceDeleteTarget}
                   onResetInstanceTraffic={resetInstanceTraffic}
+                  onInstallMimicDeps={(node) => requestMimicDepsInstall([node])}
                   openInstallSelector={openInstallSelector}
                   openUpgradeModal={openUpgradeModal}
                   realtimeNodeMetrics={realtimeNodeMetrics}
@@ -3957,15 +3973,15 @@ export default function NodePage() {
               <ModalHeader className="flex flex-col gap-1">
                 <h2 className="text-xl font-bold">确认删除</h2>
               </ModalHeader>
-              <ModalBody>
-                <p>
-                  确定要删除节点{" "}
-                  <strong>&quot;{nodeToDelete?.name}&quot;</strong> 吗？
-                </p>
-                <p className="text-small text-default-500">
-                  此操作不可恢复，请谨慎操作。
-                </p>
-              </ModalBody>
+                <ModalBody>
+                  <p>
+                    确定要删除节点{" "}
+                    <strong>&quot;{nodeToDelete?.name}&quot;</strong> 吗？
+                  </p>
+                  <p className="text-small text-default-500">
+                    同时删除该节点关联的转发端口、隧道链路和实例配置，此操作不可恢复。
+                  </p>
+                </ModalBody>
               <ModalFooter>
                 <Button variant="flat" onPress={onClose}>
                   取消
@@ -4752,6 +4768,39 @@ export default function NodePage() {
               </ModalFooter>
             </>
           )}
+        </ModalContent>
+      </Modal>
+      <Modal
+        isOpen={mimicConfirmNodes.length > 0}
+        placement="center"
+        onOpenChange={(open) => {
+          if (!open) setMimicConfirmNodes([]);
+        }}
+      >
+        <ModalContent>
+          <ModalHeader>确认安装 WGM 依赖</ModalHeader>
+          <ModalBody>
+            <p className="text-sm text-default-600">
+              将为 {mimicConfirmNodes.length} 个节点安装 WGM 依赖，节点下所有在线实例都会执行安装。是否继续？
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="flat" onPress={() => setMimicConfirmNodes([])}>
+              取消
+            </Button>
+            <Button
+              color="primary"
+              isLoading={batchMimicLoading}
+              onPress={() => {
+                const ids = mimicConfirmNodes.map((node) => node.id);
+
+                setMimicConfirmNodes([]);
+                void handleBatchMimicDeps(ids);
+              }}
+            >
+              确认
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
       {/* WGM 依赖安装结果弹窗 */}
