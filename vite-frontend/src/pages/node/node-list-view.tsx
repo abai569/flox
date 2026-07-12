@@ -1,5 +1,6 @@
 import type { NodeRenewalCycle } from "./renewal";
 import type { NodeSystemInfo } from "./system-info";
+import type { MonitorNodeInstanceGroupMemberApiItem } from "@/api/types";
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -10,8 +11,6 @@ import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
 
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
 import { Button } from "@/shadcn-bridge/heroui/button";
-import { Chip } from "@/shadcn-bridge/heroui/chip";
-import { Progress } from "@/shadcn-bridge/heroui/progress";
 import {
   Dropdown,
   DropdownTrigger,
@@ -29,12 +28,13 @@ import {
   TableRow,
   TableCell,
 } from "@/shadcn-bridge/heroui/table";
+import { StatusDot } from "@/components/status-dot";
 import {
   DistroIcon,
   parseDistroFromVersion,
   getDistroColor,
 } from "@/components/distro-icon";
-import { StatusDot } from "@/components/status-dot";
+import { MonitorTerminalButton } from "@/pages/monitor-terminal";
 interface Node {
   id: number;
   inx?: number;
@@ -82,6 +82,14 @@ interface NodeExpiryInstance {
   expiryReminderDismissed?: number;
   expiryReminderDismissedUntil?: number | null;
 }
+interface RealtimeInstanceMetric {
+  tcpConns: number;
+  udpConns: number;
+  periodTraffic?: {
+    rx: number;
+    tx: number;
+  };
+}
 interface NodeListViewProps {
   displayNodes: Node[];
   realtimeNodeMetrics: Record<
@@ -128,11 +136,533 @@ interface NodeListViewProps {
   nodeFilterMode?: any;
   setNodeFilterMode?: (mode: any) => void;
   nodeExpiryStats?: any;
+  nodeInstanceMembers?: Record<number, MonitorNodeInstanceGroupMemberApiItem[]>;
+  realtimeNodeInstanceMetrics?: Record<string, RealtimeInstanceMetric>;
+  onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onResetInstanceTraffic?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+}
+
+const NODE_INSTANCE_EXPANDED_STORAGE_KEY = "node-instance-expanded-node-ids";
+
+const readExpandedNodeIds = (): Set<number> => {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(NODE_INSTANCE_EXPANDED_STORAGE_KEY) || "[]",
+    );
+
+    return new Set(
+      Array.isArray(stored)
+        ? stored.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+        : [],
+    );
+  } catch {
+    return new Set();
+  }
+};
+
+const formatInstanceIPForCell = (ip?: string): string => {
+  const value = ip?.trim() || "";
+
+  if (!value) return "-";
+  if (value.includes(":")) {
+    const parts = value.split(":").filter(Boolean);
+
+    if (parts.length <= 3) return value;
+
+    return `*:${parts.slice(-3).join(":")}`;
+  }
+  if (value.includes(".")) {
+    const parts = value.split(".");
+
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)) {
+      return `${parts[0]}.${parts[1]}.*`;
+    }
+    if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.*`;
+
+    return parts[0].length > 12 ? `${parts[0].slice(0, 12)}...` : parts[0];
+  }
+
+  return value.length > 15 ? `${value.slice(0, 15)}...` : value;
+};
+
+const getInstanceLabel = (
+  member?: MonitorNodeInstanceGroupMemberApiItem | null,
+) => {
+  if (!member) return "实例";
+  const displayName = member.displayName?.trim();
+
+  if (displayName) return displayName;
+
+  return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
+};
+
+const formatCountryCity = (region?: string): string => {
+  const parts = region?.trim().split(/\s+/).filter(Boolean) || [];
+
+  if (parts.length <= 2) return parts.join(" ");
+  if (parts[0] === "中国") return `${parts[0]} ${parts[2]}`;
+
+  return `${parts[0]} ${parts[1]}`;
+};
+
+type InstanceRegionFlagCode = "cn" | "jp";
+
+const getInstanceRegionFlagCode = (
+  region?: string,
+): InstanceRegionFlagCode | "" => {
+  const country = region?.trim().split(/\s+/)[0] || "";
+
+  if (["中国", "香港", "澳门", "台湾"].includes(country)) return "cn";
+  if (country === "日本") return "jp";
+
+  return "";
+};
+
+function InstanceRegionFlag({
+  code,
+  title,
+}: {
+  code: InstanceRegionFlagCode;
+  title: string;
+}) {
+  if (code === "jp") {
+    return (
+      <svg
+        aria-label={title}
+        className="h-3 w-4 shrink-0 overflow-hidden rounded-[1px] ring-1 ring-default-300"
+        role="img"
+        viewBox="0 0 16 12"
+      >
+        <title>{title}</title>
+        <rect fill="#fff" height="12" width="16" />
+        <circle cx="8" cy="6" fill="#bc002d" r="3.1" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-label={title}
+      className="h-3 w-4 shrink-0 overflow-hidden rounded-[1px] ring-1 ring-default-300"
+      role="img"
+      viewBox="0 0 16 12"
+    >
+      <title>{title}</title>
+      <rect fill="#de2910" height="12" width="16" />
+      <polygon
+        fill="#ffde00"
+        points="2.8,1.4 3.2,2.6 4.5,2.6 3.45,3.35 3.85,4.55 2.8,3.8 1.75,4.55 2.15,3.35 1.1,2.6 2.4,2.6"
+      />
+      <circle cx="6" cy="2" fill="#ffde00" r="0.45" />
+      <circle cx="7.1" cy="3.2" fill="#ffde00" r="0.45" />
+      <circle cx="7" cy="5" fill="#ffde00" r="0.45" />
+      <circle cx="5.8" cy="6" fill="#ffde00" r="0.45" />
+    </svg>
+  );
+}
+
+function InstanceIPRegionCell({
+  member,
+  copyToClipboard,
+}: {
+  member: MonitorNodeInstanceGroupMemberApiItem;
+  copyToClipboard: (text: string, label: string) => void;
+}) {
+  const rows = [
+    {
+      key: "v4",
+      ip: member.publicIpV4?.trim() || "",
+      region: formatCountryCity(member.publicIpV4Region),
+      label: "IPv4",
+    },
+    {
+      key: "v6",
+      ip: member.publicIpV6?.trim() || "",
+      region: formatCountryCity(member.publicIpV6Region),
+      label: "IPv6",
+    },
+  ].filter((item) => item.ip || item.region);
+
+  return (
+    <td className="px-1 py-2.5 text-left align-middle text-xs text-default-600">
+      {rows.length === 0 ? (
+        <span className="text-default-300">-</span>
+      ) : (
+        <div className="space-y-1">
+          {rows.map((item) => (
+            <div key={item.key} className="flex min-w-0 items-center justify-start gap-1.5 whitespace-nowrap">
+              {item.region ? (
+                getInstanceRegionFlagCode(item.region) ? (
+                  <InstanceRegionFlag
+                    code={getInstanceRegionFlagCode(item.region) as InstanceRegionFlagCode}
+                    title={item.region}
+                  />
+                ) : (
+                  <span
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-default-300"
+                    title={item.region}
+                  />
+                )
+              ) : null}
+              {item.ip ? (
+                <button
+                  className="inline-block min-w-0 max-w-[108px] truncate rounded bg-transparent px-0.5 text-right font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
+                  title={item.ip}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    copyToClipboard(item.ip, item.label);
+                  }}
+                >
+                  {formatInstanceIPForCell(item.ip)}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </td>
+  );
+}
+
+function NodeInstanceRows({
+  node,
+  members,
+  copyToClipboard,
+  formatTraffic,
+  realtimeInstanceMetrics,
+  onDismissExpiryReminder,
+  onViewTrafficLogs,
+  onConfigureInstance,
+  onDeleteInstance,
+  onResetInstanceTraffic,
+}: {
+  node: Node;
+  members: MonitorNodeInstanceGroupMemberApiItem[];
+  copyToClipboard: (text: string, label: string) => void;
+  formatTraffic: (bytes: number) => string;
+  realtimeInstanceMetrics: Record<string, RealtimeInstanceMetric>;
+  onDismissExpiryReminder?: (nodeId: number, instanceId?: string) => void;
+  onViewTrafficLogs?: (node: Node) => void;
+  onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onResetInstanceTraffic?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+}) {
+  const [openExpiryInstanceId, setOpenExpiryInstanceId] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const closeOtherInstanceExpiry = (event: Event) => {
+      const customEvent = event as CustomEvent<{ instanceId?: string }>;
+
+      if (customEvent.detail?.instanceId !== openExpiryInstanceId) {
+        setOpenExpiryInstanceId(null);
+      }
+    };
+
+    window.addEventListener(
+      "closeOtherInstanceExpiryPopovers",
+      closeOtherInstanceExpiry,
+    );
+
+    return () =>
+      window.removeEventListener(
+        "closeOtherInstanceExpiryPopovers",
+        closeOtherInstanceExpiry,
+      );
+  }, [openExpiryInstanceId]);
+
+  const getRealtimeMetric = (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) =>
+    realtimeInstanceMetrics[
+      `${member.nodeId}:${member.instanceId?.trim() || ""}`
+    ];
+
+  useEffect(() => {
+    if (!openExpiryInstanceId) return;
+    const closePopover = () => setOpenExpiryInstanceId(null);
+
+    window.addEventListener("click", closePopover);
+    window.addEventListener("scroll", closePopover, true);
+    window.addEventListener("resize", closePopover);
+
+    return () => {
+      window.removeEventListener("click", closePopover);
+      window.removeEventListener("scroll", closePopover, true);
+      window.removeEventListener("resize", closePopover);
+    };
+  }, [openExpiryInstanceId]);
+
+  return (
+    <div
+      className="mx-3 my-2 overflow-visible border-l-2 border-primary-400/70 bg-default-50/70 dark:bg-default-100/10"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="w-full max-w-full overflow-x-auto px-3 pb-2">
+      <table className="w-full min-w-[1255px] table-fixed text-[13px]">
+        <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
+          <tr>
+            <th className="w-[60px] px-1 py-2 text-center font-medium">状态</th>
+            <th className="w-[105px] px-1 py-2 text-left font-medium">
+              实例名称
+              <span className="font-normal text-primary-500">^{members.length}个</span>
+            </th>
+            <th className="w-[125px] px-1 py-2 text-left font-medium">IP / 地区</th>
+            <th className="w-[120px] px-1 py-2 text-center font-medium">版本</th>
+            <th className="w-[65px] px-1 py-2 text-center font-medium">在线数</th>
+            <th className="w-[110px] px-1 py-2 text-center font-medium">周期流量</th>
+            <th className="w-[100px] px-1 py-2 text-center font-medium">上行流量</th>
+            <th className="w-[100px] px-1 py-2 text-center font-medium">下行流量</th>
+            <th className="w-[90px] px-1 py-2 text-center font-medium">流量限额</th>
+            <th className="w-[60px] px-1 py-2 text-center font-medium">WGM</th>
+            <th className="w-[110px] px-1 py-2 text-center font-medium">到期提醒</th>
+            <th className="w-[210px] px-1 py-2 text-left font-medium">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {members.length === 0 ? (
+            <tr>
+              <td className="px-2 py-8 text-center text-default-500" colSpan={12}>
+                暂无实例上报
+              </td>
+            </tr>
+          ) : (
+            members.map((member, memberIndex) => (
+              <tr
+                key={member.instanceId || `${member.nodeId}-${member.displayIndex || 0}`}
+                className={`border-b border-divider/60 last:border-b-0 hover:bg-default-50/70 dark:hover:bg-default-100/10 ${openExpiryInstanceId === member.instanceId ? "relative z-[9999]" : "relative z-[1]"}`}
+              >
+                <td className="px-2 py-2.5 text-center align-middle">
+                  <StatusDot
+                    active={member.status === 1}
+                    tone={member.status === 1 ? "success" : "danger"}
+                  />
+                </td>
+                <td className="px-1 py-3 text-left font-medium text-foreground">
+                  <span className="block truncate">{getInstanceLabel(member)}</span>
+                </td>
+                <InstanceIPRegionCell
+                  copyToClipboard={copyToClipboard}
+                  member={member}
+                />
+
+                <td className="overflow-visible px-2 py-3 text-center text-default-700">
+                  {node.version ? (
+                    <div className="inline-flex items-center justify-center gap-1.5">
+                      <DistroIcon
+                        className="h-4 w-4 shrink-0"
+                        distro={parseDistroFromVersion(node.version)}
+                        style={{
+                          color: getDistroColor(parseDistroFromVersion(node.version)),
+                        }}
+                      />
+                      <span>{node.version.split(" ")[0]}</span>
+                    </div>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td className="px-2 py-3 text-center font-mono text-default-700">
+                  {member.status === 1
+                    ? (() => {
+                        const realtime = getRealtimeMetric(member);
+
+                        return realtime
+                          ? realtime.tcpConns + realtime.udpConns
+                          : member.onlineCount ?? 0;
+                      })()
+                    : "-"}
+                </td>
+                <td className="px-2 py-3 text-center text-danger-600 dark:text-danger-400">
+                  <div className="inline-flex items-center justify-center gap-1">
+                    <span>
+                      {(() => {
+                        const realtime = getRealtimeMetric(member);
+                        const tx = realtime?.periodTraffic?.tx ?? member.periodTx ?? 0;
+                        const rx = realtime?.periodTraffic?.rx ?? member.periodRx ?? 0;
+
+                        return formatTraffic(tx + rx);
+                      })()}
+                    </span>
+                    {onViewTrafficLogs && (
+                      <Button
+                        isIconOnly
+                        className="h-6 w-6 min-w-6"
+                        size="sm"
+                        variant="flat"
+                        onPress={() => onViewTrafficLogs(node)}
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path
+                            clipRule="evenodd"
+                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                            fillRule="evenodd"
+                          />
+                        </svg>
+                      </Button>
+                    )}
+                  </div>
+                </td>
+                <td className="px-2 py-3 text-center text-success-700 dark:text-success-300">
+                  {formatTraffic(
+                    getRealtimeMetric(member)?.periodTraffic?.tx ??
+                      member.periodTx ??
+                      0,
+                  )}
+                </td>
+                <td className="px-2 py-3 text-center text-primary-700 dark:text-primary-300">
+                  {formatTraffic(
+                    getRealtimeMetric(member)?.periodTraffic?.rx ??
+                      member.periodRx ??
+                      0,
+                  )}
+                </td>
+                <td className="px-2 py-3 text-center text-default-700">
+                  {member.trafficLimit || 0} GB
+                </td>
+                <td className="px-2 py-3 text-center">
+                  {(node as any).mimicStatus === "ok" || (node as any).mimicStatus === "deps_ready" ? (
+                    <span className="text-green-500" title="WGM 就绪">✅</span>
+                  ) : (node as any).mimicStatus ? (
+                    <span className="text-red-500 cursor-help" title={(node as any).mimicError || "WGM 未就绪"}>❌</span>
+                  ) : (
+                    <span className="text-default-400">-</span>
+                  )}
+                </td>
+                <td className="px-2 py-3 text-center text-default-700">
+                  {member.expiryTime && member.renewalCycle ? (
+                    (() => {
+                      const meta = getNodeRenewalSnapshot(
+                        member.expiryTime,
+                        member.renewalCycle,
+                        7,
+                      );
+                      const toneClass =
+                        meta.state === "expired"
+                          ? "text-danger-600 dark:text-danger-400"
+                          : meta.state === "dueSoon"
+                            ? "text-warning-600 dark:text-warning-400"
+                            : "text-success-700 dark:text-success-300";
+
+                      return (
+                        <div className="relative inline-flex min-w-[72px] items-center justify-center leading-tight">
+                          <button
+                            className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-default-200/60 ${toneClass}`}
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              window.dispatchEvent(
+                                new CustomEvent(
+                                  "closeOtherInstanceExpiryPopovers",
+                                  { detail: { instanceId: member.instanceId } },
+                                ),
+                              );
+                              setOpenExpiryInstanceId((current) =>
+                                current === member.instanceId
+                                  ? null
+                                  : member.instanceId || null,
+                              );
+                            }}
+                          >
+                            {meta.label}
+                            <svg
+                              aria-hidden="true"
+                              className={`h-3 w-3 transition-transform ${openExpiryInstanceId === member.instanceId ? "rotate-180" : ""}`}
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
+                          </button>
+                          {openExpiryInstanceId === member.instanceId && (
+                            <div
+                              className={`absolute right-0 z-[100] w-[160px] rounded-lg border border-divider/80 bg-background/98 p-2 text-left shadow-xl backdrop-blur ${memberIndex === members.length - 1 ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="truncate text-xs font-medium text-default-700">
+                                    {getInstanceLabel(member)}
+                                  </div>
+                                  <div className="text-[10px] text-default-500">
+                                    {formatNodeRenewalTime(meta.nextDueTime)}
+                                  </div>
+                                </div>
+                                <button
+                                  className="inline-flex shrink-0 items-center justify-center rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    onDismissExpiryReminder?.(
+                                      member.nodeId,
+                                      member.instanceId,
+                                    );
+                                    setOpenExpiryInstanceId(null);
+                                  }}
+                                >
+                                  更新周期
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td className="px-1 py-3">
+                  <div className="flex items-center justify-start gap-1 whitespace-nowrap">
+                    <Button
+                      color="primary"
+                      size="sm"
+                      variant="flat"
+                      onPress={() => onConfigureInstance?.(member)}
+                    >
+                      配置
+                    </Button>
+                    <MonitorTerminalButton
+                      className="h-8 shrink-0 px-2 text-xs font-medium"
+                      member={member}
+                    />
+                    <Button
+                      color="success"
+                      size="sm"
+                      variant="flat"
+                      onPress={() => onResetInstanceTraffic?.(member)}
+                    >
+                      归零
+                    </Button>
+                    <Button
+                      color="danger"
+                      size="sm"
+                      variant="flat"
+                      onPress={() => onDeleteInstance?.(member)}
+                    >
+                      删除
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  );
 }
 function SortableTableRow({
   node,
   realtimeNodeMetrics,
-  upgradeProgress,
   selectedIds,
   toggleSelect,
   copyToClipboard,
@@ -146,8 +676,15 @@ function SortableTableRow({
   handleCopyOfflineInstallCommand,
   handleCopyAutoInstallCommand,
   handleViewNodeTrafficLogs,
-  handleResetNodeTraffic,
   handleTogglePause,
+  instanceMembers = [],
+  isExpanded,
+  onToggleExpanded,
+  onConfigureInstance,
+  onDeleteInstance,
+  onResetInstanceTraffic,
+  realtimeInstanceMetrics,
+  isLastNode,
 }: any) {
   const [expiryPopoverOpen, setExpiryPopoverOpen] = useState(false);
   const expiryButtonRef = useRef<HTMLButtonElement>(null);
@@ -217,8 +754,9 @@ function SortableTableRow({
   };
   const rowBg = selectedIds.has(node.id)
     ? "bg-primary-50/70 dark:bg-primary-900/40"
-    : "";
-  const isRemoteNode = node.isRemote === 1;
+    : isExpanded
+      ? "bg-default-100/80 dark:bg-default-100/30"
+      : "";
   const connectionStatusMeta = getConnectionStatusMeta(node.connectionStatus);
   const expiryTarget =
     node.expiryInstances?.find(
@@ -265,14 +803,19 @@ function SortableTableRow({
   const expiryChipProps = hasExpiryInfo ? getExpiryChipProps() : null;
 
   return (
+    <>
     <TableRow
       key={node.id}
       ref={setNodeRef}
-      className="cursor-default"
+      className={`cursor-pointer ${isExpanded ? "border-b border-primary-300/70 shadow-[inset_3px_0_0_rgba(59,130,246,0.65)]" : ""}`}
       style={style}
+      onClick={() => onToggleExpanded?.(node.id)}
     >
       <TableCell className={rowBg}>
-        <div className="flex items-center justify-center h-full">
+        <div
+          className="flex items-center justify-center h-full"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Checkbox
             isSelected={selectedIds.has(node.id)}
             onValueChange={() => toggleSelect(node.id)}
@@ -280,19 +823,48 @@ function SortableTableRow({
         </div>
       </TableCell>
       <TableCell className={rowBg}>
-        <div
-          className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
-          {...attributes}
-          {...listeners}
-        >
-          <svg
-            aria-hidden="true"
-            className="w-4 h-4"
-            fill="currentColor"
-            viewBox="0 0 20 20"
+        <div className="flex items-center justify-center">
+          <button
+            className="inline-flex h-6 w-6 items-center justify-center rounded text-default-500 transition-colors hover:bg-default-200/70 hover:text-foreground"
+            title={isExpanded ? "收起实例" : "展开实例"}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpanded?.(node.id);
+            }}
           >
-            <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
-          </svg>
+            <svg
+              aria-hidden="true"
+              className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+        </div>
+      </TableCell>
+      <TableCell className={rowBg}>
+        <div className="flex items-center justify-center">
+          <div
+            className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <svg
+              aria-hidden="true"
+              className="w-4 h-4"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
+            </svg>
+          </div>
         </div>
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
@@ -353,190 +925,34 @@ function SortableTableRow({
         )}
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 align-middle ${rowBg}`}>
-        <div className="flex flex-col gap-1 min-w-[160px] py-1">
-          <div className="flex justify-between items-center min-w-0 gap-3">
-            <span className="text-default-500 text-[11px] flex-shrink-0">
-              IPv4/域名
-            </span>
-            <span
-              className={`font-medium text-xs cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto text-right max-w-[130px] ${!node.serverIpV4?.trim() ? "text-default-300" : ""}`}
-              title={node.serverIpV4?.trim() || "暂无"}
-              onClick={(e) => {
-                e.stopPropagation();
-                const val = node.serverIpV4?.trim();
+        {(() => {
+          const publicIPv4 = node.serverIpV4?.trim() || "";
+          const intranetIPv4 = node.intranetIp?.trim() || "";
+          const publicIPv6 =
+            node.serverIpV6?.trim() ||
+            (node.serverIp?.trim() && node.serverIp.includes(":")
+              ? node.serverIp.trim()
+              : "");
+          const address = publicIPv4 || intranetIPv4 || publicIPv6;
 
-                if (val) copyToClipboard(val, "IPv4/域名");
+          if (!address) {
+            return <span className="text-sm text-default-300">暂无</span>;
+          }
+
+          return (
+            <button
+              className="inline-block max-w-[150px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
+              title={address}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                copyToClipboard(address, "节点地址");
               }}
             >
-              {(() => {
-                const val = node.serverIpV4?.trim();
-
-                if (!val) return "暂无";
-                // 域名显示前两段
-                if (val.includes(".")) {
-                  const parts = val.split(".");
-
-                  if (parts.length >= 2) {
-                    return `${parts[0]}.${parts[1]}.*`;
-                  }
-
-                  return parts[0].length > 12
-                    ? parts[0].slice(0, 12) + "..."
-                    : parts[0];
-                }
-                // IP 地址只显示前两段
-                const ipParts = val.split(".");
-
-                if (ipParts.length === 4) {
-                  return `${ipParts[0]}.${ipParts[1]}.*.*`;
-                }
-
-                return val.length > 15 ? val.slice(0, 15) + "..." : val;
-              })()}
-            </span>
-          </div>
-          <div className="flex justify-between items-center min-w-0 gap-3">
-            <span className="text-default-500 text-[11px] flex-shrink-0">
-              IPv6/域名
-            </span>
-            <span
-              className={`font-medium text-xs cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto text-right max-w-[130px] ${!(node.serverIpV6?.trim() || (node.serverIp?.trim() && node.serverIp.includes(":") ? node.serverIp.trim() : undefined)) ? "text-default-300" : ""}`}
-              title={
-                node.serverIpV6?.trim() ||
-                (node.serverIp?.trim() && node.serverIp.includes(":")
-                  ? node.serverIp.trim()
-                  : undefined) ||
-                "暂无"
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                const v6Val =
-                  node.serverIpV6?.trim() ||
-                  (node.serverIp?.trim() && node.serverIp.includes(":")
-                    ? node.serverIp.trim()
-                    : undefined);
-
-                if (v6Val) copyToClipboard(v6Val, "IPv6/域名");
-              }}
-            >
-              {(() => {
-                const v6Val =
-                  node.serverIpV6?.trim() ||
-                  (node.serverIp?.trim() && node.serverIp.includes(":")
-                    ? node.serverIp.trim()
-                    : undefined);
-
-                if (!v6Val) return "暂无";
-                // IPv6 地址只显示前缀
-                if (v6Val.includes(":")) {
-                  const parts = v6Val.split(":").filter(Boolean);
-
-                  if (parts.length <= 3) return v6Val;
-
-                  return "::" + parts.slice(-3).join(":");
-                }
-                // 域名显示前两段
-                if (v6Val.includes(".")) {
-                  const parts = v6Val.split(".");
-
-                  if (parts.length >= 2) {
-                    return `${parts[0]}.${parts[1]}.*`;
-                  }
-
-                  return parts[0].length > 12
-                    ? parts[0].slice(0, 12) + "..."
-                    : parts[0];
-                }
-
-                return v6Val.length > 15 ? v6Val.slice(0, 15) + "..." : v6Val;
-              })()}
-            </span>
-          </div>
-          <div className="flex justify-between items-center min-w-0 gap-3">
-            <span className="text-default-500 text-[11px] flex-shrink-0">
-              内网IP/域名
-            </span>
-            <span
-              className={`font-medium text-xs cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto text-right max-w-[130px] ${!node.intranetIp?.trim() ? "text-default-300" : ""}`}
-              title={node.intranetIp?.trim() || "暂无"}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (node.intranetIp?.trim())
-                  copyToClipboard(node.intranetIp.trim(), "内网IP/域名");
-              }}
-            >
-              {(() => {
-                const intranetVal = node.intranetIp?.trim();
-
-                if (!intranetVal) return "暂无";
-                // 域名显示前两段
-                if (intranetVal.includes(".")) {
-                  const parts = intranetVal.split(".");
-
-                  if (parts.length >= 2) {
-                    return `${parts[0]}.${parts[1]}.*`;
-                  }
-
-                  return parts[0].length > 12
-                    ? parts[0].slice(0, 12) + "..."
-                    : parts[0];
-                }
-                // 内网 IP 只显示前两段
-                const ipParts = intranetVal.split(".");
-
-                if (ipParts.length === 4) {
-                  return `${ipParts[0]}.${ipParts[1]}.*.*`;
-                }
-
-                return intranetVal.length > 15
-                  ? intranetVal.slice(0, 15) + "..."
-                  : intranetVal;
-              })()}
-            </span>
-          </div>
-        </div>
-      </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 align-middle ${rowBg}`}>
-        {!isRemoteNode ? (
-          <div className="flex flex-col gap-1 min-w-[100px] justify-center">
-            {upgradeProgress?.[node.id]?.percent !== undefined &&
-            upgradeProgress[node.id].percent < 100 ? (
-              <>
-                <Progress
-                  aria-label="更新进度"
-                  className="w-full"
-                  color="warning"
-                  size="sm"
-                  value={upgradeProgress[node.id].percent}
-                />
-                <span className="text-[10px] text-warning-600 truncate">
-                  {upgradeProgress[node.id].message}
-                </span>
-              </>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                {node.version && (
-                  <DistroIcon
-                    className="w-4 h-4 shrink-0"
-                    distro={parseDistroFromVersion(node.version)}
-                    style={{
-                      color: getDistroColor(
-                        parseDistroFromVersion(node.version),
-                      ),
-                    }}
-                  />
-                )}
-                <span className="text-sm font-medium text-default-600">
-                  {node.version ? node.version.split(" ")[0] : "未知"}
-                </span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <Chip className="h-5 text-[10px] px-1" size="sm" variant="flat">
-            远程
-          </Chip>
-        )}
+              {formatInstanceIPForCell(address)}
+            </button>
+          );
+        })()}
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex justify-center">
@@ -557,23 +973,6 @@ function SortableTableRow({
                 )
               : "-"}
           </span>
-          {handleViewNodeTrafficLogs && (
-            <Button
-              isIconOnly
-              className="w-6 h-6"
-              size="sm"
-              variant="flat"
-              onPress={() => handleViewNodeTrafficLogs(node)}
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  clipRule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  fillRule="evenodd"
-                />
-              </svg>
-            </Button>
-          )}
         </div>
       </TableCell>
       <TableCell
@@ -602,32 +1001,6 @@ function SortableTableRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`text-center ${rowBg}`}>
-        {(node as any).mimicStatus === "ok" || (node as any).mimicStatus === "deps_ready" ? (
-          <span className="text-green-500" title="WGM 就绪">✅</span>
-        ) : (node as any).mimicStatus ? (
-          <span
-            className="text-red-500 cursor-help"
-            title={(node as any).mimicError || "WGM 未就绪"}
-          >❌</span>
-        ) : null}
-      </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
-        {node.remark?.trim() ? (
-          <span
-            className="text-sm max-w-[120px] cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block"
-            title={node.remark.trim()}
-            onClick={(e) => {
-              e.stopPropagation();
-              copyToClipboard(node.remark!.trim(), "备注");
-            }}
-          >
-            {node.remark.trim()}
-          </span>
-        ) : (
-          <span className="text-sm text-default-400">-</span>
-        )}
-      </TableCell>
       <TableCell className={`whitespace-nowrap text-center ${rowBg}`}>
         {hasExpiryInfo && expiryChipProps ? (
           <div className="relative inline-flex justify-center">
@@ -653,25 +1026,25 @@ function SortableTableRow({
             </button>
             {expiryPopoverOpen && (
               <div
-                className="absolute right-0 top-[calc(100%+6px)] z-[100] min-w-[260px] whitespace-nowrap rounded-xl border border-divider/80 bg-background/98 p-3 shadow-xl backdrop-blur"
+                className={`absolute right-0 z-[100] w-[160px] whitespace-nowrap rounded-lg border border-divider/80 bg-background/98 p-2 shadow-xl backdrop-blur ${isLastNode ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   e.nativeEvent.stopImmediatePropagation();
                 }}
               >
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {(node.expiryInstances?.length ? node.expiryInstances : expiryTarget ? [expiryTarget] : []).map((item: NodeExpiryInstance) => {
                     const meta = getNodeRenewalSnapshot(item.expiryTime, item.renewalCycle, 7);
                     const label = item.displayName?.trim() || (item.displayIndex ? `实例 ${item.displayIndex}` : item.instanceId);
 
                     return (
-                      <div key={item.instanceId} className="flex items-center justify-between gap-4">
+                      <div key={item.instanceId} className="flex items-center justify-between gap-2">
                         <div className="min-w-0 text-left">
                           <div className="truncate text-xs font-medium text-default-700">{label}</div>
-                          <div className="text-[11px] text-default-500">{formatNodeRenewalTime(meta.nextDueTime)}</div>
+                          <div className="text-[10px] text-default-500">{formatNodeRenewalTime(meta.nextDueTime)}</div>
                         </div>
                         <button
-                          className="inline-flex items-center justify-center text-[12px] font-medium px-3 py-1.5 rounded-md bg-red-50 text-red-500 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-colors active:scale-95"
+                          className="inline-flex items-center justify-center rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-100 active:scale-95 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -693,9 +1066,30 @@ function SortableTableRow({
           <span className="text-sm text-default-400">-</span>
         )}
       </TableCell>
+      <TableCell
+        className={`w-[10em] min-w-[10em] max-w-[10em] whitespace-nowrap px-1 ${rowBg}`}
+      >
+        {node.remark?.trim() ? (
+          <span
+            className="block max-w-full cursor-pointer rounded px-1 text-sm transition-colors hover:bg-default-200/50"
+            title={node.remark.trim()}
+            onClick={(e) => {
+              e.stopPropagation();
+              copyToClipboard(node.remark!.trim(), "备注");
+            }}
+          >
+            {node.remark.trim()}
+          </span>
+        ) : (
+          <span className="text-sm text-default-400">-</span>
+        )}
+      </TableCell>
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
-        <div className="flex min-w-0 justify-start gap-1 whitespace-nowrap">
-          {!isRemoteNode && (
+        <div
+          className="flex min-w-0 justify-start gap-1 whitespace-nowrap"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {node.isRemote !== 1 && (
             <>
               <Dropdown>
                 <DropdownTrigger>
@@ -753,15 +1147,6 @@ function SortableTableRow({
               </Button>
               <Button
                 className="min-h-7 shrink-0 px-2"
-                color="success"
-                size="sm"
-                variant="flat"
-                onPress={() => handleResetNodeTraffic(node)}
-              >
-                归零
-              </Button>
-              <Button
-                className="min-h-7 shrink-0 px-2"
                 color={node.paused ? "success" : "warning"}
                 size="sm"
                 variant="flat"
@@ -783,12 +1168,36 @@ function SortableTableRow({
         </div>
       </TableCell>
     </TableRow>
+    {isExpanded && (
+      <TableRow
+        key={`${node.id}-instances`}
+        className="bg-default-50/30 dark:bg-default-100/5"
+      >
+        <TableCell
+          className="w-0 max-w-0 overflow-visible p-0"
+          colSpan={14}
+        >
+          <NodeInstanceRows
+            copyToClipboard={copyToClipboard}
+            formatTraffic={formatTraffic}
+            members={instanceMembers}
+            node={node}
+            realtimeInstanceMetrics={realtimeInstanceMetrics}
+            onDismissExpiryReminder={handleDismissExpiryReminder}
+            onViewTrafficLogs={handleViewNodeTrafficLogs}
+            onConfigureInstance={onConfigureInstance}
+            onDeleteInstance={onDeleteInstance}
+            onResetInstanceTraffic={onResetInstanceTraffic}
+          />
+        </TableCell>
+      </TableRow>
+    )}
+    </>
   );
 }
 export function NodeListView({
   displayNodes,
   realtimeNodeMetrics,
-  upgradeProgress,
   selectedIds,
   toggleSelect,
   toggleSelectAll,
@@ -808,12 +1217,35 @@ export function NodeListView({
   setNodeFilterMode,
   nodeExpiryStats,
   handleViewNodeTrafficLogs,
-  handleResetNodeTraffic,
   handleTogglePause,
+  nodeInstanceMembers = {},
+  realtimeNodeInstanceMetrics = {},
+  onConfigureInstance,
+  onDeleteInstance,
+  onResetInstanceTraffic,
 }: NodeListViewProps) {
+  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(
+    readExpandedNodeIds,
+  );
   const isAllSelected =
     displayNodes.length > 0 &&
     displayNodes.every((node) => selectedIds.has(node.id));
+
+  const toggleExpandedNode = (nodeId: number) => {
+    setExpandedNodeIds(() => {
+      const next = readExpandedNodeIds();
+
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+
+      localStorage.setItem(
+        NODE_INSTANCE_EXPANDED_STORAGE_KEY,
+        JSON.stringify(Array.from(next)),
+      );
+
+      return next;
+    });
+  };
 
   return (
     <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
@@ -823,7 +1255,7 @@ export function NodeListView({
           th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
           td: "py-3 border-b border-divider/30 group-data-[last=true]:border-b-0 bg-white/80 backdrop-blur-sm dark:bg-content1/50",
           tr: "hover:bg-default-50/80 dark:hover:bg-default-100/30 transition-colors",
-          wrapper: "p-0 shadow-none bg-transparent rounded-none pb-8",
+          wrapper: "p-0 shadow-none bg-transparent rounded-none",
         }}
       >
         <TableHeader>
@@ -834,6 +1266,9 @@ export function NodeListView({
                 onValueChange={toggleSelectAll}
               />
             </div>
+          </TableColumn>
+          <TableColumn className="w-[54px] whitespace-nowrap px-1 py-2 text-center">
+            展开
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             排序
@@ -912,9 +1347,6 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             地址
           </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
-            版本
-          </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             在线数
           </TableColumn>
@@ -926,12 +1358,6 @@ export function NodeListView({
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[110px] max-w-[110px] text-right">
             下行流量
-          </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[60px] text-center">
-            WGM
-          </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
-            备注
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             <Select
@@ -969,6 +1395,9 @@ export function NodeListView({
               </SelectItem>
             </Select>
           </TableColumn>
+          <TableColumn className="w-[10em] min-w-[10em] max-w-[10em] whitespace-nowrap px-1 py-2 text-left">
+            备注
+          </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             操作
           </TableColumn>
@@ -976,7 +1405,7 @@ export function NodeListView({
         <TableBody>
           {displayNodes.length === 0 ? (
             <TableRow>
-              <TableCell className="py-16 text-center" colSpan={15}>
+              <TableCell className="py-16 text-center" colSpan={14}>
                 <div className="flex flex-col items-center justify-center">
                   <h3 className="text-base font-medium text-foreground mb-1">
                     未找到匹配的节点
@@ -999,13 +1428,12 @@ export function NodeListView({
               </TableCell>
             </TableRow>
           ) : (
-            displayNodes.map((node) => (
+            displayNodes.map((node, nodeIndex) => (
               <SortableTableRow
                 key={node.id}
                 {...{
                   node,
                   realtimeNodeMetrics,
-                  upgradeProgress,
                   selectedIds,
                   toggleSelect,
                   copyToClipboard,
@@ -1019,8 +1447,15 @@ export function NodeListView({
                   handleCopyOfflineInstallCommand,
                   handleCopyAutoInstallCommand,
                   handleViewNodeTrafficLogs,
-                  handleResetNodeTraffic,
                   handleTogglePause,
+                  instanceMembers: nodeInstanceMembers[node.id] || [],
+                  realtimeInstanceMetrics: realtimeNodeInstanceMetrics,
+                  isLastNode: nodeIndex === displayNodes.length - 1,
+                  isExpanded: expandedNodeIds.has(node.id),
+                  onToggleExpanded: toggleExpandedNode,
+                  onConfigureInstance,
+                  onDeleteInstance,
+                  onResetInstanceTraffic,
                 }}
               />
             ))

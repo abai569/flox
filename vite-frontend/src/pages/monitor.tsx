@@ -205,12 +205,15 @@ const formatMonitorIPForCell = (ip?: string): string => {
 
     if (parts.length <= 3) return value;
 
-    return `::${parts.slice(-3).join(":")}`;
+    return `*:${parts.slice(-3).join(":")}`;
   }
   if (value.includes(".")) {
     const parts = value.split(".");
 
-    if (parts.length >= 2) return `${parts[0]}.${parts[1]}.*`;
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(value)) {
+      return `${parts[0]}.${parts[1]}.*`;
+    }
+    if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.*`;
 
     return parts[0].length > 12 ? `${parts[0].slice(0, 12)}...` : parts[0];
   }

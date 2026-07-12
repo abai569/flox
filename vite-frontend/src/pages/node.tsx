@@ -53,6 +53,8 @@ import { Link } from "@/shadcn-bridge/heroui/link";
 import { Progress } from "@/shadcn-bridge/heroui/progress";
 import { Accordion, AccordionItem } from "@/shadcn-bridge/heroui/accordion";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
+import { DatePicker } from "@/shadcn-bridge/heroui/date-picker";
+import { DatePresets } from "@/shadcn-bridge/heroui/date-presets";
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
 import {
   Dropdown,
@@ -62,10 +64,7 @@ import {
   DropdownMenuSeparator,
 } from "@/shadcn-bridge/heroui/dropdown";
 import { NodeListView } from "@/pages/node/node-list-view";
-import {
-  MonitorTerminalButton,
-  MonitorTerminalProvider,
-} from "@/pages/monitor-terminal";
+import { MonitorTerminalProvider } from "@/pages/monitor-terminal";
 import {
   createNode,
   getNodeList,
@@ -80,6 +79,7 @@ import {
   batchDeleteNodes,
   upgradeNode,
   batchUpgradeNodes,
+  batchResetNodeInstanceTraffic,
   getNodeReleases,
   refreshNodeExpiryReminder,
   getNodeGroupList,
@@ -114,6 +114,7 @@ import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { loadStoredOrder, saveOrder } from "@/utils/order-storage";
+import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
 // TypeScript 全局类型扩展
 declare global {
   interface Window {
@@ -240,30 +241,9 @@ interface NodeForm {
   trafficRatio: number;
   trafficLimit: number;
 }
-type NodeViewMode = "grid" | "list" | "grouped" | "instances";
+type NodeViewMode = "grid" | "list" | "grouped";
 const EXPIRING_SOON_DAYS = 7;
 const DEFAULT_INSTANCE_PORT_RANGE = "10000-65535";
-const formatInstanceIPForCell = (ip?: string): string => {
-  const value = ip?.trim() || "";
-
-  if (!value) return "-";
-  if (value.includes(":")) {
-    const parts = value.split(":").filter(Boolean);
-
-    if (parts.length <= 3) return value;
-
-    return `::${parts.slice(-3).join(":")}`;
-  }
-  if (value.includes(".")) {
-    const parts = value.split(".");
-
-    if (parts.length >= 2) return `${parts[0]}.${parts[1]}.*`;
-
-    return parts[0].length > 12 ? `${parts[0].slice(0, 12)}...` : parts[0];
-  }
-
-  return value.length > 15 ? `${value.slice(0, 15)}...` : value;
-};
 
 const extractSDWANConfigPath = (raw?: string): string => {
   if (!raw) {
@@ -665,21 +645,25 @@ const formatDate = (timestamp: number): string => {
   return new Date(timestamp).toLocaleString();
 };
 
-const formatInstanceRenewalCycle = (
-  cycle?: MonitorNodeInstanceGroupMemberApiItem["renewalCycle"],
-) => {
-  switch (cycle) {
-    case "month":
-      return "月付";
-    case "quarter":
-      return "季付";
-    case "halfYear":
-      return "半年付";
-    case "year":
-      return "年付";
-    default:
-      return "-";
+const formatNodeAddressForCell = (address: string): string => {
+  if (address.includes(":")) {
+    const parts = address.split(":").filter(Boolean);
+
+    return parts.length <= 3 ? address : `*:${parts.slice(-3).join(":")}`;
   }
+  if (address.includes(".")) {
+    const parts = address.split(".");
+
+    if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(address)) {
+      return `${parts[0]}.${parts[1]}.*`;
+    }
+
+    return parts.length >= 2
+      ? `${parts.slice(0, -1).join(".")}.*`
+      : address;
+  }
+
+  return address.length > 15 ? `${address.slice(0, 15)}...` : address;
 };
 
 export default function NodePage() {
@@ -1683,6 +1667,26 @@ export default function NodePage() {
       toast.error("删除实例失败");
     } finally {
       setInstanceDeleteSaving(false);
+    }
+  };
+  const resetInstanceTraffic = async (member: MonitorNodeInstanceGroupMemberApiItem) => {
+    if (!member.instanceId) return;
+    try {
+      const res = await batchResetNodeInstanceTraffic({
+        instances: [{ nodeId: member.nodeId, instanceId: member.instanceId }],
+        reason: "管理员手动归零",
+        inFlowBefore: member.periodTx || 0,
+        outFlowBefore: member.periodRx || 0,
+      });
+      if (res.code === 0) {
+        toast.success("实例流量归零成功");
+        await loadNodeInstances();
+        await loadNodes({ silent: true });
+      } else {
+        toast.error(res.msg || "归零失败");
+      }
+    } catch {
+      toast.error("归零失败");
     }
   };
   // 查看节点流量归零日志
@@ -2811,145 +2815,33 @@ export default function NodePage() {
             <div className="space-y-1.5 border-b border-divider/50 pb-2 mb-2">
               <div className="flex justify-between items-center min-w-0">
                 <span className="text-default-500 text-xs flex-shrink-0 mr-2">
-                  IPv4/域名
+                  地址
                 </span>
-                <span
-                  className={`font-medium text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto ${!node.serverIpV4?.trim() ? "text-default-300" : ""}`}
-                  title={node.serverIpV4?.trim() || "暂无"}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const val = node.serverIpV4?.trim();
-
-                    if (val) copyToClipboard(val, "IPv4/域名");
-                  }}
-                >
-                  {(() => {
-                    const val = node.serverIpV4?.trim();
-
-                    if (!val) return "暂无";
-                    // 域名显示前两段
-                    if (val.includes(".")) {
-                      const parts = val.split(".");
-
-                      if (parts.length >= 2) {
-                        return `${parts[0]}.${parts[1]}.*`;
-                      }
-
-                      return parts[0].length > 12
-                        ? parts[0].slice(0, 12) + "..."
-                        : parts[0];
-                    }
-                    // IP 地址只显示前两段
-                    const ipParts = val.split(".");
-
-                    if (ipParts.length === 4) {
-                      return `${ipParts[0]}.${ipParts[1]}.*.*`;
-                    }
-
-                    return val.length > 15 ? val.slice(0, 15) + "..." : val;
-                  })()}
-                </span>
-              </div>
-              <div className="flex justify-between items-center min-w-0">
-                <span className="text-default-500 text-xs flex-shrink-0 mr-2">
-                  IPv6/域名
-                </span>
-                <span
-                  className={`font-medium text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto ${!(node.serverIpV6?.trim() || (node.serverIp?.trim() && node.serverIp.includes(":") ? node.serverIp.trim() : undefined)) ? "text-default-300" : ""}`}
-                  title={
+                {(() => {
+                  const address =
+                    node.serverIpV4?.trim() ||
+                    node.intranetIp?.trim() ||
                     node.serverIpV6?.trim() ||
                     (node.serverIp?.trim() && node.serverIp.includes(":")
                       ? node.serverIp.trim()
-                      : undefined) ||
-                    "暂无"
-                  }
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const v6Val =
-                      node.serverIpV6?.trim() ||
-                      (node.serverIp?.trim() && node.serverIp.includes(":")
-                        ? node.serverIp.trim()
-                        : undefined);
+                      : "");
 
-                    if (v6Val) copyToClipboard(v6Val, "IPv6 地址");
-                  }}
-                >
-                  {(() => {
-                    const v6Val =
-                      node.serverIpV6?.trim() ||
-                      (node.serverIp?.trim() && node.serverIp.includes(":")
-                        ? node.serverIp.trim()
-                        : undefined);
-
-                    if (!v6Val) return "暂无";
-                    // IPv6 地址只显示前缀
-                    if (v6Val.includes(":")) {
-                      const parts = v6Val.split(":").filter(Boolean);
-
-                      if (parts.length <= 3) return v6Val;
-
-                      return "::" + parts.slice(-3).join(":");
-                    }
-                    // 域名显示前两段
-                    if (v6Val.includes(".")) {
-                      const parts = v6Val.split(".");
-
-                      if (parts.length >= 2) {
-                        return `${parts[0]}.${parts[1]}.*`;
-                      }
-
-                      return parts[0].length > 12
-                        ? parts[0].slice(0, 12) + "..."
-                        : parts[0];
-                    }
-
-                    return v6Val.length > 15
-                      ? v6Val.slice(0, 15) + "..."
-                      : v6Val;
-                  })()}
-                </span>
-              </div>
-              <div className="flex justify-between items-center min-w-0">
-                <span className="text-default-500 text-xs flex-shrink-0 mr-2">
-                  内网IP/域名
-                </span>
-                <span
-                  className={`font-medium text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 ml-auto ${!node.intranetIp?.trim() ? "text-default-300" : ""}`}
-                  title={node.intranetIp?.trim() || "暂无"}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (node.intranetIp?.trim())
-                      copyToClipboard(node.intranetIp.trim(), "内网 IP");
-                  }}
-                >
-                  {(() => {
-                    const intranetVal = node.intranetIp?.trim();
-
-                    if (!intranetVal) return "暂无";
-                    // 域名显示前两段
-                    if (intranetVal.includes(".")) {
-                      const parts = intranetVal.split(".");
-
-                      if (parts.length >= 2) {
-                        return `${parts[0]}.${parts[1]}.*`;
-                      }
-
-                      return parts[0].length > 12
-                        ? parts[0].slice(0, 12) + "..."
-                        : parts[0];
-                    }
-                    // 内网 IP 只显示前两段
-                    const ipParts = intranetVal.split(".");
-
-                    if (ipParts.length === 4) {
-                      return `${ipParts[0]}.${ipParts[1]}.*.*`;
-                    }
-
-                    return intranetVal.length > 15
-                      ? intranetVal.slice(0, 15) + "..."
-                      : intranetVal;
-                  })()}
-                </span>
+                  return address ? (
+                    <button
+                      className="min-w-0 max-w-[180px] truncate rounded px-1 text-right text-sm font-medium transition-colors hover:bg-default-200/50 hover:text-primary"
+                      title={address}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        copyToClipboard(address, "节点地址");
+                      }}
+                    >
+                      {formatNodeAddressForCell(address)}
+                    </button>
+                  ) : (
+                    <span className="text-sm text-default-300">暂无</span>
+                  );
+                })()}
               </div>
             </div>
             <div className="flex justify-between items-center text-sm">
@@ -3333,16 +3225,13 @@ export default function NodePage() {
                     // 当前是分组 (grouped) -> 切换到列表 (list)
                     // 当前是列表 (list) -> 切换到卡片 (grid)
                     // 当前是卡片 (grid) -> 切换到分组 (grouped)
-                    if (viewMode === "instances") setViewMode("list");
-                    else if (viewMode === "grouped") setViewMode("list");
+                    if (viewMode === "grouped") setViewMode("list");
                     else if (viewMode === "list") setViewMode("grid");
                     else setViewMode("grouped");
                   }}
                 >
                   {/* 按钮显示的是"下一个要切换到的视图"的名称 */}
-                  {viewMode === "instances"
-                    ? "列表"
-                    : viewMode === "grouped"
+                  {viewMode === "grouped"
                     ? "分组"
                     : viewMode === "list"
                       ? "列表"
@@ -3365,14 +3254,6 @@ export default function NodePage() {
                   onPress={() => openDNSFailoverPicker()}
                 >
                   DNS
-                </Button>
-                <Button
-                  className="bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-300 dark:hover:bg-cyan-900/45"
-                  size="sm"
-                  variant="flat"
-                  onPress={() => setViewMode("instances")}
-                >
-                  实例
                 </Button>
                 {/* 新增按钮 */}
                 <Button
@@ -3630,15 +3511,22 @@ export default function NodePage() {
                                       handleTogglePause={
                                         handleTogglePause
                                       }
-                                      handleViewNodeTrafficLogs={
-                                        handleViewNodeTrafficLogs
-                                      }
+                                       handleViewNodeTrafficLogs={
+                                         handleViewNodeTrafficLogs
+                                       }
+                                      nodeInstanceMembers={nodeInstanceMembers}
                                       nodeExpiryStats={nodeExpiryStats}
                                       nodeFilterMode={nodeFilterMode}
                                       nodeGroups={nodeGroups}
+                                      onConfigureInstance={openInstanceConfigEditor}
+                                      onDeleteInstance={setInstanceDeleteTarget}
+                                      onResetInstanceTraffic={resetInstanceTraffic}
                                       openInstallSelector={openInstallSelector}
                                       openUpgradeModal={openUpgradeModal}
                                       realtimeNodeMetrics={realtimeNodeMetrics}
+                                      realtimeNodeInstanceMetrics={
+                                        realtimeNodeInstanceMetrics
+                                      }
                                       selectedIds={selectedIds}
                                       setFilterGroupId={setFilterGroupId}
                                       setNodeFilterMode={setNodeFilterMode}
@@ -3683,187 +3571,6 @@ export default function NodePage() {
                 </div>
               </div>
             ))}
-          {viewMode === "instances" &&
-            (displayNodes.length === 0 ? (
-              <Card className="shadow-sm border border-divider bg-content1">
-                <CardBody className="py-16 flex flex-col items-center justify-center min-h-[200px]">
-                  <h3 className="text-base font-medium text-foreground mb-1">
-                    未找到匹配的节点
-                  </h3>
-                  <p className="text-default-500 text-sm mb-3">
-                    没有符合条件的节点配置，请调整筛选条件
-                  </p>
-                  <Button
-                    color="warning"
-                    size="sm"
-                    variant="flat"
-                    onPress={() => {
-                      setFilterGroupId(null);
-                      setNodeFilterMode("all");
-                      setLocalSearchKeyword("");
-                    }}
-                  >
-                    归零筛选
-                  </Button>
-                </CardBody>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {displayNodes.map((node) => {
-                  const members = nodeInstanceMembers[node.id] || [];
-
-                  return (
-                    <div
-                      key={node.id}
-                      className="overflow-hidden rounded-xl border border-divider bg-content1 shadow-sm"
-                    >
-                      <div className="flex w-full items-center gap-2 px-3 py-3 md:justify-start md:px-4 md:py-4">
-                        <div className="flex min-w-0 shrink items-center gap-2 md:flex-none">
-                          <span className="min-w-0 max-w-[82px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[140px] md:max-w-none md:px-4 md:text-sm">
-                            {node.name} | ID: {node.id}
-                          </span>
-                          <span className="shrink-0 text-xs text-default-500">
-                            {members.length} 个实例
-                          </span>
-                        </div>
-                      </div>
-                      <div className="px-3 pb-4">
-                        <div className="overflow-x-auto overscroll-x-contain md:overflow-hidden">
-                        <table className="w-full min-w-[1120px] table-fixed text-sm md:min-w-0">
-                          <thead className="border-b border-default-400/70 text-foreground">
-                            <tr>
-                              <th className="w-[84px] px-2 py-2 text-center font-medium">状态</th>
-                              <th className="w-[140px] px-2 py-2 text-center font-medium">实例名称</th>
-                              <th className="w-[170px] px-2 py-2 text-center font-medium">IPv4 / 地区</th>
-                              <th className="w-[190px] px-2 py-2 text-center font-medium">IPv6 / 地区</th>
-                              <th className="w-[120px] px-2 py-2 text-center font-medium">端口范围</th>
-                              <th className="w-[100px] px-2 py-2 text-center font-medium">续费周期</th>
-                              <th className="w-[150px] px-2 py-2 text-center font-medium">到期时间</th>
-                              <th className="w-[100px] px-2 py-2 text-center font-medium">归零日</th>
-                              <th className="w-[110px] px-2 py-2 text-center font-medium">流量限额</th>
-                              <th className="w-[180px] px-2 py-2 text-center font-medium">操作</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {members.length === 0 ? (
-                              <tr>
-                                <td
-                                  className="px-2 py-8 text-center text-default-500"
-                                  colSpan={10}
-                                >
-                                  暂无实例上报
-                                </td>
-                              </tr>
-                            ) : (
-                              members.map((member) => (
-                                <tr
-                                  key={member.instanceId || `${member.nodeId}-${member.displayIndex || 0}`}
-                                  className="border-b border-divider/60 last:border-b-0 hover:bg-default-50/70 dark:hover:bg-default-100/10"
-                                >
-                                  <td className="px-2 py-3 text-center align-middle">
-                                    <StatusDot
-                                      active={member.status === 1}
-                                      tone={member.status === 1 ? "success" : "danger"}
-                                    />
-                                  </td>
-                                  <td className="px-2 py-3 text-center font-medium text-foreground">
-                                    <span className="block truncate">{getInstanceLabel(member)}</span>
-                                  </td>
-                                  <td className="px-2 py-3 text-center align-middle text-xs text-default-600">
-                                    {member.publicIpV4?.trim() ? (
-                                      <button
-                                        className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
-                                        title={member.publicIpV4}
-                                        type="button"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          copyToClipboard(member.publicIpV4 || "", "IPv4");
-                                        }}
-                                      >
-                                        {formatInstanceIPForCell(member.publicIpV4)}
-                                      </button>
-                                    ) : (
-                                      <span className="inline-block max-w-full truncate px-1 leading-5 text-default-300">
-                                        -
-                                      </span>
-                                    )}
-                                    <div className="truncate">
-                                      {member.publicIpV4Region || "-"}
-                                    </div>
-                                  </td>
-                                  <td className="px-2 py-3 text-center align-middle text-xs text-default-600">
-                                    {member.publicIpV6?.trim() ? (
-                                      <button
-                                        className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
-                                        title={member.publicIpV6}
-                                        type="button"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          copyToClipboard(member.publicIpV6 || "", "IPv6");
-                                        }}
-                                      >
-                                        {formatInstanceIPForCell(member.publicIpV6)}
-                                      </button>
-                                    ) : (
-                                      <span className="inline-block max-w-full truncate px-1 leading-5 text-default-300">
-                                        -
-                                      </span>
-                                    )}
-                                    <div className="truncate">
-                                      {member.publicIpV6Region || "-"}
-                                    </div>
-                                  </td>
-                                  <td className="px-2 py-3 text-center text-default-700">
-                                    {member.portRange?.trim() || "-"}
-                                  </td>
-                                  <td className="px-2 py-3 text-center text-default-700">
-                                    {formatInstanceRenewalCycle(member.renewalCycle)}
-                                  </td>
-                                  <td className="px-2 py-3 text-center text-default-700">
-                                    {member.expiryTime ? formatNodeRenewalTime(member.expiryTime) : "-"}
-                                  </td>
-                                  <td className="px-2 py-3 text-center text-default-700">
-                                    {member.flowResetTime || 1}号
-                                  </td>
-                                  <td className="px-2 py-3 text-center text-default-700">
-                                    {member.trafficLimit || 0} GB
-                                  </td>
-                                  <td className="px-2 py-3">
-                                    <div className="flex items-center justify-center gap-1 whitespace-nowrap">
-                                      <Button
-                                        color="primary"
-                                        size="sm"
-                                        variant="flat"
-                                        onPress={() => openInstanceConfigEditor(member)}
-                                      >
-                                        配置
-                                      </Button>
-                                      <MonitorTerminalButton
-                                        className="h-8 shrink-0 px-2 text-xs font-medium"
-                                        member={member}
-                                      />
-                                      <Button
-                                        color="danger"
-                                        size="sm"
-                                        variant="flat"
-                                        onPress={() => setInstanceDeleteTarget(member)}
-                                      >
-                                        删除
-                                      </Button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
           {viewMode === "list" && (
             <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
               <SortableContext
@@ -3890,12 +3597,17 @@ export default function NodePage() {
                   handleResetNodeTraffic={handleResetNodeTraffic}
                   handleTogglePause={handleTogglePause}
                   handleViewNodeTrafficLogs={handleViewNodeTrafficLogs}
+                  nodeInstanceMembers={nodeInstanceMembers}
                   nodeExpiryStats={nodeExpiryStats}
                   nodeFilterMode={nodeFilterMode}
                   nodeGroups={nodeGroups}
+                  onConfigureInstance={openInstanceConfigEditor}
+                  onDeleteInstance={setInstanceDeleteTarget}
+                  onResetInstanceTraffic={resetInstanceTraffic}
                   openInstallSelector={openInstallSelector}
                   openUpgradeModal={openUpgradeModal}
                   realtimeNodeMetrics={realtimeNodeMetrics}
+                  realtimeNodeInstanceMetrics={realtimeNodeInstanceMetrics}
                   selectedIds={selectedIds}
                   setFilterGroupId={setFilterGroupId}
                   setNodeFilterMode={setNodeFilterMode}
@@ -4918,7 +4630,30 @@ export default function NodePage() {
                   <SelectItem key="halfYear">半年付</SelectItem>
                   <SelectItem key="year">年付</SelectItem>
                 </Select>
-                <Input label="续费基准时间" type="date" value={instanceConfigForm.expiryDate} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, expiryDate: e.target.value }))} />
+                <DatePicker
+                  showMonthAndYearPickers
+                  label="续费基准时间"
+                  value={timestampToCalendarDate(
+                    parseDateInputValue(instanceConfigForm.expiryDate) || null,
+                  )}
+                  onChange={(date) => {
+                    const timestamp = calendarDateToTimestamp(date, false) || 0;
+
+                    setInstanceConfigForm((prev) => ({
+                      ...prev,
+                      expiryDate: formatDateInputValue(timestamp),
+                    }));
+                  }}
+                >
+                  <DatePresets
+                    onChange={(timestamp) => {
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        expiryDate: formatDateInputValue(timestamp),
+                      }));
+                    }}
+                  />
+                </DatePicker>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <Input label="流量归零日" min={1} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
