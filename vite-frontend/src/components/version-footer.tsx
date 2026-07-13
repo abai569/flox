@@ -447,9 +447,17 @@ export function VersionFooter({
                     是否立即升级面板？
                   </div>
                   <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 list-disc list-outside pl-4 text-xs text-danger-600/80 dark:text-danger-400/80">
+                    <p className="list-item">
+                      升级前自动备份配置和数据库，最近 5 次保存在
+                      /root/floxbackup
+                    </p>
                     <p className="list-item">升级将重启面板和后端服务</p>
                     <p className="list-item">升级过程中面板将暂时不可用</p>
-                    <p className="list-item">升级失败会自动回滚到原版本</p>
+                    <p className="list-item">
+                      新版本健康检查失败会恢复原版本和数据库
+                    </p>
+                    <p className="list-item">回滚结果需要管理员手动确认</p>
+                    <p className="list-item">请确保磁盘空间和服务器网络稳定</p>
                   </div>
                 </div>
               </ModalBody>
@@ -611,10 +619,20 @@ export function VersionFooter({
                       <span className="text-sm font-semibold">升级说明</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 list-disc list-outside pl-4 text-xs text-danger-600/80 dark:text-danger-400/80">
+                      <p className="list-item">
+                        升级前自动备份配置和数据库
+                      </p>
+                      <p className="list-item">
+                        最近 5 次备份保存在 /root/floxbackup
+                      </p>
                       <p className="list-item">升级将重启面板和后端服务</p>
                       <p className="list-item">升级过程中面板将暂时不可用</p>
-                      <p className="list-item">升级失败会自动回滚到原版本</p>
+                      <p className="list-item">
+                        健康检查失败会恢复原版本和数据库
+                      </p>
+                      <p className="list-item">回滚结果需管理员手动确认</p>
                       <p className="list-item">请确保服务器网络连接稳定</p>
+                      <p className="list-item">请确保服务器磁盘空间充足</p>
                     </div>
                   </div>
                 )}
