@@ -4909,7 +4909,7 @@ export default function NodePage() {
                     onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, displayName: e.target.value }))}
                   />
                   <Input
-                    description="仅用于备注展示，不影响实例名称"
+                    description="仅用于实例的备注展示"
                     label="备注"
                     placeholder="填写实例备注"
                     value={instanceConfigForm.remark}
@@ -4959,7 +4959,7 @@ export default function NodePage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input description="0=不归零，1-31=日期" label="流量归零日" min={0} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
-                  <Input label="流量限额(GB)" min={0} type="number" value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))} />
+                  <Input description="流量用完前有电报提醒" label="流量限额(GB)" min={0} type="number" value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))} />
                 </div>
               </div>
             </ModalBody>
