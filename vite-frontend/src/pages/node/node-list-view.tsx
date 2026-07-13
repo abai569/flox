@@ -6,7 +6,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useRef, useEffect } from "react";
 
-import { getConnectionStatusMeta } from "./display";
+import { deriveNodeVisualState } from "./display";
 import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
 
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
@@ -799,7 +799,7 @@ function SortableTableRow({
     : isExpanded
       ? "bg-primary-100/80 dark:bg-default-100/30"
       : "";
-  const connectionStatusMeta = getConnectionStatusMeta(node.connectionStatus);
+  const visualMeta = deriveNodeVisualState(instanceMembers, node.paused);
   const expiryTarget =
     node.expiryInstances?.find(
       (item: NodeExpiryInstance) => item.expiryTime === node.expiryTime && item.renewalCycle === node.renewalCycle,
@@ -912,15 +912,9 @@ function SortableTableRow({
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex items-center gap-2 min-w-0">
           <StatusDot
-            active={!node.paused && connectionStatusMeta.color === "success"}
-            tone={
-              node.paused
-                ? "warning"
-                : connectionStatusMeta.color === "success"
-                  ? "success"
-                  : "danger"
-            }
-            title={node.paused ? "已暂停" : connectionStatusMeta.text}
+            active={visualMeta.state !== "offline"}
+            tone={visualMeta.color}
+            title={visualMeta.text}
           />
           <span
             className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"

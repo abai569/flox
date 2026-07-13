@@ -23,7 +23,7 @@ export function StatusDot({
 } & Omit<ComponentProps<"span">, "children">) {
   const colorClass = toneClass[tone];
 
-  if (active && tone === "success") {
+  if (active && (tone === "success" || tone === "warning")) {
     return (
       <span
         className={cn("relative inline-flex h-2.5 w-2.5 shrink-0", className)}

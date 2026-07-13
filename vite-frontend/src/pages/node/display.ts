@@ -8,18 +8,26 @@ export const getConnectionStatusMeta = (
   return { color: "danger", text: "离线" };
 };
 
-export const getRemoteSyncErrorMessage = (syncError: string): string => {
-  if (syncError === "provider_share_deleted") {
-    return "提供方已删除该分享";
+type NodeVisualState = "online" | "partial" | "offline";
+
+export const deriveNodeVisualState = (
+  members?: { status: number }[],
+  paused?: number,
+): { state: NodeVisualState; color: "success" | "warning" | "danger"; text: string } => {
+  if (paused) {
+    return { state: "offline", color: "warning", text: "已暂停" };
+  }
+  if (!members || members.length === 0) {
+    return { state: "offline", color: "danger", text: "离线" };
+  }
+  const onlineCount = members.filter((m) => m.status === 1).length;
+
+  if (onlineCount === members.length) {
+    return { state: "online", color: "success", text: `全部在线 (${onlineCount})` };
+  }
+  if (onlineCount > 0) {
+    return { state: "partial", color: "warning", text: `部分在线 (${onlineCount}/${members.length})` };
   }
 
-  if (syncError === "provider_share_disabled") {
-    return "提供方已禁用该分享";
-  }
-
-  if (syncError === "provider_share_expired") {
-    return "提供方分享已过期";
-  }
-
-  return `远程同步失败: ${syncError}`;
+  return { state: "offline", color: "danger", text: "离线" };
 };

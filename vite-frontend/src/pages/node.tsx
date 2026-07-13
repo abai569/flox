@@ -100,7 +100,7 @@ import {
 import { compareVersions } from "@/utils/version-update";
 import Network from "@/api/network";
 import { PageLoadingState } from "@/components/page-state";
-import { getConnectionStatusMeta } from "@/pages/node/display";
+import { deriveNodeVisualState } from "@/pages/node/display";
 import {
   getNodeRenewalSnapshot,
   formatNodeRenewalTime,
@@ -2825,7 +2825,7 @@ export default function NodePage() {
       expiryTarget?.expiryTime ?? node.expiryTime,
       expiryTarget?.renewalCycle ?? node.renewalCycle,
     );
-    const connectionStatusMeta = getConnectionStatusMeta(node.connectionStatus);
+    const visualMeta = deriveNodeVisualState(nodeInstanceMembers[node.id], node.paused);
     const hasRemark = Boolean(node.remark?.trim());
     const hasExpiryInfo = Boolean(
       expiryTarget?.expiryTime &&
@@ -2979,15 +2979,9 @@ export default function NodePage() {
             </div>
             <div className="flex items-center gap-2">
               <StatusDot
-                active={!node.paused && connectionStatusMeta.color === "success"}
-                tone={
-                  node.paused
-                    ? "warning"
-                    : connectionStatusMeta.color === "success"
-                      ? "success"
-                      : "danger"
-                }
-                title={node.paused ? "已暂停" : connectionStatusMeta.text}
+                active={visualMeta.state !== "offline"}
+                tone={visualMeta.color}
+                title={visualMeta.text}
               />
               {/* 这里加上 title 属性 */}
               <h3
