@@ -3,7 +3,7 @@ import type {
   SystemUpgradeStatusApiData,
 } from "@/api/types";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import {
@@ -81,6 +81,7 @@ export function VersionFooter({
     null,
   );
   const [upgrading, setUpgrading] = useState(false);
+  const upgradingRef = useRef(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [upgradeResult, setUpgradeResult] =
     useState<SystemUpgradeStatusApiData | null>(null);
@@ -113,6 +114,10 @@ export function VersionFooter({
   }, []);
 
   useEffect(() => {
+    upgradingRef.current = upgrading;
+  }, [upgrading]);
+
+  useEffect(() => {
     if (!isAdmin) return;
 
     let active = true;
@@ -123,7 +128,14 @@ export function VersionFooter({
       if (!active || res.code !== 0 || !res.data) return;
       if (res.data.state === "success") {
         window.clearInterval(interval);
+        const shouldReload = upgradingRef.current;
+
+        setUpgrading(false);
         await acknowledgeSystemUpgradeStatus();
+        if (shouldReload) {
+          window.location.reload();
+        }
+
         return;
       }
       if (
@@ -235,9 +247,12 @@ export function VersionFooter({
     const interval = window.setInterval(async () => {
       const statusRes = await getSystemUpgradeStatus();
 
-      if (statusRes.code !== 0 || !statusRes.data?.state) return;
+      if (statusRes.code !== 0 || !statusRes.data?.state) {
+        return;
+      }
       if (statusRes.data.state === "success") {
         window.clearInterval(interval);
+        setUpgrading(false);
         await acknowledgeSystemUpgradeStatus();
         window.location.reload();
       } else if (
