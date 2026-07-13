@@ -413,7 +413,7 @@ function NodeInstanceRows({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="w-full max-w-full overflow-x-auto px-3 pb-2">
-      <table className="w-full min-w-[1255px] table-fixed text-[13px]">
+      <table className="w-full min-w-[1420px] table-fixed text-[13px]">
         <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
           <tr>
             <th className="w-[60px] px-1 py-2 text-center font-medium">状态</th>
@@ -1240,7 +1240,7 @@ function SortableTableRow({
       >
         <TableCell
           className="w-0 max-w-0 overflow-visible p-0"
-          colSpan={14}
+          colSpan={15}
         >
           <NodeInstanceRows
             copyToClipboard={copyToClipboard}
@@ -1528,7 +1528,7 @@ export function NodeListView({
         <TableBody>
           {displayNodes.length === 0 ? (
             <TableRow>
-              <TableCell className="py-16 text-center" colSpan={14}>
+              <TableCell className="py-16 text-center" colSpan={15}>
                 <div className="flex flex-col items-center justify-center">
                   <h3 className="text-base font-medium text-foreground mb-1">
                     未找到匹配的节点
