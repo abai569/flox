@@ -12,7 +12,9 @@ import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { getMonitorPublicNodeInstanceGroups } from "@/api";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
-import { usePublicNodeRealtime } from "@/hooks/use-public-node-realtime";
+import { useNodeRealtime } from "@/pages/node/use-node-realtime";
+import { MoonFilledIcon, SunFilledIcon } from "@/components/icons";
+import { useThemeContext } from "@/themes/context";
 
 const INSTANCE_TABLE_COLUMNS = [
   "5%",
@@ -95,10 +97,11 @@ function UsageMeter({
 }
 
 function RegionCell({ value }: { value?: string }) {
-  const text = value?.trim() || "-";
+  const parts = (value?.trim() || "").split(/\s+/).filter(Boolean);
+  const text = parts.length >= 3 ? `${parts[0]} ${parts[parts.length - 1]}` : (value?.trim() || "-");
 
   return (
-    <span className="inline-flex max-w-full items-center rounded-md bg-secondary-500/10 px-2 py-0.5 text-xs text-secondary-700">
+    <span className="inline-flex max-w-full items-center rounded-md bg-secondary-500/10 px-2 py-0.5 text-xs text-secondary-700 dark:text-secondary-200">
       <span className="truncate">{text}</span>
     </span>
   );
@@ -114,7 +117,7 @@ function InstanceRows({
   if (loading && groups.length === 0) {
     return (
       <Card>
-        <CardBody className="py-12 text-center text-sm text-default-500">
+        <CardBody className="py-12 text-center text-sm text-default-500 dark:text-default-300">
           正在加载探针数据...
         </CardBody>
       </Card>
@@ -124,7 +127,7 @@ function InstanceRows({
   if (groups.length === 0) {
     return (
       <Card>
-        <CardBody className="py-12 text-center text-sm text-default-500">
+        <CardBody className="py-12 text-center text-sm text-default-500 dark:text-default-300">
           暂无探针数据
         </CardBody>
       </Card>
@@ -153,16 +156,16 @@ function InstanceRows({
                 <span className="min-w-0 max-w-[82px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[140px] md:max-w-none md:px-4 md:text-sm">
                   {group.name} | ID: {group.id}
                 </span>
-                <span className="shrink-0 text-xs text-default-500">
+                <span className="shrink-0 text-xs text-default-500 dark:text-default-300">
                   {group.members.length} 个实例
                 </span>
               </div>
               <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-xs md:flex-none md:gap-2 md:text-sm">
-                <span className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-secondary-500/15 px-1 text-secondary-700 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3">
+                <span className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-secondary-500/15 px-1 text-secondary-700 dark:text-secondary-200 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3">
                   {formatSpeed(totalOutSpeed)}
                   <ArrowUp className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 </span>
-                <span className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-primary-500/15 px-1 text-primary-700 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3">
+                <span className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-primary-500/15 px-1 text-primary-700 dark:text-primary-200 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3">
                   {formatSpeed(totalInSpeed)}
                   <ArrowDown className="h-3.5 w-3.5 md:h-4 md:w-4" />
                 </span>
@@ -206,6 +209,29 @@ function InstanceRows({
       })}
     </div>
   );
+}
+
+type RealtimeMetricSnapshot = Partial<MonitorPublicNodeInstanceGroupMemberApiItem> & { instanceId?: string };
+
+function mergeRealtimeMember(
+  member: MonitorPublicNodeInstanceGroupMemberApiItem,
+  realtimeMetrics: Record<number, RealtimeMetricSnapshot[]>,
+) {
+  const list = realtimeMetrics[member.nodeId];
+  if (!list || list.length === 0) return member;
+
+  const memberId = member.instanceId?.trim() || "";
+  if (memberId) {
+    const byId = list.find((m) => m.instanceId === memberId);
+    if (byId) return { ...member, ...byId };
+  }
+
+  const pos = (member.displayIndex || 1) - 1;
+  if (pos >= 0 && pos < list.length) {
+    return { ...member, ...list[pos] };
+  }
+
+  return member;
 }
 
 function InstanceRow({
@@ -255,6 +281,7 @@ function InstanceRow({
 }
 
 export default function TZPage() {
+  const { effectiveMode, setMode } = useThemeContext();
   const [groups, setGroups] = useState<MonitorPublicNodeInstanceGroupApiItem[]>(
     [],
   );
@@ -263,6 +290,9 @@ export default function TZPage() {
   const [realtimeStatus, setRealtimeStatus] = useState<Record<number, number>>(
     {},
   );
+  const [realtimeMetrics, setRealtimeMetrics] = useState<
+    Record<number, RealtimeMetricSnapshot[]>
+  >({});
 
   const loadGroups = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -289,14 +319,62 @@ export default function TZPage() {
     (parsed: { id?: string | number; type?: string; data?: unknown }) => {
       const nodeId = Number(parsed.id);
 
-      if (!nodeId || nodeId <= 0 || parsed.type !== "status") return;
+      if (!nodeId || nodeId <= 0) return;
 
-      setRealtimeStatus((prev) => ({ ...prev, [nodeId]: Number(parsed.data) }));
+      if (parsed.type === "status") {
+        setRealtimeStatus((prev) => ({ ...prev, [nodeId]: Number(parsed.data) }));
+        return;
+      }
+
+      if (parsed.type !== "metric") return;
+
+      let raw = parsed.data;
+      if (typeof raw === "string") {
+        try {
+          raw = JSON.parse(raw);
+        } catch {
+          return;
+        }
+      }
+      if (!raw || typeof raw !== "object") return;
+
+      const metric = raw as Record<string, unknown>;
+      const instanceId = String(metric.instanceId ?? metric.instance_id ?? "").trim();
+      if (!instanceId || instanceId.toLowerCase() === "default") return;
+
+      const patch: RealtimeMetricSnapshot = {
+        instanceId,
+        netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
+        netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
+        netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
+        netOutBytes: Number(metric.netOutBytes ?? metric.bytes_transmitted ?? 0),
+        periodRx: Number(metric.periodRx ?? metric.period_bytes_received ?? 0),
+        periodTx: Number(metric.periodTx ?? metric.period_bytes_transmitted ?? 0),
+        uptime: Number(metric.uptime ?? 0),
+        cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
+        memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
+        diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
+        onlineCount: Number(metric.tcpConns ?? metric.tcp_conns ?? 0) +
+          Number(metric.udpConns ?? metric.udp_conns ?? 0),
+        tcpConns: Number(metric.tcpConns ?? metric.tcp_conns ?? 0),
+        udpConns: Number(metric.udpConns ?? metric.udp_conns ?? 0),
+      };
+
+      setRealtimeMetrics((prev) => {
+        const list = [...(prev[nodeId] || [])];
+        const idx = list.findIndex((m) => m.instanceId === instanceId);
+        if (idx >= 0) {
+          list[idx] = patch;
+        } else {
+          list.push(patch);
+        }
+        return { ...prev, [nodeId]: list };
+      });
     },
     [],
   );
 
-  const { wsConnected, wsConnecting } = usePublicNodeRealtime({
+  const { wsConnected, wsConnecting } = useNodeRealtime({
     onMessage: handleRealtimeMessage,
     enabled: true,
   });
@@ -320,8 +398,11 @@ export default function TZPage() {
       groups.map((group) => ({
         ...group,
         status: realtimeStatus[group.id] ?? group.status,
+        members: group.members.map((member) =>
+          mergeRealtimeMember(member, realtimeMetrics),
+        ),
       })),
-    [groups, realtimeStatus],
+    [groups, realtimeMetrics, realtimeStatus],
   );
   const nodeCount = displayGroups.length;
   const onlineNodeCount = displayGroups.filter((group) => group.status === 1).length;
@@ -338,31 +419,48 @@ export default function TZPage() {
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">
       <div className="mb-4 space-y-3">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            <Button
+              color="primary"
+              size="sm"
+              variant="flat"
+              onPress={() => {
+                window.location.href = "/";
+              }}
+            >
+              返回
+            </Button>
+            <Button
+              color="secondary"
+              isLoading={loading}
+              size="sm"
+              variant="flat"
+              onPress={() => loadGroups()}
+            >
+              刷新
+            </Button>
+          </div>
           <Button
-            color="primary"
+            isIconOnly
+            aria-label={effectiveMode === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+            className="text-foreground"
             size="sm"
-            variant="flat"
-            onPress={() => {
-              window.location.href = "/";
-            }}
+            title={effectiveMode === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+            variant="light"
+            onPress={() => setMode(effectiveMode === "dark" ? "light" : "dark")}
           >
-            返回
-          </Button>
-          <Button
-            color="secondary"
-            isLoading={loading}
-            size="sm"
-            variant="flat"
-            onPress={() => loadGroups()}
-          >
-            刷新
+            {effectiveMode === "dark" ? (
+              <SunFilledIcon size={16} />
+            ) : (
+              <MoonFilledIcon size={16} />
+            )}
           </Button>
         </div>
 
         {!error && (
           <div className="flex items-center gap-4 overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
-            <span className="inline-flex shrink-0 items-center gap-2 text-default-600">
+            <span className="inline-flex shrink-0 items-center gap-2 text-default-600 dark:text-default-300">
               <StatusDot
                 active={wsConnected}
                 className="h-2 w-2"
@@ -376,7 +474,7 @@ export default function TZPage() {
                   ? "实时连接中"
                   : "实时未连接"}
             </span>
-            <div className="text-xs text-default-500">  实时节点状态</div>
+            <div className="text-xs text-default-500 dark:text-default-300">  实时节点状态</div>
           </div>        
         )}
         
@@ -397,7 +495,7 @@ export default function TZPage() {
               <h3 className="text-sm font-semibold">探针列表</h3>
             </CardHeader>
             <CardBody>
-              <div className="text-sm text-default-600">{error}</div>
+              <div className="text-sm text-default-600 dark:text-default-300">{error}</div>
             </CardBody>
           </Card>
         ) : null}

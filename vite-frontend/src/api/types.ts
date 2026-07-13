@@ -642,6 +642,7 @@ export interface MonitorNodeInstanceGroupApiItem {
 export interface MonitorPublicNodeInstanceGroupMemberApiItem {
   nodeId: number;
   nodeName: string;
+  instanceId?: string;
   displayIndex: number;
   displayName?: string;
   publicIpV4Region?: string;
