@@ -2978,12 +2978,15 @@ export default function NodePage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <StatusDot
-                active={visualMeta.state !== "offline"}
-                tone={visualMeta.color}
-                title={visualMeta.text}
-              />
-              {/* 这里加上 title 属性 */}
+              <div className="flex items-center gap-0.5" title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
+                <StatusDot
+                  active={visualMeta.state !== "offline"}
+                  tone={visualMeta.color}
+                />
+                <span className="text-xs font-mono tabular-nums text-default-500">
+                  {visualMeta.onlineCount}/{visualMeta.disabledCount}/{visualMeta.totalCount}
+                </span>
+              </div>
               <h3
                 className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
                 title={node.name}

@@ -922,13 +922,19 @@ function SortableTableRow({
           </div>
         </div>
       </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
-        <div className="flex items-center gap-2 min-w-0">
+      <TableCell className={`px-1 text-center align-middle ${rowBg}`}>
+        <div className="flex items-center justify-center gap-0.5" title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
           <StatusDot
             active={visualMeta.state !== "offline"}
             tone={visualMeta.color}
-            title={visualMeta.text}
           />
+          <span className="text-xs font-mono tabular-nums text-default-600">
+            {visualMeta.onlineCount}/{visualMeta.disabledCount}/{visualMeta.totalCount}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
+        <div className="flex items-center gap-2 min-w-0">
           <span
             className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
             title={node.name}
@@ -1376,6 +1382,9 @@ export function NodeListView({
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             排序
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center w-[70px]">
+            状态
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             节点名称
