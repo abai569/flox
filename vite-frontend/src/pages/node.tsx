@@ -817,7 +817,7 @@ export default function NodePage() {
     portRange: "",
     renewalCycle: "",
     expiryDate: "",
-    flowResetTime: "1",
+    flowResetTime: "",
     trafficLimit: "0",
   });
   const [instanceDeleteTarget, setInstanceDeleteTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
@@ -1742,7 +1742,7 @@ export default function NodePage() {
       portRange: member.portRange?.trim() || "",
       renewalCycle: renewalCycle === "halfyear" ? "halfYear" : (renewalCycle as NodeRenewalCycle),
       expiryDate: formatDateInputValue(member.expiryTime),
-      flowResetTime: String(member.flowResetTime ?? 1),
+      flowResetTime: member.flowResetTime ? String(member.flowResetTime) : "",
       trafficLimit: String(member.trafficLimit || 0),
     });
   };
@@ -1750,7 +1750,7 @@ export default function NodePage() {
     if (!instanceConfigTarget?.instanceId) return;
     const expiryTime = parseDateInputValue(instanceConfigForm.expiryDate);
     const renewalCycle = instanceConfigForm.renewalCycle.trim();
-    const flowResetTime = Number(instanceConfigForm.flowResetTime === "" ? 1 : instanceConfigForm.flowResetTime);
+    const flowResetTime = Number(instanceConfigForm.flowResetTime === "" ? 0 : instanceConfigForm.flowResetTime);
     const trafficLimit = Number(instanceConfigForm.trafficLimit || 0);
     const displayName = instanceConfigForm.displayName.trim();
     const remark = instanceConfigForm.remark.trim();
@@ -4899,22 +4899,24 @@ export default function NodePage() {
             <ModalHeader>编辑 {getInstanceLabel(instanceConfigTarget)}</ModalHeader>
             <ModalBody>
               <div className="space-y-3">
-                <Input
-                  description={instanceConfigTarget ? `留空继承 ${getDefaultInstanceLabel(instanceConfigTarget)}` : "留空继承默认实例名称"}
-                  label="实例名称"
-                  placeholder={instanceConfigTarget ? getDefaultInstanceLabel(instanceConfigTarget) : "实例 1"}
-                  value={instanceConfigForm.displayName}
-                  variant="bordered"
-                  onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, displayName: e.target.value }))}
-                />
-                <Input
-                  description="仅用于备注展示，不影响实例名称"
-                  label="备注"
-                  placeholder="填写实例备注"
-                  value={instanceConfigForm.remark}
-                  variant="bordered"
-                  onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, remark: e.target.value }))}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    description={instanceConfigTarget ? `留空继承 ${getDefaultInstanceLabel(instanceConfigTarget)}` : "留空继承默认实例名称"}
+                    label="实例名称"
+                    placeholder={instanceConfigTarget ? getDefaultInstanceLabel(instanceConfigTarget) : "实例 1"}
+                    value={instanceConfigForm.displayName}
+                    variant="bordered"
+                    onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                  />
+                  <Input
+                    description="仅用于备注展示，不影响实例名称"
+                    label="备注"
+                    placeholder="填写实例备注"
+                    value={instanceConfigForm.remark}
+                    variant="bordered"
+                    onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, remark: e.target.value }))}
+                  />
+                </div>
                 <Input
                   description={`留空使用 ${DEFAULT_INSTANCE_PORT_RANGE}`}
                   label="端口范围"
@@ -4956,7 +4958,7 @@ export default function NodePage() {
                   </DatePicker>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input label="流量归零日" min={0} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
+                  <Input description="0=不归零，1-31=日期" label="流量归零日" min={0} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
                   <Input label="流量限额(GB)" min={0} type="number" value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))} />
                 </div>
               </div>

@@ -1090,7 +1090,7 @@ export default function MonitorPage() {
           portRange: instanceEditTarget.portRange || "",
           expiryTime: instanceEditTarget.expiryTime || null,
           renewalCycle: instanceEditTarget.renewalCycle || "",
-          flowResetTime: instanceEditTarget.flowResetTime ?? 1,
+          flowResetTime: instanceEditTarget.flowResetTime ?? 0,
           trafficLimit: instanceEditTarget.trafficLimit || 0,
         });
 
