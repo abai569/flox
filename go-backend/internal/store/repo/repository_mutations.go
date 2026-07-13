@@ -1043,6 +1043,9 @@ func (r *Repository) DeleteNodeCascade(nodeID int64) error {
 		if err := tx.Where("node_id = ?", nodeID).Delete(&model.NodeInstance{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("node_id = ?", nodeID).Delete(&model.NodeDNSFailover{}).Error; err != nil {
+			return err
+		}
 		return tx.Where("id = ?", nodeID).Delete(&model.Node{}).Error
 	})
 }

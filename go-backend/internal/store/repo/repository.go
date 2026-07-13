@@ -219,6 +219,7 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.Node{},
 		&model.NodeInstance{},
 		&model.NodeDNSFailover{},
+		&model.DNSFailoverGlobalConfig{},
 		&model.SpeedLimit{},
 		&model.StatisticsFlow{},
 		&model.Tunnel{},

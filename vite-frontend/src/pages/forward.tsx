@@ -742,9 +742,9 @@ const SortableTunnelGroupContainer = ({
           <Button
             isIconOnly
             aria-label={collapsed ? "展开分组" : "折叠分组"}
-            className="h-7 w-7 min-w-7 pointer-events-none"
-            size="sm"
-            variant="flat"
+             className="h-7 w-7 min-w-7 pointer-events-none"
+             size="sm"
+             variant="flat"
           >
             <svg
               aria-hidden="true"
@@ -6161,16 +6161,28 @@ export default function ForwardPage() {
                       )}
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-foreground">
-                            转发链
-                          </span>
-                          <Button
-                            size="sm"
-                            variant="flat"
-                            onPress={() => setManualChainNodes((prev) => [...prev, []])}
-                          >
-                            添加一跳
-                          </Button>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-semibold text-foreground">
+                              转发链
+                            </span>
+                            <span className="text-xs text-default-500">
+                              已添加{" "}
+                              <span className="text-red-500">
+                                {manualChainNodes.length}
+                              </span>{" "}
+                              跳
+                            </span>
+                          </div>
+                          {manualChainNodes.length === 0 && (
+                            <Button
+                              className="text-primary"
+                              size="sm"
+                              variant="flat"
+                              onPress={() => setManualChainNodes((prev) => [...prev, []])}
+                            >
+                              添加一跳
+                            </Button>
+                          )}
                         </div>
                         {manualChainNodes.map((group, groupIndex) => (
                           <div
@@ -6225,7 +6237,7 @@ export default function ForwardPage() {
                             >
                               {renderManualNodeItems({ role: "chain", groupIndex })}
                             </Select>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               <Select
                                 label="传输层协议"
                                 placeholder="选择传输层协议"
@@ -6365,9 +6377,21 @@ export default function ForwardPage() {
                                     [`chain_ipType_${groupIndex}`]: e.target.value,
                                   }))
                                 }
-                              />
-                            </div>
-                          </div>
+                               />
+                             </div>
+                            {groupIndex === manualChainNodes.length - 1 && (
+                              <div className="flex justify-end">
+                                <Button
+                                  className="text-primary"
+                                  size="sm"
+                                  variant="flat"
+                                  onPress={() => setManualChainNodes((prev) => [...prev, []])}
+                                >
+                                  再加一跳
+                                </Button>
+                              </div>
+                            )}
+                           </div>
                         ))}
                       </div>
                       <Select

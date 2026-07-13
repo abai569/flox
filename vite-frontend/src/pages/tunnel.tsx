@@ -3055,7 +3055,7 @@ export default function TunnelPage() {
           </CardBody>
         </Card>
       )}
-      {/* 新增/编辑弹窗 */}
+      {/* 新增/编辑隧道弹窗 */}
       <Modal
         backdrop="blur"
         classNames={{
@@ -3359,16 +3359,46 @@ export default function TunnelPage() {
                       <Divider />
                       <div className="space-y-3">
                         <div className="flex items-center justify-between px-1">
-                          <h3 className="text-md text-foreground font-medium font-semibold">
-                            转发链配置
-                          </h3>
-                          <span className="text-sm">
-                            已配置{" "}
-                            <span className="text-red-500 font-medium">
-                              {getChainGroups().length}
-                            </span>{" "}
-                            跳
-                          </span>
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-md text-foreground font-semibold">
+                              转发链配置
+                            </h3>
+                            <span className="text-sm text-default-500">
+                              已添加{" "}
+                              <span className="text-red-500">
+                                {getChainGroups().length}
+                              </span>{" "}
+                              跳
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {getChainGroups().length === 0 && (
+                              <Button
+                                className="text-primary"
+                                size="sm"
+                                variant="flat"
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    chainNodes: [
+                                      ...(prev.chainNodes || []),
+                                      [
+                                        {
+                                          nodeId: -1,
+                                          chainType: 2,
+                                          protocol: "tcp",
+                                          strategy: "round",
+                                        },
+                                      ],
+                                    ],
+                                  }));
+                                }}
+                              >
+                                添加一跳
+                              </Button>
+                            )}
+                          </div>
                         </div>
                         {getChainGroups().length > 0 ? (
                           getChainGroups().map((groupNodes, groupIndex) => {
@@ -3391,27 +3421,13 @@ export default function TunnelPage() {
                                     第{groupIndex + 1}跳
                                   </span>
                                   <Button
-                                    isIconOnly
-                                    aria-label={`删除第${groupIndex + 1}跳`}
-                                    color="danger"
+                                   aria-label={`删除第${groupIndex + 1}跳`}
+                                   color="danger"
                                     size="sm"
                                     variant="flat"
                                     onPress={() => removeChainNode(groupIndex)}
                                   >
-                                    <svg
-                                      aria-hidden="true"
-                                      className="w-4 h-4"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        d="M6 18L18 6M6 6l12 12"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                      />
-                                    </svg>
+                                   删除
                                   </Button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
@@ -3699,37 +3715,7 @@ export default function TunnelPage() {
                               </div>
                             );
                           })
-                        ) : (
-                          <div className="text-center py-4 bg-default-50 dark:bg-default-100/50 rounded border border-dashed border-default-300">
-                            <Button
-                              color="primary"
-                              size="sm"
-                              variant="flat"
-                              onPress={(e) => {
-                                e.stopPropagation();
-                                setForm((prev) => ({
-                                  ...prev,
-                                  chainNodes: [
-                                    ...(prev.chainNodes || []),
-                                    [
-                                      {
-                                        nodeId: -1,
-                                        chainType: 2,
-                                        protocol: "tcp",
-                                        strategy: "round",
-                                      },
-                                    ],
-                                  ],
-                                }));
-                              }}
-                            >
-                              添加一跳
-                            </Button>
-                            <p className="text-sm text-default-500 mt-4">
-                              还没有转发链 点击按钮开始添加
-                            </p>
-                          </div>
-                        )}
+                        ) : null}
                       </div>
                     </>
                   )}

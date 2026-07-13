@@ -371,6 +371,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/dns-failover/get", h.nodeDNSFailoverGet)
 	mux.HandleFunc("/api/v1/node/dns-failover/save", h.nodeDNSFailoverSave)
 	mux.HandleFunc("/api/v1/node/dns-failover/sync", h.nodeDNSFailoverSync)
+	mux.HandleFunc("/api/v1/dns-failover/global/get", h.dnsFailoverGlobalGet)
+	mux.HandleFunc("/api/v1/dns-failover/global/save", h.dnsFailoverGlobalSave)
 	mux.HandleFunc("/api/v1/node/instance-port/list", h.nodeInstancePortList)
 	mux.HandleFunc("/api/v1/node/instance-port/save", h.nodeInstancePortSave)
 	mux.HandleFunc("/api/v1/node/instance-port/delete", h.nodeInstancePortDelete)
