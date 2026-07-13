@@ -78,6 +78,17 @@ func (h *Handler) deleteNodeTrafficCacheEntries(nodeID int64) {
 	})
 }
 
+func (h *Handler) deleteNodeInstanceTrafficCacheEntry(nodeID int64, instanceID string) {
+	if h == nil {
+		return
+	}
+	instanceID = strings.TrimSpace(instanceID)
+	if nodeID <= 0 || instanceID == "" {
+		return
+	}
+	h.nodeTrafficCache.Delete(fmt.Sprintf("%d:%s", nodeID, instanceID))
+}
+
 type nodeTrafficCacheEntry struct {
 	limitGB int64
 	name    string
@@ -163,12 +174,12 @@ func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, perio
 		return
 	}
 
-	if err := h.repo.AddNodeInstanceTotalFlow(nodeID, instanceID, int64(periodRx), int64(periodTx)); err != nil {
-		log.Printf("ERROR: AddNodeTotalFlow node=%d failed: %v", nodeID, err)
+	if err := h.repo.SetNodeInstanceTotalFlow(nodeID, instanceID, int64(periodRx), int64(periodTx)); err != nil {
+		log.Printf("ERROR: SetNodeInstanceTotalFlow node=%d instance=%s failed: %v", nodeID, instanceID, err)
 		return
 	}
 
-	totalUsed := info.TotalInFlow + info.TotalOutFlow + int64(periodRx) + int64(periodTx)
+	totalUsed := int64(periodRx) + int64(periodTx)
 	limitBytes := info.LimitGB * 1024 * 1024 * 1024
 
 	if totalUsed >= limitBytes {

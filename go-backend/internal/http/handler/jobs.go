@@ -312,6 +312,7 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 		})
 
 		_ = h.repo.UpdateNodeInstanceTrafficNotifiedMask(inst.NodeID, inst.InstanceID, 0)
+		_ = h.repo.ResetNodeInstanceTotalFlow(inst.NodeID, inst.InstanceID)
 		h.nodeTrafficCache.Delete(fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID))
 
 		h.sendBotNotification(func(bot *telegram.Bot) {

@@ -359,7 +359,7 @@ func (r *Repository) GetNodeInstanceTrafficLimitInfo(nodeID int64, instanceID st
 	return &item, nil
 }
 
-func (r *Repository) AddNodeInstanceTotalFlow(nodeID int64, instanceID string, rx, tx int64) error {
+func (r *Repository) SetNodeInstanceTotalFlow(nodeID int64, instanceID string, rx, tx int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -370,8 +370,27 @@ func (r *Repository) AddNodeInstanceTotalFlow(nodeID int64, instanceID string, r
 	return r.db.Model(&model.NodeInstance{}).
 		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
 		Updates(map[string]interface{}{
-			"total_in_flow":  gorm.Expr("total_in_flow + ?", rx),
-			"total_out_flow": gorm.Expr("total_out_flow + ?", tx),
+			"total_in_flow":  rx,
+			"total_out_flow": tx,
+		}).Error
+}
+
+func (r *Repository) ResetNodeInstanceTotalFlow(nodeID int64, instanceID string) error {
+	return r.SetNodeInstanceTotalFlow(nodeID, instanceID, 0, 0)
+}
+
+func (r *Repository) ResetNodeInstancesTotalFlowByNode(nodeID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if nodeID <= 0 {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ?", nodeID).
+		Updates(map[string]interface{}{
+			"total_in_flow":  0,
+			"total_out_flow": 0,
 		}).Error
 }
 
@@ -386,6 +405,18 @@ func (r *Repository) UpdateNodeInstanceTrafficNotifiedMask(nodeID int64, instanc
 	return r.db.Model(&model.NodeInstance{}).
 		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
 		Update("traffic_notified_mask", mask).Error
+}
+
+func (r *Repository) ResetNodeInstanceTrafficNotifiedMasksByNode(nodeID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if nodeID <= 0 {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ?", nodeID).
+		Update("traffic_notified_mask", 0).Error
 }
 
 type NodeInstanceTrafficResetDue struct {
