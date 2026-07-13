@@ -61,6 +61,7 @@ import type {
   MonitorPermissionApiItem,
   SystemUpgradeCheckApiData,
   SystemUpgradeRunApiData,
+  SystemUpgradeStatusApiData,
   SystemUpgradeVersionApiData,
   TrafficHistoryItem,
   OrderApiItem,
@@ -1073,6 +1074,12 @@ export const runSystemUpgrade = (
     { version: version || "", channel },
     { timeout: 60 * 1000 },
   );
+
+export const getSystemUpgradeStatus = () =>
+  Network.post<SystemUpgradeStatusApiData>("/system/upgrade/status");
+
+export const acknowledgeSystemUpgradeStatus = () =>
+  Network.post<null>("/system/upgrade/acknowledge");
 
 // ─── Payment & Shop ──────────────────────────────────────────────────
 

@@ -325,6 +325,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/system/version", h.systemVersion)
 	mux.HandleFunc("/api/v1/system/check-updates", h.systemCheckUpdates)
 	mux.HandleFunc("/api/v1/system/upgrade", h.systemUpgrade)
+	mux.HandleFunc("/api/v1/system/upgrade/status", h.systemUpgradeStatus)
+	mux.HandleFunc("/api/v1/system/upgrade/acknowledge", h.systemUpgradeAcknowledge)
 	mux.HandleFunc("/api/v1/backup/export", h.backupExport)
 	mux.HandleFunc("/api/v1/backup/import", h.backupImport)
 	mux.HandleFunc("/api/v1/backup/restore", h.backupImport)

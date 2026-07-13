@@ -28,12 +28,15 @@ const (
 	defaultPanelBackendName           = "flox-svc-backend"
 	defaultImageRegistry              = "ghcr.io/abai569"
 	dockerSocketPath                  = "/var/run/docker.sock"
+	systemUpgradeBackupRoot           = "/root/floxbackup"
+	systemUpgradeStatusFilename       = ".upgrade-status.json"
 	maxSystemUpgradeComposeAssetBytes = 1 << 20
 	systemUpgradeMessage              = "升级 helper 已启动，面板服务将短暂重启"
 	systemUpgradeConflictError        = "已有面板升级任务执行中"
 )
 
 var safeBackendContainerPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+var safeUpgradeVersionPattern = regexp.MustCompile(`^v?[0-9A-Za-z][0-9A-Za-z._+-]*$`)
 var enableIPv6ComposePattern = regexp.MustCompile(`(?im)^\s*enable_ipv6\s*:\s*['"]?true['"]?\s*(?:#.*)?$`)
 var composeBackendImagePattern = regexp.MustCompile(`(?m)^(\s*image:\s*)(\S*/)(?:flox|flvx)-svc-backend:[^\s]+\s*$`)
 var composeFrontendImagePattern = regexp.MustCompile(`(?m)^(\s*image:\s*)(\S*/)(?:flox|flvx)-svc-frontend:[^\s]+\s*$`)
@@ -85,6 +88,16 @@ type systemUpgradeRunData struct {
 	HelperContainer string `json:"helperContainer"`
 	BackendImageID  string `json:"backendImageId"`
 	Message         string `json:"message"`
+}
+
+type systemUpgradeStatusData struct {
+	State       string `json:"state"`
+	FromVersion string `json:"fromVersion,omitempty"`
+	ToVersion   string `json:"toVersion,omitempty"`
+	Stage       string `json:"stage,omitempty"`
+	Message     string `json:"message,omitempty"`
+	BackupDir   string `json:"backupDir,omitempty"`
+	UpdatedAt   int64  `json:"updatedAt"`
 }
 
 type systemUpgradeRequest struct {
@@ -143,13 +156,12 @@ func validateBackendContainerName(value string) error {
 }
 
 func validateUpgradeVersion(value string) error {
-	if strings.TrimSpace(value) == "" {
+	value = strings.TrimSpace(value)
+	if value == "" {
 		return fmt.Errorf("upgrade version is empty")
 	}
-	for _, r := range value {
-		if r < 0x20 || r == 0x7f {
-			return fmt.Errorf("unsafe upgrade version: contains control character")
-		}
+	if !safeUpgradeVersionPattern.MatchString(value) {
+		return fmt.Errorf("unsafe upgrade version")
 	}
 	return nil
 }
@@ -158,6 +170,9 @@ func (e *systemUpgradeExecutor) composePath() string {
 	return filepath.Join(e.deployDir, "docker-compose.yml")
 }
 func (e *systemUpgradeExecutor) envPath() string { return filepath.Join(e.deployDir, ".env") }
+func (e *systemUpgradeExecutor) statusPath() string {
+	return filepath.Join(e.deployDir, systemUpgradeStatusFilename)
+}
 
 func (e *systemUpgradeExecutor) capability(ctx context.Context) systemUpgradeCapabilityData {
 	reasons := make([]string, 0)
@@ -208,20 +223,58 @@ func (e *systemUpgradeExecutor) selectComposeAsset(current []byte) string {
 }
 
 func (e *systemUpgradeExecutor) helperScript() string {
-	registry := e.imageRegistry
-	if registry == "" {
-		registry = defaultImageRegistry
-	}
-	cleanupLoop := fmt.Sprintf(
-		`for img in $(docker images | grep '%s' | awk '{if ($1 ~ /:/) print $1; else print $1":"$2}'); do`,
-		registry,
-	)
 	return strings.Join([]string{
-		"set -eu",
+		"set -u",
 		`FLOX_DIR="/opt/flox-svc"`,
 		`FLVX_DIR="/opt/flvx-svc"`,
+		`BACKUP_DIR="/root/floxbackup/flox_web_upgrade_${UPGRADE_ID}"`,
+		`STATUS_FILE="$FLOX_DIR/.upgrade-status.json"`,
+		`status_write() {`,
+		`  STATE="$1"; STAGE="$2"; MESSAGE="$3"`,
+		`  printf '{"state":"%s","fromVersion":"%s","toVersion":"%s","stage":"%s","message":"%s","backupDir":"%s","updatedAt":%s}\n' "$STATE" "$OLD_VERSION" "$TARGET_VERSION" "$STAGE" "$MESSAGE" "$BACKUP_DIR" "$(date +%s000)" > "${STATUS_FILE}.tmp"`,
+		`  mv "${STATUS_FILE}.tmp" "$STATUS_FILE"`,
+		`  [ ! -d "$FLVX_DIR" ] || cp "$STATUS_FILE" "$FLVX_DIR/.upgrade-status.json" 2>/dev/null || true`,
+		`}`,
+		`cancel_upgrade() {`,
+		`  FAILED_STAGE="$1"; MESSAGE="$2"`,
+		`  cp "$BACKUP_DIR/docker-compose.yml" "$FLOX_DIR/docker-compose.yml" 2>/dev/null || true`,
+		`  cp "$BACKUP_DIR/.env" "$FLOX_DIR/.env" 2>/dev/null || true`,
+		`  docker start "$PANEL_BACKEND_CONTAINER" >/dev/null 2>&1 || true`,
+		`  status_write "backup_failed" "$FAILED_STAGE" "$MESSAGE"`,
+		`  exit 1`,
+		`}`,
+		`rollback() {`,
+		`  FAILED_STAGE="$1"`,
+		`  status_write "rollback_running" "$FAILED_STAGE" "升级失败，正在恢复原版本"`,
+		`  docker rm -f flox-svc-backend flox-svc-frontend flvx-svc-backend flvx-svc-frontend 2>/dev/null || true`,
+		`  if [ "$DB_TYPE" = "postgres" ]; then`,
+		`    POSTGRES_CONTAINER=flox-svc-postgres; docker inspect "$POSTGRES_CONTAINER" >/dev/null 2>&1 || POSTGRES_CONTAINER=flvx-svc-postgres`,
+		`    docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$BACKUP_DIR/backup.sql" || { status_write "rollback_failed" "$FAILED_STAGE" "PostgreSQL 数据库恢复失败"; return 1; }`,
+		`  else`,
+		`    rm -f /app/data/gost.db /app/data/gost.db-wal /app/data/gost.db-shm`,
+		`    cp "$BACKUP_DIR/gost.db" /app/data/gost.db || { status_write "rollback_failed" "$FAILED_STAGE" "SQLite 数据库恢复失败"; return 1; }`,
+		`    [ ! -f "$BACKUP_DIR/gost.db-wal" ] || cp "$BACKUP_DIR/gost.db-wal" /app/data/gost.db-wal || { status_write "rollback_failed" "$FAILED_STAGE" "SQLite WAL 恢复失败"; return 1; }`,
+		`    [ ! -f "$BACKUP_DIR/gost.db-shm" ] || cp "$BACKUP_DIR/gost.db-shm" /app/data/gost.db-shm || { status_write "rollback_failed" "$FAILED_STAGE" "SQLite SHM 恢复失败"; return 1; }`,
+		`  fi`,
+		`  cp "$BACKUP_DIR/docker-compose.yml" "$FLOX_DIR/docker-compose.yml" || { status_write "rollback_failed" "$FAILED_STAGE" "恢复原 compose 失败"; return 1; }`,
+		`  cp "$BACKUP_DIR/.env" "$FLOX_DIR/.env" || { status_write "rollback_failed" "$FAILED_STAGE" "恢复原环境配置失败"; return 1; }`,
+		`  docker image tag "$OLD_BACKEND_IMAGE" "flox-upgrade-backend-rollback:${UPGRADE_ID}" || { status_write "rollback_failed" "$FAILED_STAGE" "恢复后端镜像标签失败"; return 1; }`,
+		`  docker image tag "$OLD_FRONTEND_IMAGE" "flox-upgrade-frontend-rollback:${UPGRADE_ID}" || { status_write "rollback_failed" "$FAILED_STAGE" "恢复前端镜像标签失败"; return 1; }`,
+		`  sed -i -E "s|^([[:space:]]*image:[[:space:]]*).*(flox|flvx)-svc-backend:[^[:space:]]+|\\1flox-upgrade-backend-rollback:${UPGRADE_ID}|" "$FLOX_DIR/docker-compose.yml"`,
+		`  sed -i -E "s|^([[:space:]]*image:[[:space:]]*).*(flox|flvx)-svc-frontend:[^[:space:]]+|\\1flox-upgrade-frontend-rollback:${UPGRADE_ID}|" "$FLOX_DIR/docker-compose.yml"`,
+		`  cd "$FLOX_DIR"`,
+		`  docker compose up -d backend frontend || { status_write "rollback_failed" "$FAILED_STAGE" "原版本容器启动失败"; return 1; }`,
+		`  cp "$BACKUP_DIR/docker-compose.yml" "$FLOX_DIR/docker-compose.yml" 2>/dev/null || true`,
+		`  ROLLBACK_BACKEND=flox-svc-backend; docker inspect "$ROLLBACK_BACKEND" >/dev/null 2>&1 || ROLLBACK_BACKEND=flvx-svc-backend`,
+		`  i=0; while [ "$i" -lt 30 ]; do`,
+		`    HEALTH=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$ROLLBACK_BACKEND" 2>/dev/null || true)`,
+		`    [ "$HEALTH" = "healthy" ] && status_write "rolled_back" "$FAILED_STAGE" "升级失败，已自动回滚到原版本" && return 0`,
+		`    i=$((i+1)); sleep 5`,
+		`  done`,
+		`  status_write "rollback_failed" "$FAILED_STAGE" "已恢复原配置，但原版本健康检查失败"`,
+		`  return 1`,
+		`}`,
 		`if [ -d "$FLVX_DIR" ] && [ ! -d "$FLOX_DIR" ]; then`,
-		`  echo "  检测到旧版 flvx-svc，正在迁移到 flox-svc..."`,
 		`  mkdir -p "$FLOX_DIR"`,
 		`  cp -a "$FLVX_DIR/." "$FLOX_DIR/" 2>/dev/null`,
 		`  if [ -f "$FLOX_DIR/.env" ]; then`,
@@ -236,29 +289,48 @@ func (e *systemUpgradeExecutor) helperScript() string {
 		`    sed -i "s|flvx-svc-postgres|flox-svc-postgres|g" "$FLOX_DIR/docker-compose.yml"`,
 		`    sed -i "s|/opt/flvx-svc|/opt/flox-svc|g" "$FLOX_DIR/docker-compose.yml"`,
 		`  fi`,
-		`  docker stop flvx-svc-backend flvx-svc-frontend flvx-svc-postgres 2>/dev/null || true`,
-		`  docker rm -f flvx-svc-backend flvx-svc-frontend flvx-svc-postgres 2>/dev/null || true`,
-		`  echo "  迁移完成，继续使用 flox-svc"`,
 		`fi`,
+		`mkdir -p "$BACKUP_DIR"`,
+		`cp "$FLOX_DIR/docker-compose.yml.upgrade.bak" "$BACKUP_DIR/docker-compose.yml" || { status_write "backup_failed" "backup_config" "备份原 compose 失败，升级已取消"; exit 1; }`,
+		`cp "$FLOX_DIR/.env.upgrade.bak" "$BACKUP_DIR/.env" || { status_write "backup_failed" "backup_config" "备份原环境配置失败，升级已取消"; exit 1; }`,
+		`DB_TYPE=$(grep '^DB_TYPE=' "$BACKUP_DIR/.env" | cut -d= -f2 | tr -d '\r' | tr -d '"' | tr -d "'" || true)`,
+		`DB_TYPE=${DB_TYPE:-sqlite}`,
+		`status_write "running" "backup_database" "正在备份数据库"`,
+		`if [ "$DB_TYPE" = "postgres" ]; then`,
+		`  POSTGRES_USER=$(grep '^POSTGRES_USER=' "$BACKUP_DIR/.env" | cut -d= -f2- || true); POSTGRES_USER=${POSTGRES_USER:-flox_svc}`,
+		`  POSTGRES_DB=$(grep '^POSTGRES_DB=' "$BACKUP_DIR/.env" | cut -d= -f2- || true); POSTGRES_DB=${POSTGRES_DB:-flox_svc}`,
+		`  POSTGRES_CONTAINER=flox-svc-postgres; docker inspect "$POSTGRES_CONTAINER" >/dev/null 2>&1 || POSTGRES_CONTAINER=flvx-svc-postgres`,
+		`  docker exec "$POSTGRES_CONTAINER" pg_dump --clean --if-exists -U "$POSTGRES_USER" -d "$POSTGRES_DB" > "$BACKUP_DIR/backup.sql" || cancel_upgrade "backup_database" "PostgreSQL 备份失败，升级已取消"`,
+		`else`,
+		`  docker stop -t 30 "$PANEL_BACKEND_CONTAINER" >/dev/null 2>&1 || cancel_upgrade "backup_database" "无法停止后端进行 SQLite 备份"`,
+		`  [ -s /app/data/gost.db ] || cancel_upgrade "backup_database" "未找到 SQLite 数据库，升级已取消"`,
+		`  cp /app/data/gost.db "$BACKUP_DIR/gost.db" || cancel_upgrade "backup_database" "SQLite 主数据库备份失败，升级已取消"`,
+		`  [ ! -f /app/data/gost.db-wal ] || cp /app/data/gost.db-wal "$BACKUP_DIR/gost.db-wal" || cancel_upgrade "backup_database" "SQLite WAL 备份失败，升级已取消"`,
+		`  [ ! -f /app/data/gost.db-shm ] || cp /app/data/gost.db-shm "$BACKUP_DIR/gost.db-shm" || cancel_upgrade "backup_database" "SQLite SHM 备份失败，升级已取消"`,
+		`fi`,
+		`printf '{"databaseType":"%s","fromVersion":"%s","toVersion":"%s","createdAt":%s}\n' "$DB_TYPE" "$OLD_VERSION" "$TARGET_VERSION" "$(date +%s000)" > "$BACKUP_DIR/backup.json"`,
+		`COUNT=0; for DIR in $(ls -1dt /root/floxbackup/flox_web_upgrade_* 2>/dev/null || true); do COUNT=$((COUNT+1)); [ "$COUNT" -le 5 ] || rm -rf "$DIR"; done`,
+		`status_write "running" "pull_images" "数据库备份完成，正在拉取目标镜像"`,
 		`cd "$FLOX_DIR"`,
-		"docker compose pull backend frontend",
-		"docker compose up -d backend frontend",
-		"sleep 10",
-		"set +e",
-		`NEW_VER=$(grep '^FLOX_VERSION=' .env | cut -d= -f2 | tr -d '\r' | tr -d '"' | tr -d "'" || true)`,
-		`if [ -z "$NEW_VER" ]; then NEW_VER=$(grep '^FLUX_VERSION=' .env | cut -d= -f2 | tr -d '\r' | tr -d '"' | tr -d "'" || true); fi`,
-		cleanupLoop,
-		`  TAG=$(echo "$img" | awk -F: '{print $NF}')`,
-		`  if [ -n "$NEW_VER" ] && [ "$TAG" = "$NEW_VER" ]; then`,
-		`    continue`,
+		`docker compose pull backend frontend || { rollback "pull_images"; exit 1; }`,
+		`status_write "running" "start_services" "正在启动目标版本"`,
+		`docker compose up -d backend frontend || { rollback "start_services"; exit 1; }`,
+		`i=0; while [ "$i" -lt 30 ]; do`,
+		`  HEALTH=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' flox-svc-backend 2>/dev/null || true)`,
+		`  FRONTEND=$(docker inspect -f '{{.State.Status}}' flox-svc-frontend 2>/dev/null || true)`,
+		`  if [ "$HEALTH" = "healthy" ] && [ "$FRONTEND" = "running" ] && docker exec flox-svc-backend wget -q -T 5 -O /dev/null http://127.0.0.1:6365/flow/test; then`,
+		`    status_write "success" "complete" "升级成功"`,
+		`    docker image rm "flox-upgrade-backend-rollback:${UPGRADE_ID}" "flox-upgrade-frontend-rollback:${UPGRADE_ID}" 2>/dev/null || true`,
+		`    exit 0`,
 		`  fi`,
-		`  docker rmi -f "$img" 2>/dev/null || true`,
+		`  i=$((i+1)); sleep 5`,
 		`done`,
-		"docker image prune -f",
+		`rollback "health_check"`,
+		`exit 1`,
 	}, "\n")
 }
 
-func (e *systemUpgradeExecutor) buildHelperRunArgs(imageID, helperName string) ([]string, error) {
+func (e *systemUpgradeExecutor) buildHelperRunArgs(imageID, frontendImageID, helperName, upgradeID, oldVersion, targetVersion string) ([]string, error) {
 	if err := validateBackendContainerName(e.backendContainer); err != nil {
 		return nil, err
 	}
@@ -266,7 +338,14 @@ func (e *systemUpgradeExecutor) buildHelperRunArgs(imageID, helperName string) (
 		"run", "-d", "--rm", "--name", helperName,
 		"--volumes-from", e.backendContainer,
 		"-v", dockerSocketPath + ":" + dockerSocketPath,
+		"-v", systemUpgradeBackupRoot + ":" + systemUpgradeBackupRoot,
 		"-e", panelDeployDirEnv + "=" + e.deployDir,
+		"-e", panelBackendContainerEnv + "=" + e.backendContainer,
+		"-e", "OLD_BACKEND_IMAGE=" + imageID,
+		"-e", "OLD_FRONTEND_IMAGE=" + frontendImageID,
+		"-e", "UPGRADE_ID=" + upgradeID,
+		"-e", "OLD_VERSION=" + oldVersion,
+		"-e", "TARGET_VERSION=" + targetVersion,
 		"--entrypoint", "/bin/sh", imageID,
 		"-c", e.helperScript(),
 	}, nil
@@ -411,18 +490,52 @@ func writeFileWithMode(path string, data []byte, mode os.FileMode) error {
 }
 
 func (e *systemUpgradeExecutor) currentBackendImage(ctx context.Context) (string, error) {
-	if err := validateBackendContainerName(e.backendContainer); err != nil {
+	return currentContainerImage(ctx, e.backendContainer)
+}
+
+func currentContainerImage(ctx context.Context, container string) (string, error) {
+	if err := validateBackendContainerName(container); err != nil {
 		return "", err
 	}
-	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.Image}}", e.backendContainer).CombinedOutput()
+	out, err := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.Image}}", container).CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("inspect backend image failed: %v: %s", err, strings.TrimSpace(string(out)))
+		return "", fmt.Errorf("inspect %s image failed: %v: %s", container, err, strings.TrimSpace(string(out)))
 	}
 	imageID := strings.TrimSpace(string(out))
 	if imageID == "" {
-		return "", fmt.Errorf("backend image id is empty")
+		return "", fmt.Errorf("%s image id is empty", container)
 	}
 	return imageID, nil
+}
+
+func (e *systemUpgradeExecutor) currentFrontendImage(ctx context.Context) (string, error) {
+	for _, container := range []string{"flox-svc-frontend", "flvx-svc-frontend"} {
+		if imageID, err := currentContainerImage(ctx, container); err == nil {
+			return imageID, nil
+		}
+	}
+	return "", fmt.Errorf("inspect frontend image failed")
+}
+
+func (e *systemUpgradeExecutor) readStatus() (systemUpgradeStatusData, error) {
+	var status systemUpgradeStatusData
+	data, err := os.ReadFile(e.statusPath())
+	if err != nil {
+		return status, err
+	}
+	if err := json.Unmarshal(data, &status); err != nil {
+		return status, err
+	}
+	return status, nil
+}
+
+func (e *systemUpgradeExecutor) writeStatus(status systemUpgradeStatusData) error {
+	status.UpdatedAt = time.Now().UnixMilli()
+	data, err := json.Marshal(status)
+	if err != nil {
+		return err
+	}
+	return writeFileWithMode(e.statusPath(), append(data, '\n'), 0o600)
 }
 
 func extractImageRegistry(imageID string) string {
@@ -444,8 +557,8 @@ func extractImageRegistry(imageID string) string {
 	return defaultImageRegistry
 }
 
-func (e *systemUpgradeExecutor) startHelper(ctx context.Context, imageID, helperName string) (string, error) {
-	args, err := e.buildHelperRunArgs(imageID, helperName)
+func (e *systemUpgradeExecutor) startHelper(ctx context.Context, imageID, frontendImageID, helperName, upgradeID, oldVersion, targetVersion string) (string, error) {
+	args, err := e.buildHelperRunArgs(imageID, frontendImageID, helperName, upgradeID, oldVersion, targetVersion)
 	if err != nil {
 		return "", err
 	}
@@ -594,6 +707,37 @@ func (h *Handler) systemCheckUpdates(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
+func (h *Handler) systemUpgradeStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+	exec := newSystemUpgradeExecutor()
+	status, err := exec.readStatus()
+	if err != nil {
+		if os.IsNotExist(err) {
+			response.WriteJSON(w, response.OK(systemUpgradeStatusData{}))
+			return
+		}
+		response.WriteJSON(w, response.Err(-2, "读取升级状态失败："+err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OK(status))
+}
+
+func (h *Handler) systemUpgradeAcknowledge(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+	exec := newSystemUpgradeExecutor()
+	if err := os.Remove(exec.statusPath()); err != nil && !os.IsNotExist(err) {
+		response.WriteJSON(w, response.Err(-2, "确认升级状态失败："+err.Error()))
+		return
+	}
+	response.WriteJSON(w, response.OK(nil))
+}
+
 func (h *Handler) systemUpgrade(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		response.WriteJSON(w, response.ErrDefault("请求失败"))
@@ -642,6 +786,11 @@ func (h *Handler) systemUpgrade(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	frontendImageID, err := exec.currentFrontendImage(r.Context())
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
 	exec.imageRegistry = extractImageRegistry(imageID)
 
 	composePath := exec.composePath()
@@ -684,12 +833,42 @@ func (h *Handler) systemUpgrade(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, "更新版本配置失败："+err.Error()))
 		return
 	}
-	helperName := fmt.Sprintf("FLOX-upgrade-helper-%d", time.Now().Unix())
-	helperContainer, err := exec.startHelper(r.Context(), imageID, helperName)
+	upgradeID := fmt.Sprintf("%d", time.Now().Unix())
+	oldVersion := currentPanelVersion()
+	if err := os.MkdirAll(systemUpgradeBackupRoot, 0o700); err != nil {
+		if restoreErr := exec.restoreUpgradeBackups(composePath, envPath); restoreErr != nil {
+			err = fmt.Errorf("%v; 回滚失败：%v", err, restoreErr)
+		}
+		response.WriteJSON(w, response.Err(-2, "创建升级备份目录失败："+err.Error()))
+		return
+	}
+	if err := exec.writeStatus(systemUpgradeStatusData{
+		State:       "running",
+		FromVersion: oldVersion,
+		ToVersion:   version,
+		Stage:       "starting_helper",
+		Message:     "升级 helper 正在启动",
+		BackupDir:   filepath.Join(systemUpgradeBackupRoot, "flox_web_upgrade_"+upgradeID),
+	}); err != nil {
+		if restoreErr := exec.restoreUpgradeBackups(composePath, envPath); restoreErr != nil {
+			err = fmt.Errorf("%v; 回滚失败：%v", err, restoreErr)
+		}
+		response.WriteJSON(w, response.Err(-2, "写入升级状态失败："+err.Error()))
+		return
+	}
+	helperName := fmt.Sprintf("FLOX-upgrade-helper-%s", upgradeID)
+	helperContainer, err := exec.startHelper(r.Context(), imageID, frontendImageID, helperName, upgradeID, oldVersion, version)
 	if err != nil {
 		if restoreErr := exec.restoreUpgradeBackups(composePath, envPath); restoreErr != nil {
 			err = fmt.Errorf("%v; 回滚失败：%v", err, restoreErr)
 		}
+		_ = exec.writeStatus(systemUpgradeStatusData{
+			State:       "rollback_failed",
+			FromVersion: oldVersion,
+			ToVersion:   version,
+			Stage:       "starting_helper",
+			Message:     "升级 helper 启动失败，原配置已恢复",
+		})
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}

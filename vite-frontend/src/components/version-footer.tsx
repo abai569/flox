@@ -1,4 +1,7 @@
-import type { SystemUpgradeReleaseApiItem } from "@/api/types";
+import type {
+  SystemUpgradeReleaseApiItem,
+  SystemUpgradeStatusApiData,
+} from "@/api/types";
 
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -22,8 +25,13 @@ import {
   hasVersionUpdate,
   setUpdateReleaseChannel,
 } from "@/utils/version-update";
-import { checkSystemUpgrade, getSystemUpgradeVersion } from "@/api";
-import { runSystemUpgrade } from "@/api/index";
+import {
+  acknowledgeSystemUpgradeStatus,
+  checkSystemUpgrade,
+  getSystemUpgradeStatus,
+  getSystemUpgradeVersion,
+  runSystemUpgrade,
+} from "@/api";
 
 const FALLBACK_GITHUB_REPO = "https://github.com/abai569/FLOX";
 const UPGRADE_DISMISS_KEY = "upgrade_dismissed_date";
@@ -74,6 +82,10 @@ export function VersionFooter({
   );
   const [upgrading, setUpgrading] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [upgradeResult, setUpgradeResult] =
+    useState<SystemUpgradeStatusApiData | null>(null);
+  const [acknowledgingUpgradeResult, setAcknowledgingUpgradeResult] =
+    useState(false);
 
   // Manual upgrade modal state
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
@@ -99,6 +111,39 @@ export function VersionFooter({
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    let active = true;
+    let interval = 0;
+    const loadUpgradeResult = async () => {
+      const res = await getSystemUpgradeStatus();
+
+      if (!active || res.code !== 0 || !res.data) return;
+      if (res.data.state === "success") {
+        window.clearInterval(interval);
+        await acknowledgeSystemUpgradeStatus();
+        return;
+      }
+      if (
+        res.data.state === "rolled_back" ||
+        res.data.state === "rollback_failed" ||
+        res.data.state === "backup_failed"
+      ) {
+        setUpgradeResult(res.data);
+        window.clearInterval(interval);
+      }
+    };
+
+    void loadUpgradeResult();
+    interval = window.setInterval(loadUpgradeResult, 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [isAdmin]);
 
   useEffect(() => {
     const handleChannelChange = () => {
@@ -186,6 +231,27 @@ export function VersionFooter({
     setUpgradeModalOpen(true);
   };
 
+  const waitForUpgradeResult = () => {
+    const interval = window.setInterval(async () => {
+      const statusRes = await getSystemUpgradeStatus();
+
+      if (statusRes.code !== 0 || !statusRes.data?.state) return;
+      if (statusRes.data.state === "success") {
+        window.clearInterval(interval);
+        await acknowledgeSystemUpgradeStatus();
+        window.location.reload();
+      } else if (
+        statusRes.data.state === "rolled_back" ||
+        statusRes.data.state === "rollback_failed" ||
+        statusRes.data.state === "backup_failed"
+      ) {
+        window.clearInterval(interval);
+        setUpgrading(false);
+        setUpgradeResult(statusRes.data);
+      }
+    }, 5000);
+  };
+
   const handleConfirmUpgrade = async () => {
     setUpgrading(true);
     try {
@@ -194,9 +260,7 @@ export function VersionFooter({
       if (res.code === 0) {
         setUpgradeModalOpen(false);
         toast.success(res.data?.message || "升级已触发，面板将自动重启");
-        setTimeout(() => {
-          window.location.reload();
-        }, 60000);
+        waitForUpgradeResult();
       } else {
         toast.error(res.msg || "升级失败");
         setUpgrading(false);
@@ -218,9 +282,7 @@ export function VersionFooter({
 
       if (res.code === 0) {
         toast.success(res.data?.message || "升级已触发，面板将自动重启");
-        setTimeout(() => {
-          window.location.reload();
-        }, 60000);
+        waitForUpgradeResult();
       } else {
         toast.error(res.msg || "升级失败");
         setUpgrading(false);
@@ -234,6 +296,18 @@ export function VersionFooter({
   const handleDismissNotification = () => {
     localStorage.setItem(UPGRADE_DISMISS_KEY, new Date().toISOString());
     setNotificationOpen(false);
+  };
+
+  const handleAcknowledgeUpgradeResult = async () => {
+    setAcknowledgingUpgradeResult(true);
+    const res = await acknowledgeSystemUpgradeStatus();
+
+    if (res.code === 0) {
+      setUpgradeResult(null);
+    } else {
+      toast.error(res.msg || "确认升级结果失败");
+    }
+    setAcknowledgingUpgradeResult(false);
   };
 
   return (
@@ -397,6 +471,71 @@ export function VersionFooter({
               </ModalFooter>
             </>
           )}
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        backdrop="blur"
+        isDismissable={false}
+        isOpen={upgradeResult !== null}
+        placement="center"
+        size="md"
+      >
+        <ModalContent>
+          <>
+            <ModalHeader className="flex flex-col gap-1">
+              <h2 className="text-xl font-bold">
+                {upgradeResult?.state === "rolled_back"
+                  ? "升级失败，已自动回滚"
+                  : upgradeResult?.state === "backup_failed"
+                    ? "升级已取消"
+                    : "升级与回滚均失败"}
+              </h2>
+            </ModalHeader>
+            <ModalBody>
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-default-500">
+                    原版本：
+                    <span className="font-medium text-default-900 dark:text-white">
+                      {upgradeResult?.fromVersion || "-"}
+                    </span>
+                  </div>
+                  <div className="text-default-500">
+                    目标版本：
+                    <span className="font-medium text-default-900 dark:text-white">
+                      {upgradeResult?.toVersion || "-"}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-danger-600 dark:text-danger-400">
+                  {upgradeResult?.message || "升级失败"}
+                </p>
+                {upgradeResult?.stage && (
+                  <p className="text-default-500">
+                    失败阶段：{upgradeResult.stage}
+                  </p>
+                )}
+                {upgradeResult?.backupDir && (
+                  <p className="break-all text-default-500">
+                    升级前备份：{upgradeResult.backupDir}
+                  </p>
+                )}
+                <p className="text-xs text-default-400">
+                  此提示不会自动关闭。请确认面板和数据状态后手动关闭。
+                </p>
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                color="primary"
+                isLoading={acknowledgingUpgradeResult}
+                onPress={handleAcknowledgeUpgradeResult}
+              >
+                我知道了
+              </Button>
+            </ModalFooter>
+          </>
         </ModalContent>
       </Modal>
 

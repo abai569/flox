@@ -148,6 +148,9 @@ func requiresAdmin(path string) bool {
 	if strings.HasPrefix(path, "/api/v1/backup/") {
 		return true
 	}
+	if path == "/api/v1/system/upgrade" || path == "/api/v1/system/upgrade/status" || path == "/api/v1/system/upgrade/acknowledge" {
+		return true
+	}
 	if strings.HasPrefix(path, "/api/v1/payment/config/admin/") || path == "/api/v1/payment/config/save" || path == "/api/v1/payment/config/delete" || path == "/api/v1/payment/stats" {
 		return true
 	}

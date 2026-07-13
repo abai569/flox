@@ -891,6 +891,16 @@ export interface SystemUpgradeRunApiData {
   message: string;
 }
 
+export interface SystemUpgradeStatusApiData {
+  state: "" | "running" | "success" | "backup_failed" | "rollback_running" | "rolled_back" | "rollback_failed";
+  fromVersion?: string;
+  toVersion?: string;
+  stage?: string;
+  message?: string;
+  backupDir?: string;
+  updatedAt?: number;
+}
+
 // ─── Payment & Shop ──────────────────────────────────────────────────
 
 export interface OrderApiItem {
