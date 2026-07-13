@@ -703,6 +703,7 @@ export default function NodePage() {
   const [dialogTitle, setDialogTitle] = useState("");
   const [isEdit, setIsEdit] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [dnsSyncLoading, setDNSSyncLoading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
@@ -1562,6 +1563,59 @@ export default function NodePage() {
   const saveNodeDNSConfig = (data: Record<string, unknown>) =>
     Network.post<any>("/node/dns-failover/save", data);
 
+  const syncNodeDNSConfig = (nodeId: number) =>
+    Network.post<any>("/node/dns-failover/sync", { nodeId });
+
+  const handleManualDNSSync = async (event?: { stopPropagation?: () => void }) => {
+    event?.stopPropagation?.();
+    const nodeId = Number(form.id || 0);
+    const dnsAddress = form.serverIpV4.trim();
+
+    if (!nodeId) {
+      toast.error("请先保存节点后再同步 DNS 容灾");
+      return;
+    }
+    if (!form.dnsEnabled) {
+      toast.error("请先启用 DNS 容灾");
+      return;
+    }
+    if (!dnsAddress || validateIpv4Literal(dnsAddress)) {
+      toast.error("启用 DNS 容灾时，请填写域名而不是 IP 地址");
+      return;
+    }
+    if (!dnsProviderAvailability[form.dnsProvider]) {
+      toast.error(`${form.dnsProvider === "aliyun" ? "阿里云" : "Cloudflare"} DNS 尚未配置`);
+      return;
+    }
+
+    setDNSSyncLoading(true);
+    try {
+      const saveRes = await saveNodeDNSConfig({
+        nodeId,
+        enabled: form.dnsEnabled,
+        provider: form.dnsProvider,
+        domain: dnsAddress,
+        manageA: form.dnsManageA,
+        manageAAAA: form.dnsManageAAAA,
+        providerConfig: {},
+      });
+      if (saveRes.code !== 0) {
+        toast.error(saveRes.msg || "DNS 配置保存失败");
+        return;
+      }
+      const syncRes = await syncNodeDNSConfig(nodeId);
+      if (syncRes.code === 0) {
+        toast.success("DNS 容灾同步完成");
+      } else {
+        toast.error(syncRes.msg || "DNS 容灾同步失败");
+      }
+    } catch {
+      toast.error("DNS 容灾同步失败");
+    } finally {
+      setDNSSyncLoading(false);
+    }
+  };
+
   const handleRegenerateSecret = () => {
     const bytes = new Uint8Array(16);
 
@@ -1710,6 +1764,10 @@ export default function NodePage() {
       const res = await deleteNodeInstancePort(instanceDeleteTarget.nodeId, instanceDeleteTarget.instanceId);
       if (res.code === 0) {
         toast.success("实例已删除");
+        const warning = (res.data as { uninstallWarning?: string } | undefined)?.uninstallWarning;
+        if (warning) {
+          toast(String(warning));
+        }
         setInstanceDeleteTarget(null);
         await loadNodeInstances();
         await loadNodes({ silent: true });
@@ -3874,7 +3932,32 @@ export default function NodePage() {
                       <AccordionItem
                         key="dns-failover"
                         aria-label="DNS 容灾设置"
-                        title="DNS 容灾设置"
+                        title={
+                          <div className="flex w-full items-center justify-between gap-3">
+                            <span>DNS 容灾设置</span>
+                            <span
+                              aria-disabled={!form.id || !form.dnsEnabled || dnsSyncLoading}
+                              className={`rounded-md px-2.5 py-1 text-xs font-medium ${!form.id || !form.dnsEnabled || dnsSyncLoading ? "cursor-not-allowed text-default-400" : "cursor-pointer text-primary hover:bg-primary-100/70"}`}
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (!form.id || !form.dnsEnabled || dnsSyncLoading) return;
+                                void handleManualDNSSync(event);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (!form.id || !form.dnsEnabled || dnsSyncLoading) return;
+                                void handleManualDNSSync(event);
+                              }}
+                            >
+                              {dnsSyncLoading ? "同步中" : "手动同步"}
+                            </span>
+                          </div>
+                        }
                       >
                         <div className="space-y-3 px-[12px] pb-2">
                       {/* 移动端 2 列 (grid-cols-2)，中等及以上屏幕 4 列 (md:grid-cols-4) */}
@@ -4835,7 +4918,7 @@ export default function NodePage() {
           <ModalContent>
             <ModalHeader>删除实例</ModalHeader>
             <ModalBody>
-              <p className="text-sm text-default-600">确认删除 {getInstanceLabel(instanceDeleteTarget)}？删除后该编号会释放，实例继续上报后会重新出现。</p>
+              <p className="text-sm text-default-600">确认删除 {getInstanceLabel(instanceDeleteTarget)}？系统会尝试卸载远程 Agent，并永久移除当前实例 ID；旧实例继续上报也不会重新出现。</p>
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setInstanceDeleteTarget(null)}>取消</Button>

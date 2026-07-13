@@ -1034,6 +1034,16 @@ func (r *Repository) DeleteNodeCascade(nodeID int64) error {
 		return errors.New("repository not initialized")
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		var instances []model.NodeInstance
+		if err := tx.Select("node_id", "instance_id").Where("node_id = ?", nodeID).Find(&instances).Error; err != nil {
+			return err
+		}
+		now := unixMilliNow()
+		for _, inst := range instances {
+			if err := r.markNodeInstanceDeletedTx(tx, inst.NodeID, inst.InstanceID, now); err != nil {
+				return err
+			}
+		}
 		if err := tx.Where("node_id = ?", nodeID).Delete(&model.ForwardPort{}).Error; err != nil {
 			return err
 		}
@@ -1043,11 +1053,15 @@ func (r *Repository) DeleteNodeCascade(nodeID int64) error {
 		if err := tx.Where("node_id = ?", nodeID).Delete(&model.NodeInstance{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("node_id = ?", nodeID).Delete(&model.NodeDNSFailover{}).Error; err != nil {
-			return err
-		}
 		return tx.Where("id = ?", nodeID).Delete(&model.Node{}).Error
 	})
+}
+
+func (r *Repository) DeleteNodeDNSFailover(nodeID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Where("node_id = ?", nodeID).Delete(&model.NodeDNSFailover{}).Error
 }
 
 func (r *Repository) GetNodeRemoteFields(nodeID int64) (isRemote int, remoteURL, remoteToken sql.NullString, err error) {

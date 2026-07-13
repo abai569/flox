@@ -185,6 +185,15 @@ type NodeInstance struct {
 
 func (NodeInstance) TableName() string { return "node_instance" }
 
+type NodeInstanceDeleted struct {
+	ID          int64  `gorm:"primaryKey;autoIncrement"`
+	NodeID      int64  `gorm:"column:node_id;not null;uniqueIndex:idx_node_instance_deleted"`
+	InstanceID  string `gorm:"column:instance_id;type:varchar(100);not null;uniqueIndex:idx_node_instance_deleted"`
+	DeletedTime int64  `gorm:"column:deleted_time;not null"`
+}
+
+func (NodeInstanceDeleted) TableName() string { return "node_instance_deleted" }
+
 type SpeedLimit struct {
 	ID          int64          `gorm:"primaryKey;autoIncrement"`
 	Name        string         `gorm:"type:varchar(100);not null"`

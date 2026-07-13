@@ -9,6 +9,7 @@ import (
 
 	"go-backend/internal/store/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type NodeInstanceUpsert struct {
@@ -84,13 +85,20 @@ func (r *Repository) UpsertNodeInstance(in NodeInstanceUpsert) error {
 	if instanceID == "" {
 		return nil
 	}
+	deleted, err := r.IsNodeInstanceDeleted(in.NodeID, instanceID)
+	if err != nil {
+		return err
+	}
+	if deleted {
+		return nil
+	}
 	now := in.Now
 	if now <= 0 {
 		now = unixMilliNow()
 	}
 
 	var existing model.NodeInstance
-	err := r.db.Where("node_id = ? AND instance_id = ?", in.NodeID, instanceID).First(&existing).Error
+	err = r.db.Where("node_id = ? AND instance_id = ?", in.NodeID, instanceID).First(&existing).Error
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -555,8 +563,43 @@ func (r *Repository) DeleteNodeInstance(nodeID int64, instanceID string) error {
 	if instanceID == "" {
 		return errors.New("node instance id is required")
 	}
-	return r.db.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
-		Delete(&model.NodeInstance{}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := r.markNodeInstanceDeletedTx(tx, nodeID, instanceID, unixMilliNow()); err != nil {
+			return err
+		}
+		return tx.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+			Delete(&model.NodeInstance{}).Error
+	})
+}
+
+func (r *Repository) IsNodeInstanceDeleted(nodeID int64, instanceID string) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if nodeID <= 0 || instanceID == "" {
+		return false, nil
+	}
+	var count int64
+	err := r.db.Model(&model.NodeInstanceDeleted{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *Repository) markNodeInstanceDeletedTx(tx *gorm.DB, nodeID int64, instanceID string, now int64) error {
+	if tx == nil {
+		return errors.New("database unavailable")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if nodeID <= 0 || instanceID == "" {
+		return nil
+	}
+	if now <= 0 {
+		now = unixMilliNow()
+	}
+	row := model.NodeInstanceDeleted{NodeID: nodeID, InstanceID: instanceID, DeletedTime: now}
+	return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error
 }
 
 func (r *Repository) EnsureNodeInstanceDisplayIndexes(nodeIDs []int64) error {

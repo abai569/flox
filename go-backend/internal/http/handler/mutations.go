@@ -5954,7 +5954,11 @@ func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[str
 }
 
 func (h *Handler) deleteNodeByID(id int64) error {
-	return h.repo.DeleteNodeCascade(id)
+	if err := h.repo.DeleteNodeCascade(id); err != nil {
+		return err
+	}
+	h.syncNodeDNSFailoverIfConfigured(context.Background(), id)
+	return h.repo.DeleteNodeDNSFailover(id)
 }
 
 func (h *Handler) deleteTunnelByID(id int64) error {

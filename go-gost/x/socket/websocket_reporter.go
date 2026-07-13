@@ -1765,6 +1765,9 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		err = w.handleRollbackAgent(cmd.Data)
 		response.Type = "RollbackAgentResponse"
 		// needSaveConfig = false (默认值)
+	case "UninstallAgent":
+		err = w.handleUninstallAgent()
+		response.Type = "UninstallAgentResponse"
 
 	// SDWAN shutdown（退出组网时关闭 overlay 进程）
 	case "SdwanShutdown":
@@ -4632,6 +4635,28 @@ func mustMarshal(v interface{}) []byte {
 		return nil
 	}
 	return data
+}
+
+func (w *WebSocketReporter) handleUninstallAgent() error {
+	if runtime.GOOS == "windows" {
+		return fmt.Errorf("当前系统暂不支持远程卸载 Agent")
+	}
+	serviceName := strings.TrimSpace(w.serviceName)
+	if serviceName == "" {
+		serviceName = "flox_agent"
+	}
+	configDir := getConfigDir(serviceName)
+	if strings.TrimSpace(configDir) == "" || configDir == "/" {
+		return fmt.Errorf("安装目录无效")
+	}
+	serviceFile := "/etc/systemd/system/" + serviceName + ".service"
+	script := fmt.Sprintf(`sleep 1; systemctl stop %[1]s 2>/dev/null || true; systemctl disable %[1]s 2>/dev/null || true; rm -f %[2]s; systemctl daemon-reload 2>/dev/null || true; rm -rf %[3]s`, shellQuote(serviceName), shellQuote(serviceFile), shellQuote(configDir))
+	cmd := exec.Command("sh", "-c", "nohup sh -c "+shellQuote(script)+" >/dev/null 2>&1 &")
+	return cmd.Start()
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func (w *WebSocketReporter) handleResumeNode() error {
