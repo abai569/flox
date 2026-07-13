@@ -409,7 +409,7 @@ function NodeInstanceRows({
 
   return (
     <div
-      className="mx-3 my-2 overflow-visible border-l-2 border-primary-400/70 bg-default-50/70 dark:bg-default-100/10"
+      className="mx-3 my-2 overflow-visible border-l-2 border-primary-400/70 bg-primary-50/70 dark:bg-primary-100/10"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="w-full max-w-full overflow-x-auto px-3 pb-2">
@@ -795,9 +795,9 @@ function SortableTableRow({
     position: expiryPopoverOpen || isDragging ? "relative" : undefined,
   };
   const rowBg = selectedIds.has(node.id)
-    ? "bg-primary-50/70 dark:bg-primary-900/40"
+    ? "bg-primary-50/70 dark:bg-default-900/40"
     : isExpanded
-      ? "bg-default-100/80 dark:bg-default-100/30"
+      ? "bg-primary-100/80 dark:bg-default-100/30"
       : "";
   const connectionStatusMeta = getConnectionStatusMeta(node.connectionStatus);
   const expiryTarget =
