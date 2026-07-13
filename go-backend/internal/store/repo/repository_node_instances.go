@@ -218,7 +218,7 @@ func (r *Repository) UpdateNodeInstanceWeight(nodeID int64, instanceID string, w
 		Updates(map[string]interface{}{"weight": weight, "updated_time": now}).Error
 }
 
-func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, flowResetTime int, trafficLimit int64, now int64) error {
+func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, remark string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, flowResetTime int, trafficLimit int64, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -233,6 +233,7 @@ func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, 
 		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
 		Updates(map[string]interface{}{
 			"display_name":                    strings.TrimSpace(displayName),
+			"remark":                          strings.TrimSpace(remark),
 			"weight":                          weight,
 			"port_range":                      strings.TrimSpace(portRange),
 			"expiry_time":                     nullInt64FromInterface(expiryTime),

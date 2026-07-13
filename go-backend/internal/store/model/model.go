@@ -153,6 +153,7 @@ type NodeInstance struct {
 	PublicIPV6                   string         `gorm:"column:public_ip_v6;type:varchar(100);default:''"`
 	Version                      string         `gorm:"column:version;type:varchar(100);default:''"`
 	DisplayName                  string         `gorm:"column:display_name;type:varchar(100);default:''"`
+	Remark                       string         `gorm:"column:remark;type:text;default:''"`
 	Status                       int            `gorm:"column:status;not null;default:1"`
 	Weight                       int            `gorm:"column:weight;not null;default:1"`
 	DisplayIndex                 int            `gorm:"column:display_index;not null;default:0"`

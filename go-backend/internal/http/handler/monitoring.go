@@ -420,6 +420,7 @@ type monitorNodeInstanceGroupMember struct {
 	InstanceID                   string  `json:"instanceId"`
 	DisplayIndex                 int     `json:"displayIndex"`
 	DisplayName                  string  `json:"displayName"`
+	Remark                       string  `json:"remark"`
 	Hostname                     string  `json:"hostname"`
 	PublicIPV4                   string  `json:"publicIpV4"`
 	PublicIPV6                   string  `json:"publicIpV6"`
@@ -549,6 +550,7 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			InstanceID:                   row.InstanceID,
 			DisplayIndex:                 row.DisplayIndex,
 			DisplayName:                  strings.TrimSpace(row.DisplayName),
+			Remark:                       strings.TrimSpace(row.Remark),
 			Hostname:                     row.Hostname,
 			PublicIPV4:                   row.PublicIPV4,
 			PublicIPV6:                   row.PublicIPV6,

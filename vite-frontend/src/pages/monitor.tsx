@@ -695,7 +695,7 @@ function NodeInstanceGroupsView({
                                 variant="flat"
                                 onPress={() => onEditInstance(member)}
                               >
-                                配置
+                                编辑
                               </Button>
                               <MonitorTerminalButton
                                 className="h-8 shrink-0 px-2 text-xs font-medium"
@@ -1085,6 +1085,7 @@ export default function MonitorPage() {
           nodeId: instanceEditTarget.nodeId,
           instanceId: instanceEditTarget.instanceId,
           displayName: instanceEditTarget.displayName || "",
+          remark: instanceEditTarget.remark || "",
           weight: Math.floor(nextWeight),
           portRange: instanceEditTarget.portRange || "",
           expiryTime: instanceEditTarget.expiryTime || null,
@@ -1309,7 +1310,7 @@ export default function MonitorPage() {
           />
         </div>
       </>
-      <Modal isOpen={instanceEditModalOpen} onOpenChange={setInstanceEditModalOpen}>
+      <Modal isDismissable={false} isOpen={instanceEditModalOpen} onOpenChange={(open) => open && setInstanceEditModalOpen(true)}>
         <ModalContent>
           <ModalHeader>实例权重</ModalHeader>
           <ModalBody>

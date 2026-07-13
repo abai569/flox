@@ -29,6 +29,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		NodeID        int64       `json:"nodeId"`
 		InstanceID    string      `json:"instanceId"`
 		DisplayName   string      `json:"displayName"`
+		Remark        string      `json:"remark"`
 		Weight        int         `json:"weight"`
 		PortRange     string      `json:"portRange"`
 		ExpiryTime    interface{} `json:"expiryTime"`
@@ -64,6 +65,10 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.ErrDefault("实例名称不能超过100个字符"))
 			return
 		}
+		if len([]rune(strings.TrimSpace(req.Remark))) > 200 {
+			response.WriteJSON(w, response.ErrDefault("实例备注不能超过200个字符"))
+			return
+		}
 		renewalCycle := normalizeNodeRenewalCycle(asString(req.RenewalCycle))
 		expiryTime := asInt64(req.ExpiryTime, 0)
 		if (renewalCycle != "" && expiryTime <= 0) || (renewalCycle == "" && expiryTime > 0) {
@@ -83,7 +88,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		if expiryTime > 0 {
 			expiryInput = expiryTime
 		}
-		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Weight, portRange, expiryInput, renewalCycle, flowResetTime, req.TrafficLimit, time.Now().UnixMilli()); err != nil {
+		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Remark, req.Weight, portRange, expiryInput, renewalCycle, flowResetTime, req.TrafficLimit, time.Now().UnixMilli()); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
@@ -99,6 +104,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		"nodeId":        req.NodeID,
 		"instanceId":    instanceID,
 		"displayName":   strings.TrimSpace(req.DisplayName),
+		"remark":        strings.TrimSpace(req.Remark),
 		"weight":        req.Weight,
 		"portRange":     portRange,
 		"expiryTime":    asInt64(req.ExpiryTime, 0),

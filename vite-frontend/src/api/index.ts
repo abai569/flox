@@ -149,6 +149,7 @@ export const updateNodeInstanceProfile = (data: {
   nodeId: number;
   instanceId: string;
   displayName: string;
+  remark?: string;
   weight: number;
   portRange: string;
   expiryTime?: number | null;

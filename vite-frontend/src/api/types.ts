@@ -601,6 +601,7 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   instanceId?: string;
   displayIndex?: number;
   displayName?: string;
+  remark?: string;
   hostname?: string;
   publicIpV4?: string;
   publicIpV6?: string;

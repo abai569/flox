@@ -671,9 +671,9 @@ function NodeInstanceRows({
                   )}
                 </td>
                 <td className="px-2 py-3 text-left align-middle truncate text-default-600 text-xs w-[10em] min-w-[10em] max-w-[10em]">
-                  {member.displayName?.trim() ? (
-                    <span className="truncate block" title={member.displayName.trim()}>
-                      {member.displayName.trim()}
+                  {member.remark?.trim() ? (
+                    <span className="truncate block" title={member.remark.trim()}>
+                      {member.remark.trim()}
                     </span>
                   ) : (
                     <span className="text-default-400">-</span>
@@ -688,7 +688,7 @@ function NodeInstanceRows({
                       variant="flat"
                       onPress={() => onConfigureInstance?.(member)}
                     >
-                      配置
+                      编辑
                     </Button>
                     <MonitorTerminalButton
                       className="h-7 shrink-0 px-2 text-xs font-medium"

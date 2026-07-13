@@ -813,6 +813,7 @@ export default function NodePage() {
   const [instanceConfigTarget, setInstanceConfigTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [instanceConfigForm, setInstanceConfigForm] = useState({
     displayName: "",
+    remark: "",
     portRange: "",
     renewalCycle: "",
     expiryDate: "",
@@ -1737,6 +1738,7 @@ export default function NodePage() {
     setInstanceConfigTarget(member);
     setInstanceConfigForm({
       displayName: member.displayName?.trim() || "",
+      remark: member.remark?.trim() || "",
       portRange: member.portRange?.trim() || "",
       renewalCycle: renewalCycle === "halfyear" ? "halfYear" : (renewalCycle as NodeRenewalCycle),
       expiryDate: formatDateInputValue(member.expiryTime),
@@ -1751,9 +1753,14 @@ export default function NodePage() {
     const flowResetTime = Number(instanceConfigForm.flowResetTime === "" ? 1 : instanceConfigForm.flowResetTime);
     const trafficLimit = Number(instanceConfigForm.trafficLimit || 0);
     const displayName = instanceConfigForm.displayName.trim();
+    const remark = instanceConfigForm.remark.trim();
     const portRange = instanceConfigForm.portRange.trim() || DEFAULT_INSTANCE_PORT_RANGE;
     if (displayName.length > 100) {
       toast.error("实例名称不能超过 100 个字符");
+      return;
+    }
+    if (remark.length > 200) {
+      toast.error("实例备注不能超过 200 个字符");
       return;
     }
     if ((expiryTime > 0 && !renewalCycle) || (expiryTime <= 0 && renewalCycle)) {
@@ -1774,6 +1781,7 @@ export default function NodePage() {
         nodeId: instanceConfigTarget.nodeId,
         instanceId: instanceConfigTarget.instanceId,
         displayName,
+        remark,
         weight: instanceConfigTarget.weight ?? 1,
         portRange,
         flowResetTime: Math.floor(flowResetTime),
@@ -4886,9 +4894,9 @@ export default function NodePage() {
           </ModalContent>
         </Modal>
 
-        <Modal isOpen={!!instanceConfigTarget} placement="center" onOpenChange={(open) => !open && setInstanceConfigTarget(null)}>
+        <Modal isDismissable={false} isOpen={!!instanceConfigTarget} placement="center" onOpenChange={(open) => open && setInstanceConfigTarget(instanceConfigTarget)}>
           <ModalContent>
-            <ModalHeader>配置 {getInstanceLabel(instanceConfigTarget)}</ModalHeader>
+            <ModalHeader>编辑 {getInstanceLabel(instanceConfigTarget)}</ModalHeader>
             <ModalBody>
               <div className="space-y-3">
                 <Input
@@ -4898,6 +4906,14 @@ export default function NodePage() {
                   value={instanceConfigForm.displayName}
                   variant="bordered"
                   onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                />
+                <Input
+                  description="仅用于备注展示，不影响实例名称"
+                  label="备注"
+                  placeholder="填写实例备注"
+                  value={instanceConfigForm.remark}
+                  variant="bordered"
+                  onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, remark: e.target.value }))}
                 />
                 <Input
                   description={`留空使用 ${DEFAULT_INSTANCE_PORT_RANGE}`}
