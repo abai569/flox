@@ -430,13 +430,14 @@ function NodeInstanceRows({
             <th className="w-[90px] px-1 py-2 text-center font-medium">流量限额</th>
             <th className="w-[60px] px-1 py-2 text-center font-medium">WGM</th>
             <th className="w-[110px] px-1 py-2 text-center font-medium">到期提醒</th>
+            <th className="w-[10em] min-w-[10em] max-w-[10em] px-1 py-2 text-left font-medium">备注</th>
             <th className="w-[210px] px-1 py-2 text-left font-medium">操作</th>
           </tr>
         </thead>
         <tbody>
           {members.length === 0 ? (
             <tr>
-              <td className="px-2 py-8 text-center text-default-500" colSpan={12}>
+              <td className="px-2 py-8 text-center text-default-500" colSpan={13}>
                 暂无实例上报
               </td>
             </tr>
@@ -667,6 +668,15 @@ function NodeInstanceRows({
                     })()
                   ) : (
                     "-"
+                  )}
+                </td>
+                <td className="px-2 py-3 text-left align-middle truncate text-default-600 text-xs w-[10em] min-w-[10em] max-w-[10em]">
+                  {member.displayName?.trim() ? (
+                    <span className="truncate block" title={member.displayName.trim()}>
+                      {member.displayName.trim()}
+                    </span>
+                  ) : (
+                    <span className="text-default-400">-</span>
                   )}
                 </td>
                 <td className="px-1 py-3">
