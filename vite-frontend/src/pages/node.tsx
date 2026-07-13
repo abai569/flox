@@ -1093,6 +1093,29 @@ export default function NodePage() {
   useEffect(() => {
     void loadNodeInstances();
   }, [loadNodeInstances]);
+  const syncNodeInstanceStatus = (nodeId: number, instanceId: string, status: number) => {
+    const normalizedInstanceId = instanceId.trim();
+
+    if (!normalizedInstanceId) return;
+    let found = false;
+
+    setNodeInstanceMembers((prev) => {
+      const members = prev[nodeId] || [];
+
+      if (members.length === 0) return prev;
+      const nextMembers = members.map((member) => {
+        if ((member.instanceId || "").trim() !== normalizedInstanceId) return member;
+        found = true;
+
+        return { ...member, status };
+      });
+
+      return found ? { ...prev, [nodeId]: nextMembers } : prev;
+    });
+    if (!found && status === 1) {
+      window.setTimeout(() => void loadNodeInstances(), 500);
+    }
+  };
   const handleWebSocketMessage = (data: any) => {
     const { id, type, data: messageData } = data;
     const nodeId = Number(id);
@@ -1251,6 +1274,21 @@ export default function NodePage() {
           );
         }
       } catch { }
+    } else if (type === "instance_status") {
+      let payload = messageData;
+
+      if (typeof payload === "string") {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          return;
+        }
+      }
+      if (!payload || typeof payload !== "object") return;
+      const instanceId = String(payload?.instanceId ?? payload?.instance_id ?? "").trim();
+      const status = Number(payload?.status ?? 0) === 1 ? 1 : 0;
+
+      syncNodeInstanceStatus(nodeId, instanceId, status);
     } else if (type === "metric") {
       clearOfflineTimer(nodeId);
       const metric =
@@ -1279,6 +1317,7 @@ export default function NodePage() {
 
         realtimeNodeInstanceMetricsRef.current = nextInstanceMetrics;
         setRealtimeNodeInstanceMetrics(nextInstanceMetrics);
+        syncNodeInstanceStatus(nodeId, instanceId, 1);
         setRealtimeNodeMetrics((prev) => ({
           ...prev,
           [nodeId]:

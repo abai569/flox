@@ -824,7 +824,7 @@ export default function MonitorPage() {
     } finally {
       if (!silent) setNodesLoading(false);
     }
-  }, []);
+  }, [loadNodeInstanceGroups]);
 
   const loadServiceSummary = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -923,6 +923,49 @@ export default function MonitorPage() {
       return;
     }
 
+    if (type === "instance_status") {
+      let raw = payload;
+
+      if (typeof raw === "string") {
+        try {
+          raw = JSON.parse(raw);
+        } catch {
+          return;
+        }
+      }
+      if (!raw || typeof raw !== "object") return;
+
+      const statusData = raw as Record<string, unknown>;
+      const instanceId = String(
+        statusData.instanceId ?? statusData.instance_id ?? "",
+      ).trim();
+      const status = Number(statusData.status ?? 0) === 1 ? 1 : 0;
+
+      if (!isRealInstanceId(instanceId)) return;
+      let found = false;
+
+      setNodeInstanceGroups((prev) => {
+        const next = prev.map((group) => {
+          if (Number(group.id) !== nodeId) return group;
+          const members = group.members.map((member) => {
+            if ((member.instanceId || "").trim() !== instanceId) return member;
+            found = true;
+
+            return { ...member, status };
+          });
+
+          return found ? { ...group, members } : group;
+        });
+
+        return found ? next : prev;
+      });
+      if (!found && status === 1) {
+        window.setTimeout(() => void loadNodeInstanceGroups({ silent: true }), 500);
+      }
+
+      return;
+    }
+
     if (type !== "metric") return;
 
     let raw = payload;
@@ -942,6 +985,15 @@ export default function MonitorPage() {
     ).trim();
 
     if (!isRealInstanceId(instanceId)) return;
+    const knownInstance = nodeInstanceGroups.some(
+      (group) =>
+        Number(group.id) === nodeId &&
+        group.members.some((member) => (member.instanceId || "").trim() === instanceId),
+    );
+
+    if (!knownInstance) {
+      window.setTimeout(() => void loadNodeInstanceGroups({ silent: true }), 500);
+    }
 
     const tcpConns = Number(metric.tcpConns ?? metric.tcp_conns ?? 0);
     const udpConns = Number(metric.udpConns ?? metric.udp_conns ?? 0);
@@ -976,7 +1028,7 @@ export default function MonitorPage() {
       },
     }));
     setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
-  }, []);
+  }, [loadNodeInstanceGroups, nodeInstanceGroups]);
 
   const { wsConnected, wsConnecting } = useNodeRealtime({
     onMessage: handleRealtimeMessage,
@@ -1019,7 +1071,7 @@ export default function MonitorPage() {
           portRange: instanceEditTarget.portRange || "",
           expiryTime: instanceEditTarget.expiryTime || null,
           renewalCycle: instanceEditTarget.renewalCycle || "",
-          flowResetTime: instanceEditTarget.flowResetTime || 1,
+          flowResetTime: instanceEditTarget.flowResetTime ?? 1,
           trafficLimit: instanceEditTarget.trafficLimit || 0,
         });
 

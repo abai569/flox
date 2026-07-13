@@ -326,6 +326,47 @@ export default function TZPage() {
         return;
       }
 
+      if (parsed.type === "instance_status") {
+        let raw = parsed.data;
+
+        if (typeof raw === "string") {
+          try {
+            raw = JSON.parse(raw);
+          } catch {
+            return;
+          }
+        }
+        if (!raw || typeof raw !== "object") return;
+
+        const data = raw as Record<string, unknown>;
+        const instanceId = String(data.instanceId ?? data.instance_id ?? "").trim();
+        const status = Number(data.status ?? 0) === 1 ? 1 : 0;
+
+        if (!instanceId || instanceId.toLowerCase() === "default") return;
+        let found = false;
+
+        setGroups((prev) => {
+          const next = prev.map((group) => {
+            if (Number(group.id) !== nodeId) return group;
+            const members = group.members.map((member) => {
+              if ((member.instanceId || "").trim() !== instanceId) return member;
+              found = true;
+
+              return { ...member, status };
+            });
+
+            return found ? { ...group, members } : group;
+          });
+
+          return found ? next : prev;
+        });
+        if (!found && status === 1) {
+          window.setTimeout(() => void loadGroups({ silent: true }), 500);
+        }
+
+        return;
+      }
+
       if (parsed.type !== "metric") return;
 
       let raw = parsed.data;
@@ -341,9 +382,19 @@ export default function TZPage() {
       const metric = raw as Record<string, unknown>;
       const instanceId = String(metric.instanceId ?? metric.instance_id ?? "").trim();
       if (!instanceId || instanceId.toLowerCase() === "default") return;
+      const knownInstance = groups.some(
+        (group) =>
+          Number(group.id) === nodeId &&
+          group.members.some((member) => (member.instanceId || "").trim() === instanceId),
+      );
+
+      if (!knownInstance) {
+        window.setTimeout(() => void loadGroups({ silent: true }), 500);
+      }
 
       const patch: RealtimeMetricSnapshot = {
         instanceId,
+        status: 1,
         netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
         netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
         netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
@@ -371,7 +422,7 @@ export default function TZPage() {
         return { ...prev, [nodeId]: list };
       });
     },
-    [],
+    [groups, loadGroups],
   );
 
   const { wsConnected, wsConnecting } = useNodeRealtime({

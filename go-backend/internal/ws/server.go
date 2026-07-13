@@ -516,6 +516,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		Version:    version,
 		Now:        time.Now().UnixMilli(),
 	})
+	s.broadcastInstanceStatus(nodeID, instanceID, 1)
 	s.broadcastStatus(nodeID, 1)
 
 	s.mu.RLock()
@@ -549,6 +550,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		s.mu.Unlock()
 		if removedCurrentInstance {
 			_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
+			s.broadcastInstanceStatus(nodeID, instanceID, 0)
 		}
 		if needOfflineBroadcast {
 			s.failPendingForNode(nodeID, "节点连接已断开")
@@ -1209,6 +1211,25 @@ func (s *Server) broadcastStatus(nodeID int64, status int) {
 	s.broadcastToPublics(msg)
 }
 
+func (s *Server) broadcastInstanceStatus(nodeID int64, instanceID string, status int) {
+	instanceID = strings.TrimSpace(instanceID)
+	if nodeID <= 0 || instanceID == "" {
+		return
+	}
+	payload := map[string]interface{}{
+		"id":   strconv.FormatInt(nodeID, 10),
+		"type": "instance_status",
+		"data": map[string]interface{}{
+			"instanceId": instanceID,
+			"status":     status,
+		},
+	}
+	raw, _ := json.Marshal(payload)
+	msg := string(raw)
+	s.broadcastToAdmins(msg)
+	s.broadcastToPublics(msg)
+}
+
 func (s *Server) DisconnectNode(nodeID int64) {
 	if s == nil {
 		return
@@ -1230,6 +1251,7 @@ func (s *Server) DisconnectNode(nodeID int64) {
 			delete(s.byConn, ns.conn.conn)
 		}
 		_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
+		s.broadcastInstanceStatus(nodeID, instanceID, 0)
 		offlineInstanceIDs = append(offlineInstanceIDs, instanceID)
 	}
 	instanceOfflineHook := s.onNodeInstanceOffline
