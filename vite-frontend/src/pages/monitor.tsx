@@ -580,8 +580,21 @@ function NodeInstanceGroupsView({
                         >
                           <td className="px-1 py-3 text-center align-middle">
                             <StatusDot
-                              active={member.status === 1}
-                              tone={member.status === 1 ? "success" : "danger"}
+                              active={member.weight > 0 && member.status === 1}
+                              tone={
+                                member.weight <= 0
+                                  ? "default"
+                                  : member.status === 1
+                                    ? "success"
+                                    : "danger"
+                              }
+                              title={
+                                member.weight <= 0
+                                  ? "已禁用（权重为 0）"
+                                  : member.status === 1
+                                    ? "在线"
+                                    : "离线"
+                              }
                             />
                           </td>
                           <td className="px-1 py-3 text-center align-middle font-medium whitespace-nowrap">
@@ -666,7 +679,12 @@ function NodeInstanceGroupsView({
                             </div>
                           </td>
                           <td className="px-1 py-3 text-center align-middle font-mono tabular-nums">
-                            <div className="truncate">{member.weight}</div>
+                            <div className="truncate">
+                              {member.weight <= 0
+                                ? <span className="text-default-400">禁用</span>
+                                : member.weight
+                              }
+                            </div>
                           </td>
                           <td className="px-1 py-3 align-middle">
                             <div className="flex min-w-0 justify-start gap-1 whitespace-nowrap">

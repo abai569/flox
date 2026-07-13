@@ -448,8 +448,21 @@ function NodeInstanceRows({
               >
                 <td className="px-2 py-2.5 text-center align-middle">
                   <StatusDot
-                    active={member.status === 1}
-                    tone={member.status === 1 ? "success" : "danger"}
+                    active={member.weight > 0 && member.status === 1}
+                    tone={
+                      member.weight <= 0
+                        ? "default"
+                        : member.status === 1
+                          ? "success"
+                          : "danger"
+                    }
+                    title={
+                      member.weight <= 0
+                        ? "已禁用（权重为 0）"
+                        : member.status === 1
+                          ? "在线"
+                          : "离线"
+                    }
                   />
                 </td>
                 <td className="px-1 py-3 text-left font-medium text-foreground">
