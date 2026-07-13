@@ -40,6 +40,7 @@ export const getNodeRenewalCycleLabel = (cycle?: string): string => {
     case "quarter":
       return "季付";
     case "halfYear":
+    case "halfyear":
       return "半年付";
     case "year":
       return "年付";
@@ -57,8 +58,9 @@ export const getNodeRenewalSnapshot = (
     cycle === "month" ||
     cycle === "quarter" ||
     cycle === "halfYear" ||
+    cycle === "halfyear" ||
     cycle === "year"
-      ? cycle
+      ? cycle === "halfyear" ? "halfYear" : cycle
       : "";
 
   if (!anchorTime || anchorTime <= 0 || !normalizedCycle) {

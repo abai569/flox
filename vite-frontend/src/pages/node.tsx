@@ -1516,7 +1516,7 @@ export default function NodePage() {
       socks: typeof node.socks === "number" ? node.socks : 1,
       trafficRatio: node.trafficRatio || 1,
       trafficLimit: (node as any).trafficLimit || 0,
-      flowResetTime: node.flowResetTime || 1,
+      flowResetTime: node.flowResetTime ?? 1,
       dnsEnabled: false,
       dnsProvider: "aliyun",
       dnsManageA: true,
@@ -1693,13 +1693,15 @@ export default function NodePage() {
     return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
   };
   const openInstanceConfigEditor = (member: MonitorNodeInstanceGroupMemberApiItem) => {
+    const renewalCycle = String(member.renewalCycle || "");
+
     setInstanceConfigTarget(member);
     setInstanceConfigForm({
       displayName: member.displayName?.trim() || "",
       portRange: member.portRange?.trim() || "",
-      renewalCycle: member.renewalCycle || "",
+      renewalCycle: renewalCycle === "halfyear" ? "halfYear" : (renewalCycle as NodeRenewalCycle),
       expiryDate: formatDateInputValue(member.expiryTime),
-      flowResetTime: String(member.flowResetTime || 1),
+      flowResetTime: String(member.flowResetTime ?? 1),
       trafficLimit: String(member.trafficLimit || 0),
     });
   };
@@ -1707,7 +1709,7 @@ export default function NodePage() {
     if (!instanceConfigTarget?.instanceId) return;
     const expiryTime = parseDateInputValue(instanceConfigForm.expiryDate);
     const renewalCycle = instanceConfigForm.renewalCycle.trim();
-    const flowResetTime = Number(instanceConfigForm.flowResetTime || 1);
+    const flowResetTime = Number(instanceConfigForm.flowResetTime === "" ? 1 : instanceConfigForm.flowResetTime);
     const trafficLimit = Number(instanceConfigForm.trafficLimit || 0);
     const displayName = instanceConfigForm.displayName.trim();
     const portRange = instanceConfigForm.portRange.trim() || DEFAULT_INSTANCE_PORT_RANGE;
@@ -1719,8 +1721,8 @@ export default function NodePage() {
       toast.error("请同时设置续费周期和到期时间");
       return;
     }
-    if (!Number.isFinite(flowResetTime) || flowResetTime < 1 || flowResetTime > 31) {
-      toast.error("流量归零日必须在 1-31 之间");
+    if (!Number.isFinite(flowResetTime) || flowResetTime < 0 || flowResetTime > 31) {
+      toast.error("流量归零日必须在 0-31 之间，0 表示不归零");
       return;
     }
     if (!Number.isFinite(trafficLimit) || trafficLimit < 0) {
@@ -4902,7 +4904,7 @@ export default function NodePage() {
                   </DatePicker>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input label="流量归零日" min={1} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
+                  <Input label="流量归零日" min={0} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
                   <Input label="流量限额(GB)" min={0} type="number" value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))} />
                 </div>
               </div>

@@ -71,11 +71,8 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		flowResetTime := req.FlowResetTime
-		if flowResetTime <= 0 {
-			flowResetTime = 1
-		}
-		if flowResetTime > 31 {
-			response.WriteJSON(w, response.ErrDefault("流量归零日必须在 1-31 之间"))
+		if flowResetTime < 0 || flowResetTime > 31 {
+			response.WriteJSON(w, response.ErrDefault("流量归零日必须在 0-31 之间，0 表示不归零"))
 			return
 		}
 		if req.TrafficLimit < 0 {
