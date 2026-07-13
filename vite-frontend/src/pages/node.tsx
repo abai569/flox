@@ -1735,6 +1735,7 @@ export default function NodePage() {
   const openInstanceConfigEditor = (member: MonitorNodeInstanceGroupMemberApiItem) => {
     const renewalCycle = String(member.renewalCycle || "");
 
+    setInstanceConfigSaving(false);
     setInstanceConfigTarget(member);
     setInstanceConfigForm({
       displayName: member.displayName?.trim() || "",
@@ -1742,7 +1743,7 @@ export default function NodePage() {
       portRange: member.portRange?.trim() || "",
       renewalCycle: renewalCycle === "halfyear" ? "halfYear" : (renewalCycle as NodeRenewalCycle),
       expiryDate: formatDateInputValue(member.expiryTime),
-      flowResetTime: member.flowResetTime ? String(member.flowResetTime) : "",
+      flowResetTime: member.flowResetTime === undefined || member.flowResetTime === null ? "" : String(member.flowResetTime),
       trafficLimit: String(member.trafficLimit || 0),
     });
   };
@@ -1794,6 +1795,7 @@ export default function NodePage() {
       const res = await updateNodeInstanceProfile(payload);
       if (res.code === 0) {
         toast.success("实例配置已保存");
+        setInstanceConfigSaving(false);
         setInstanceConfigTarget(null);
         await loadNodeInstances();
         await loadNodes({ silent: true });

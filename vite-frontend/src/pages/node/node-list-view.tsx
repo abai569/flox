@@ -562,7 +562,7 @@ function NodeInstanceRows({
                   )}
                 </td>
                 <td className="px-2 py-3 text-center text-default-700">
-                  {member.trafficLimit || 0} GB
+                  {(member.trafficLimit ?? 0) > 0 ? `${member.trafficLimit} GB` : "不限"}
                 </td>
                 <td className="px-2 py-3 text-center">
                   {(node as any).mimicStatus === "ok" || (node as any).mimicStatus === "deps_ready" ? (
