@@ -954,6 +954,8 @@ type NodeTrafficResetLog struct {
 	ID            int64  `gorm:"primaryKey;autoIncrement"`
 	NodeID        int64  `gorm:"column:node_id;not null;index:idx_node_reset_time"`
 	NodeName      string `gorm:"type:varchar(100);not null"`
+	InstanceID    string `gorm:"column:instance_id;type:varchar(100);default:''"`
+	InstanceName  string `gorm:"column:instance_name;type:varchar(100);default:''"`
 	ResetTime     int64  `gorm:"column:reset_time;not null"`
 	OperatorID    int64  `gorm:"column:operator_id;not null"`
 	OperatorName  string `gorm:"column:operator_name;type:varchar(100);not null"`

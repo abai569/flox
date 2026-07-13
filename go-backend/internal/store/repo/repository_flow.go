@@ -1,4 +1,4 @@
-﻿package repo
+package repo
 
 import (
 	"errors"
@@ -378,18 +378,18 @@ func (r *Repository) GetSpeedLimitSpeed(id int64) (int, error) {
 }
 
 type ForwardTrafficResetLogItem struct {
-	ID           int64  `json:"id"`
-	ForwardID    int64  `json:"forwardId"`
-	ForwardName  string `json:"forwardName"`
-	UserID       int64  `json:"userId"`
-	UserName     string `json:"userName"`
-	ResetTime    int64  `json:"resetTime"`
-	InFlowBefore int64  `json:"inFlowBefore"`
-	OutFlowBefore int64 `json:"outFlowBefore"`
-	OperatorID   int64  `json:"operatorId"`
-	OperatorName string `json:"operatorName"`
-	Reason       string `json:"reason"`
-	CreatedTime  int64  `json:"createdTime"`
+	ID            int64  `json:"id"`
+	ForwardID     int64  `json:"forwardId"`
+	ForwardName   string `json:"forwardName"`
+	UserID        int64  `json:"userId"`
+	UserName      string `json:"userName"`
+	ResetTime     int64  `json:"resetTime"`
+	InFlowBefore  int64  `json:"inFlowBefore"`
+	OutFlowBefore int64  `json:"outFlowBefore"`
+	OperatorID    int64  `json:"operatorId"`
+	OperatorName  string `json:"operatorName"`
+	Reason        string `json:"reason"`
+	CreatedTime   int64  `json:"createdTime"`
 }
 
 func (r *Repository) GetForwardTrafficResetLogs(forwardID int64, limit int) ([]ForwardTrafficResetLogItem, error) {
@@ -447,6 +447,8 @@ type NodeTrafficResetLogItem struct {
 	ID            int64  `json:"id"`
 	NodeID        int64  `json:"nodeId"`
 	NodeName      string `json:"nodeName"`
+	InstanceID    string `json:"instanceId"`
+	InstanceName  string `json:"instanceName"`
 	ResetTime     int64  `json:"resetTime"`
 	OperatorID    int64  `json:"operatorId"`
 	OperatorName  string `json:"operatorName"`
@@ -482,6 +484,8 @@ func (r *Repository) GetNodeTrafficResetLogs(nodeID int64, limit int) ([]NodeTra
 			ID:            log.ID,
 			NodeID:        log.NodeID,
 			NodeName:      log.NodeName,
+			InstanceID:    log.InstanceID,
+			InstanceName:  log.InstanceName,
 			ResetTime:     log.ResetTime,
 			OperatorID:    log.OperatorID,
 			OperatorName:  log.OperatorName,

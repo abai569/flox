@@ -4802,6 +4802,14 @@ export default function NodePage() {
                             </div>
                           </div>
                           <div className="flex flex-col gap-1 w-full">
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-default-500 text-sm">
+                                归零范围
+                              </span>
+                              <span className="text-default-700 text-sm font-medium dark:text-default-300">
+                                {log.instanceName || log.instanceId || (String(log.nodeName || "").includes(" / ") ? String(log.nodeName || "").split(" / ").slice(1).join(" / ") : "全部实例")}
+                              </span>
+                            </div>
                             <div className="w-full">
                               <span className="text-default-500 text-sm block mb-1">
                                 归零前流量

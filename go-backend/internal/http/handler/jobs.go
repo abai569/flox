@@ -302,7 +302,9 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 
 		_ = h.repo.CreateNodeTrafficResetLog(&repo.NodeTrafficResetLogCreateParams{
 			NodeID:        inst.NodeID,
-			NodeName:      logName,
+			NodeName:      inst.NodeName,
+			InstanceID:    inst.InstanceID,
+			InstanceName:  instanceName,
 			ResetTime:     nowMs,
 			OperatorID:    actorUserID,
 			OperatorName:  actorUserName,

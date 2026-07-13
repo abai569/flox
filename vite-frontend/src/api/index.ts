@@ -619,6 +619,8 @@ export const getNodeTrafficResetLogs = (nodeId: number, limit?: number) =>
       id: number;
       nodeId: number;
       nodeName: string;
+      instanceId: string;
+      instanceName: string;
       resetTime: number;
       operatorId: number;
       operatorName: string;

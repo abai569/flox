@@ -56,19 +56,19 @@ func (h *Handler) nodeRecordOfflineLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nodeName := node.Name
-	if strings.TrimSpace(req.InstanceID) != "" {
+	instanceID := strings.TrimSpace(req.InstanceID)
+	instanceName := ""
+	if instanceID != "" {
 		instances, _ := h.repo.ListNodeInstances(req.NodeID)
 		for _, inst := range instances {
-			if inst.InstanceID != strings.TrimSpace(req.InstanceID) {
+			if inst.InstanceID != instanceID {
 				continue
 			}
 			label := strings.TrimSpace(inst.DisplayName)
 			if label == "" && inst.DisplayIndex > 0 {
 				label = fmt.Sprintf("实例 %d", inst.DisplayIndex)
 			}
-			if label != "" {
-				nodeName += " / " + label
-			}
+			instanceName = label
 			break
 		}
 	}
@@ -81,6 +81,8 @@ func (h *Handler) nodeRecordOfflineLog(w http.ResponseWriter, r *http.Request) {
 	if err := h.repo.CreateNodeTrafficResetLog(&repo.NodeTrafficResetLogCreateParams{
 		NodeID:        req.NodeID,
 		NodeName:      nodeName,
+		InstanceID:    instanceID,
+		InstanceName:  instanceName,
 		ResetTime:     time.Now().UnixMilli(),
 		OperatorID:    actorUserID,
 		OperatorName:  actorUserName,
@@ -189,13 +191,11 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 			if label == "" && inst.DisplayIndex > 0 {
 				label = fmt.Sprintf("实例 %d", inst.DisplayIndex)
 			}
-			nodeName := node.Name
-			if label != "" {
-				nodeName += " / " + label
-			}
 			if err := h.repo.CreateNodeTrafficResetLog(&repo.NodeTrafficResetLogCreateParams{
 				NodeID:        result.NodeID,
-				NodeName:      nodeName,
+				NodeName:      node.Name,
+				InstanceID:    result.InstanceID,
+				InstanceName:  label,
 				ResetTime:     time.Now().UnixMilli(),
 				OperatorID:    actorUserID,
 				OperatorName:  actorUserName,
@@ -208,12 +208,16 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 				break
 			}
 			result.Success = true
-			result.NodeName = nodeName
+			result.NodeName = node.Name
 			results = append(results, result)
 			_ = h.repo.UpdateNodeInstanceTrafficNotifiedMask(result.NodeID, result.InstanceID, 0)
 			_ = h.repo.ResetNodeInstanceTotalFlow(result.NodeID, result.InstanceID)
 			h.deleteNodeInstanceTrafficCacheEntry(result.NodeID, result.InstanceID)
 			h.sendBotNotification(func(bot *telegram.Bot) {
+				nodeName := node.Name
+				if label != "" {
+					nodeName += " / " + label
+				}
 				bot.SendNodeTrafficReset(nodeName, req.Reason)
 			})
 			break

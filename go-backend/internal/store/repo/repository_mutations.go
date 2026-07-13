@@ -3638,6 +3638,8 @@ func (r *Repository) cleanupForwardTrafficResetLogs(forwardID int64) error {
 type NodeTrafficResetLogCreateParams struct {
 	NodeID        int64
 	NodeName      string
+	InstanceID    string
+	InstanceName  string
 	ResetTime     int64
 	OperatorID    int64
 	OperatorName  string
@@ -3657,6 +3659,8 @@ func (r *Repository) CreateNodeTrafficResetLog(params *NodeTrafficResetLogCreate
 	log := &model.NodeTrafficResetLog{
 		NodeID:        params.NodeID,
 		NodeName:      params.NodeName,
+		InstanceID:    strings.TrimSpace(params.InstanceID),
+		InstanceName:  strings.TrimSpace(params.InstanceName),
 		ResetTime:     params.ResetTime,
 		OperatorID:    params.OperatorID,
 		OperatorName:  params.OperatorName,
