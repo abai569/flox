@@ -82,12 +82,16 @@ func queryMonitorIPRegion(ip string) string {
 }
 
 func formatMonitorIPRegion(country, region, city string) string {
-	parts := make([]string, 0, 3)
-	for _, token := range collectMonitorLocationTokens(country, region, city) {
-		parts = appendMonitorLocationPart(parts, token)
-	}
+	parts := collectMonitorLocationTokens(country, region, city)
 	if len(parts) == 0 {
 		return ""
+	}
+	countryPart := normalizeMonitorLocationPart(parts[0])
+	if countryPart == "" {
+		return ""
+	}
+	if countryPart == "香港" || countryPart == "澳门" || countryPart == "台湾" {
+		countryPart = "中国"
 	}
 	if hasMonitorLocationPart(parts, "香港") {
 		return "中国 香港"
@@ -95,23 +99,36 @@ func formatMonitorIPRegion(country, region, city string) string {
 	if hasMonitorLocationPart(parts, "澳门") {
 		return "中国 澳门"
 	}
-	if hasMonitorLocationPart(parts, "台湾") {
-		out := []string{"中国", "台湾"}
-		for _, part := range parts {
+	if countryPart == "中国" && hasMonitorLocationPart(parts, "台湾") {
+		cityPart := ""
+		for _, part := range parts[1:] {
 			part = trimMonitorLocationPrefixes(part, "中国", "台湾")
-			out = appendMonitorLocationPart(out, part)
+			if part != "" && part != "台湾" {
+				cityPart = part
+			}
 		}
-		return strings.Join(out, " ")
-	}
-	if hasMonitorLocationPart(parts, "中国") {
-		out := []string{"中国"}
-		for _, part := range parts {
-			part = trimMonitorLocationPrefixes(part, "中国")
-			out = appendMonitorLocationPart(out, part)
+		if cityPart != "" {
+			return "中国 " + cityPart
 		}
-		return strings.Join(out, " ")
+		return "中国 台湾"
 	}
-	return strings.Join(parts, " ")
+	if countryPart == "日本" && len(parts) > 1 {
+		cityPart := trimMonitorLocationPrefixes(parts[1], countryPart)
+		if cityPart != "" {
+			return "日本 " + cityPart
+		}
+	}
+	cityPart := ""
+	for _, part := range parts[1:] {
+		part = trimMonitorLocationPrefixes(part, countryPart)
+		if part != "" && part != countryPart {
+			cityPart = part
+		}
+	}
+	if cityPart == "" {
+		return countryPart
+	}
+	return countryPart + " " + cityPart
 }
 
 func collectMonitorLocationTokens(values ...string) []string {

@@ -5608,10 +5608,12 @@ func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, 
 		}
 		handlerCfg["metadata"].(map[string]interface{})["kernel"] = "floxcore"
 	}
+	metadata := map[string]interface{}{"nodeId": node.ID}
 	service := map[string]interface{}{
-		"name":    fmt.Sprintf("%d_tls", tunnelID),
-		"addr":    processServerAddress(fmt.Sprintf("%s:%d", node.TCPListenAddr, chainNode.Port)),
-		"handler": handlerCfg,
+		"name":     fmt.Sprintf("%d_tls", tunnelID),
+		"addr":     processServerAddress(fmt.Sprintf("%s:%d", node.TCPListenAddr, chainNode.Port)),
+		"handler":  handlerCfg,
+		"metadata": metadata,
 		"listener": map[string]interface{}{
 			"type": protocol,
 		},
@@ -5620,7 +5622,7 @@ func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, 
 		service["handler"].(map[string]interface{})["chain"] = fmt.Sprintf("chains_%d", tunnelID)
 	}
 	if chainNode.ChainType == 3 && strings.TrimSpace(node.InterfaceName) != "" {
-		service["metadata"] = map[string]interface{}{"interface": node.InterfaceName}
+		metadata["interface"] = node.InterfaceName
 	}
 	return []map[string]interface{}{service}
 }
@@ -5662,6 +5664,7 @@ func buildEntryRelayServiceConfig(tunnelID int64, inNode tunnelRuntimeNode, node
 		"listener": map[string]interface{}{
 			"type": protocol,
 		},
+		"metadata": map[string]interface{}{"nodeId": node.ID},
 	}
 	handlerMeta := service["handler"].(map[string]interface{})["metadata"].(map[string]interface{})
 	if nextChain != "" {

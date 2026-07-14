@@ -246,6 +246,26 @@ const getRegionFlagCode = (region?: string): MonitorFlagCode | "" => {
   return REGION_FLAG_CODE_BY_COUNTRY[first] || "";
 };
 
+const formatMonitorCountryCity = (region?: string): string => {
+  const parts = region?.trim().split(/\s+/).filter(Boolean) || [];
+
+  if (parts.length <= 2) return parts.join(" ");
+  const country = ["香港", "澳门", "台湾"].includes(parts[0]) ? "中国" : parts[0];
+  if (parts.includes("香港")) return "中国 香港";
+  if (parts.includes("澳门")) return "中国 澳门";
+  if (parts.includes("台湾")) {
+    const cityParts = parts.slice(1).filter((part) => !["中国", "台湾"].includes(part));
+    const city = cityParts.length ? cityParts[cityParts.length - 1] : "";
+
+    return city ? `中国 ${city}` : "中国 台湾";
+  }
+  if (country === "日本" && parts[1]) return `日本 ${parts[1]}`;
+  const cityParts = parts.slice(1);
+  const city = cityParts.length ? cityParts[cityParts.length - 1] : "";
+
+  return city ? `${country} ${city}` : country;
+};
+
 function MonitorFlagIcon({ code }: { code: MonitorFlagCode }) {
   if (code === "jp") {
     return (
@@ -280,7 +300,7 @@ function MonitorFlagIcon({ code }: { code: MonitorFlagCode }) {
 }
 
 function MonitorRegionCellValue({ region }: { region?: string }) {
-  const value = region?.trim() || "";
+  const value = formatMonitorCountryCity(region);
 
   if (!value) return <span className="block h-5" />;
 

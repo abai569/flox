@@ -2283,6 +2283,7 @@ func buildForwardServiceConfigsWithLimiterName(baseName string, forward *forward
 		}
 		// 合并 metadata
 		meta := make(map[string]interface{})
+		meta["nodeId"] = node.ID
 		if tunnel != nil && tunnel.Type == 1 && strings.TrimSpace(node.InterfaceName) != "" {
 			meta["interface"] = node.InterfaceName
 		}

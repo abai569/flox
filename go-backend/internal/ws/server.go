@@ -100,9 +100,9 @@ type Server struct {
 	pending               map[string]pendingRequest
 	subscribers           map[int]chan NodeMessage
 	nextSubscriberID      int
-	serviceConnections    map[int64]map[string]int           // nodeID -> serviceName -> connections
-	serviceConnUpdateTime map[int64]int64                    // nodeID -> last update time
-	forwardMetrics        map[int64]map[int64]*ForwardMetric // forwardID -> nodeID -> metric
+	serviceConnections    map[int64]map[string]int                      // nodeID -> serviceName -> connections
+	serviceConnUpdateTime map[int64]int64                               // nodeID -> last update time
+	forwardMetrics        map[int64]map[int64]map[string]*ForwardMetric // forwardID -> nodeID -> serviceName -> metric
 	forwardMetricsMu      sync.RWMutex
 	nodeOfflineTime       map[int64]int64 // nodeID -> offline timestamp (seconds)
 }
@@ -205,8 +205,10 @@ func (s *Server) GetForwardCurrentConnections(nodeID int64, forwardID int64) int
 	s.forwardMetricsMu.RLock()
 	if nodeMetrics, ok := s.forwardMetrics[forwardID]; ok && len(nodeMetrics) > 0 {
 		total := 0
-		for _, fm := range nodeMetrics {
-			total += fm.Connections
+		for _, serviceMetrics := range nodeMetrics {
+			for _, fm := range serviceMetrics {
+				total += fm.Connections
+			}
 		}
 		s.forwardMetricsMu.RUnlock()
 		if total > 0 {
@@ -249,19 +251,21 @@ func (s *Server) GetForwardMetric(forwardID int64) *ForwardMetric {
 	// 汇总所有节点的带宽
 	var totalInSpeed, totalOutSpeed, totalConnections uint64
 	var firstMetric *ForwardMetric
-	for _, fm := range nodeMetrics {
-		if firstMetric == nil {
-			// 保存第一个指标的元数据
-			firstMetric = &ForwardMetric{
-				ForwardID:   fm.ForwardID,
-				UserID:      fm.UserID,
-				TunnelID:    fm.TunnelID,
-				ServiceName: fm.ServiceName,
+	for _, serviceMetrics := range nodeMetrics {
+		for _, fm := range serviceMetrics {
+			if firstMetric == nil {
+				// 保存第一个指标的元数据
+				firstMetric = &ForwardMetric{
+					ForwardID:   fm.ForwardID,
+					UserID:      fm.UserID,
+					TunnelID:    fm.TunnelID,
+					ServiceName: fm.ServiceName,
+				}
 			}
+			totalInSpeed += fm.InSpeed
+			totalOutSpeed += fm.OutSpeed
+			totalConnections += uint64(fm.Connections)
 		}
-		totalInSpeed += fm.InSpeed
-		totalOutSpeed += fm.OutSpeed
-		totalConnections += uint64(fm.Connections)
 	}
 	if firstMetric == nil {
 		return nil
@@ -299,8 +303,8 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		subscribers:           make(map[int]chan NodeMessage),
 		serviceConnections:    make(map[int64]map[string]int),
 		serviceConnUpdateTime: make(map[int64]int64),
-		forwardMetrics:        make(map[int64]map[int64]*ForwardMetric), // forwardID -> nodeID -> metric
-		nodeOfflineTime:       make(map[int64]int64),                    // nodeID -> offline timestamp
+		forwardMetrics:        make(map[int64]map[int64]map[string]*ForwardMetric), // forwardID -> nodeID -> serviceName -> metric
+		nodeOfflineTime:       make(map[int64]int64),                               // nodeID -> offline timestamp
 	}
 	// 启动后台清理任务（每 2 分钟清理一次过期数据）
 	go s.cleanupStaleMetrics(2 * time.Minute)
@@ -618,12 +622,22 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 							fmt.Printf("[ws.forward] received %d forward metrics from node %d\n", len(sysInfo.ForwardMetrics), nodeID)
 							s.forwardMetricsMu.Lock()
 							for _, fm := range sysInfo.ForwardMetrics {
+								if fm.NodeID <= 0 {
+									fm.NodeID = nodeID
+								}
+								serviceName := strings.TrimSpace(fm.ServiceName)
+								if serviceName == "" {
+									serviceName = fmt.Sprintf("%d:%d", fm.NodeID, fm.Port)
+								}
 								// 初始化 forwardID 的 map（如果不存在）
 								if s.forwardMetrics[fm.ForwardID] == nil {
-									s.forwardMetrics[fm.ForwardID] = make(map[int64]*ForwardMetric)
+									s.forwardMetrics[fm.ForwardID] = make(map[int64]map[string]*ForwardMetric)
 								}
-								// 按 nodeID 存储
-								s.forwardMetrics[fm.ForwardID][fm.NodeID] = &fm
+								if s.forwardMetrics[fm.ForwardID][fm.NodeID] == nil {
+									s.forwardMetrics[fm.ForwardID][fm.NodeID] = make(map[string]*ForwardMetric)
+								}
+								// 按 nodeID + serviceName 存储，避免入口/转发链/出口互相覆盖
+								s.forwardMetrics[fm.ForwardID][fm.NodeID][serviceName] = &fm
 							}
 							s.forwardMetricsMu.Unlock()
 						}

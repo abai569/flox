@@ -7,9 +7,9 @@ import (
 
 // BandwidthCalculator 带宽计算器
 type BandwidthCalculator struct {
-	interval time.Duration
-	stopChan chan struct{}
-	prevStats map[int64]struct {
+	interval  time.Duration
+	stopChan  chan struct{}
+	prevStats map[string]struct {
 		inBytes  uint64
 		outBytes uint64
 		time     time.Time
@@ -22,7 +22,7 @@ func NewBandwidthCalculator(interval time.Duration) *BandwidthCalculator {
 	return &BandwidthCalculator{
 		interval: interval,
 		stopChan: make(chan struct{}),
-		prevStats: make(map[int64]struct {
+		prevStats: make(map[string]struct {
 			inBytes  uint64
 			outBytes uint64
 			time     time.Time

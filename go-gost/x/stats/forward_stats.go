@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -10,15 +11,15 @@ type ForwardStats struct {
 	ForwardID   int64     `json:"forward_id"`
 	UserID      int64     `json:"user_id"`
 	TunnelID    int64     `json:"tunnel_id"`
-	NodeID      int64     `json:"node_id"`      // 新增：节点 ID
-	Port        int       `json:"port"`         // 新增：入口端口
+	NodeID      int64     `json:"node_id"` // 新增：节点 ID
+	Port        int       `json:"port"`    // 新增：入口端口
 	ServiceName string    `json:"service_name"`
-	InBytes     uint64    `json:"in_bytes"`     // 累计上行字节
-	OutBytes    uint64    `json:"out_bytes"`    // 累计下行字节
-	InSpeed     uint64    `json:"in_speed"`     // 实时上行速度 (bytes/s)
-	OutSpeed    uint64    `json:"out_speed"`    // 实时下行速度 (bytes/s)
-	Connections int       `json:"connections"`  // 当前连接数
-	LastUpdate  time.Time `json:"last_update"`  // 最后更新时间
+	InBytes     uint64    `json:"in_bytes"`    // 累计上行字节
+	OutBytes    uint64    `json:"out_bytes"`   // 累计下行字节
+	InSpeed     uint64    `json:"in_speed"`    // 实时上行速度 (bytes/s)
+	OutSpeed    uint64    `json:"out_speed"`   // 实时下行速度 (bytes/s)
+	Connections int       `json:"connections"` // 当前连接数
+	LastUpdate  time.Time `json:"last_update"` // 最后更新时间
 	mu          sync.RWMutex
 }
 
@@ -27,8 +28,8 @@ type ForwardMetric struct {
 	ForwardID   int64  `json:"forward_id"`
 	UserID      int64  `json:"user_id"`
 	TunnelID    int64  `json:"tunnel_id"`
-	NodeID      int64  `json:"node_id"`      // 新增：节点 ID
-	Port        int    `json:"port"`         // 新增：入口端口
+	NodeID      int64  `json:"node_id"` // 新增：节点 ID
+	Port        int    `json:"port"`    // 新增：入口端口
 	ServiceName string `json:"service_name"`
 	InSpeed     uint64 `json:"in_speed"`
 	OutSpeed    uint64 `json:"out_speed"`
@@ -37,21 +38,26 @@ type ForwardMetric struct {
 
 // ForwardStatsManager 管理所有转发规则的统计
 type ForwardStatsManager struct {
-	stats map[int64]*ForwardStats // forwardID -> stats
+	stats map[string]*ForwardStats // forwardID/nodeID/serviceName -> stats
 	mu    sync.RWMutex
 }
 
 // NewForwardStatsManager 创建流量统计管理器
 func NewForwardStatsManager() *ForwardStatsManager {
 	return &ForwardStatsManager{
-		stats: make(map[int64]*ForwardStats),
+		stats: make(map[string]*ForwardStats),
 	}
+}
+
+func forwardStatsKey(forwardID int64, nodeID int64, serviceName string) string {
+	return fmt.Sprintf("%d/%d/%s", forwardID, nodeID, serviceName)
 }
 
 // GetOrCreate 获取或创建转发规则统计
 func (m *ForwardStatsManager) GetOrCreate(forwardID, userID, tunnelID int64, serviceName string, nodeID int64, port int) *ForwardStats {
+	key := forwardStatsKey(forwardID, nodeID, serviceName)
 	m.mu.RLock()
-	stats, ok := m.stats[forwardID]
+	stats, ok := m.stats[key]
 	m.mu.RUnlock()
 
 	if !ok {
@@ -65,7 +71,7 @@ func (m *ForwardStatsManager) GetOrCreate(forwardID, userID, tunnelID int64, ser
 			LastUpdate:  time.Now(),
 		}
 		m.mu.Lock()
-		m.stats[forwardID] = stats
+		m.stats[key] = stats
 		m.mu.Unlock()
 	}
 
@@ -144,25 +150,28 @@ func (m *ForwardStatsManager) GetMetric(forwardID int64) *ForwardMetric {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	stats, ok := m.stats[forwardID]
-	if !ok {
-		return nil
+	var result *ForwardMetric
+	for _, stats := range m.stats {
+		if stats.ForwardID != forwardID {
+			continue
+		}
+		stats.mu.RLock()
+		if result == nil {
+			result = &ForwardMetric{
+				ForwardID:   stats.ForwardID,
+				UserID:      stats.UserID,
+				TunnelID:    stats.TunnelID,
+				NodeID:      stats.NodeID,
+				Port:        stats.Port,
+				ServiceName: stats.ServiceName,
+			}
+		}
+		result.InSpeed += stats.InSpeed
+		result.OutSpeed += stats.OutSpeed
+		result.Connections += stats.Connections
+		stats.mu.RUnlock()
 	}
-
-	stats.mu.RLock()
-	defer stats.mu.RUnlock()
-
-	return &ForwardMetric{
-		ForwardID:   stats.ForwardID,
-		UserID:      stats.UserID,
-		TunnelID:    stats.TunnelID,
-		NodeID:      stats.NodeID,
-		Port:        stats.Port,
-		ServiceName: stats.ServiceName,
-		InSpeed:     stats.InSpeed,
-		OutSpeed:    stats.OutSpeed,
-		Connections: stats.Connections,
-	}
+	return result
 }
 
 // CleanupStale 清理过期的统计（超过 timeout 时间无更新）

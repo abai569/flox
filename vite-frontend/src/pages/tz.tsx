@@ -98,7 +98,27 @@ function UsageMeter({
 
 function RegionCell({ value }: { value?: string }) {
   const parts = (value?.trim() || "").split(/\s+/).filter(Boolean);
-  const text = parts.length >= 3 ? `${parts[0]} ${parts[parts.length - 1]}` : (value?.trim() || "-");
+  let text = value?.trim() || "-";
+
+  if (parts.length > 2) {
+    const country = ["香港", "澳门", "台湾"].includes(parts[0]) ? "中国" : parts[0];
+
+    if (parts.includes("香港")) text = "中国 香港";
+    else if (parts.includes("澳门")) text = "中国 澳门";
+    else if (parts.includes("台湾")) {
+      const cityParts = parts.slice(1).filter((part) => !["中国", "台湾"].includes(part));
+      const city = cityParts.length ? cityParts[cityParts.length - 1] : "";
+
+      text = city ? `中国 ${city}` : "中国 台湾";
+    } else if (country === "日本" && parts[1]) {
+      text = `日本 ${parts[1]}`;
+    } else {
+      const cityParts = parts.slice(1);
+      const city = cityParts.length ? cityParts[cityParts.length - 1] : "";
+
+      text = city ? `${country} ${city}` : country;
+    }
+  }
 
   return (
     <span className="inline-flex max-w-full items-center rounded-md bg-secondary-500/10 px-2 py-0.5 text-xs text-secondary-700 dark:text-secondary-200">
