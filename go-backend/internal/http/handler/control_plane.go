@@ -400,6 +400,13 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 			return nil, err
 		}
 		services := buildForwardServiceConfigsWithLimiterName(serviceBase, forward, tunnel, node, fp.Port, strings.TrimSpace(fp.InIP), limiterName, tunnelTLSProtocol)
+		if handled, instanceWarnings, instanceErr := h.syncForwardServicesOnNodeInstances(forward, node, method, services, allowFallbackAdd); handled {
+			warnings = append(warnings, instanceWarnings...)
+			if instanceErr != nil {
+				return warnings, instanceErr
+			}
+			continue
+		}
 		_, err = h.sendNodeCommand(node.ID, method, services, true, false)
 		if err != nil && allowFallbackAdd && method == "UpdateService" {
 			if isNotFoundError(err) {
@@ -445,6 +452,85 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		}
 	}
 	return warnings, nil
+}
+
+func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, node *nodeRecord, method string, services []map[string]interface{}, allowFallbackAdd bool) (bool, []string, error) {
+	if h == nil || forward == nil || node == nil || node.ID <= 0 {
+		return false, nil, nil
+	}
+	instances, err := h.repo.ListNodeInstances(node.ID)
+	if err != nil || len(instances) == 0 {
+		return false, nil, err
+	}
+	warnings := make([]string, 0)
+	enabledCount := 0
+	for _, inst := range instances {
+		instanceID := strings.TrimSpace(inst.InstanceID)
+		if instanceID == "" {
+			continue
+		}
+		if inst.Status != 1 {
+			continue
+		}
+		if inst.Weight <= 0 {
+			if err := h.deleteForwardServiceBasesOnInstance(forward, node.ID, instanceID); err != nil && !isNotFoundError(err) && !isNodeOfflineOrTimeoutError(err) {
+				return true, warnings, fmt.Errorf("节点 %s 实例 %s 停止接入失败: %w", node.Name, instanceLabel(inst), err)
+			}
+			continue
+		}
+
+		enabledCount++
+		_, err := h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, method, services, defaultNodeCommandTimeout, true, false)
+		if err != nil && allowFallbackAdd && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isNotFoundError(err) {
+			_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", services, defaultNodeCommandTimeout, true, false)
+		}
+		if err != nil && isNodeOfflineOrTimeoutError(err) {
+			warnings = append(warnings, fmt.Sprintf("节点 %s 实例 %s 不在线，已跳过下发", node.Name, instanceLabel(inst)))
+			continue
+		}
+		if err != nil {
+			return true, warnings, fmt.Errorf("节点 %s 实例 %s 下发失败: %w", node.Name, instanceLabel(inst), err)
+		}
+	}
+	if enabledCount == 0 {
+		warnings = append(warnings, fmt.Sprintf("节点 %s 没有启用的在线实例，已停止接入新流量", node.Name))
+	}
+	return true, warnings, nil
+}
+
+func (h *Handler) deleteForwardServiceBasesOnInstance(forward *forwardRecord, nodeID int64, instanceID string) error {
+	instanceID = strings.TrimSpace(instanceID)
+	if h == nil || forward == nil || nodeID <= 0 || instanceID == "" {
+		return nil
+	}
+	bases, err := h.forwardServiceBaseCandidates(forward)
+	if err != nil {
+		return err
+	}
+	for _, base := range bases {
+		base = strings.TrimSpace(base)
+		if base == "" {
+			continue
+		}
+		payload := map[string]interface{}{"services": []string{base, base + "_tcp", base + "_udp"}}
+		if _, err := h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "DeleteService", payload, defaultNodeCommandTimeout, false, true); err != nil && !isNotFoundError(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func instanceLabel(inst model.NodeInstance) string {
+	if name := strings.TrimSpace(inst.DisplayName); name != "" {
+		return name
+	}
+	if inst.DisplayIndex > 0 {
+		return fmt.Sprintf("实例 %d", inst.DisplayIndex)
+	}
+	if id := strings.TrimSpace(inst.InstanceID); id != "" {
+		return id
+	}
+	return "unknown"
 }
 
 func (h *Handler) fallbackForwardPortToDefaultBind(forward *forwardRecord, tunnel *tunnelRecord, node *nodeRecord, fp forwardPortRecord, serviceBase string, limiterName string, tunnelTLSProtocol bool) (string, error) {

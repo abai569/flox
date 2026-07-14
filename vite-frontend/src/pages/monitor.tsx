@@ -1324,8 +1324,8 @@ export default function MonitorPage() {
                 {instanceEditTarget ? getMonitorPrimaryDisplayIP(instanceEditTarget) : "-"}
               </div>
               <div className="text-default-500">
-                权重 0 即不在隧道转发中使用此节点实例。
-                建议：组内配置最低的机器设置为 1 权重，高配机器根据 CPU 核心数等适量增加权重。
+                0 表示停止接新流量，保留 DNS 和已有连接；大于 0 表示参与入口接入、出口和转发链新连接选择。
+                出口和转发链会按当前负载策略使用权重，入口普通 DNS 只区分是否接入。
               </div>
               <Input
                 label="实例权重"
