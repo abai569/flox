@@ -30,6 +30,7 @@ import {
   TableCell,
 } from "@/shadcn-bridge/heroui/table";
 import { StatusDot } from "@/components/status-dot";
+import { CountryFlag } from "@/components/country-flag";
 import {
   DistroIcon,
   parseDistroFromVersion,
@@ -224,62 +225,6 @@ const formatCountryCity = (region?: string): string => {
   return city ? `${country} ${city}` : country;
 };
 
-type InstanceRegionFlagCode = "cn" | "jp";
-
-const getInstanceRegionFlagCode = (
-  region?: string,
-): InstanceRegionFlagCode | "" => {
-  const country = region?.trim().split(/\s+/)[0] || "";
-
-  if (["中国", "香港", "澳门", "台湾"].includes(country)) return "cn";
-  if (country === "日本") return "jp";
-
-  return "";
-};
-
-function InstanceRegionFlag({
-  code,
-  title,
-}: {
-  code: InstanceRegionFlagCode;
-  title: string;
-}) {
-  if (code === "jp") {
-    return (
-      <svg
-        aria-label={title}
-        className="h-3 w-4 shrink-0 overflow-hidden rounded-[1px] ring-1 ring-default-300"
-        role="img"
-        viewBox="0 0 16 12"
-      >
-        <title>{title}</title>
-        <rect fill="#fff" height="12" width="16" />
-        <circle cx="8" cy="6" fill="#bc002d" r="3.1" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg
-      aria-label={title}
-      className="h-3 w-4 shrink-0 overflow-hidden rounded-[1px] ring-1 ring-default-300"
-      role="img"
-      viewBox="0 0 16 12"
-    >
-      <title>{title}</title>
-      <rect fill="#de2910" height="12" width="16" />
-      <polygon
-        fill="#ffde00"
-        points="2.8,1.4 3.2,2.6 4.5,2.6 3.45,3.35 3.85,4.55 2.8,3.8 1.75,4.55 2.15,3.35 1.1,2.6 2.4,2.6"
-      />
-      <circle cx="6" cy="2" fill="#ffde00" r="0.45" />
-      <circle cx="7.1" cy="3.2" fill="#ffde00" r="0.45" />
-      <circle cx="7" cy="5" fill="#ffde00" r="0.45" />
-      <circle cx="5.8" cy="6" fill="#ffde00" r="0.45" />
-    </svg>
-  );
-}
-
 function InstanceIPRegionCell({
   member,
   copyToClipboard,
@@ -292,12 +237,14 @@ function InstanceIPRegionCell({
       key: "v4",
       ip: member.publicIpV4?.trim() || "",
       region: formatCountryCity(member.publicIpV4Region),
+      countryCode: member.publicIpV4CountryCode,
       label: "IPv4",
     },
     {
       key: "v6",
       ip: member.publicIpV6?.trim() || "",
       region: formatCountryCity(member.publicIpV6Region),
+      countryCode: member.publicIpV6CountryCode,
       label: "IPv6",
     },
   ].filter((item) => item.ip || item.region);
@@ -310,19 +257,7 @@ function InstanceIPRegionCell({
         <div className="space-y-1">
           {rows.map((item) => (
             <div key={item.key} className="flex min-w-0 items-center justify-start gap-1.5 whitespace-nowrap">
-              {item.region ? (
-                getInstanceRegionFlagCode(item.region) ? (
-                  <InstanceRegionFlag
-                    code={getInstanceRegionFlagCode(item.region) as InstanceRegionFlagCode}
-                    title={item.region}
-                  />
-                ) : (
-                  <span
-                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full bg-default-300"
-                    title={item.region}
-                  />
-                )
-              ) : null}
+              {item.region ? <CountryFlag code={item.countryCode} title={item.region} /> : null}
               {item.ip ? (
                 <button
                   className="inline-block min-w-0 max-w-[108px] truncate rounded bg-transparent px-0.5 text-right font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"

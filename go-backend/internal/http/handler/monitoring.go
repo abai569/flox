@@ -24,21 +24,26 @@ const (
 var monitorIPRegionCache sync.Map // map[string]monitorIPRegionCacheItem
 
 type monitorIPRegionCacheItem struct {
-	value     string
+	value     monitorIPRegion
 	expiresAt int64
 }
 
-func lookupMonitorIPRegion(ip string) string {
+type monitorIPRegion struct {
+	Region      string
+	CountryCode string
+}
+
+func lookupMonitorIPRegion(ip string) monitorIPRegion {
 	ip = strings.TrimSpace(ip)
 	if ip == "" || ip == "-" {
-		return "-"
+		return monitorIPRegion{Region: "-"}
 	}
 	parsed := net.ParseIP(ip)
 	if parsed == nil {
-		return "-"
+		return monitorIPRegion{Region: "-"}
 	}
 	if !parsed.IsGlobalUnicast() || parsed.IsPrivate() || parsed.IsLoopback() || parsed.IsLinkLocalUnicast() {
-		return "内网"
+		return monitorIPRegion{Region: "内网"}
 	}
 	now := time.Now().UnixMilli()
 	if cached, ok := monitorIPRegionCache.Load(ip); ok {
@@ -48,37 +53,51 @@ func lookupMonitorIPRegion(ip string) string {
 		}
 	}
 	value := queryMonitorIPRegion(ip)
-	if value == "" {
-		value = "-"
+	if value.Region == "" {
+		value.Region = "-"
 	}
 	ttl := int64(10 * 60 * 1000)
-	if value != "-" {
+	if value.Region != "-" {
 		ttl = int64(24 * 60 * 60 * 1000)
 	}
 	monitorIPRegionCache.Store(ip, monitorIPRegionCacheItem{value: value, expiresAt: now + ttl})
 	return value
 }
 
-func queryMonitorIPRegion(ip string) string {
+func queryMonitorIPRegion(ip string) monitorIPRegion {
 	client := &http.Client{Timeout: 1500 * time.Millisecond}
 	resp, err := client.Get("https://ipwho.is/" + ip + "?lang=zh-CN")
 	if err != nil {
-		return ""
+		return monitorIPRegion{}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return ""
+		return monitorIPRegion{}
 	}
 	var data struct {
-		Success bool   `json:"success"`
-		Country string `json:"country"`
-		Region  string `json:"region"`
-		City    string `json:"city"`
+		Success     bool   `json:"success"`
+		Country     string `json:"country"`
+		CountryCode string `json:"country_code"`
+		Region      string `json:"region"`
+		City        string `json:"city"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || !data.Success {
+		return monitorIPRegion{}
+	}
+	return monitorIPRegion{Region: formatMonitorIPRegion(data.Country, data.Region, data.City), CountryCode: normalizeMonitorCountryCode(data.CountryCode)}
+}
+
+func normalizeMonitorCountryCode(code string) string {
+	code = strings.ToLower(strings.TrimSpace(code))
+	if len(code) != 2 {
 		return ""
 	}
-	return formatMonitorIPRegion(data.Country, data.Region, data.City)
+	for _, r := range code {
+		if r < 'a' || r > 'z' {
+			return ""
+		}
+	}
+	return code
 }
 
 func formatMonitorIPRegion(country, region, city string) string {
@@ -233,7 +252,7 @@ func trimMonitorLocationPrefixes(value string, prefixes ...string) string {
 	return value
 }
 
-func resolveMonitorIPRegionMap(rows []repo.MonitorNodeInstanceGroupRow) map[string]string {
+func resolveMonitorIPRegionMap(rows []repo.MonitorNodeInstanceGroupRow) map[string]monitorIPRegion {
 	unique := make(map[string]struct{})
 	for _, row := range rows {
 		for _, ip := range []string{row.PublicIPV4, row.PublicIPV6} {
@@ -243,7 +262,7 @@ func resolveMonitorIPRegionMap(rows []repo.MonitorNodeInstanceGroupRow) map[stri
 			}
 		}
 	}
-	regions := make(map[string]string, len(unique))
+	regions := make(map[string]monitorIPRegion, len(unique))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for ip := range unique {
@@ -442,7 +461,9 @@ type monitorNodeInstanceGroupMember struct {
 	PublicIPV4                   string  `json:"publicIpV4"`
 	PublicIPV6                   string  `json:"publicIpV6"`
 	IPV4Region                   string  `json:"publicIpV4Region"`
+	IPV4CountryCode              string  `json:"publicIpV4CountryCode"`
 	IPV6Region                   string  `json:"publicIpV6Region"`
+	IPV6CountryCode              string  `json:"publicIpV6CountryCode"`
 	Status                       int     `json:"status"`
 	Weight                       int     `json:"weight"`
 	PortRange                    string  `json:"portRange"`
@@ -477,27 +498,29 @@ type monitorNodeInstanceGroupItem struct {
 }
 
 type monitorPublicNodeInstanceGroupMember struct {
-	NodeID       int64   `json:"nodeId"`
-	NodeName     string  `json:"nodeName"`
-	InstanceID   string  `json:"instanceId"`
-	DisplayIndex int     `json:"displayIndex"`
-	DisplayName  string  `json:"displayName"`
-	IPV4Region   string  `json:"publicIpV4Region"`
-	IPV6Region   string  `json:"publicIpV6Region"`
-	Status       int     `json:"status"`
-	OnlineCount  int64   `json:"onlineCount"`
-	TCPConns     int64   `json:"tcpConns"`
-	UDPConns     int64   `json:"udpConns"`
-	NetInSpeed   int64   `json:"netInSpeed"`
-	NetOutSpeed  int64   `json:"netOutSpeed"`
-	NetInBytes   int64   `json:"netInBytes"`
-	NetOutBytes  int64   `json:"netOutBytes"`
-	Uptime       int64   `json:"uptime"`
-	PeriodRx     int64   `json:"periodRx"`
-	PeriodTx     int64   `json:"periodTx"`
-	CPUUsage     float64 `json:"cpuUsage"`
-	MemoryUsage  float64 `json:"memoryUsage"`
-	DiskUsage    float64 `json:"diskUsage"`
+	NodeID          int64   `json:"nodeId"`
+	NodeName        string  `json:"nodeName"`
+	InstanceID      string  `json:"instanceId"`
+	DisplayIndex    int     `json:"displayIndex"`
+	DisplayName     string  `json:"displayName"`
+	IPV4Region      string  `json:"publicIpV4Region"`
+	IPV4CountryCode string  `json:"publicIpV4CountryCode"`
+	IPV6Region      string  `json:"publicIpV6Region"`
+	IPV6CountryCode string  `json:"publicIpV6CountryCode"`
+	Status          int     `json:"status"`
+	OnlineCount     int64   `json:"onlineCount"`
+	TCPConns        int64   `json:"tcpConns"`
+	UDPConns        int64   `json:"udpConns"`
+	NetInSpeed      int64   `json:"netInSpeed"`
+	NetOutSpeed     int64   `json:"netOutSpeed"`
+	NetInBytes      int64   `json:"netInBytes"`
+	NetOutBytes     int64   `json:"netOutBytes"`
+	Uptime          int64   `json:"uptime"`
+	PeriodRx        int64   `json:"periodRx"`
+	PeriodTx        int64   `json:"periodTx"`
+	CPUUsage        float64 `json:"cpuUsage"`
+	MemoryUsage     float64 `json:"memoryUsage"`
+	DiskUsage       float64 `json:"diskUsage"`
 }
 
 type monitorPublicNodeInstanceGroupItem struct {
@@ -561,6 +584,8 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			continue
 		}
 		seenMembers[row.NodeID][memberKey] = struct{}{}
+		v4Region := regionByIP[strings.TrimSpace(row.PublicIPV4)]
+		v6Region := regionByIP[strings.TrimSpace(row.PublicIPV6)]
 		member := monitorNodeInstanceGroupMember{
 			NodeID:                       row.NodeID,
 			NodeName:                     row.NodeName,
@@ -571,8 +596,10 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			Hostname:                     row.Hostname,
 			PublicIPV4:                   row.PublicIPV4,
 			PublicIPV6:                   row.PublicIPV6,
-			IPV4Region:                   regionByIP[strings.TrimSpace(row.PublicIPV4)],
-			IPV6Region:                   regionByIP[strings.TrimSpace(row.PublicIPV6)],
+			IPV4Region:                   v4Region.Region,
+			IPV4CountryCode:              v4Region.CountryCode,
+			IPV6Region:                   v6Region.Region,
+			IPV6CountryCode:              v6Region.CountryCode,
 			Status:                       row.Status,
 			Weight:                       row.Weight,
 			PortRange:                    row.PortRange,
@@ -644,28 +671,32 @@ func (h *Handler) monitorPublicNodeInstanceGroupsHandler(w http.ResponseWriter, 
 			continue
 		}
 		seenMembers[row.NodeID][memberKey] = struct{}{}
+		v4Region := regionByIP[strings.TrimSpace(row.PublicIPV4)]
+		v6Region := regionByIP[strings.TrimSpace(row.PublicIPV6)]
 		member := monitorPublicNodeInstanceGroupMember{
-			NodeID:       row.NodeID,
-			NodeName:     row.NodeName,
-			InstanceID:   row.InstanceID,
-			DisplayIndex: row.DisplayIndex,
-			DisplayName:  strings.TrimSpace(row.DisplayName),
-			IPV4Region:   regionByIP[strings.TrimSpace(row.PublicIPV4)],
-			IPV6Region:   regionByIP[strings.TrimSpace(row.PublicIPV6)],
-			Status:       row.Status,
-			OnlineCount:  row.TCPConns + row.UDPConns,
-			TCPConns:     row.TCPConns,
-			UDPConns:     row.UDPConns,
-			NetInSpeed:   row.NetInSpeed,
-			NetOutSpeed:  row.NetOutSpeed,
-			NetInBytes:   row.NetInBytes,
-			NetOutBytes:  row.NetOutBytes,
-			Uptime:       row.Uptime,
-			PeriodRx:     row.PeriodRx,
-			PeriodTx:     row.PeriodTx,
-			CPUUsage:     row.CPUUsage,
-			MemoryUsage:  row.MemUsage,
-			DiskUsage:    row.DiskUsage,
+			NodeID:          row.NodeID,
+			NodeName:        row.NodeName,
+			InstanceID:      row.InstanceID,
+			DisplayIndex:    row.DisplayIndex,
+			DisplayName:     strings.TrimSpace(row.DisplayName),
+			IPV4Region:      v4Region.Region,
+			IPV4CountryCode: v4Region.CountryCode,
+			IPV6Region:      v6Region.Region,
+			IPV6CountryCode: v6Region.CountryCode,
+			Status:          row.Status,
+			OnlineCount:     row.TCPConns + row.UDPConns,
+			TCPConns:        row.TCPConns,
+			UDPConns:        row.UDPConns,
+			NetInSpeed:      row.NetInSpeed,
+			NetOutSpeed:     row.NetOutSpeed,
+			NetInBytes:      row.NetInBytes,
+			NetOutBytes:     row.NetOutBytes,
+			Uptime:          row.Uptime,
+			PeriodRx:        row.PeriodRx,
+			PeriodTx:        row.PeriodTx,
+			CPUUsage:        row.CPUUsage,
+			MemoryUsage:     row.MemUsage,
+			DiskUsage:       row.DiskUsage,
 		}
 		groups[idx].Members = append(groups[idx].Members, member)
 		groups[idx].TotalInSpeed += row.NetInSpeed

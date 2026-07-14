@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { CountryFlag } from "@/components/country-flag";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
@@ -96,7 +97,7 @@ function UsageMeter({
   );
 }
 
-function RegionCell({ value }: { value?: string }) {
+function RegionCell({ countryCode, value }: { countryCode?: string; value?: string }) {
   const parts = (value?.trim() || "").split(/\s+/).filter(Boolean);
   let text = value?.trim() || "-";
 
@@ -121,7 +122,8 @@ function RegionCell({ value }: { value?: string }) {
   }
 
   return (
-    <span className="inline-flex max-w-full items-center rounded-md bg-secondary-500/10 px-2 py-0.5 text-xs text-secondary-700 dark:text-secondary-200">
+    <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-secondary-500/10 px-2 py-0.5 text-xs text-secondary-700 dark:text-secondary-200">
+      <CountryFlag code={countryCode} title={text} />
       <span className="truncate">{text}</span>
     </span>
   );
@@ -271,10 +273,10 @@ function InstanceRow({
         {getInstanceLabel(member.displayIndex, member.displayName)}
       </td>
       <td className="px-1 py-3 text-center align-middle">
-        <RegionCell value={member.publicIpV4Region} />
+        <RegionCell countryCode={member.publicIpV4CountryCode} value={member.publicIpV4Region} />
       </td>
       <td className="px-1 py-3 text-center align-middle">
-        <RegionCell value={member.publicIpV6Region} />
+        <RegionCell countryCode={member.publicIpV6CountryCode} value={member.publicIpV6Region} />
       </td>
       <td className="px-1 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums">
         <div className="truncate">{formatSpeed(member.netOutSpeed)}↑</div>

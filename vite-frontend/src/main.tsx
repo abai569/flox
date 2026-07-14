@@ -3,6 +3,8 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App.tsx";
 import { Provider } from "./provider.tsx";
+// Flag assets are provided by flag-icons: https://flagicons.lipis.dev/
+import "flag-icons/css/flag-icons.min.css";
 import "@/styles/globals.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

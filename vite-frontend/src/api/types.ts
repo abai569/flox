@@ -606,7 +606,9 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   publicIpV4?: string;
   publicIpV6?: string;
   publicIpV4Region?: string;
+  publicIpV4CountryCode?: string;
   publicIpV6Region?: string;
+  publicIpV6CountryCode?: string;
   status: number;
   weight: number;
   portRange?: string;
@@ -647,7 +649,9 @@ export interface MonitorPublicNodeInstanceGroupMemberApiItem {
   displayIndex: number;
   displayName?: string;
   publicIpV4Region?: string;
+  publicIpV4CountryCode?: string;
   publicIpV6Region?: string;
+  publicIpV6CountryCode?: string;
   status: number;
   onlineCount: number;
   tcpConns?: number;

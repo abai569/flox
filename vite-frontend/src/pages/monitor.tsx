@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { AnimatedPage } from "@/components/animated-page";
+import { CountryFlag } from "@/components/country-flag";
 import { MetricPill } from "@/components/metric-pill";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
@@ -230,22 +231,6 @@ const getMonitorRegionIPTitle = (
   return reported === "-" ? "" : reported;
 };
 
-type MonitorFlagCode = "cn" | "jp";
-
-const REGION_FLAG_CODE_BY_COUNTRY: Record<string, MonitorFlagCode> = {
-  中国: "cn",
-  香港: "cn",
-  澳门: "cn",
-  台湾: "cn",
-  日本: "jp",
-};
-
-const getRegionFlagCode = (region?: string): MonitorFlagCode | "" => {
-  const first = region?.trim().split(/\s+/)[0] || "";
-
-  return REGION_FLAG_CODE_BY_COUNTRY[first] || "";
-};
-
 const formatMonitorCountryCity = (region?: string): string => {
   const parts = region?.trim().split(/\s+/).filter(Boolean) || [];
 
@@ -266,49 +251,20 @@ const formatMonitorCountryCity = (region?: string): string => {
   return city ? `${country} ${city}` : country;
 };
 
-function MonitorFlagIcon({ code }: { code: MonitorFlagCode }) {
-  if (code === "jp") {
-    return (
-      <svg
-        aria-hidden="true"
-        className="h-3 w-4 shrink-0 overflow-hidden rounded-[1px] ring-1 ring-default-300"
-        viewBox="0 0 16 12"
-      >
-        <rect fill="#fff" height="12" width="16" />
-        <circle cx="8" cy="6" fill="#bc002d" r="3.1" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg
-      aria-hidden="true"
-      className="h-3 w-4 shrink-0 overflow-hidden rounded-[1px] ring-1 ring-default-300"
-      viewBox="0 0 16 12"
-    >
-      <rect fill="#de2910" height="12" width="16" />
-      <polygon
-        fill="#ffde00"
-        points="2.8,1.4 3.2,2.6 4.5,2.6 3.45,3.35 3.85,4.55 2.8,3.8 1.75,4.55 2.15,3.35 1.1,2.6 2.4,2.6"
-      />
-      <circle cx="6" cy="2" fill="#ffde00" r="0.45" />
-      <circle cx="7.1" cy="3.2" fill="#ffde00" r="0.45" />
-      <circle cx="7" cy="5" fill="#ffde00" r="0.45" />
-      <circle cx="5.8" cy="6" fill="#ffde00" r="0.45" />
-    </svg>
-  );
-}
-
-function MonitorRegionCellValue({ region }: { region?: string }) {
+function MonitorRegionCellValue({
+  countryCode,
+  region,
+}: {
+  countryCode?: string;
+  region?: string;
+}) {
   const value = formatMonitorCountryCity(region);
 
   if (!value) return <span className="block h-5" />;
 
-  const flagCode = getRegionFlagCode(value);
-
   return (
     <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-secondary-500/10 px-2 py-0.5 text-secondary-700">
-      {flagCode && <MonitorFlagIcon code={flagCode} />}
+      <CountryFlag code={countryCode} title={value} />
       <span className="truncate">{value}</span>
     </span>
   );
@@ -626,6 +582,7 @@ function NodeInstanceGroupsView({
                           >
                             <div className="truncate">
                               <MonitorRegionCellValue
+                                countryCode={member.publicIpV4CountryCode}
                                 region={member.publicIpV4Region}
                               />
                             </div>
@@ -636,6 +593,7 @@ function NodeInstanceGroupsView({
                           >
                             <div className="truncate">
                               <MonitorRegionCellValue
+                                countryCode={member.publicIpV6CountryCode}
                                 region={member.publicIpV6Region}
                               />
                             </div>
