@@ -107,19 +107,19 @@ type ServiceSummary = {
 };
 
 const MONITOR_INSTANCE_TABLE_COLUMNS = [
-  "3%",
-  "5%",
-  "8%",
-  "8%",
-  "9%",
-  "7%",
-  "6%",
-  "7%",
-  "9%",
-  "9%",
-  "9%",
-  "4%",
-  "16%",
+  "56px",
+  "160px",
+  "150px",
+  "150px",
+  "170px",
+  "132px",
+  "104px",
+  "124px",
+  "112px",
+  "112px",
+  "112px",
+  "80px",
+  "190px",
 ] as const;
 
 const isRealInstanceId = (instanceId?: string): boolean => {
@@ -498,9 +498,6 @@ function NodeInstanceGroupsView({
                 <span className="min-w-0 max-w-[82px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[140px] md:max-w-none md:px-4 md:text-sm">
                   {group.name} | ID: {group.id}
                 </span>
-                <span className="shrink-0 text-xs text-default-500">
-                  {members.length} 个实例
-                </span>
               </div>
               <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-xs md:flex-none md:gap-2 md:text-sm">
                 <span
@@ -520,8 +517,8 @@ function NodeInstanceGroupsView({
               </div>
             </div>
             <div className="px-3 pb-4">
-              <div className="overflow-x-auto overscroll-x-contain md:overflow-hidden">
-                <table className="w-full min-w-[1040px] table-fixed text-sm md:min-w-0">
+              <div className="overflow-x-auto overscroll-x-contain">
+                <table className="w-full min-w-[1652px] table-fixed text-sm">
                   <colgroup>
                     {MONITOR_INSTANCE_TABLE_COLUMNS.map((width, index) => (
                       <col key={index} style={{ width }} />
@@ -530,7 +527,12 @@ function NodeInstanceGroupsView({
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
                       <th className="whitespace-nowrap px-1 py-2 text-center">状态</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">实例名称</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        实例名称
+                        <span className="text-xs text-primary-500 font-normal">
+                          ^{members.length}个
+                        </span>
+                      </th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">v4 地区</th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">v6 地区</th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">出口 IP</th>
