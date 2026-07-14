@@ -514,20 +514,21 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 
 func forwardFallbackTargetsFromInstances(instances []model.NodeInstance) []string {
 	targets := make([]string, 0, len(instances))
-	seen := make(map[string]struct{})
 	for _, inst := range instances {
 		if inst.Status != 1 || inst.Weight <= 0 {
 			continue
+		}
+		weight := inst.Weight
+		if weight > 10 {
+			weight = 10
 		}
 		for _, host := range []string{strings.TrimSpace(inst.PublicIPV4), strings.TrimSpace(inst.PublicIPV6)} {
 			if host == "" {
 				continue
 			}
-			if _, ok := seen[host]; ok {
-				continue
+			for i := 0; i < weight; i++ {
+				targets = append(targets, host)
 			}
-			seen[host] = struct{}{}
-			targets = append(targets, host)
 		}
 	}
 	return targets
