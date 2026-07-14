@@ -4641,6 +4641,10 @@ func (h *Handler) speedLimitCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	speed := asInt(req["speed"], 100)
+	if speed <= 0 {
+		response.WriteJSON(w, response.ErrDefault("速度限制必须大于0"))
+		return
+	}
 
 	now := time.Now().UnixMilli()
 	_, err := h.repo.CreateSpeedLimit(name, speed, now, asInt(req["status"], 1))
@@ -4679,9 +4683,23 @@ func (h *Handler) speedLimitUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	speed := asInt(req["speed"], 100)
+	if speed <= 0 {
+		response.WriteJSON(w, response.ErrDefault("速度限制必须大于0"))
+		return
+	}
+
+	forwardIDs, err := h.repo.ListForwardIDsBySpeedLimit(id)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
 
 	if err := h.repo.UpdateSpeedLimit(id, name, speed, asInt(req["status"], 1), time.Now().UnixMilli()); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if err := h.syncReferencedSpeedLimit(id, forwardIDs, asInt(req["status"], 1) == 1, speed); err != nil {
+		response.WriteJSON(w, response.Err(-2, fmt.Sprintf("限速规则已保存，但节点同步失败：%v", err)))
 		return
 	}
 
@@ -4700,13 +4718,72 @@ func (h *Handler) speedLimitDelete(w http.ResponseWriter, r *http.Request) {
 	if id <= 0 {
 		return
 	}
+	forwardIDs, err := h.repo.ListForwardIDsBySpeedLimit(id)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
 
 	if err := h.repo.DeleteSpeedLimit(id); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	if err := h.syncReferencedSpeedLimit(id, forwardIDs, false, 0); err != nil {
+		response.WriteJSON(w, response.Err(-2, fmt.Sprintf("限速规则已删除，但节点同步失败：%v", err)))
+		return
+	}
 
 	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) syncReferencedSpeedLimit(id int64, forwardIDs []int64, enabled bool, speed int) error {
+	if !enabled {
+		for _, forwardID := range forwardIDs {
+			forward, err := h.getForwardRecord(forwardID)
+			if err != nil || forward.Status != 1 {
+				continue
+			}
+			if err := h.syncForwardServices(forward, "UpdateService", true); err != nil && !isNodeOfflineOrTimeoutError(err) {
+				return fmt.Errorf("转发 %s: %w", forward.Name, err)
+			}
+		}
+		return nil
+	}
+
+	nodes := make(map[int64]struct{})
+	for _, forwardID := range forwardIDs {
+		forward, err := h.getForwardRecord(forwardID)
+		if err != nil || forward.Status != 1 {
+			continue
+		}
+		if strings.EqualFold(forward.Mode, forwardModeNftables) {
+			if err := h.syncForwardServices(forward, "UpdateService", true); err != nil && !isNodeOfflineOrTimeoutError(err) {
+				return fmt.Errorf("转发 %s: %w", forward.Name, err)
+			}
+			continue
+		}
+		ports, err := h.listForwardPorts(forward.ID)
+		if err != nil {
+			return err
+		}
+		for _, port := range ports {
+			nodes[port.NodeID] = struct{}{}
+		}
+	}
+
+	name := strconv.FormatInt(id, 10)
+	for nodeID := range nodes {
+		var err error
+		if enabled {
+			err = h.upsertNamedLimiterOnNode(nodeID, name, speed)
+		} else {
+			_, err = h.sendNodeCommand(nodeID, "DeleteLimiters", map[string]interface{}{"limiter": name}, false, true)
+		}
+		if err != nil && !isNodeOfflineOrTimeoutError(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *Handler) groupTunnelCreate(w http.ResponseWriter, r *http.Request) {

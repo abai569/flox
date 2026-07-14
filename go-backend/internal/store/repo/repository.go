@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -2137,6 +2138,22 @@ func (r *Repository) ImportRaw(data map[string]interface{}, types []string) (int
 			if !ok || len(tableData) == 0 {
 				continue
 			}
+			if tableName == "forwards" {
+				raw, err := json.Marshal(tableData)
+				if err != nil {
+					return fmt.Errorf("encode forwards backup: %w", err)
+				}
+				var forwards []model.ForwardBackup
+				if err := json.Unmarshal(raw, &forwards); err != nil {
+					return fmt.Errorf("decode forwards backup: %w", err)
+				}
+				count, err := importForwards(tx, forwards, now)
+				if err != nil {
+					return err
+				}
+				result[tableName] = count
+				continue
+			}
 
 			count, err := r.importTable(tx, tableName, tableData, now)
 			if err != nil {
@@ -2406,6 +2423,11 @@ func (r *Repository) exportForwards() ([]model.ForwardBackup, error) {
 			TunnelID: f.TunnelID, RemoteAddr: f.RemoteAddr, Strategy: f.Strategy,
 			InFlow: f.InFlow, OutFlow: f.OutFlow, CreatedTime: f.CreatedTime,
 			UpdatedTime: f.UpdatedTime, Status: f.Status, Inx: f.Inx,
+			SpeedLimitEnabled: f.SpeedLimitEnabled, SpeedLimit: f.SpeedLimit,
+		}
+		if f.SpeedID.Valid {
+			speedID := f.SpeedID.Int64
+			b.SpeedID = &speedID
 		}
 		ports, err := r.exportForwardPorts(f.ID)
 		if err != nil {
@@ -2795,25 +2817,31 @@ func importForwards(tx *gorm.DB, forwards []model.ForwardBackup, now int64) (int
 	count := 0
 	for _, f := range forwards {
 		item := model.Forward{
-			ID:          f.ID,
-			UserID:      f.UserID,
-			UserName:    f.UserName,
-			Name:        f.Name,
-			TunnelID:    f.TunnelID,
-			RemoteAddr:  f.RemoteAddr,
-			Strategy:    f.Strategy,
-			InFlow:      f.InFlow,
-			OutFlow:     f.OutFlow,
-			CreatedTime: f.CreatedTime,
-			UpdatedTime: now,
-			Status:      f.Status,
-			Inx:         f.Inx,
+			ID:                f.ID,
+			UserID:            f.UserID,
+			UserName:          f.UserName,
+			Name:              f.Name,
+			TunnelID:          f.TunnelID,
+			RemoteAddr:        f.RemoteAddr,
+			Strategy:          f.Strategy,
+			InFlow:            f.InFlow,
+			OutFlow:           f.OutFlow,
+			CreatedTime:       f.CreatedTime,
+			UpdatedTime:       now,
+			Status:            f.Status,
+			Inx:               f.Inx,
+			SpeedLimitEnabled: f.SpeedLimitEnabled,
+			SpeedLimit:        f.SpeedLimit,
+		}
+		if f.SpeedID != nil && *f.SpeedID > 0 {
+			item.SpeedID = sql.NullInt64{Int64: *f.SpeedID, Valid: true}
 		}
 		err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"user_id", "user_name", "name", "tunnel_id", "remote_addr", "strategy",
-				"in_flow", "out_flow", "updated_time", "status", "inx",
+				"in_flow", "out_flow", "updated_time", "status", "inx", "speed_id",
+				"speed_limit_enabled", "speed_limit",
 			}),
 		}).Create(&item).Error
 		if err != nil {

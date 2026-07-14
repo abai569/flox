@@ -10,13 +10,19 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const minBurst = 64 * 1024
+
 type llimiter struct {
 	limiter *rate.Limiter
 }
 
 func NewLimiter(r int) limiter.Limiter {
+	burst := r / 10
+	if burst < minBurst {
+		burst = minBurst
+	}
 	return &llimiter{
-		limiter: rate.NewLimiter(rate.Limit(r), r),
+		limiter: rate.NewLimiter(rate.Limit(r), burst),
 	}
 }
 
@@ -33,8 +39,12 @@ func (l *llimiter) Limit() int {
 }
 
 func (l *llimiter) Set(n int) {
+	burst := n / 10
+	if burst < minBurst {
+		burst = minBurst
+	}
 	l.limiter.SetLimit(rate.Limit(n))
-	l.limiter.SetBurst(n)
+	l.limiter.SetBurst(burst)
 }
 
 func (l *llimiter) String() string {

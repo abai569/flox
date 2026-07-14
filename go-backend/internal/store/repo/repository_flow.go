@@ -370,11 +370,25 @@ func (r *Repository) GetSpeedLimitSpeed(id int64) (int, error) {
 		return 0, errors.New("repository not initialized")
 	}
 	var sl model.SpeedLimit
-	err := r.db.Select("speed").Where("id = ?", id).First(&sl).Error
+	err := r.db.Select("speed").Where("id = ? AND status = 1", id).First(&sl).Error
 	if err != nil {
 		return 0, err
 	}
 	return sl.Speed, nil
+}
+
+func (r *Repository) ListForwardIDsBySpeedLimit(id int64) ([]int64, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var ids []int64
+	err := r.db.Model(&model.Forward{}).
+		Joins("LEFT JOIN user_tunnel ON user_tunnel.user_id = forward.user_id AND user_tunnel.tunnel_id = forward.tunnel_id").
+		Where("forward.speed_id = ? OR user_tunnel.speed_id = ?", id, id).
+		Distinct("forward.id").
+		Order("forward.id ASC").
+		Pluck("forward.id", &ids).Error
+	return ids, err
 }
 
 type ForwardTrafficResetLogItem struct {

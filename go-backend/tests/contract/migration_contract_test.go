@@ -349,9 +349,9 @@ func TestBackupExportImportRestoreContracts(t *testing.T) {
 		tunnelID := mustLastInsertID(t, r, "backup-forward-tunnel")
 
 		if err := r.DB().Exec(`
-			INSERT INTO forward(user_id, user_name, name, tunnel_id, remote_addr, strategy, in_flow, out_flow, created_time, updated_time, status, inx)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, 1, "admin_user", "backup-forward", tunnelID, "127.0.0.1:9000", "fifo", 0, 0, now, now, 1, 88).Error; err != nil {
+			INSERT INTO forward(user_id, user_name, name, tunnel_id, remote_addr, strategy, in_flow, out_flow, created_time, updated_time, status, inx, speed_id, speed_limit_enabled, speed_limit)
+			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, 1, "admin_user", "backup-forward", tunnelID, "127.0.0.1:9000", "fifo", 0, 0, now, now, 1, 88, 17, true, 10).Error; err != nil {
 			t.Fatalf("seed forward for backup: %v", err)
 		}
 		forwardID := mustLastInsertID(t, r, "backup-forward")
@@ -407,6 +407,15 @@ func TestBackupExportImportRestoreContracts(t *testing.T) {
 				continue
 			}
 			foundForward = true
+			if got, _ := forwardMap["speedId"].(float64); int64(got) != 17 {
+				t.Fatalf("expected exported speedId 17, got %#v", forwardMap["speedId"])
+			}
+			if got, _ := forwardMap["speedLimitEnabled"].(bool); !got {
+				t.Fatalf("expected exported speedLimitEnabled true, got %#v", forwardMap["speedLimitEnabled"])
+			}
+			if got, _ := forwardMap["speedLimit"].(float64); int(got) != 10 {
+				t.Fatalf("expected exported speedLimit 10, got %#v", forwardMap["speedLimit"])
+			}
 
 			portsRaw, ok := forwardMap["forwardPorts"].([]interface{})
 			if !ok {
@@ -444,6 +453,9 @@ func TestBackupExportImportRestoreContracts(t *testing.T) {
 		if err := r.DB().Exec(`INSERT INTO forward_port(forward_id, node_id, port) VALUES(?, ?, ?)`, forwardID, 9999, 39999).Error; err != nil {
 			t.Fatalf("seed wrong forward_port before import: %v", err)
 		}
+		if err := r.DB().Exec(`UPDATE forward SET speed_id = NULL, speed_limit_enabled = ?, speed_limit = ? WHERE id = ?`, false, 0, forwardID).Error; err != nil {
+			t.Fatalf("clear forward speed limit before import: %v", err)
+		}
 
 		payload["types"] = []string{"forwards"}
 		importBody, err := json.Marshal(payload)
@@ -474,6 +486,17 @@ func TestBackupExportImportRestoreContracts(t *testing.T) {
 			if got, ok := after[nodeID]; !ok || got != port {
 				t.Fatalf("expected forward_port node=%d port=%d after import, got %v", nodeID, port, after)
 			}
+		}
+
+		var speedID sql.NullInt64
+		var speedLimitEnabled bool
+		var speedLimit int
+		if err := r.DB().Raw(`SELECT speed_id, speed_limit_enabled, speed_limit FROM forward WHERE id = ?`, forwardID).
+			Row().Scan(&speedID, &speedLimitEnabled, &speedLimit); err != nil {
+			t.Fatalf("query restored forward speed limit: %v", err)
+		}
+		if !speedID.Valid || speedID.Int64 != 17 || !speedLimitEnabled || speedLimit != 10 {
+			t.Fatalf("unexpected restored speed limit: speedID=%v enabled=%v limit=%d", speedID, speedLimitEnabled, speedLimit)
 		}
 	})
 

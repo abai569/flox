@@ -53,7 +53,6 @@ func updateLimiter(req updateLimiterRequest) error {
 	if registry.TrafficLimiterRegistry().IsRegistered(name) {
 		registry.TrafficLimiterRegistry().Unregister(name)
 	}
-	floxlimiter.Remove(name)
 
 	req.Data.Name = name
 

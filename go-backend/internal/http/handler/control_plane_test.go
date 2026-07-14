@@ -430,8 +430,8 @@ func TestBuildLimiterAddPayloadByNameUsesMbpsAsBytesPerSecond(t *testing.T) {
 	if !ok || len(limits) != 1 {
 		t.Fatalf("expected one limiter rule, got %#v", payload["limits"])
 	}
-	if limits[0] != "$ 1.2MB 1.2MB" {
-		t.Fatalf("expected 10 Mbps to become 1.2MB/s, got %q", limits[0])
+	if limits[0] != "$ 1250000B 1250000B" {
+		t.Fatalf("expected 10 Mbps to become 1250000 bytes/s, got %q", limits[0])
 	}
 }
 func TestBuildForwardServiceConfigs_BindIPAlreadyContainsPort(t *testing.T) {

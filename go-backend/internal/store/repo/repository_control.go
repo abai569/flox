@@ -45,17 +45,19 @@ func (r *Repository) ListForwardsByTunnelTx(tx *gorm.DB, tunnelID int64) ([]mode
 	rows := make([]model.ForwardRecord, 0, len(forwards))
 	for _, f := range forwards {
 		rows = append(rows, model.ForwardRecord{
-			ID:             f.ID,
-			UserID:         f.UserID,
-			UserName:       f.UserName,
-			Name:           f.Name,
-			TunnelID:       f.TunnelID,
-			RemoteAddr:     f.RemoteAddr,
-			Strategy:       f.Strategy,
-			Status:         f.Status,
-			SpeedID:        f.SpeedID,
-			MaxConnections: f.MaxConnections,
-			Mode:           f.Mode,
+			ID:                f.ID,
+			UserID:            f.UserID,
+			UserName:          f.UserName,
+			Name:              f.Name,
+			TunnelID:          f.TunnelID,
+			RemoteAddr:        f.RemoteAddr,
+			Strategy:          f.Strategy,
+			Status:            f.Status,
+			SpeedID:           f.SpeedID,
+			MaxConnections:    f.MaxConnections,
+			SpeedLimitEnabled: f.SpeedLimitEnabled,
+			SpeedLimit:        f.SpeedLimit,
+			Mode:              f.Mode,
 		})
 	}
 	for i := range rows {
@@ -301,7 +303,7 @@ func (r *Repository) ResolveUserTunnelAndLimiter(userID, tunnelID int64) (*model
 	var rec row
 	err := r.db.Model(&model.UserTunnel{}).
 		Select("user_tunnel.id AS user_tunnel_id, speed_limit.id AS limiter_id, speed_limit.speed AS speed").
-		Joins("LEFT JOIN speed_limit ON speed_limit.id = user_tunnel.speed_id").
+		Joins("LEFT JOIN speed_limit ON speed_limit.id = user_tunnel.speed_id AND speed_limit.status = 1").
 		Where("user_tunnel.user_id = ? AND user_tunnel.tunnel_id = ?", userID, tunnelID).
 		Order("user_tunnel.id ASC").
 		Limit(1).

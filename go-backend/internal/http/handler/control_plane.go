@@ -2713,8 +2713,8 @@ func forwardInlineSpeedLimiterName(forwardID int64) string {
 }
 
 func buildLimiterAddPayloadByName(name string, speed int) (string, map[string]interface{}) {
-	rate := float64(speed) / 8.0
-	limitStr := fmt.Sprintf("$ %.1fMB %.1fMB", rate, rate)
+	bytesPerSecond := int64(speed) * 1_000_000 / 8
+	limitStr := fmt.Sprintf("$ %dB %dB", bytesPerSecond, bytesPerSecond)
 	name = strings.TrimSpace(name)
 
 	return name, map[string]interface{}{

@@ -538,21 +538,23 @@ type ChainTunnelBackup struct {
 }
 
 type ForwardBackup struct {
-	ID           int64                `json:"id"`
-	UserID       int64                `json:"userId"`
-	UserName     string               `json:"userName"`
-	Name         string               `json:"name"`
-	TunnelID     int64                `json:"tunnelId"`
-	RemoteAddr   string               `json:"remoteAddr"`
-	Strategy     string               `json:"strategy"`
-	InFlow       int64                `json:"inFlow"`
-	OutFlow      int64                `json:"outFlow"`
-	CreatedTime  int64                `json:"createdTime"`
-	UpdatedTime  int64                `json:"updatedTime"`
-	Status       int                  `json:"status"`
-	Inx          int                  `json:"inx"`
-	SpeedID      *int64               `json:"speedId,omitempty"`
-	ForwardPorts *[]ForwardPortBackup `json:"forwardPorts,omitempty"`
+	ID                int64                `json:"id"`
+	UserID            int64                `json:"userId"`
+	UserName          string               `json:"userName"`
+	Name              string               `json:"name"`
+	TunnelID          int64                `json:"tunnelId"`
+	RemoteAddr        string               `json:"remoteAddr"`
+	Strategy          string               `json:"strategy"`
+	InFlow            int64                `json:"inFlow"`
+	OutFlow           int64                `json:"outFlow"`
+	CreatedTime       int64                `json:"createdTime"`
+	UpdatedTime       int64                `json:"updatedTime"`
+	Status            int                  `json:"status"`
+	Inx               int                  `json:"inx"`
+	SpeedID           *int64               `json:"speedId,omitempty"`
+	SpeedLimitEnabled bool                 `json:"speedLimitEnabled,omitempty"`
+	SpeedLimit        int                  `json:"speedLimit,omitempty"`
+	ForwardPorts      *[]ForwardPortBackup `json:"forwardPorts,omitempty"`
 }
 
 type ForwardPortBackup struct {
