@@ -13,6 +13,7 @@ interface NodeRealtimeMessage {
 interface UseNodeRealtimeOptions {
   onMessage: (message: NodeRealtimeMessage) => void;
   enabled?: boolean;
+  mode?: "admin" | "public";
 }
 
 const MAX_STANDARD_RECONNECT_ATTEMPTS = 5;
@@ -20,22 +21,25 @@ const STANDARD_RECONNECT_DELAY_MS = 3000;
 const MAX_STANDARD_RECONNECT_DELAY_MS = 15000;
 const FALLBACK_RECONNECT_DELAY_MS = 30000;
 
-const getRealtimeWsUrl = (): string => {
+const getRealtimeWsUrl = (mode: "admin" | "public"): string => {
   const baseUrl =
     axios.defaults.baseURL ||
     (import.meta.env.VITE_API_BASE
       ? `${import.meta.env.VITE_API_BASE}/api/v1/`
       : "/api/v1/");
+  const wsBaseUrl = baseUrl.replace(/^http/, "ws").replace(/\/api\/v1\/$/, "");
 
-  return (
-    baseUrl.replace(/^http/, "ws").replace(/\/api\/v1\/$/, "") +
-    `/system-info?type=0&secret=${getToken() || ""}`
-  );
+  if (mode === "public") {
+    return `${wsBaseUrl}/system-info?type=2`;
+  }
+
+  return `${wsBaseUrl}/system-info?type=0&secret=${getToken() || ""}`;
 };
 
 export const useNodeRealtime = ({
   onMessage,
   enabled = true,
+  mode = "admin",
 }: UseNodeRealtimeOptions) => {
   const [wsConnected, setWsConnected] = useState(false);
   const [wsConnecting, setWsConnecting] = useState(false);
@@ -102,7 +106,7 @@ export const useNodeRealtime = ({
 
     try {
       setWsConnecting(true);
-      websocketRef.current = new WebSocket(getRealtimeWsUrl());
+      websocketRef.current = new WebSocket(getRealtimeWsUrl(mode));
 
       websocketRef.current.onopen = () => {
         reconnectAttemptsRef.current = 0;
@@ -154,7 +158,7 @@ export const useNodeRealtime = ({
       setWsConnected(false);
       setWsConnecting(false);
     }
-  }, [disconnect, enabled]);
+  }, [disconnect, enabled, mode]);
 
   useEffect(() => {
     if (!enabled) {

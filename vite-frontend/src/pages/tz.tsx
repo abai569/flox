@@ -452,6 +452,7 @@ export default function TZPage() {
   const { wsConnected, wsConnecting } = useNodeRealtime({
     onMessage: handleRealtimeMessage,
     enabled: true,
+    mode: "public",
   });
 
   useEffect(() => {

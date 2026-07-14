@@ -316,24 +316,28 @@ function MonitorIPCellValue({ ip, label }: { ip?: string; label: string }) {
 
   if (!value) {
     return (
-      <span className="inline-block max-w-full truncate px-1 leading-5 text-default-300">
-        -
+      <span className="block w-full text-center leading-5">
+        <span className="inline-block max-w-full truncate px-1 text-default-300">
+          -
+        </span>
       </span>
     );
   }
 
   return (
-    <button
-      className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
-      title={value}
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        copyMonitorIP(value, label);
-      }}
-    >
-      {formatMonitorIPForCell(value)}
-    </button>
+    <span className="block w-full text-center leading-5">
+      <button
+        className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
+        title={value}
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          copyMonitorIP(value, label);
+        }}
+      >
+        {formatMonitorIPForCell(value)}
+      </button>
+    </span>
   );
 }
 
@@ -377,8 +381,18 @@ const mergeRealtimeMetric = (
   member: MonitorNodeInstanceGroupMemberApiItem,
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>,
 ): MonitorNodeInstanceGroupMemberApiItem => {
-  const metric =
-    realtimeMetrics[getInstanceMetricKey(member.nodeId, member.instanceId)];
+  let metric = realtimeMetrics[getInstanceMetricKey(member.nodeId, member.instanceId)];
+
+  if (!metric) {
+    const nodePrefix = `${member.nodeId}:`;
+    const nodeMetrics = Object.entries(realtimeMetrics)
+      .filter(([key]) => key.startsWith(nodePrefix))
+      .map(([, value]) => value);
+
+    if (nodeMetrics.length === 1) {
+      metric = nodeMetrics[0];
+    }
+  }
 
   if (!metric) return member;
 
