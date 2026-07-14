@@ -14,6 +14,8 @@ import (
 	"go-backend/internal/monitoring"
 	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
+	"golang.org/x/text/language"
+	"golang.org/x/text/language/display"
 )
 
 const (
@@ -31,6 +33,9 @@ type monitorIPRegionCacheItem struct {
 type monitorIPRegion struct {
 	Region      string
 	CountryCode string
+	ASN         int
+	Org         string
+	ISP         string
 }
 
 func lookupMonitorIPRegion(ip string) monitorIPRegion {
@@ -65,6 +70,62 @@ func lookupMonitorIPRegion(ip string) monitorIPRegion {
 }
 
 func queryMonitorIPRegion(ip string) monitorIPRegion {
+	ripeRegion := queryRIPEMonitorIPRegion(ip)
+	ipwhoRegion := queryIPWhoMonitorIPRegion(ip)
+	if isLikelyHongKongMonitorRegion(ipwhoRegion) || shouldCheckIPQueryHongKong(ipwhoRegion, ripeRegion) && isLikelyHongKongMonitorRegion(queryIPQueryMonitorIPRegion(ip)) {
+		return monitorIPRegion{Region: "香港", CountryCode: "hk"}
+	}
+	if ripeRegion.Region != "" {
+		if ipwhoRegion.Region == "" || (ripeRegion.CountryCode != "" && ripeRegion.CountryCode != ipwhoRegion.CountryCode) {
+			return ripeRegion
+		}
+	}
+	if ipwhoRegion.Region != "" {
+		return ipwhoRegion
+	}
+	return ripeRegion
+}
+
+func shouldCheckIPQueryHongKong(regions ...monitorIPRegion) bool {
+	for _, region := range regions {
+		if region.CountryCode == "cn" {
+			return true
+		}
+	}
+	return false
+}
+
+func queryIPQueryMonitorIPRegion(ip string) monitorIPRegion {
+	client := &http.Client{Timeout: 1500 * time.Millisecond}
+	resp, err := client.Get("https://api.ipquery.io/" + ip)
+	if err != nil {
+		return monitorIPRegion{}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return monitorIPRegion{}
+	}
+	var data struct {
+		ISP struct {
+			ASN string `json:"asn"`
+			Org string `json:"org"`
+			ISP string `json:"isp"`
+		} `json:"isp"`
+		Location struct {
+			CountryCode string `json:"country_code"`
+		} `json:"location"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return monitorIPRegion{}
+	}
+	return monitorIPRegion{
+		CountryCode: normalizeMonitorCountryCode(data.Location.CountryCode),
+		Org:         strings.TrimSpace(data.ISP.Org),
+		ISP:         strings.TrimSpace(data.ISP.ISP),
+	}
+}
+
+func queryIPWhoMonitorIPRegion(ip string) monitorIPRegion {
 	client := &http.Client{Timeout: 1500 * time.Millisecond}
 	resp, err := client.Get("https://ipwho.is/" + ip + "?lang=zh-CN")
 	if err != nil {
@@ -80,11 +141,64 @@ func queryMonitorIPRegion(ip string) monitorIPRegion {
 		CountryCode string `json:"country_code"`
 		Region      string `json:"region"`
 		City        string `json:"city"`
+		Connection  struct {
+			ASN int    `json:"asn"`
+			Org string `json:"org"`
+			ISP string `json:"isp"`
+		} `json:"connection"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || !data.Success {
 		return monitorIPRegion{}
 	}
-	return monitorIPRegion{Region: formatMonitorIPRegion(data.Country, data.Region, data.City), CountryCode: normalizeMonitorCountryCode(data.CountryCode)}
+	return monitorIPRegion{
+		Region:      formatMonitorIPRegion(data.Country, data.Region, data.City),
+		CountryCode: normalizeMonitorCountryCode(data.CountryCode),
+		ASN:         data.Connection.ASN,
+		Org:         strings.TrimSpace(data.Connection.Org),
+		ISP:         strings.TrimSpace(data.Connection.ISP),
+	}
+}
+
+func queryRIPEMonitorIPRegion(ip string) monitorIPRegion {
+	client := &http.Client{Timeout: 1500 * time.Millisecond}
+	resp, err := client.Get("https://stat.ripe.net/data/geoloc/data.json?resource=" + ip)
+	if err != nil {
+		return monitorIPRegion{}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return monitorIPRegion{}
+	}
+	var data struct {
+		Status string `json:"status"`
+		Data   struct {
+			LocatedResources []struct {
+				Locations []struct {
+					Country string  `json:"country"`
+					City    string  `json:"city"`
+					Covered float64 `json:"covered_percentage"`
+				} `json:"locations"`
+			} `json:"located_resources"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil || data.Status != "ok" {
+		return monitorIPRegion{}
+	}
+	var best monitorIPRegion
+	bestCovered := -1.0
+	for _, resource := range data.Data.LocatedResources {
+		for _, location := range resource.Locations {
+			code := normalizeMonitorCountryCode(location.Country)
+			if code == "" || location.Covered < bestCovered {
+				continue
+			}
+			country := monitorCountryNameFromCode(code)
+			city := normalizeRIPEMonitorCity(location.City)
+			best = monitorIPRegion{Region: formatMonitorIPRegion(country, "", city), CountryCode: code}
+			bestCovered = location.Covered
+		}
+	}
+	return best
 }
 
 func normalizeMonitorCountryCode(code string) string {
@@ -98,6 +212,52 @@ func normalizeMonitorCountryCode(code string) string {
 		}
 	}
 	return code
+}
+
+func monitorCountryNameFromCode(code string) string {
+	code = normalizeMonitorCountryCode(code)
+	if code == "" {
+		return ""
+	}
+	region, err := language.ParseRegion(strings.ToUpper(code))
+	if err != nil {
+		return strings.ToUpper(code)
+	}
+	name := display.Regions(language.Chinese).Name(region)
+	if name == code || name == "" {
+		return strings.ToUpper(code)
+	}
+	return name
+}
+
+func normalizeRIPEMonitorCity(city string) string {
+	city = normalizeMonitorLocationPart(city)
+	switch strings.ToLower(city) {
+	case "tokyo":
+		return "东京"
+	case "hong kong", "hongkong":
+		return "香港"
+	case "osaka":
+		return "大阪"
+	case "singapore":
+		return "新加坡"
+	case "seoul":
+		return "首尔"
+	case "taipei":
+		return "台北"
+	}
+	return city
+}
+
+func isLikelyHongKongMonitorRegion(region monitorIPRegion) bool {
+	if region.CountryCode != "cn" {
+		return false
+	}
+	text := strings.ToLower(strings.Join([]string{region.Org, region.ISP}, " "))
+	if strings.Contains(text, "hong kong") || strings.Contains(text, "hongkong") {
+		return true
+	}
+	return false
 }
 
 func formatMonitorIPRegion(country, region, city string) string {
