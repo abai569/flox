@@ -1094,8 +1094,8 @@ export default function MonitorPage() {
       if (!instanceEditTarget?.instanceId) return;
       const nextWeight = overrideWeight ?? Number(weightValue);
 
-      if (!Number.isFinite(nextWeight) || nextWeight < 0) {
-        toast.error("权重不能小于 0");
+      if (!Number.isFinite(nextWeight) || nextWeight < 0 || nextWeight > 10) {
+        toast.error("权重必须在 0-10 之间");
 
         return;
       }
@@ -1344,12 +1344,15 @@ export default function MonitorPage() {
                 {instanceEditTarget ? getMonitorPrimaryDisplayIP(instanceEditTarget) : "-"}
               </div>
               <div className="text-default-500">
-                0 表示停止接新流量，保留 DNS 和已有连接；大于 0 表示参与入口接入、出口和转发链新连接选择。
-                出口和转发链会按当前负载策略使用权重，入口普通 DNS 只区分是否接入。
+                0 表示不作为入口承载实例，DNS 命中时会迁移到同节点启用实例；大于 0 表示参与入口承载、出口和转发链新连接选择。
+                权重范围为 0-10；数值越大，被负载策略选中的比例越高。
               </div>
               <Input
+                description="0 为禁用承载，1-10 为参与负载的权重等级。"
                 label="实例权重"
+                max={10}
                 min={0}
+                step={1}
                 type="number"
                 value={weightValue}
                 onChange={(event) => setWeightValue(event.target.value)}

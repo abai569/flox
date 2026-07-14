@@ -463,6 +463,7 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 		return false, nil, err
 	}
 	warnings := make([]string, 0)
+	enabledTargets := forwardFallbackTargetsFromInstances(instances)
 	enabledCount := 0
 	for _, inst := range instances {
 		instanceID := strings.TrimSpace(inst.InstanceID)
@@ -473,7 +474,20 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 			continue
 		}
 		if inst.Weight <= 0 {
-			if err := h.stopAcceptingForwardServiceBasesOnInstance(forward, node.ID, instanceID); err != nil && !isNotFoundError(err) && !isNodeOfflineOrTimeoutError(err) {
+			if len(enabledTargets) > 0 {
+				fallbackServices := buildForwardFallbackServices(services, enabledTargets)
+				_, err := h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, method, fallbackServices, defaultNodeCommandTimeout, true, false)
+				if err != nil && allowFallbackAdd && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isNotFoundError(err) {
+					_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", fallbackServices, defaultNodeCommandTimeout, true, false)
+				}
+				if err != nil && isNodeOfflineOrTimeoutError(err) {
+					warnings = append(warnings, fmt.Sprintf("节点 %s 实例 %s 不在线，已跳过兜底下发", node.Name, instanceLabel(inst)))
+					continue
+				}
+				if err != nil {
+					return true, warnings, fmt.Errorf("节点 %s 实例 %s 兜底接入下发失败: %w", node.Name, instanceLabel(inst), err)
+				}
+			} else if err := h.stopAcceptingForwardServiceBasesOnInstance(forward, node.ID, instanceID); err != nil && !isNotFoundError(err) && !isNodeOfflineOrTimeoutError(err) {
 				return true, warnings, fmt.Errorf("节点 %s 实例 %s 停止接入失败: %w", node.Name, instanceLabel(inst), err)
 			}
 			continue
@@ -496,6 +510,113 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 		warnings = append(warnings, fmt.Sprintf("节点 %s 没有启用的在线实例，已停止接入新流量", node.Name))
 	}
 	return true, warnings, nil
+}
+
+func forwardFallbackTargetsFromInstances(instances []model.NodeInstance) []string {
+	targets := make([]string, 0, len(instances))
+	seen := make(map[string]struct{})
+	for _, inst := range instances {
+		if inst.Status != 1 || inst.Weight <= 0 {
+			continue
+		}
+		for _, host := range []string{strings.TrimSpace(inst.PublicIPV4), strings.TrimSpace(inst.PublicIPV6)} {
+			if host == "" {
+				continue
+			}
+			if _, ok := seen[host]; ok {
+				continue
+			}
+			seen[host] = struct{}{}
+			targets = append(targets, host)
+		}
+	}
+	return targets
+}
+
+func buildForwardFallbackServices(services []map[string]interface{}, targetHosts []string) []map[string]interface{} {
+	if len(services) == 0 || len(targetHosts) == 0 {
+		return nil
+	}
+	fallback := make([]map[string]interface{}, 0, len(services))
+	for _, svc := range services {
+		cloned := cloneServiceConfigMap(svc)
+		port := serviceConfigPort(cloned)
+		if port <= 0 {
+			fallback = append(fallback, cloned)
+			continue
+		}
+		targets := make([]string, 0, len(targetHosts))
+		for _, host := range targetHosts {
+			host = strings.TrimSpace(host)
+			if host == "" {
+				continue
+			}
+			targets = append(targets, net.JoinHostPort(strings.Trim(host, "[]"), strconv.Itoa(port)))
+		}
+		if len(targets) == 0 {
+			fallback = append(fallback, cloned)
+			continue
+		}
+		if handler, ok := cloned["handler"].(map[string]interface{}); ok {
+			delete(handler, "chain")
+			if metadata, ok := handler["metadata"].(map[string]interface{}); ok {
+				delete(metadata, "kernel")
+			}
+		}
+		metadata, _ := cloned["metadata"].(map[string]interface{})
+		if metadata != nil {
+			delete(metadata, "kernel")
+			delete(metadata, "mimicRole")
+			delete(metadata, "sdwanDialMode")
+			delete(metadata, "sdwanOverlayListen")
+		}
+		cloned["forwarder"] = map[string]interface{}{
+			"nodes": buildForwarderNodes(targets),
+			"selector": map[string]interface{}{
+				"strategy":    "round",
+				"maxFails":    1,
+				"failTimeout": "60s",
+			},
+		}
+		fallback = append(fallback, cloned)
+	}
+	return fallback
+}
+
+func cloneServiceConfigMap(src map[string]interface{}) map[string]interface{} {
+	if src == nil {
+		return map[string]interface{}{}
+	}
+	data, err := json.Marshal(src)
+	if err != nil {
+		clone := make(map[string]interface{}, len(src))
+		for k, v := range src {
+			clone[k] = v
+		}
+		return clone
+	}
+	var dst map[string]interface{}
+	if err := json.Unmarshal(data, &dst); err != nil || dst == nil {
+		clone := make(map[string]interface{}, len(src))
+		for k, v := range src {
+			clone[k] = v
+		}
+		return clone
+	}
+	return dst
+}
+
+func serviceConfigPort(svc map[string]interface{}) int {
+	addr := strings.TrimSpace(asString(svc["addr"]))
+	if addr == "" {
+		return 0
+	}
+	_, portText, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	port, _ := strconv.Atoi(portText)
+	return port
 }
 
 func (h *Handler) stopAcceptingForwardServiceBasesOnInstance(forward *forwardRecord, nodeID int64, instanceID string) error {

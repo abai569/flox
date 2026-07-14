@@ -45,8 +45,8 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("节点ID不能为空"))
 		return
 	}
-	if req.Weight < 0 {
-		response.WriteJSON(w, response.ErrDefault("权重不能小于0"))
+	if req.Weight < 0 || req.Weight > 10 {
+		response.WriteJSON(w, response.ErrDefault("权重必须在0-10之间，0表示禁用承载"))
 		return
 	}
 	if _, err := h.getNodeRecord(req.NodeID); err != nil {
