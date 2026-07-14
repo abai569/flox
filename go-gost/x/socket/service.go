@@ -3,6 +3,7 @@ package socket
 import (
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -132,6 +133,12 @@ func updateServices(req updateServicesRequest) error {
 			return errors.New("service name is required")
 		}
 		req.Data[i].Name = name
+		if req.Data[i].Metadata != nil {
+			delete(req.Data[i].Metadata, "draining")
+			if len(req.Data[i].Metadata) == 0 {
+				req.Data[i].Metadata = nil
+			}
+		}
 	}
 
 	// 第二阶段：逐个更新服务（Upsert模式：存在则更新，不存在则创建）
@@ -251,6 +258,51 @@ func deleteServices(req deleteServicesRequest) error {
 	})
 
 	return nil
+}
+
+func stopAcceptingServices(req deleteServicesRequest) error {
+	if len(req.Services) == 0 {
+		return errors.New("services list cannot be empty")
+	}
+
+	for _, serviceName := range req.Services {
+		name := strings.TrimSpace(serviceName)
+		if name == "" {
+			return errors.New("service name is required")
+		}
+
+		svc := registry.ServiceRegistry().Get(name)
+		if svc == nil {
+			return errors.New(fmt.Sprintf("service %s not found", name))
+		}
+		if stopper, ok := svc.(interface{ StopAccepting() error }); ok {
+			if err := stopper.StopAccepting(); err != nil {
+				if errors.Is(err, net.ErrClosed) || strings.Contains(strings.ToLower(err.Error()), "closed network connection") {
+					continue
+				}
+				return errors.New(fmt.Sprintf("stop accepting service %s failed: %v", name, err))
+			}
+		} else {
+			return errors.New(fmt.Sprintf("service %s does not support stop accepting", name))
+		}
+	}
+
+	return config.OnUpdate(func(c *config.Config) error {
+		for _, serviceName := range req.Services {
+			name := strings.TrimSpace(serviceName)
+			for i := range c.Services {
+				if c.Services[i] == nil || c.Services[i].Name != name {
+					continue
+				}
+				if c.Services[i].Metadata == nil {
+					c.Services[i].Metadata = make(map[string]any)
+				}
+				c.Services[i].Metadata["draining"] = true
+				break
+			}
+		}
+		return nil
+	})
 }
 
 func pauseServices(req pauseServicesRequest) error {
@@ -628,9 +680,12 @@ func restartDeadServices() {
 			continue
 		}
 
-		// 跳过手动暂停的服务，不自动重启
+		// 跳过手动暂停或停止接新的服务，不自动重启
 		if svcCfg.Metadata != nil {
 			if paused, ok := svcCfg.Metadata["paused"]; ok && paused == true {
+				continue
+			}
+			if draining, ok := svcCfg.Metadata["draining"]; ok && draining == true {
 				continue
 			}
 		}

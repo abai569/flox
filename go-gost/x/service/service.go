@@ -355,6 +355,10 @@ func (s *defaultService) Close() error {
 	return s.listener.Close()
 }
 
+func (s *defaultService) StopAccepting() error {
+	return s.listener.Close()
+}
+
 func (s *defaultService) execCmds(phase string, cmds []string) {
 	for _, cmd := range cmds {
 		cmd := strings.TrimSpace(cmd)

@@ -473,7 +473,7 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 			continue
 		}
 		if inst.Weight <= 0 {
-			if err := h.deleteForwardServiceBasesOnInstance(forward, node.ID, instanceID); err != nil && !isNotFoundError(err) && !isNodeOfflineOrTimeoutError(err) {
+			if err := h.stopAcceptingForwardServiceBasesOnInstance(forward, node.ID, instanceID); err != nil && !isNotFoundError(err) && !isNodeOfflineOrTimeoutError(err) {
 				return true, warnings, fmt.Errorf("节点 %s 实例 %s 停止接入失败: %w", node.Name, instanceLabel(inst), err)
 			}
 			continue
@@ -498,7 +498,7 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 	return true, warnings, nil
 }
 
-func (h *Handler) deleteForwardServiceBasesOnInstance(forward *forwardRecord, nodeID int64, instanceID string) error {
+func (h *Handler) stopAcceptingForwardServiceBasesOnInstance(forward *forwardRecord, nodeID int64, instanceID string) error {
 	instanceID = strings.TrimSpace(instanceID)
 	if h == nil || forward == nil || nodeID <= 0 || instanceID == "" {
 		return nil
@@ -513,7 +513,7 @@ func (h *Handler) deleteForwardServiceBasesOnInstance(forward *forwardRecord, no
 			continue
 		}
 		payload := map[string]interface{}{"services": []string{base, base + "_tcp", base + "_udp"}}
-		if _, err := h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "DeleteService", payload, defaultNodeCommandTimeout, false, true); err != nil && !isNotFoundError(err) {
+		if _, err := h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "StopAcceptingService", payload, defaultNodeCommandTimeout, false, true); err != nil && !isNotFoundError(err) {
 			return err
 		}
 	}
@@ -2135,7 +2135,8 @@ func buildForwardServiceBaseCandidates(forwardID, userID, preferredUserTunnelID 
 
 func buildForwardControlServiceNames(base, commandType string) []string {
 	names := []string{base + "_tcp", base + "_udp"}
-	if strings.EqualFold(strings.TrimSpace(commandType), "DeleteService") {
+	cmd := strings.TrimSpace(commandType)
+	if strings.EqualFold(cmd, "DeleteService") || strings.EqualFold(cmd, "StopAcceptingService") {
 		return append([]string{base}, names...)
 	}
 	return names
@@ -2143,7 +2144,7 @@ func buildForwardControlServiceNames(base, commandType string) []string {
 
 func shouldTryLegacySingleService(commandType string) bool {
 	cmd := strings.ToLower(strings.TrimSpace(commandType))
-	return cmd == "pauseservice" || cmd == "resumeservice"
+	return cmd == "pauseservice" || cmd == "resumeservice" || cmd == "stopacceptingservice"
 }
 
 func isNotFoundError(err error) bool {
