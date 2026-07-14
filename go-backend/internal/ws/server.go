@@ -1305,9 +1305,64 @@ func (s *Server) broadcastTyped(nodeID int64, msgType string, data string) {
 	raw, _ := json.Marshal(payload)
 	msg := string(raw)
 	s.broadcastToAdmins(msg)
-	if msgType != "metric" {
-		s.broadcastToPublics(msg)
+	if msgType == "metric" {
+		if publicData, ok := sanitizePublicMetricData(data); ok {
+			publicPayload := broadcastMessage{ID: nodeID, Type: msgType, Data: publicData}
+			publicRaw, _ := json.Marshal(publicPayload)
+			s.broadcastToPublics(string(publicRaw))
+		}
+		return
 	}
+	s.broadcastToPublics(msg)
+}
+
+func sanitizePublicMetricData(data string) (string, bool) {
+	var raw map[string]interface{}
+	if err := json.Unmarshal([]byte(data), &raw); err != nil {
+		return "", false
+	}
+	allowed := map[string]struct{}{
+		"instance_id":              {},
+		"instanceId":               {},
+		"status":                   {},
+		"net_in_speed":             {},
+		"netInSpeed":               {},
+		"net_out_speed":            {},
+		"netOutSpeed":              {},
+		"bytes_received":           {},
+		"netInBytes":               {},
+		"bytes_transmitted":        {},
+		"netOutBytes":              {},
+		"period_bytes_received":    {},
+		"periodRx":                 {},
+		"period_bytes_transmitted": {},
+		"periodTx":                 {},
+		"uptime":                   {},
+		"cpu_usage":                {},
+		"cpuUsage":                 {},
+		"memory_usage":             {},
+		"memoryUsage":              {},
+		"disk_usage":               {},
+		"diskUsage":                {},
+		"tcp_conns":                {},
+		"tcpConns":                 {},
+		"udp_conns":                {},
+		"udpConns":                 {},
+	}
+	clean := make(map[string]interface{}, len(allowed))
+	for key, value := range raw {
+		if _, ok := allowed[key]; ok {
+			clean[key] = value
+		}
+	}
+	if len(clean) == 0 {
+		return "", false
+	}
+	out, err := json.Marshal(clean)
+	if err != nil {
+		return "", false
+	}
+	return string(out), true
 }
 
 func (s *Server) BroadcastToAdmins(message string) {

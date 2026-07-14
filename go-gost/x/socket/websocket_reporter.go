@@ -90,6 +90,8 @@ type ForwardMetric struct {
 type NetworkStats struct {
 	BytesReceived    uint64 `json:"bytes_received"`
 	BytesTransmitted uint64 `json:"bytes_transmitted"`
+	BytesRecvDelta   uint64 `json:"bytes_recv_delta"`
+	BytesSentDelta   uint64 `json:"bytes_sent_delta"`
 }
 
 // CPUInfo CPU信息
@@ -1091,6 +1093,9 @@ func (w *WebSocketReporter) handleConnection() {
 var connInfoCached ConnectionInfo
 var connInfoCachedAt int64
 var connInfoCachedMu sync.Mutex
+var lastNetBytesReceived uint64
+var lastNetBytesTransmitted uint64
+var lastNetTime int64
 
 // collectSystemInfo 收集系统信息
 func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
@@ -1102,6 +1107,17 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 	serviceConnections := collectServiceConnections()
 	forwardMetrics := collectForwardMetrics()
 	netInSpeed, netOutSpeed := sumForwardMetricSpeeds(forwardMetrics)
+	now := time.Now().UnixMilli()
+	if netInSpeed == 0 && netOutSpeed == 0 && lastNetTime > 0 {
+		deltaMs := now - lastNetTime
+		if deltaMs > 0 {
+			netInSpeed = int64(float64(networkStats.BytesRecvDelta) * 1000 / float64(deltaMs))
+			netOutSpeed = int64(float64(networkStats.BytesSentDelta) * 1000 / float64(deltaMs))
+		}
+	}
+	lastNetBytesReceived = networkStats.BytesReceived
+	lastNetBytesTransmitted = networkStats.BytesTransmitted
+	lastNetTime = now
 	connInfo := w.getAgentConnectionInfo(serviceConnections)
 
 	// 计算周期流量
@@ -2790,6 +2806,13 @@ func getNetworkStats() NetworkStats {
 		}
 		stats.BytesReceived += io.BytesRecv
 		stats.BytesTransmitted += io.BytesSent
+	}
+
+	if lastNetBytesReceived > 0 && stats.BytesReceived >= lastNetBytesReceived {
+		stats.BytesRecvDelta = stats.BytesReceived - lastNetBytesReceived
+	}
+	if lastNetBytesTransmitted > 0 && stats.BytesTransmitted >= lastNetBytesTransmitted {
+		stats.BytesSentDelta = stats.BytesTransmitted - lastNetBytesTransmitted
 	}
 
 	return stats

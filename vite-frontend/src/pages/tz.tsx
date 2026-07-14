@@ -18,16 +18,16 @@ import { MoonFilledIcon, SunFilledIcon } from "@/components/icons";
 import { useThemeContext } from "@/themes/context";
 
 const INSTANCE_TABLE_COLUMNS = [
-  "5%",
-  "8%",
-  "11%",
-  "11%",
-  "14%",
-  "9%",
-  "12%",
-  "10%",
-  "10%",
-  "10%",
+  "56px",
+  "150px",
+  "150px",
+  "150px",
+  "132px",
+  "104px",
+  "124px",
+  "112px",
+  "112px",
+  "112px",
 ] as const;
 
 const formatBytes = (bytes: number): string => {
@@ -178,9 +178,6 @@ function InstanceRows({
                 <span className="min-w-0 max-w-[82px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[140px] md:max-w-none md:px-4 md:text-sm">
                   {group.name} | ID: {group.id}
                 </span>
-                <span className="shrink-0 text-xs text-default-500 dark:text-default-300">
-                  {group.members.length} 个实例
-                </span>
               </div>
               <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-xs md:flex-none md:gap-2 md:text-sm">
                 <span className="inline-flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1 rounded-md bg-secondary-500/15 px-1 text-secondary-700 dark:text-secondary-200 tabular-nums md:w-[176px] md:flex-none md:gap-2 md:px-3">
@@ -194,8 +191,8 @@ function InstanceRows({
               </div>
             </div>
             <div className="px-3 pb-4">
-              <div className="overflow-x-auto overscroll-x-contain md:overflow-hidden">
-                <table className="w-full min-w-[920px] table-fixed text-sm md:min-w-0">
+              <div className="overflow-x-auto overscroll-x-contain">
+                <table className="w-full min-w-[1202px] table-fixed text-sm">
                   <colgroup>
                     {INSTANCE_TABLE_COLUMNS.map((width, index) => (
                       <col key={index} style={{ width }} />
@@ -204,7 +201,12 @@ function InstanceRows({
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
                       <th className="whitespace-nowrap px-1 py-2 text-center">状态</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">实例</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        实例
+                        <span className="text-xs text-primary-500 font-normal">
+                          ^{group.members.length}个
+                        </span>
+                      </th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">v4 地区</th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">v6 地区</th>
                       <th className="whitespace-nowrap px-1 py-2 text-center">速率</th>
