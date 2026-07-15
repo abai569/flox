@@ -108,19 +108,19 @@ type ServiceSummary = {
 };
 
 const MONITOR_INSTANCE_TABLE_COLUMNS = [
-  "56px", // 状态
-  "180px", // 实例名称
-  "120px", // v4 地区
-  "120px", // v6 地区
-  "160px", // 出口 IP
-  "132px", // 速率
-  "104px", // 开机时长
-  "124px", // 流量
-  "120px", // CPU
-  "120px", // RAM
-  "120px", // 存储
-  "100px", // 权重
-  "190px", // 操作
+  "4%", // 状态
+  "10%", // 实例名称
+  "7.5%", // v4 地区
+  "7.5%", // v6 地区
+  "10%", // 出口 IP
+  "8%", // 速率
+  "6%", // 开机时长
+  "8%", // 流量
+  "8%", // CPU
+  "8%", // RAM
+  "8%", // 存储
+  "5%", // 权重
+  "10%", // 操作
 ] as const;
 
 const isRealInstanceId = (instanceId?: string): boolean => {
@@ -533,7 +533,7 @@ function NodeInstanceGroupsView({
             </div>
             <div className="px-3 pb-4">
               <div className="overflow-x-auto overscroll-x-contain">
-                <table className="w-full min-w-[1652px] table-fixed text-sm">
+                <table className="w-full min-w-[1200px] table-fixed text-sm">
                   <colgroup>
                     {MONITOR_INSTANCE_TABLE_COLUMNS.map((width, index) => (
                       <col key={index} style={{ width }} />
@@ -542,7 +542,7 @@ function NodeInstanceGroupsView({
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
                       <th className="whitespace-nowrap px-1 py-2 text-center">状态</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                      <th className="whitespace-nowrap px-1 py-2 text-start">
                         实例名称
                         <span className="text-xs text-primary-500 font-normal">
                           ^{members.length}个
@@ -590,7 +590,7 @@ function NodeInstanceGroupsView({
                               }
                             />
                           </td>
-                          <td className="px-1 py-3 text-center align-middle font-medium whitespace-nowrap">
+                          <td className="px-1 py-3 text-start align-middle font-medium whitespace-nowrap">
                             {getDisplayInstanceName(member, memberIndex + 1)}
                           </td>
                           <td
@@ -676,7 +676,11 @@ function NodeInstanceGroupsView({
                           <td className="px-1 py-3 text-center align-middle font-mono tabular-nums">
                             <div className="flex justify-center">
                               <Chip
-                                className="min-w-10 justify-center font-mono tabular-nums"
+                                className={`h-6 min-w-10 justify-center rounded-md px-2 font-mono tabular-nums ${
+                                  member.weight <= 0
+                                    ? "bg-default-200 text-default-600"
+                                    : ""
+                                }`}
                                 color={member.weight > 0 ? "primary" : "default"}
                                 size="sm"
                                 variant="flat"
