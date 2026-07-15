@@ -483,6 +483,14 @@ export default function UserPage() {
   } = useDisclosure();
   const [editTunnelForm, setEditTunnelForm] = useState<UserTunnel | null>(null);
   const [editTunnelLoading, setEditTunnelLoading] = useState(false);
+  const {
+    isOpen: isBatchEditTunnelModalOpen,
+    onOpen: onBatchEditTunnelModalOpen,
+    onClose: onBatchEditTunnelModalClose,
+  } = useDisclosure();
+  const [batchEditTunnelForm, setBatchEditTunnelForm] =
+    useState<UserTunnel | null>(null);
+  const [batchEditTunnelLoading, setBatchEditTunnelLoading] = useState(false);
   // 删除确认相关状态
   const {
     isOpen: isDeleteModalOpen,
@@ -1424,6 +1432,79 @@ export default function UserPage() {
       setEditTunnelLoading(false);
     }
   };
+  const handleBatchEditTunnels = () => {
+    const selectedTunnels = userTunnels.filter((tunnel) =>
+      selectedUserTunnelIds.has(tunnel.id),
+    );
+
+    if (selectedTunnels.length === 0) return;
+    const firstTunnel = selectedTunnels[0];
+
+    setBatchEditTunnelForm({
+      ...firstTunnel,
+      speedId: normalizeSpeedId(firstTunnel.speedId),
+      expTime: firstTunnel.expTime,
+    });
+    onBatchEditTunnelModalOpen();
+  };
+  const handleBatchUpdateTunnels = async () => {
+    if (!batchEditTunnelForm || selectedUserTunnelIds.size === 0) return;
+    setBatchEditTunnelLoading(true);
+    try {
+      const ids = Array.from(selectedUserTunnelIds);
+      const speedId = normalizeSpeedId(batchEditTunnelForm.speedId);
+      const responses = await Promise.all(
+        ids.map((id) =>
+          updateUserTunnel({
+            id,
+            flow: batchEditTunnelForm.flow,
+            num: batchEditTunnelForm.num,
+            expTime: batchEditTunnelForm.expTime,
+            flowResetTime: batchEditTunnelForm.flowResetTime,
+            speedId,
+            status: batchEditTunnelForm.status,
+          }),
+        ),
+      );
+
+      const failed = responses.filter((response) => response.code !== 0);
+
+      if (failed.length > 0) {
+        toast.error(failed[0]?.msg || "批量编辑失败");
+
+        return;
+      }
+
+      const speedLimitName =
+        speedId !== null
+          ? speedLimits.find((speedLimit) => speedLimit.id === speedId)?.name
+          : undefined;
+
+      setUserTunnels((prev) =>
+        prev.map((tunnel) =>
+          selectedUserTunnelIds.has(tunnel.id)
+            ? normalizeUserTunnelItem({
+                ...tunnel,
+                flow: batchEditTunnelForm.flow,
+                num: batchEditTunnelForm.num,
+                expTime: batchEditTunnelForm.expTime,
+                flowResetTime: batchEditTunnelForm.flowResetTime,
+                speedId,
+                status: batchEditTunnelForm.status,
+                speedLimitName,
+              })
+            : tunnel,
+        ),
+      );
+      toast.success(`已批量编辑 ${ids.length} 个隧道权限`);
+      setSelectedUserTunnelIds(new Set());
+      onBatchEditTunnelModalClose();
+    } catch {
+      toast.error("批量编辑发生异常");
+    } finally {
+      setBatchEditTunnelLoading(false);
+    }
+  };
   const handleRemoveTunnel = (userTunnel: UserTunnel) => {
     setTunnelToDelete(userTunnel);
     onDeleteTunnelModalOpen();
@@ -1760,6 +1841,9 @@ export default function UserPage() {
     );
   };
   const editTunnelSelectedSpeedId = normalizeSpeedId(editTunnelForm?.speedId);
+  const batchEditTunnelSelectedSpeedId = normalizeSpeedId(
+    batchEditTunnelForm?.speedId,
+  );
   const toggleTunnelSelection = (tunnelId: number) => {
     setBatchTunnelSelections((prev) => {
       const newMap = new Map(prev);
@@ -3738,6 +3822,14 @@ export default function UserPage() {
                     <div className="flex items-center gap-2">
                       <Button
                         className="h-8 text-xs sm:text-sm px-2 sm:px-3"
+                        color="primary"
+                        size="sm"
+                        onPress={handleBatchEditTunnels}
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        className="h-8 text-xs sm:text-sm px-2 sm:px-3"
                         color="success"
                         isLoading={batchUpdateStatusLoading.enable}
                         size="sm"
@@ -4018,6 +4110,161 @@ export default function UserPage() {
               onPress={handleSaveMonitorPermission}
             >
               保存
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      {/* 批量编辑隧道权限弹窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl",
+        }}
+        isDismissable={false}
+        isOpen={isBatchEditTunnelModalOpen}
+        placement="center"
+        scrollBehavior="inside"
+        size="md"
+        onClose={onBatchEditTunnelModalClose}
+      >
+        <ModalContent>
+          <ModalHeader>
+            批量编辑隧道权限 - 已选 {selectedUserTunnelIds.size} 个
+          </ModalHeader>
+          <ModalBody>
+            {batchEditTunnelForm && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="总流量 (GB)"
+                    min="0"
+                    type="number"
+                    value={String(batchEditTunnelForm.flow ?? 0)}
+                    variant="bordered"
+                    onChange={(e) =>
+                      setBatchEditTunnelForm((prev) =>
+                        prev
+                          ? { ...prev, flow: Number(e.target.value) || 0 }
+                          : null,
+                      )
+                    }
+                  />
+                  <Input
+                    label="最大规则数"
+                    min="0"
+                    type="number"
+                    value={String(batchEditTunnelForm.num ?? 0)}
+                    variant="bordered"
+                    onChange={(e) =>
+                      setBatchEditTunnelForm((prev) =>
+                        prev
+                          ? { ...prev, num: Number(e.target.value) || 0 }
+                          : null,
+                      )
+                    }
+                  />
+                </div>
+                <DatePicker
+                  showMonthAndYearPickers
+                  label="到期时间"
+                  value={timestampToCalendarDate(
+                    batchEditTunnelForm.expTime > 0
+                      ? batchEditTunnelForm.expTime
+                      : null,
+                  )}
+                  onChange={(date) => {
+                    const ts = calendarDateToTimestamp(date) || 0;
+
+                    setBatchEditTunnelForm((prev) =>
+                      prev ? { ...prev, expTime: ts } : null,
+                    );
+                  }}
+                >
+                  <DatePresets
+                    onChange={(timestamp) => {
+                      setBatchEditTunnelForm((prev) =>
+                        prev ? { ...prev, expTime: timestamp || 0 } : null,
+                      );
+                    }}
+                  />
+                </DatePicker>
+                <Input
+                  label="流量重置日 (1-31)"
+                  max="31"
+                  min="1"
+                  type="number"
+                  value={String(batchEditTunnelForm.flowResetTime ?? 1)}
+                  variant="bordered"
+                  onChange={(e) =>
+                    setBatchEditTunnelForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            flowResetTime: Math.min(
+                              Math.max(Number(e.target.value) || 1, 1),
+                              31,
+                            ),
+                          }
+                        : null,
+                    )
+                  }
+                />
+                <Select
+                  label="限速规则"
+                  placeholder="不限速"
+                  selectedKeys={
+                    batchEditTunnelSelectedSpeedId !== null
+                      ? [batchEditTunnelSelectedSpeedId.toString()]
+                      : []
+                  }
+                  onSelectionChange={(keys) => {
+                    const selectedKey = Array.from(keys)[0] as
+                      | string
+                      | undefined;
+
+                    setBatchEditTunnelForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            speedId: selectedKey ? Number(selectedKey) : null,
+                          }
+                        : null,
+                    );
+                  }}
+                >
+                  {editAvailableSpeedLimits.map((speedLimit) => (
+                    <SelectItem
+                      key={speedLimit.id.toString()}
+                      textValue={speedLimit.name}
+                    >
+                      {speedLimit.name}
+                    </SelectItem>
+                  ))}
+                </Select>
+                <RadioGroup
+                  label="状态"
+                  orientation="horizontal"
+                  value={batchEditTunnelForm.status.toString()}
+                  onValueChange={(value: string) =>
+                    setBatchEditTunnelForm((prev) =>
+                      prev ? { ...prev, status: Number(value) } : null,
+                    )
+                  }
+                >
+                  <Radio value="1">启用</Radio>
+                  <Radio value="0">禁用</Radio>
+                </RadioGroup>
+              </>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button onPress={onBatchEditTunnelModalClose}>取消</Button>
+            <Button
+              color="primary"
+              isLoading={batchEditTunnelLoading}
+              onPress={handleBatchUpdateTunnels}
+            >
+              确定
             </Button>
           </ModalFooter>
         </ModalContent>
