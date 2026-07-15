@@ -1843,8 +1843,11 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 				}).Error; err != nil {
 				return err
 			}
+			if err := addTrafficToExistingUserTunnels(tx, userID, trafficGB); err != nil {
+				return err
+			}
 			if len(tunnelIDs) > 0 {
-				if err := addTrafficToUserTunnels(tx, userID, tunnelIDs, trafficGB, user.ExpTime, user.FlowResetTime); err != nil {
+				if err := addMissingTrafficUserTunnels(tx, userID, tunnelIDs, trafficGB, user.ExpTime, user.FlowResetTime); err != nil {
 					return err
 				}
 			}
@@ -2106,6 +2109,35 @@ func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64
 	return nil
 }
 
+func addTrafficToExistingUserTunnels(tx *gorm.DB, userID int64, trafficGB int64) error {
+	return tx.Model(&model.UserTunnel{}).
+		Where("user_id = ?", userID).
+		Update("flow", gorm.Expr("flow + ?", trafficGB)).Error
+}
+
+func addMissingTrafficUserTunnels(tx *gorm.DB, userID int64, tunnelIDs []int64, trafficGB int64, userExpTime int64, userFlowResetTime int64) error {
+	for _, tunnelID := range tunnelIDs {
+		var existing model.UserTunnel
+		err := tx.Select("id").Where("user_id = ? AND tunnel_id = ?", userID, tunnelID).First(&existing).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ut := model.UserTunnel{
+				UserID:        userID,
+				TunnelID:      tunnelID,
+				Flow:          trafficGB,
+				ExpTime:       userExpTime,
+				FlowResetTime: userFlowResetTime,
+				Status:        1,
+			}
+			if err := tx.Create(&ut).Error; err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func addTrafficToUserTunnels(tx *gorm.DB, userID int64, tunnelIDs []int64, trafficGB int64, userExpTime int64, userFlowResetTime int64) error {
 	for _, tunnelID := range tunnelIDs {
 		var existing model.UserTunnel
@@ -2155,6 +2187,9 @@ func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, 
 			}).Error; err != nil {
 			return err
 		}
+		if err := addTrafficToExistingUserTunnels(tx, userID, totalGB); err != nil {
+			return err
+		}
 		if len(tunnelIDs) == 0 {
 			return nil
 		}
@@ -2162,7 +2197,7 @@ func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, 
 		if err := tx.Select("exp_time, flow_reset_time").Where("id = ?", userID).First(&user).Error; err != nil {
 			return err
 		}
-		return addTrafficToUserTunnels(tx, userID, tunnelIDs, totalGB, user.ExpTime, user.FlowResetTime)
+		return addMissingTrafficUserTunnels(tx, userID, tunnelIDs, totalGB, user.ExpTime, user.FlowResetTime)
 	})
 }
 
