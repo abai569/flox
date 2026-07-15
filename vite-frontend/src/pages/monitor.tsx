@@ -22,6 +22,7 @@ import { MetricPill } from "@/components/metric-pill";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
+import { Chip } from "@/shadcn-bridge/heroui/chip";
 import {
   getMonitorNodes,
   getMonitorNodeInstanceGroups,
@@ -107,19 +108,19 @@ type ServiceSummary = {
 };
 
 const MONITOR_INSTANCE_TABLE_COLUMNS = [
-  "56px",
-  "160px",
-  "150px",
-  "150px",
-  "170px",
-  "132px",
-  "104px",
-  "124px",
-  "112px",
-  "112px",
-  "112px",
-  "80px",
-  "190px",
+  "56px", // 状态
+  "180px", // 实例名称
+  "120px", // v4 地区
+  "120px", // v6 地区
+  "160px", // 出口 IP
+  "132px", // 速率
+  "104px", // 开机时长
+  "124px", // 流量
+  "120px", // CPU
+  "120px", // RAM
+  "120px", // 存储
+  "100px", // 权重
+  "190px", // 操作
 ] as const;
 
 const isRealInstanceId = (instanceId?: string): boolean => {
@@ -673,11 +674,15 @@ function NodeInstanceGroupsView({
                             </div>
                           </td>
                           <td className="px-1 py-3 text-center align-middle font-mono tabular-nums">
-                            <div className="truncate">
-                              {member.weight <= 0
-                                ? <span className="text-default-400">禁用</span>
-                                : member.weight
-                              }
+                            <div className="flex justify-center">
+                              <Chip
+                                className="min-w-10 justify-center font-mono tabular-nums"
+                                color={member.weight > 0 ? "primary" : "default"}
+                                size="sm"
+                                variant="flat"
+                              >
+                                {member.weight > 0 ? member.weight : "禁用"}
+                              </Chip>
                             </div>
                           </td>
                           <td className="px-1 py-3 align-middle">
