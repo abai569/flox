@@ -136,6 +136,7 @@ func (r *Repository) UpsertNodeInstance(in NodeInstanceUpsert) error {
 		return r.db.Create(&inst).Error
 	}
 
+	resetTrafficStats := nodeInstanceServerChanged(existing, in)
 	updates := map[string]interface{}{
 		"status":        1,
 		"last_seen_at":  now,
@@ -153,6 +154,12 @@ func (r *Repository) UpsertNodeInstance(in NodeInstanceUpsert) error {
 		"mem_usage":     in.MemUsage,
 		"disk_usage":    in.DiskUsage,
 	}
+	if resetTrafficStats {
+		updates["net_in_bytes"] = int64(0)
+		updates["net_out_bytes"] = int64(0)
+		updates["period_rx"] = int64(0)
+		updates["period_tx"] = int64(0)
+	}
 	if v := strings.TrimSpace(in.Hostname); v != "" {
 		updates["hostname"] = v
 	}
@@ -168,6 +175,22 @@ func (r *Repository) UpsertNodeInstance(in NodeInstanceUpsert) error {
 	return r.db.Model(&model.NodeInstance{}).
 		Where("id = ?", existing.ID).
 		Updates(updates).Error
+}
+
+func nodeInstanceServerChanged(existing model.NodeInstance, in NodeInstanceUpsert) bool {
+	if existing.Status == 1 {
+		return false
+	}
+	if changedNonEmptyString(existing.PublicIPV4, in.PublicIPV4) || changedNonEmptyString(existing.PublicIPV6, in.PublicIPV6) {
+		return true
+	}
+	return changedNonEmptyString(existing.Hostname, in.Hostname)
+}
+
+func changedNonEmptyString(oldValue, newValue string) bool {
+	oldValue = strings.TrimSpace(oldValue)
+	newValue = strings.TrimSpace(newValue)
+	return oldValue != "" && newValue != "" && oldValue != newValue
 }
 
 func (r *Repository) MarkNodeInstanceOffline(nodeID int64, instanceID string, now int64) error {

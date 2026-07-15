@@ -174,12 +174,14 @@ func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, perio
 		return
 	}
 
-	if err := h.repo.SetNodeInstanceTotalFlow(nodeID, instanceID, int64(periodRx), int64(periodTx)); err != nil {
+	nextRx := maxInt64(info.TotalInFlow, int64(periodRx))
+	nextTx := maxInt64(info.TotalOutFlow, int64(periodTx))
+	if err := h.repo.SetNodeInstanceTotalFlow(nodeID, instanceID, nextRx, nextTx); err != nil {
 		log.Printf("ERROR: SetNodeInstanceTotalFlow node=%d instance=%s failed: %v", nodeID, instanceID, err)
 		return
 	}
 
-	totalUsed := int64(periodRx) + int64(periodTx)
+	totalUsed := nextRx + nextTx
 	limitBytes := info.LimitGB * 1024 * 1024 * 1024
 
 	if totalUsed >= limitBytes {
@@ -190,6 +192,13 @@ func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, perio
 			bot.SendNodeTrafficExceeded(info.Name)
 		})
 	}
+}
+
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // GetForwardConnections 获取指定转发的当前连接数

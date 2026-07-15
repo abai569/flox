@@ -380,11 +380,12 @@ function UsageMeter({
 
 const mergeRealtimeMetric = (
   member: MonitorNodeInstanceGroupMemberApiItem,
+  groupMembers: MonitorNodeInstanceGroupMemberApiItem[],
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>,
 ): MonitorNodeInstanceGroupMemberApiItem => {
   let metric = realtimeMetrics[getInstanceMetricKey(member.nodeId, member.instanceId)];
 
-  if (!metric) {
+  if (!metric && groupMembers.length === 1) {
     const nodePrefix = `${member.nodeId}:`;
     const nodeMetrics = Object.entries(realtimeMetrics)
       .filter(([key]) => key.startsWith(nodePrefix))
@@ -480,7 +481,7 @@ function NodeInstanceGroupsView({
     <div className="space-y-5">
       {groups.map((group) => {
         const members = group.members.map((member) =>
-          mergeRealtimeMetric(member, realtimeMetrics),
+          mergeRealtimeMetric(member, group.members, realtimeMetrics),
         );
         const totalOutSpeed = members.reduce(
           (sum, member) => sum + member.netOutSpeed,
@@ -1125,7 +1126,7 @@ export default function MonitorPage() {
 
     nodeInstanceGroups.forEach((group) => {
       const members = group.members.map((member) =>
-        mergeRealtimeMetric(member, realtimeInstanceMetrics),
+        mergeRealtimeMetric(member, group.members, realtimeInstanceMetrics),
       );
 
       instanceCounts.set(group.id, {
