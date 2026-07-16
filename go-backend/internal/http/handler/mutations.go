@@ -98,6 +98,7 @@ func (h *Handler) ensureManualTunnelAccess(userID int64, roleID int, tunnelID in
 }
 
 func manualTunnelTopologyKeyFromPayload(req map[string]interface{}) string {
+	tunnelType := asInt(req["type"], 2)
 	entryIDs := sortedUniqueInt64s(nodeIDsFromMaps(asMapSlice(req["inNodeId"])))
 	chainIDs := make([]int64, 0)
 	for _, hopRaw := range asAnySlice(req["chainNodes"]) {
@@ -107,10 +108,10 @@ func manualTunnelTopologyKeyFromPayload(req map[string]interface{}) string {
 	exitIDs := sortedUniqueInt64s(nodeIDsFromMaps(asMapSlice(req["outNodeId"])))
 	inIP := normalizeManualTunnelInIP(asString(req["inIp"]))
 
-	return fmt.Sprintf("in:%s|chain:%s|out:%s|ip:%s", joinInt64s(entryIDs), joinInt64s(chainIDs), joinInt64s(exitIDs), inIP)
+	return fmt.Sprintf("type:%d|in:%s|chain:%s|out:%s|ip:%s", tunnelType, joinInt64s(entryIDs), joinInt64s(chainIDs), joinInt64s(exitIDs), inIP)
 }
 
-func manualTunnelTopologyKeyFromRows(inIP string, rows []chainNodeRecord) string {
+func manualTunnelTopologyKeyFromRows(tunnelType int, inIP string, rows []chainNodeRecord) string {
 	entryIDs := make([]int64, 0)
 	chainIDs := make([]int64, 0)
 	exitIDs := make([]int64, 0)
@@ -126,7 +127,8 @@ func manualTunnelTopologyKeyFromRows(inIP string, rows []chainNodeRecord) string
 	}
 
 	return fmt.Sprintf(
-		"in:%s|chain:%s|out:%s|ip:%s",
+		"type:%d|in:%s|chain:%s|out:%s|ip:%s",
+		tunnelType,
 		joinInt64s(sortedUniqueInt64s(entryIDs)),
 		joinInt64s(sortedUniqueInt64s(chainIDs)),
 		joinInt64s(sortedUniqueInt64s(exitIDs)),
@@ -272,14 +274,15 @@ func (h *Handler) findReusableManualTunnel(req map[string]interface{}) (int64, b
 	}
 	for _, item := range items {
 		id := asInt64(item["id"], 0)
-		if id <= 0 || asInt(item["type"], 0) != 2 || !isManualTunnelNameRemark(asString(item["name"]), asString(item["remark"])) {
+		tunnelType := asInt(item["type"], 0)
+		if id <= 0 || (tunnelType != 1 && tunnelType != 2) || !isManualTunnelNameRemark(asString(item["name"]), asString(item["remark"])) {
 			continue
 		}
 		rows, err := h.listChainNodesForTunnel(id)
 		if err != nil {
 			return 0, false, err
 		}
-		if manualTunnelTopologyKeyFromRows(asString(item["inIp"]), rows) == topologyKey {
+		if manualTunnelTopologyKeyFromRows(tunnelType, asString(item["inIp"]), rows) == topologyKey {
 			return id, true, nil
 		}
 	}

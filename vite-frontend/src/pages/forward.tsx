@@ -1735,6 +1735,7 @@ export default function ForwardPage() {
     "existing" | "manual"
   >("existing");
   const [tunnelModeLocked, setTunnelModeLocked] = useState(false);
+  const [manualTunnelType, setManualTunnelType] = useState<1 | 2>(2);
   const [manualInNodeId, setManualInNodeId] = useState<ChainTunnel[]>([]);
   const [manualInIp, setManualInIp] = useState("");
   const [manualChainNodes, setManualChainNodes] = useState<ChainTunnel[][]>([]);
@@ -1831,6 +1832,7 @@ export default function ForwardPage() {
   const resetManualTunnelState = () => {
     setTunnelSelectMode("existing");
     setTunnelModeLocked(false);
+    setManualTunnelType(2);
     setManualInNodeId([]);
     setManualInIp("");
     setManualChainNodes([]);
@@ -2072,13 +2074,15 @@ export default function ForwardPage() {
     if (manualInNodeId.length === 0) {
       newErrors.manualInNodeId = "请选择一个入口节点";
     }
-    manualChainNodes.forEach((group, index) => {
-      if (group.length === 0) {
-        newErrors[`manualChainNodes_${index}`] = `请选择第${index + 1}跳节点`;
+    if (manualTunnelType === 2) {
+      manualChainNodes.forEach((group, index) => {
+        if (group.length === 0) {
+          newErrors[`manualChainNodes_${index}`] = `请选择第${index + 1}跳节点`;
+        }
+      });
+      if (manualOutNodeId.length === 0) {
+        newErrors.manualOutNodeId = "请选择一个出口节点";
       }
-    });
-    if (manualOutNodeId.length === 0) {
-      newErrors.manualOutNodeId = "请选择一个出口节点";
     }
     for (const nodeId of selectedIds) {
       if (selectedSet.has(nodeId)) {
@@ -2108,10 +2112,12 @@ export default function ForwardPage() {
       }
     };
 
-    manualChainNodes.forEach((group, index) => {
-      validatePorts(group, `manualChainPort_${index}`, `第${index + 1}跳`);
-    });
-    validatePorts(manualOutNodeId, "manualOutPort", "出口");
+    if (manualTunnelType === 2) {
+      manualChainNodes.forEach((group, index) => {
+        validatePorts(group, `manualChainPort_${index}`, `第${index + 1}跳`);
+      });
+      validatePorts(manualOutNodeId, "manualOutPort", "出口");
+    }
   };
 
   useEffect(() => {
@@ -2697,6 +2703,7 @@ export default function ForwardPage() {
     }
     if (isManualTunnel(targetTunnel)) {
       setTunnelSelectMode("manual");
+      setManualTunnelType(targetTunnel?.type === 1 ? 1 : 2);
       setManualInNodeId(normalizeManualNodes(targetTunnel?.inNodeId));
       setManualInIp((targetTunnel?.inIp || "").split(",").join("\n"));
       setManualChainNodes(normalizeManualChainNodes(targetTunnel?.chainNodes));
@@ -2916,7 +2923,7 @@ export default function ForwardPage() {
     return {
       ...(tunnelId ? { id: tunnelId } : {}),
       name: buildManualTunnelName(),
-      type: 2,
+      type: manualTunnelType,
       status: 1,
       flow: 1,
       trafficRatio: 1,
@@ -6110,6 +6117,31 @@ export default function ForwardPage() {
                         )}
                       </div>
                       <Select
+                        description={
+                          tunnelModeLocked ? "编辑时无法修改隧道类型" : undefined
+                        }
+                        isDisabled={tunnelModeLocked}
+                        label="隧道类型"
+                        selectedKeys={[manualTunnelType.toString()]}
+                        variant="bordered"
+                        onSelectionChange={(keys) => {
+                          const selectedKey = Array.from(keys)[0] as string;
+
+                          if (!selectedKey) return;
+                          const type = Number(selectedKey) === 1 ? 1 : 2;
+
+                          setManualTunnelType(type);
+                          if (type === 1) {
+                            setManualChainNodes([]);
+                            setManualOutNodeId([]);
+                            setManualFocusedInputs({});
+                          }
+                        }}
+                      >
+                        <SelectItem key="1">端口转发</SelectItem>
+                        <SelectItem key="2">隧道转发</SelectItem>
+                      </Select>
+                      <Select
                         disabledKeys={buildManualDisabledKeys({ role: "entry" })}
                         errorMessage={errors.manualInNodeId}
                         isInvalid={!!errors.manualInNodeId}
@@ -6159,7 +6191,7 @@ export default function ForwardPage() {
                           </Button>
                         </div>
                       )}
-                      <div className="space-y-3">
+                      {manualTunnelType === 2 && <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <span className="text-sm font-semibold text-foreground">
@@ -6393,8 +6425,8 @@ export default function ForwardPage() {
                             )}
                            </div>
                         ))}
-                      </div>
-                      <Select
+                      </div>}
+                      {manualTunnelType === 2 && <Select
                         disabledKeys={buildManualDisabledKeys({ role: "exit" })}
                         errorMessage={errors.manualOutNodeId}
                         isInvalid={!!errors.manualOutNodeId}
@@ -6412,8 +6444,8 @@ export default function ForwardPage() {
                         }}
                       >
                         {renderManualNodeItems({ role: "exit" })}
-                      </Select>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      </Select>}
+                      {manualTunnelType === 2 && <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <Select
                           label="传输层协议"
                           placeholder="选择传输层协议"
@@ -6452,8 +6484,8 @@ export default function ForwardPage() {
                           <SelectItem key="rand">随机</SelectItem>
                           <SelectItem key="best">最优</SelectItem>
                         </Select>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      </div>}
+                      {manualTunnelType === 2 && <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         <Input
                           description="指定出口节点被上一级连接的端口，留空按节点端口范围自动分配"
                           errorMessage={errors.manualOutPort}
@@ -6522,7 +6554,7 @@ export default function ForwardPage() {
                             }))
                           }
                         />
-                      </div>
+                      </div>}
                     </div>
                   )}
                   <div className="space-y-4 pb-4">
