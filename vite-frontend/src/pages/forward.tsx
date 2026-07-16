@@ -869,12 +869,18 @@ const SortableTableRow = ({
     isDragging,
   } = useSortable({ id: forward.id });
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: transform
+      ? CSS.Transform.toString({
+        ...transform,
+        x: Math.round(transform.x),
+        y: Math.round(transform.y),
+      })
+      : undefined,
     transition: isDragging ? "none" : transition,
     opacity: isDragging ? 0.6 : 1,
     zIndex: isDragging ? 50 : undefined,
     position: isDragging ? ("relative" as const) : undefined,
-    willChange: "transform",
+    willChange: isDragging ? "transform" : undefined,
     backgroundColor: isDragging ? "var(--nextui-default-100)" : undefined,
   };
   const rowBg = selectedIds.has(forward.id)
@@ -1191,12 +1197,18 @@ const SortableCompactTableRow = ({
     isDragging,
   } = useSortable({ id: forward.id });
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: transform
+      ? CSS.Transform.toString({
+        ...transform,
+        x: Math.round(transform.x),
+        y: Math.round(transform.y),
+      })
+      : undefined,
     transition: isDragging ? "none" : transition,
     opacity: isDragging ? 0.6 : 1,
     zIndex: isDragging ? 50 : undefined,
     position: isDragging ? ("relative" as const) : undefined,
-    willChange: "transform",
+    willChange: isDragging ? "transform" : undefined,
     backgroundColor: isDragging ? "var(--nextui-default-100)" : undefined,
   };
   const rowBg = selectedIds.has(forward.id)

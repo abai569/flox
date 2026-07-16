@@ -175,8 +175,8 @@ function InstanceRows({
           >
             <div className="flex w-full items-center gap-2 px-3 py-3 md:justify-start md:px-4 md:py-4">
               <div className="flex min-w-0 shrink items-center gap-2 md:flex-none">
-                <span className="min-w-0 max-w-[82px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[140px] md:max-w-none md:px-4 md:text-sm">
-                  {group.name} | ID: {group.id}
+                <span className="min-w-0 max-w-[120px] truncate rounded-md border border-default-300 px-2 py-1.5 text-xs font-medium text-secondary sm:max-w-[180px] md:max-w-none md:px-4 md:text-sm">
+                  {group.name}
                 </span>
               </div>
               <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-xs md:flex-none md:gap-2 md:text-sm">
