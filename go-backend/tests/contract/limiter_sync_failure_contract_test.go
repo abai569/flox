@@ -1179,6 +1179,10 @@ func startMockNodeSessionWithCommandFailures(t *testing.T, baseURL string, nodeS
 }
 
 func startMockNodeSessionWithCommandRecorder(t *testing.T, baseURL string, nodeSecret string, onCommand func(cmdType string, data json.RawMessage) (bool, string)) func() {
+	return startMockNodeInstanceSessionWithCommandRecorder(t, baseURL, nodeSecret, "", onCommand)
+}
+
+func startMockNodeInstanceSessionWithCommandRecorder(t *testing.T, baseURL string, nodeSecret string, instanceID string, onCommand func(cmdType string, data json.RawMessage) (bool, string)) func() {
 	t.Helper()
 
 	u, err := url.Parse(baseURL)
@@ -1198,6 +1202,9 @@ func startMockNodeSessionWithCommandRecorder(t *testing.T, baseURL string, nodeS
 	q.Set("http", "1")
 	q.Set("tls", "1")
 	q.Set("socks", "1")
+	if strings.TrimSpace(instanceID) != "" {
+		q.Set("instance_id", strings.TrimSpace(instanceID))
+	}
 	u.RawQuery = q.Encode()
 
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)

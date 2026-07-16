@@ -400,7 +400,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 			return nil, err
 		}
 		services := buildForwardServiceConfigsWithLimiterName(serviceBase, forward, tunnel, node, fp.Port, strings.TrimSpace(fp.InIP), limiterName, tunnelTLSProtocol)
-		if handled, instanceWarnings, instanceErr := h.syncForwardServicesOnNodeInstances(forward, node, method, services, allowFallbackAdd); handled {
+		if handled, instanceWarnings, instanceErr := h.syncForwardServicesOnNodeInstances(forward, node, fp.Port, method, services, allowFallbackAdd); handled {
 			warnings = append(warnings, instanceWarnings...)
 			if instanceErr != nil {
 				return warnings, instanceErr
@@ -454,7 +454,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	return warnings, nil
 }
 
-func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, node *nodeRecord, method string, services []map[string]interface{}, allowFallbackAdd bool) (bool, []string, error) {
+func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, node *nodeRecord, port int, method string, services []map[string]interface{}, allowFallbackAdd bool) (bool, []string, error) {
 	if h == nil || forward == nil || node == nil || node.ID <= 0 {
 		return false, nil, nil
 	}
@@ -480,6 +480,9 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 				if err != nil && allowFallbackAdd && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isNotFoundError(err) {
 					_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", fallbackServices, defaultNodeCommandTimeout, true, false)
 				}
+				if err != nil && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isAddressAlreadyInUseError(err) {
+					err = h.rebindForwardServiceOnInstanceSelfOccupiedPort(forward, node, instanceID, port, fallbackServices)
+				}
 				if err != nil && isNodeOfflineOrTimeoutError(err) {
 					warnings = append(warnings, fmt.Sprintf("节点 %s 实例 %s 不在线，已跳过兜底下发", node.Name, instanceLabel(inst)))
 					continue
@@ -497,6 +500,9 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 		_, err := h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, method, services, defaultNodeCommandTimeout, true, false)
 		if err != nil && allowFallbackAdd && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isNotFoundError(err) {
 			_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", services, defaultNodeCommandTimeout, true, false)
+		}
+		if err != nil && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isAddressAlreadyInUseError(err) {
+			err = h.rebindForwardServiceOnInstanceSelfOccupiedPort(forward, node, instanceID, port, services)
 		}
 		if err != nil && isNodeOfflineOrTimeoutError(err) {
 			warnings = append(warnings, fmt.Sprintf("节点 %s 实例 %s 不在线，已跳过下发", node.Name, instanceLabel(inst)))
@@ -719,6 +725,36 @@ func (h *Handler) rebindForwardServiceOnSelfOccupiedPort(forward *forwardRecord,
 	return nil
 }
 
+func (h *Handler) rebindForwardServiceOnInstanceSelfOccupiedPort(forward *forwardRecord, node *nodeRecord, instanceID string, port int, services []map[string]interface{}) error {
+	if h == nil || forward == nil || node == nil {
+		return errors.New("invalid instance self-occupy rebind context")
+	}
+	instanceID = strings.TrimSpace(instanceID)
+	if instanceID == "" || port <= 0 {
+		return errors.New("invalid instance or forward port")
+	}
+
+	hasOtherForward, err := h.repo.HasOtherForwardOnNodePort(node.ID, port, forward.ID)
+	if err != nil {
+		return err
+	}
+	if hasOtherForward {
+		return fmt.Errorf("端口 %d 已被其他转发占用", port)
+	}
+
+	bases, err := h.forwardServiceBaseCandidates(forward)
+	if err != nil {
+		return err
+	}
+	if err := h.deleteForwardServiceBasesOnInstance(node.ID, instanceID, bases); err != nil {
+		return err
+	}
+
+	time.Sleep(150 * time.Millisecond)
+	_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", services, defaultNodeCommandTimeout, true, false)
+	return err
+}
+
 func (h *Handler) deleteForwardServicesOnNode(forward *forwardRecord, nodeID int64) error {
 	if h == nil || forward == nil {
 		return errors.New("invalid forward delete context")
@@ -764,6 +800,20 @@ func (h *Handler) deleteForwardServiceBasesOnNode(nodeID int64, bases []string) 
 			"services": []string{name},
 		}
 		_, err := h.sendNodeCommand(nodeID, "DeleteService", payload, false, false)
+		return err
+	})
+}
+
+func (h *Handler) deleteForwardServiceBasesOnInstance(nodeID int64, instanceID string, bases []string) error {
+	instanceID = strings.TrimSpace(instanceID)
+	if h == nil || nodeID <= 0 || instanceID == "" {
+		return errors.New("invalid instance service cleanup context")
+	}
+	return deleteForwardServiceCandidates(bases, func(name string) error {
+		payload := map[string]interface{}{
+			"services": []string{name},
+		}
+		_, err := h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "DeleteService", payload, defaultNodeCommandTimeout, false, false)
 		return err
 	})
 }

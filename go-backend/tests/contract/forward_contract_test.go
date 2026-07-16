@@ -923,7 +923,7 @@ func TestForwardCreateThenPauseResumeContract(t *testing.T) {
 	}
 }
 
-func TestForwardUpdateRecoversFromAddressInUseContract(t *testing.T) {
+func TestForwardUpdateOnNodeInstanceRecoversFromAddressInUseContract(t *testing.T) {
 	secret := "contract-jwt-secret"
 	router, repo := setupContractRouter(t, secret)
 	server := httptest.NewServer(router)
@@ -987,7 +987,7 @@ func TestForwardUpdateRecoversFromAddressInUseContract(t *testing.T) {
 	counts := map[string]int{}
 	var addServiceAddrs []string
 	triggerConflict := false
-	stopNode := startMockNodeSessionWithCommandRecorder(t, server.URL, "forward-bind-retry-secret", func(cmdType string, data json.RawMessage) (bool, string) {
+	stopNode := startMockNodeInstanceSessionWithCommandRecorder(t, server.URL, "forward-bind-retry-secret", "instance-ali-2", func(cmdType string, data json.RawMessage) (bool, string) {
 		key := strings.ToLower(strings.TrimSpace(cmdType))
 		mu.Lock()
 		counts[key]++
@@ -1005,9 +1005,6 @@ func TestForwardUpdateRecoversFromAddressInUseContract(t *testing.T) {
 		shouldFail := false
 		if triggerConflict {
 			if strings.EqualFold(strings.TrimSpace(cmdType), "UpdateService") && attempt == 1 {
-				shouldFail = true
-			}
-			if strings.EqualFold(strings.TrimSpace(cmdType), "AddService") && attempt == 1 {
 				shouldFail = true
 			}
 		}
@@ -1061,8 +1058,8 @@ func TestForwardUpdateRecoversFromAddressInUseContract(t *testing.T) {
 	if counts["deleteservice"] == 0 {
 		t.Fatalf("expected DeleteService cleanup after address-in-use (%v)", counts)
 	}
-	if counts["addservice"] < 2 {
-		t.Fatalf("expected AddService retry path to run at least twice total, got %d (%v)", counts["addservice"], counts)
+	if counts["addservice"] != 1 {
+		t.Fatalf("expected one AddService retry on the same instance, got %d (%v)", counts["addservice"], counts)
 	}
 	foundBindAddr := false
 	for _, addr := range addServiceAddrs {
