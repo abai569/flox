@@ -67,6 +67,7 @@ import {
   updateForward,
   deleteForward,
   forceDeleteForward,
+  deleteTunnel,
   userTunnel,
   getNodeList,
   getNodeGroupList,
@@ -1746,7 +1747,8 @@ export default function ForwardPage() {
   const [tunnelSelectMode, setTunnelSelectMode] = useState<
     "existing" | "manual"
   >("existing");
-  const [tunnelModeLocked, setTunnelModeLocked] = useState(false);
+  const [editingOriginalManualTunnelId, setEditingOriginalManualTunnelId] =
+    useState<number | null>(null);
   const [manualTunnelType, setManualTunnelType] = useState<1 | 2>(2);
   const [manualInNodeId, setManualInNodeId] = useState<ChainTunnel[]>([]);
   const [manualInIp, setManualInIp] = useState("");
@@ -1843,7 +1845,7 @@ export default function ForwardPage() {
   }, [allTunnels, form.tunnelId]);
   const resetManualTunnelState = () => {
     setTunnelSelectMode("existing");
-    setTunnelModeLocked(false);
+    setEditingOriginalManualTunnelId(null);
     setManualTunnelType(2);
     setManualInNodeId([]);
     setManualInIp("");
@@ -2715,15 +2717,15 @@ export default function ForwardPage() {
     }
     if (isManualTunnel(targetTunnel)) {
       setTunnelSelectMode("manual");
+      setEditingOriginalManualTunnelId(targetTunnel?.id ?? forward.tunnelId);
       setManualTunnelType(targetTunnel?.type === 1 ? 1 : 2);
       setManualInNodeId(normalizeManualNodes(targetTunnel?.inNodeId));
       setManualInIp((targetTunnel?.inIp || "").split(",").join("\n"));
       setManualChainNodes(normalizeManualChainNodes(targetTunnel?.chainNodes));
       setManualOutNodeId(normalizeManualNodes(targetTunnel?.outNodeId));
-      setTunnelModeLocked(true);
     } else {
       setTunnelSelectMode("existing");
-      setTunnelModeLocked(false);
+      setEditingOriginalManualTunnelId(null);
     }
     setErrors({});
     setModalOpen(true);
@@ -2979,6 +2981,9 @@ export default function ForwardPage() {
       return;
     }
 
+    let createdManualTunnelId: number | null = null;
+    let createdManualTunnelReused = false;
+
     setSubmitLoading(true);
     try {
       const processedRemoteAddr = form.remoteAddr
@@ -2998,14 +3003,11 @@ export default function ForwardPage() {
 
           return;
         }
-        if (isEdit) {
-          if (!submitTunnelId) {
-            toast.error("自行组建隧道缺少关联隧道ID");
+        const editableManualTunnelId = isEdit ? editingOriginalManualTunnelId : null;
 
-            return;
-          }
+        if (editableManualTunnelId) {
           const tunnelRes = await updateTunnel(
-            buildManualTunnelPayload(submitTunnelId),
+            buildManualTunnelPayload(editableManualTunnelId),
           );
 
           if (tunnelRes.code !== 0) {
@@ -3013,6 +3015,7 @@ export default function ForwardPage() {
 
             return;
           }
+          submitTunnelId = editableManualTunnelId;
         } else {
           const tunnelRes = await createTunnel(buildManualTunnelPayload());
 
@@ -3022,6 +3025,8 @@ export default function ForwardPage() {
             return;
           }
           submitTunnelId = tunnelRes.data.id;
+          createdManualTunnelId = tunnelRes.data.id;
+          createdManualTunnelReused = Boolean((tunnelRes.data as any)?.reused);
         }
       }
 
@@ -3096,9 +3101,15 @@ export default function ForwardPage() {
         await refreshForwardList(false);
       } else {
         toast.error(res.msg || "操作失败");
+        if (createdManualTunnelId && !createdManualTunnelReused) {
+          await deleteTunnel(createdManualTunnelId).catch(() => undefined);
+        }
       }
     } catch {
       toast.error("操作失败");
+      if (createdManualTunnelId && !createdManualTunnelReused) {
+        await deleteTunnel(createdManualTunnelId).catch(() => undefined);
+      }
     } finally {
       setSubmitLoading(false);
     }
@@ -5991,15 +6002,12 @@ export default function ForwardPage() {
                     {/* 选择隧道 */}
                     <Select
                       description={
-                        tunnelModeLocked
-                          ? "自行组建规则不能切换为固定隧道"
-                          : isEdit
-                            ? "更改隧道将释放原端口并在新隧道分配端口"
-                            : "看括号内说明选择隧道"
+                        isEdit
+                          ? "更改隧道将释放原端口并在新隧道分配端口"
+                          : "看括号内说明选择隧道"
                       }
                       errorMessage={errors.tunnelId}
                       isInvalid={!!errors.tunnelId}
-                      isDisabled={tunnelModeLocked}
                       label="选择隧道"
                       placeholder="请选择关联的隧道"
                       selectedKeys={
@@ -6018,7 +6026,7 @@ export default function ForwardPage() {
                         }
                       }}
                     >
-                      {canUseManualTunnel && (!isEdit || tunnelSelectMode === "manual") && (
+                      {canUseManualTunnel && (
                         <SelectItem key={MANUAL_TUNNEL_SELECT_KEY}>
                           极客可以自行组建隧道
                         </SelectItem>
@@ -6129,10 +6137,6 @@ export default function ForwardPage() {
                         )}
                       </div>
                       <Select
-                        description={
-                          tunnelModeLocked ? "编辑时无法修改隧道类型" : undefined
-                        }
-                        isDisabled={tunnelModeLocked}
                         label="隧道类型"
                         selectedKeys={[manualTunnelType.toString()]}
                         variant="bordered"
