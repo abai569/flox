@@ -2868,6 +2868,11 @@ func (h *Handler) reconstructTunnelState(tunnelID int64) (*tunnelCreateState, er
 		}
 		state.Nodes[id] = node
 	}
+	instances, err := h.repo.ListOnlineNodeInstancesByNodeIDs(state.NodeIDList)
+	if err != nil {
+		return nil, err
+	}
+	state.NodeInstances = instances
 
 	relayMode, _ := h.resolveTunnelRelayMode(tunnelID)
 	state.Mode = relayMode
@@ -2876,6 +2881,10 @@ func (h *Handler) reconstructTunnelState(tunnelID int64) (*tunnelCreateState, er
 }
 
 func (h *Handler) redeployTunnelAndForwards(tunnelID int64) error {
+	lock := tunnelRedeployLock(tunnelID)
+	lock.Lock()
+	defer lock.Unlock()
+
 	tunnel, err := h.getTunnelRecord(tunnelID)
 	if err != nil {
 		return err
