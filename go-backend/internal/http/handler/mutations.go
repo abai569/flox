@@ -5580,6 +5580,22 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		}
 
 		instances := instancesByNode[target.NodeID]
+		hasEnabledInstance := false
+		for _, inst := range instances {
+			if inst.Weight > 0 {
+				hasEnabledInstance = true
+				break
+			}
+		}
+		if len(instances) > 0 && !hasEnabledInstance {
+			continue
+		}
+		if host := pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference); host != "" && (len(instances) > 0 || targetNode.Weight > 0) {
+			itemIndex++
+			nodeItems = append(nodeItems, buildTunnelChainNodeItem(itemIndex, host, port, target.Protocol, targetNode.Weight))
+			continue
+		}
+
 		usedInstance := false
 		if len(instances) > 0 {
 			for _, inst := range instances {
@@ -5672,6 +5688,37 @@ func pickNodeInstanceAddress(inst model.NodeInstance, connectIPType string, ipPr
 		return v4
 	}
 	return v6
+}
+
+func pickNodeConfiguredTunnelAddress(node *nodeRecord, connectIPType string, ipPreference string) string {
+	if node == nil {
+		return ""
+	}
+	effectiveType := strings.ToLower(strings.TrimSpace(connectIPType))
+	if effectiveType == "" {
+		effectiveType = strings.ToLower(strings.TrimSpace(ipPreference))
+	}
+	switch effectiveType {
+	case "lan":
+		return pickNodeAddressLan(node)
+	case "v4", "ipv4":
+		return strings.TrimSpace(node.ServerIPv4)
+	case "v6", "ipv6":
+		return strings.Trim(strings.TrimSpace(node.ServerIPv6), "[]")
+	case "auto":
+		if host := strings.TrimSpace(node.ServerIPv4); host != "" {
+			return host
+		}
+		return strings.Trim(strings.TrimSpace(node.ServerIPv6), "[]")
+	default:
+		if host := pickNodeAddressLan(node); host != "" {
+			return host
+		}
+		if host := strings.TrimSpace(node.ServerIPv4); host != "" {
+			return host
+		}
+		return strings.Trim(strings.TrimSpace(node.ServerIPv6), "[]")
+	}
 }
 
 func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, node *nodeRecord, nextHopCandidateCount int, mode string) []map[string]interface{} {

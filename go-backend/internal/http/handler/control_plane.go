@@ -1459,7 +1459,8 @@ func (h *Handler) expandDiagnosisWorkItemsByInstances(workItems []diagnosisWorkI
 	for _, item := range workItems {
 		fromEndpoints := diagnosisSourceEndpoints(item.fromNodeID, instancesByNode)
 		if item.hasChainHop {
-			toEndpoints := diagnosisTargetEndpoints(item.toNode, item.ipPreference, item.connectIpType, instancesByNode)
+			targetNode, _ := h.getNodeRecord(item.toNode.NodeID)
+			toEndpoints := diagnosisTargetEndpoints(item.toNode, targetNode, item.ipPreference, item.connectIpType, instancesByNode)
 			for _, from := range fromEndpoints {
 				for _, to := range toEndpoints {
 					expanded = append(expanded, enrichDiagnosisWorkItem(item, from, to))
@@ -1491,8 +1492,23 @@ func diagnosisSourceEndpoints(nodeID int64, instancesByNode map[int64][]model.No
 	return endpoints
 }
 
-func diagnosisTargetEndpoints(node chainNodeRecord, ipPreference string, connectIPType string, instancesByNode map[int64][]model.NodeInstance) []diagnosisNodeEndpoint {
+func diagnosisTargetEndpoints(node chainNodeRecord, targetNode *nodeRecord, ipPreference string, connectIPType string, instancesByNode map[int64][]model.NodeInstance) []diagnosisNodeEndpoint {
 	instances := instancesByNode[node.NodeID]
+	hasEnabledInstance := false
+	for _, inst := range instances {
+		if inst.Weight > 0 {
+			hasEnabledInstance = true
+			break
+		}
+	}
+	configuredHost := pickNodeConfiguredTunnelAddress(targetNode, connectIPType, ipPreference)
+	if (len(instances) == 0 || hasEnabledInstance) && configuredHost != "" {
+		return []diagnosisNodeEndpoint{{
+			nodeID:     node.NodeID,
+			nodeName:   node.NodeName,
+			targetHost: configuredHost,
+		}}
+	}
 	if len(instances) == 0 {
 		return []diagnosisNodeEndpoint{{nodeID: node.NodeID, nodeName: node.NodeName}}
 	}

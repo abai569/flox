@@ -449,7 +449,7 @@ func TestSelectTunnelDialHost_MixedStack_FromV6ToDual(t *testing.T) {
 func TestBuildTunnelChainConfig_UsesNodeInstancesWithWeights(t *testing.T) {
 	nodes := map[int64]*nodeRecord{
 		1: {ID: 1, Name: "from", ServerIPv4: "10.0.0.1"},
-		2: {ID: 2, Name: "to", ServerIPv4: "192.0.2.10", Weight: 9},
+		2: {ID: 2, Name: "to", Weight: 9},
 	}
 	instances := map[int64][]model.NodeInstance{
 		2: {
@@ -477,6 +477,67 @@ func TestBuildTunnelChainConfig_UsesNodeInstancesWithWeights(t *testing.T) {
 	}
 	if items[0]["metadata"].(map[string]interface{})["weight"] != 3 || items[1]["metadata"].(map[string]interface{})["weight"] != 7 {
 		t.Fatalf("expected instance weights, got %#v", items)
+	}
+}
+
+func TestBuildTunnelChainConfig_PrefersConfiguredLanDomainOverInstances(t *testing.T) {
+	nodes := map[int64]*nodeRecord{
+		1: {ID: 1, Name: "from", ServerIPv4: "10.0.0.1"},
+		2: {ID: 2, Name: "to", IntranetIP: "ix.example.com", Weight: 9},
+	}
+	instances := map[int64][]model.NodeInstance{
+		2: {
+			{NodeID: 2, InstanceID: "a", PublicIPV4: "198.51.100.1", Weight: 3},
+			{NodeID: 2, InstanceID: "b", PublicIPV4: "198.51.100.2", Weight: 7},
+		},
+	}
+	targets := []tunnelRuntimeNode{{NodeID: 2, Protocol: "tls", Strategy: "round", Port: 21000, ConnectIPType: "lan"}}
+
+	chain, err := buildTunnelChainConfig(99, 1, targets, nodes, instances, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	hops := chain["hops"].([]map[string]interface{})
+	items := hops[0]["nodes"].([]map[string]interface{})
+	if len(items) != 1 || items[0]["addr"] != "ix.example.com:21000" {
+		t.Fatalf("expected one configured LAN domain target, got %#v", items)
+	}
+}
+
+func TestDiagnosisTargetEndpoints_PrefersConfiguredLanDomainOverInstances(t *testing.T) {
+	node := chainNodeRecord{NodeID: 2, NodeName: "to"}
+	targetNode := &nodeRecord{ID: 2, IntranetIP: "ix.example.com"}
+	instances := map[int64][]model.NodeInstance{
+		2: {
+			{NodeID: 2, InstanceID: "a", PublicIPV4: "198.51.100.1", Weight: 3},
+			{NodeID: 2, InstanceID: "b", PublicIPV4: "198.51.100.2", Weight: 7},
+		},
+	}
+
+	endpoints := diagnosisTargetEndpoints(node, targetNode, "", "lan", instances)
+	if len(endpoints) != 1 || endpoints[0].targetHost != "ix.example.com" {
+		t.Fatalf("expected one configured LAN diagnosis target, got %+v", endpoints)
+	}
+	if endpoints[0].instanceID != "" {
+		t.Fatalf("configured node address must not be attributed to one instance, got %+v", endpoints[0])
+	}
+}
+
+func TestDiagnosisTargetEndpoints_FallsBackToInstancesWhenNodeAddressMissing(t *testing.T) {
+	node := chainNodeRecord{NodeID: 2, NodeName: "to"}
+	instances := map[int64][]model.NodeInstance{
+		2: {
+			{NodeID: 2, InstanceID: "a", PublicIPV4: "198.51.100.1", Weight: 3},
+			{NodeID: 2, InstanceID: "b", PublicIPV4: "198.51.100.2", Weight: 7},
+		},
+	}
+
+	endpoints := diagnosisTargetEndpoints(node, &nodeRecord{ID: 2}, "", "lan", instances)
+	if len(endpoints) != 2 {
+		t.Fatalf("expected two instance fallback targets, got %+v", endpoints)
+	}
+	if endpoints[0].targetHost != "198.51.100.1" || endpoints[1].targetHost != "198.51.100.2" {
+		t.Fatalf("unexpected instance fallback targets: %+v", endpoints)
 	}
 }
 
