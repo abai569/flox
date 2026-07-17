@@ -88,6 +88,7 @@ type Server struct {
 	jwtSecret             string
 	upgrader              websocket.Upgrader
 	onNodeOnline          func(nodeID int64)
+	onNodeInstanceOnline  func(nodeID int64, instanceID string)
 	onNodeOffline         func(nodeID int64)
 	onNodeInstanceOffline func(nodeID int64, instanceID string)
 	onNodeMetric          func(nodeID int64, info SystemInfo)
@@ -154,6 +155,15 @@ func (s *Server) SetNodeOnlineHook(fn func(nodeID int64)) {
 	}
 	s.mu.Lock()
 	s.onNodeOnline = fn
+	s.mu.Unlock()
+}
+
+func (s *Server) SetNodeInstanceOnlineHook(fn func(nodeID int64, instanceID string)) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.onNodeInstanceOnline = fn
 	s.mu.Unlock()
 }
 
@@ -525,9 +535,13 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 
 	s.mu.RLock()
 	onlineHook := s.onNodeOnline
+	instanceOnlineHook := s.onNodeInstanceOnline
 	s.mu.RUnlock()
 	if onlineHook != nil {
 		go onlineHook(nodeID)
+	}
+	if instanceOnlineHook != nil {
+		go instanceOnlineHook(nodeID, instanceID)
 	}
 
 	defer func() {

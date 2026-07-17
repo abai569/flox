@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"go-backend/internal/http/client"
 	"go-backend/internal/middleware"
 	"go-backend/internal/store/model"
 	"go-backend/internal/ws"
@@ -1034,7 +1035,52 @@ func (h *Handler) sendRemoteNodeCommand(node *nodeRecord, commandType string, da
 }
 
 func (h *Handler) sendRemoteNodeCommandWithTimeout(node *nodeRecord, commandType string, data interface{}, timeout time.Duration) (ws.CommandResult, error) {
-	return ws.CommandResult{}, errors.New("远程节点命令功能已废弃")
+	if node == nil {
+		return ws.CommandResult{}, errors.New("节点不存在")
+	}
+	remoteURL := strings.TrimSpace(node.RemoteURL)
+	remoteToken := strings.TrimSpace(node.RemoteToken)
+	if remoteURL == "" || remoteToken == "" {
+		return ws.CommandResult{}, errors.New("远程节点缺少共享配置")
+	}
+
+	fc := client.NewFederationClient()
+	if timeout > 0 {
+		fc = client.NewFederationClientWithTimeout(timeout)
+	}
+	res, err := fc.Command(remoteURL, remoteToken, h.federationLocalDomain(), client.RuntimeNodeCommandRequest{
+		CommandType: commandType,
+		Data:        data,
+	})
+	if err != nil {
+		return ws.CommandResult{}, err
+	}
+	if res == nil {
+		return ws.CommandResult{}, errors.New("远程节点未返回命令结果")
+	}
+
+	result := ws.CommandResult{
+		Type:    res.Type,
+		Success: res.Success,
+		Message: res.Message,
+		Data:    res.Data,
+	}
+	if len(res.Instances) > 0 {
+		data := make(map[string]interface{}, len(result.Data)+1)
+		for key, value := range result.Data {
+			data[key] = value
+		}
+		data["instances"] = res.Instances
+		result.Data = data
+	}
+	if !result.Success {
+		msg := strings.TrimSpace(result.Message)
+		if msg == "" {
+			msg = "命令执行失败"
+		}
+		return result, errors.New(msg)
+	}
+	return result, nil
 }
 
 func (h *Handler) diagnoseForwardRuntime(ctx context.Context, forward *forwardRecord) (map[string]interface{}, error) {
@@ -1501,7 +1547,10 @@ func diagnosisTargetEndpoints(node chainNodeRecord, targetNode *nodeRecord, ipPr
 			break
 		}
 	}
-	configuredHost := pickNodeConfiguredTunnelAddress(targetNode, connectIPType, ipPreference)
+	configuredHost := strings.TrimSpace(node.ConnectIP)
+	if configuredHost == "" {
+		configuredHost = pickNodeConfiguredTunnelAddress(targetNode, connectIPType, ipPreference)
+	}
 	if (len(instances) == 0 || hasEnabledInstance) && configuredHost != "" {
 		return []diagnosisNodeEndpoint{{
 			nodeID:     node.NodeID,
@@ -2244,7 +2293,28 @@ func (h *Handler) sdwanDiagViaNode(nodeID int64, instanceID string, options diag
 }
 
 func (h *Handler) tcpPingViaRemoteNode(node *nodeRecord, ip string, port int, options diagnosisExecOptions) (map[string]interface{}, error) {
-	return nil, errors.New("远程节点诊断功能已废弃")
+	if node == nil {
+		return nil, errors.New("节点不存在")
+	}
+	remoteURL := strings.TrimSpace(node.RemoteURL)
+	remoteToken := strings.TrimSpace(node.RemoteToken)
+	if remoteURL == "" || remoteToken == "" {
+		return nil, errors.New("远程节点缺少共享配置")
+	}
+	if options.commandTimeout <= 0 {
+		options.commandTimeout = diagnosisCommandTimeout
+	}
+	if options.pingTimeoutMS <= 0 {
+		options.pingTimeoutMS = int(diagnosisCommandTimeout / time.Millisecond)
+	}
+
+	fc := client.NewFederationClientWithTimeout(options.commandTimeout)
+	return fc.Diagnose(remoteURL, remoteToken, h.federationLocalDomain(), client.RuntimeDiagnoseRequest{
+		IP:      strings.TrimSpace(ip),
+		Port:    port,
+		Count:   4,
+		Timeout: options.pingTimeoutMS,
+	})
 }
 
 func splitRemoteTargets(remoteAddr string) []string {

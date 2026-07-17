@@ -1,4 +1,5 @@
 import type { MonitorNodeInstanceGroupMemberApiItem, NodeGroupApiItem, OfflineDeployPayload } from "@/api/types";
+import type { Node } from "./node/types";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
@@ -23,6 +24,9 @@ import { CSS } from "@dnd-kit/utilities";
 
 import { NodeGroupManager } from "./node/node-group-manager";
 import { NodeDNSFailoverModal } from "./node/dns-failover-modal";
+import { NodeImportModal } from "./node/node-import-modal";
+import { NodeSharingModal } from "./node/node-sharing-modal";
+import { RemoteNodeDetailModal } from "./node/remote-node-detail-modal";
 
 import {
   DistroIcon,
@@ -95,6 +99,8 @@ import {
   getConfigByName,
   installMimicDeps,
   updateNodeInstanceProfile,
+  updateNodeInstanceOrder,
+  getPeerShareList,
   type ReleaseChannel,
 } from "@/api";
 import { compareVersions } from "@/utils/version-update";
@@ -106,10 +112,7 @@ import {
   formatNodeRenewalTime,
   type NodeRenewalCycle,
 } from "@/pages/node/renewal";
-import {
-  buildNodeSystemInfo,
-  type NodeSystemInfo,
-} from "@/pages/node/system-info";
+import { buildNodeSystemInfo } from "@/pages/node/system-info";
 import { useNodeOfflineTimers } from "@/pages/node/use-node-offline-timers";
 import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
@@ -156,55 +159,6 @@ type RealtimeNodeInstanceMetric = RealtimeNodeMetric & {
   receivedAt: number;
 };
 
-interface Node {
-  id: number;
-  inx?: number;
-  name: string;
-  remark?: string;
-  expiryTime?: number;
-  renewalCycle?: NodeRenewalCycle;
-  flowResetTime?: number;
-  expiryReminderDismissed?: number;
-  expiryReminderDismissedUntil: number | null;
-  expiryInstances?: NodeExpiryInstance[];
-  ip: string;
-  serverIp: string;
-  intranetIp?: string;
-  serverIpV4?: string;
-  serverIpV6?: string;
-  port: string;
-  tcpListenAddr?: string;
-  udpListenAddr?: string;
-  extraIPs?: string;
-  remoteConfig?: string;
-  version?: string;
-  http?: number;
-  tls?: number;
-  socks?: number;
-  status: number;
-  connectionStatus: "online" | "offline";
-  paused?: number;
-  mimicStatus?: string;
-  mimicError?: string;
-  systemInfo?: NodeSystemInfo | null;
-  copyLoading?: boolean;
-  upgradeLoading?: boolean;
-  rollbackLoading?: boolean;
-  groupId?: number | null;
-  secret?: string;
-  trafficRatio?: number;
-  periodTraffic?: NodePeriodTraffic;
-}
-interface NodeExpiryInstance {
-  nodeId: number;
-  instanceId: string;
-  displayIndex?: number;
-  displayName?: string;
-  expiryTime: number;
-  renewalCycle: NodeRenewalCycle;
-  expiryReminderDismissed?: number;
-  expiryReminderDismissedUntil?: number | null;
-}
 interface NodeForm {
   id: number | null;
   name: string;
@@ -607,9 +561,11 @@ const aggregateRealtimeNodeMetrics = (
 };
 const SortableItem = ({
   id,
+  disabled,
   children,
 }: {
   id: number;
+  disabled?: boolean;
   children: (listeners: any, attributes?: any) => any;
 }) => {
   const {
@@ -619,7 +575,7 @@ const SortableItem = ({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
   const style: React.CSSProperties = {
     transform: transform
       ? CSS.Transform.toString({
@@ -707,6 +663,10 @@ export default function NodePage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
+  const [shareCounts, setShareCounts] = useState<Record<number, number>>({});
+  const [sharingNode, setSharingNode] = useState<Node | null>(null);
+  const [importNodeOpen, setImportNodeOpen] = useState(false);
+  const [remoteDetailNode, setRemoteDetailNode] = useState<Node | null>(null);
   const [form, setForm, resetDraft] = useLocalStorageState<NodeForm>(
     "node-create-draft",
     {
@@ -982,6 +942,20 @@ export default function NodePage() {
   useEffect(() => {
     loadNodeGroups();
   }, [loadNodeGroups]);
+  const loadShareCounts = useCallback(async () => {
+    try {
+      const res = await getPeerShareList();
+      if (res.code !== 0 || !Array.isArray(res.data)) return;
+      const counts = res.data.reduce<Record<number, number>>((acc, share) => {
+        acc[share.nodeId] = (acc[share.nodeId] || 0) + 1;
+        return acc;
+      }, {});
+
+      setShareCounts(counts);
+    } catch {
+      // 分享计数是辅助信息，失败时不阻塞节点列表。
+    }
+  }, []);
   const loadNodes = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
 
@@ -1350,7 +1324,12 @@ export default function NodePage() {
   useEffect(() => {
     loadNodes();
   }, [loadNodes]);
-  usePullToRefresh(loadNodes);
+  useEffect(() => {
+    void loadShareCounts();
+  }, [loadShareCounts]);
+  usePullToRefresh(async () => {
+    await Promise.all([loadNodes(), loadShareCounts()]);
+  });
   useEffect(() => {
     if (!usingPollingFallback) {
       return;
@@ -1372,6 +1351,13 @@ export default function NodePage() {
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
+  const handleShareCountChange = useCallback((nodeId: number, count: number) => {
+    setShareCounts((prev) => ({ ...prev, [nodeId]: count }));
+  }, []);
+  const getSelectedLocalIds = () =>
+    Array.from(selectedIds).filter(
+      (id) => nodeList.find((node) => node.id === id)?.isRemote !== 1,
+    );
   const ipv4Regex =
     /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
   const ipv6Regex =
@@ -1732,6 +1718,47 @@ export default function NodePage() {
     if (!member) return "实例";
     return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
   };
+  const reorderNodeInstances = useCallback(
+    async (nodeId: number, activeInstanceId: string, overInstanceId: string) => {
+      const previousMembers = nodeInstanceMembers[nodeId];
+
+      if (!previousMembers) return;
+      const oldIndex = previousMembers.findIndex(
+        (member) => member.instanceId?.trim() === activeInstanceId,
+      );
+      const newIndex = previousMembers.findIndex(
+        (member) => member.instanceId?.trim() === overInstanceId,
+      );
+
+      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
+      const reorderedMembers = arrayMove(previousMembers, oldIndex, newIndex).map(
+        (member, index) => ({ ...member, displayIndex: index + 1 }),
+      );
+      const instanceIds = reorderedMembers.map((member) => member.instanceId?.trim() || "");
+
+      if (instanceIds.some((instanceId) => !instanceId)) {
+        toast.error("实例标识无效，无法保存排序");
+        return;
+      }
+
+      setNodeInstanceMembers((current) => ({
+        ...current,
+        [nodeId]: reorderedMembers,
+      }));
+      try {
+        const res = await updateNodeInstanceOrder({ nodeId, instanceIds });
+
+        if (res.code !== 0) throw new Error(res.msg || "保存实例排序失败");
+      } catch (error) {
+        setNodeInstanceMembers((current) => ({
+          ...current,
+          [nodeId]: previousMembers,
+        }));
+        toast.error(error instanceof Error ? error.message : "保存实例排序失败");
+      }
+    },
+    [nodeInstanceMembers],
+  );
   const openInstanceConfigEditor = (member: MonitorNodeInstanceGroupMemberApiItem) => {
     const renewalCycle = String(member.renewalCycle || "");
 
@@ -2237,7 +2264,7 @@ export default function NodePage() {
         );
       }
     } else if (upgradeTarget === "batch") {
-      const selectedLocalIds = Array.from(selectedIds);
+      const selectedLocalIds = getSelectedLocalIds();
 
       if (selectedLocalIds.length === 0) {
         toast.error("请选择节点进行升级");
@@ -2299,7 +2326,7 @@ export default function NodePage() {
     return "apt-get install -f -y && systemctl restart flox_agent1";
   }
   const handleBatchMimicDeps = async (targetIds?: number[]) => {
-    const selectedLocalIds = targetIds ?? Array.from(selectedIds);
+    const selectedLocalIds = targetIds ?? getSelectedLocalIds();
 
     if (selectedLocalIds.length === 0) {
       toast.error("请选择节点");
@@ -2352,7 +2379,7 @@ export default function NodePage() {
     setMimicConfirmNodes(nodes);
   };
   const handleBatchResetTraffic = async () => {
-    const selectedLocalIds = Array.from(selectedIds);
+    const selectedLocalIds = getSelectedLocalIds();
 
     if (selectedLocalIds.length === 0) {
       toast.error("请选择节点进行归零");
@@ -2403,10 +2430,10 @@ export default function NodePage() {
     }
   };
   const handleBatchBootstrapSDWAN = async () => {
-    if (selectedIds.size === 0) return;
+    const ids = getSelectedLocalIds();
+    if (ids.length === 0) return;
     setBatchSDWANLoading(true);
     try {
-      const ids = Array.from(selectedIds);
       const res = await bootstrapNodeSDWAN(ids, ids[0]);
 
       if (res.code === 0) {
@@ -2574,7 +2601,15 @@ export default function NodePage() {
     const overId = Number(over.id);
 
     if (isNaN(activeId) || isNaN(overId)) return;
-    const displayNodeIds = displayNodes.map((node) => node.id);
+    if (
+      nodeList.find((node) => node.id === activeId)?.isRemote === 1 ||
+      nodeList.find((node) => node.id === overId)?.isRemote === 1
+    ) {
+      return;
+    }
+    const displayNodeIds = displayNodes
+      .filter((node) => node.isRemote !== 1)
+      .map((node) => node.id);
     const oldIndex = displayNodeIds.indexOf(activeId);
     const newIndex = displayNodeIds.indexOf(overId);
 
@@ -2596,7 +2631,9 @@ export default function NodePage() {
     setNodeOrder(newOrder);
     saveOrder("node-order", newOrder);
     try {
-      const nodesToUpdate = newOrder.map((id, index) => ({ id, inx: index }));
+      const nodesToUpdate = newOrder
+        .filter((id) => nodeList.find((node) => node.id === id)?.isRemote !== 1)
+        .map((id, index) => ({ id, inx: index }));
       const response = await updateNodeOrder({ nodes: nodesToUpdate });
 
       if (response.code === 0) {
@@ -2615,6 +2652,7 @@ export default function NodePage() {
     }
   };
   const toggleSelect = (id: number) => {
+    if (nodeList.find((node) => node.id === id)?.isRemote === 1) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
 
@@ -2635,7 +2673,7 @@ export default function NodePage() {
   };
   const handleSelectAllToggle = (isSelected: boolean) => {
     if (isSelected) {
-      setSelectedIds(new Set(displayNodes.map((n) => n.id)));
+      setSelectedIds(new Set(displayNodes.filter((node) => node.isRemote !== 1).map((node) => node.id)));
       if (!selectMode) {
         setSelectMode(true);
       }
@@ -2645,21 +2683,23 @@ export default function NodePage() {
     }
   };
   const selectAll = () => {
-    setSelectedIds(new Set(displayNodes.map((n) => n.id)));
+    setSelectedIds(new Set(displayNodes.filter((node) => node.isRemote !== 1).map((node) => node.id)));
   };
   const deselectAll = () => {
     setSelectedIds(new Set());
     setSelectMode(false);
   };
   const handleBatchDelete = async () => {
-    if (selectedIds.size === 0) return;
+    const selectedLocalIds = getSelectedLocalIds();
+    if (selectedLocalIds.length === 0) return;
     setBatchLoading(true);
     try {
-      const res = await batchDeleteNodes(Array.from(selectedIds));
+      const res = await batchDeleteNodes(selectedLocalIds);
 
       if (res.code === 0) {
-        toast.success(`成功删除 ${selectedIds.size} 个节点`);
-        setNodeList((prev) => prev.filter((n) => !selectedIds.has(n.id)));
+        toast.success(`成功删除 ${selectedLocalIds.length} 个节点`);
+        const deletedIds = new Set(selectedLocalIds);
+        setNodeList((prev) => prev.filter((node) => !deletedIds.has(node.id)));
         setSelectedIds(new Set());
         setBatchDeleteModalOpen(false);
         setSelectMode(false);
@@ -2800,7 +2840,7 @@ export default function NodePage() {
     );
   }, [displayNodes]);
   const sortableNodeIds = useMemo(
-    () => displayNodes.map((n) => n.id),
+    () => displayNodes.filter((node) => node.isRemote !== 1).map((node) => node.id),
     [displayNodes],
   );
   const groupedNodes = useMemo(() => {
@@ -2859,11 +2899,11 @@ export default function NodePage() {
           <div className="flex flex-col gap-2 w-full">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <Checkbox
-                  isSelected={selectedIds.has(node.id)}
-                  onValueChange={() => toggleSelect(node.id)}
-                />
-                <div
+                {node.isRemote !== 1 && <Checkbox
+                    isSelected={selectedIds.has(node.id)}
+                    onValueChange={() => toggleSelect(node.id)}
+                  />}
+                {node.isRemote !== 1 && <div
                   className="cursor-grab active:cursor-grabbing p-1 text-default-400 hover:text-default-600 transition-colors"
                   {...listeners}
                   style={{ touchAction: "none" }}
@@ -2877,7 +2917,7 @@ export default function NodePage() {
                   >
                     <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
                   </svg>
-                </div>
+                </div>}
                 {/* WGM 状态 */}
                 {node.mimicStatus === "ok" || node.mimicStatus === "deps_ready" ? (
                   <span className="text-green-500 text-sm" title="WGM 就绪">✅</span>
@@ -3184,7 +3224,13 @@ export default function NodePage() {
               )}
           </div>
           <div className="space-y-3">
-            <div className="grid gap-2 grid-cols-2">
+            {node.isRemote === 1 ? (
+              <div className="grid grid-cols-2 gap-2">
+                <Button color="secondary" size="sm" variant="flat" onPress={() => setRemoteDetailNode(node)}>远程详情</Button>
+                <Button color="danger" size="sm" variant="flat" onPress={() => handleDelete(node)}>删除</Button>
+              </div>
+            ) : <>
+            <div className="grid gap-2 grid-cols-3">
               <div className="w-full">
                 <Dropdown>
                   <DropdownTrigger>
@@ -3232,6 +3278,15 @@ export default function NodePage() {
               >
                 更新
               </Button>
+              <Button
+                className="min-h-8 w-full"
+                color="primary"
+                size="sm"
+                variant="flat"
+                onPress={() => setSharingNode(node)}
+              >
+                分享{shareCounts[node.id] ? ` ${shareCounts[node.id]}` : ""}
+              </Button>
             </div>
             <div className="grid gap-2 grid-cols-4">
               <Button
@@ -3271,6 +3326,7 @@ export default function NodePage() {
                 删除
               </Button>
             </div>
+            </>}
           </div>
           {/* 备注和到期提醒 */}
           {(node.remark?.trim() || hasExpiryInfo) && (
@@ -3320,7 +3376,7 @@ export default function NodePage() {
     <MonitorTerminalProvider>
       <AnimatedPage className="px-3 lg:px-6 py-8">
         <div className="mb-6 space-y-3">
-          <div className="flex flex-row items-center gap-3 overflow-x-auto pb-1">
+            <div className="flex flex-wrap items-center gap-3 pb-1">
             <div className="flex items-center gap-2">
               <SearchBar
                 isVisible={isSearchVisible}
@@ -3340,7 +3396,7 @@ export default function NodePage() {
                 }}
               />
             </div>
-            <div className="flex h-8 items-center gap-2 whitespace-nowrap shrink-0">
+            <div className="flex min-h-8 flex-wrap items-center gap-2">
               {selectMode ? (
                 <>
                   <Button
@@ -3377,7 +3433,9 @@ export default function NodePage() {
                     variant="flat"
                     onPress={() =>
                       requestMimicDepsInstall(
-                        nodeList.filter((node) => selectedIds.has(node.id)),
+                        nodeList.filter(
+                          (node) => selectedIds.has(node.id) && node.isRemote !== 1,
+                        ),
                       )
                     }
                   >
@@ -3463,6 +3521,14 @@ export default function NodePage() {
                     DNS
                   </Button>
                   {/* 新增按钮 */}
+                  <Button
+                    color="secondary"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => setImportNodeOpen(true)}
+                  >
+                    导入远程节点
+                  </Button>
                   <Button
                     color="primary"
                     size="sm"
@@ -3571,7 +3637,11 @@ export default function NodePage() {
                       >
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                           {displayNodes.map((node) => (
-                            <SortableItem key={node.id} id={node.id}>
+                            <SortableItem
+                              disabled={node.isRemote === 1}
+                              key={node.id}
+                              id={node.id}
+                            >
                               {(listeners) => renderNodeCard(node, listeners)}
                             </SortableItem>
                           ))}
@@ -3728,9 +3798,12 @@ export default function NodePage() {
                                         onConfigureInstance={openInstanceConfigEditor}
                                         onDeleteInstance={setInstanceDeleteTarget}
                                         onResetInstanceTraffic={resetInstanceTraffic}
+                                        onReorderInstances={reorderNodeInstances}
                                         onInstallMimicDeps={(node) =>
                                           requestMimicDepsInstall([node])
                                         }
+                                        onShareNode={setSharingNode}
+                                        onViewRemoteDetail={setRemoteDetailNode}
                                         openInstallSelector={openInstallSelector}
                                         openUpgradeModal={openUpgradeModal}
                                         realtimeNodeMetrics={realtimeNodeMetrics}
@@ -3738,6 +3811,7 @@ export default function NodePage() {
                                           realtimeNodeInstanceMetrics
                                         }
                                         selectedIds={selectedIds}
+                                        shareCounts={shareCounts}
                                         setFilterGroupId={setFilterGroupId}
                                         setNodeFilterMode={setNodeFilterMode}
                                         toggleSelect={toggleSelect}
@@ -3749,7 +3823,7 @@ export default function NodePage() {
                                               (prev) =>
                                                 new Set([
                                                   ...prev,
-                                                  ...nodes.map((n) => n.id),
+                                                  ...nodes.filter((n) => n.isRemote !== 1).map((n) => n.id),
                                                 ]),
                                             );
                                             if (!selectMode) setSelectMode(true);
@@ -3814,12 +3888,16 @@ export default function NodePage() {
                     onConfigureInstance={openInstanceConfigEditor}
                     onDeleteInstance={setInstanceDeleteTarget}
                     onResetInstanceTraffic={resetInstanceTraffic}
+                    onReorderInstances={reorderNodeInstances}
                     onInstallMimicDeps={(node) => requestMimicDepsInstall([node])}
+                    onShareNode={setSharingNode}
+                    onViewRemoteDetail={setRemoteDetailNode}
                     openInstallSelector={openInstallSelector}
                     openUpgradeModal={openUpgradeModal}
                     realtimeNodeMetrics={realtimeNodeMetrics}
                     realtimeNodeInstanceMetrics={realtimeNodeInstanceMetrics}
                     selectedIds={selectedIds}
+                    shareCounts={shareCounts}
                     setFilterGroupId={setFilterGroupId}
                     setNodeFilterMode={setNodeFilterMode}
                     toggleSelect={toggleSelect}
@@ -5375,6 +5453,25 @@ export default function NodePage() {
             </ModalBody>
           </ModalContent>
         </Modal>
+        <NodeSharingModal
+          formatTraffic={formatTraffic}
+          instances={sharingNode ? nodeInstanceMembers[sharingNode.id] || [] : []}
+          isOpen={sharingNode !== null}
+          node={sharingNode}
+          onClose={() => setSharingNode(null)}
+          onShareCountChange={handleShareCountChange}
+        />
+        <NodeImportModal
+          isOpen={importNodeOpen}
+          onClose={() => setImportNodeOpen(false)}
+          onImported={() => void loadNodes({ silent: true })}
+        />
+        <RemoteNodeDetailModal
+          formatTraffic={formatTraffic}
+          isOpen={remoteDetailNode !== null}
+          node={remoteDetailNode}
+          onClose={() => setRemoteDetailNode(null)}
+        />
       </AnimatedPage>
     </MonitorTerminalProvider>
   );

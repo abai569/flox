@@ -14,6 +14,9 @@ export interface NodeApiItem {
   weight?: number;
   trafficRatio?: number;
   onlineCount?: number;
+  isRemote?: number;
+  remoteUrl?: string;
+  remoteConfig?: string;
   syncError?: string;
   // 周期流量统计
   periodTraffic?: {
@@ -114,6 +117,118 @@ export interface ForwardApiItem {
   inSpeed?: number; // 新增：实时上行速度 (bytes/s)
   outSpeed?: number; // 新增：实时下行速度 (bytes/s)
   [key: string]: unknown;
+}
+
+export interface PeerShareUsedPortApiItem {
+  runtimeId: number;
+  port: number;
+  role: string;
+  protocol: string;
+  resourceKey: string;
+  applied: number;
+  updatedTime: number;
+  instances: PeerShareRuntimeInstanceApiItem[];
+}
+
+export interface PeerShareApiItem {
+  id: number;
+  name: string;
+  nodeId: number;
+  token: string;
+  maxBandwidth: number;
+  currentFlow: number;
+  expiryTime: number;
+  portRangeStart: number;
+  portRangeEnd: number;
+  isActive: number;
+  allowedDomains?: string;
+  allowedIps?: string;
+  usedPorts: number[];
+  usedPortDetails: PeerShareUsedPortApiItem[];
+  activeRuntimeNum: number;
+  scopeType?: "all_enabled" | "selected";
+  autoIncludeNewInstances?: boolean | number;
+  minHealthyInstances?: number;
+  instances?: PeerShareInstanceApiItem[];
+  flows?: PeerShareFlowApiItem[];
+}
+
+export interface PeerShareInstanceApiItem {
+  instanceId: string;
+  hostname?: string;
+  status?: number;
+  selected: boolean;
+  inScope: boolean;
+}
+
+export interface PeerShareRuntimeInstanceApiItem {
+  runtimeId: number;
+  instanceId: string;
+  port: number;
+  applied: number;
+  healthy: number;
+  status: number;
+  lastError: string;
+  currentFlow: number;
+  updatedTime: number;
+}
+
+export interface PeerShareFlowApiItem {
+  runtimeId: number;
+  instanceId: string;
+  periodType: string;
+  periodKey: number;
+  inFlow: number;
+  outFlow: number;
+  createdTime: number;
+  updatedTime: number;
+}
+
+export interface PeerShareMutationPayload {
+  id?: number;
+  name: string;
+  nodeId?: number;
+  maxBandwidth?: number;
+  expiryTime?: number;
+  portRangeStart?: number;
+  portRangeEnd?: number;
+  allowedDomains?: string;
+  allowedIps?: string;
+  scopeType?: "all_enabled" | "selected";
+  instanceIds?: string[];
+  autoIncludeNewInstances?: boolean;
+  minHealthyInstances?: number;
+}
+
+export interface PeerRemoteUsageBindingApiItem {
+  bindingId: number;
+  tunnelId: number;
+  tunnelName: string;
+  chainType: number;
+  hopInx: number;
+  allocatedPort: number;
+  resourceKey: string;
+  remoteBindingId: string;
+  updatedTime: number;
+}
+
+export interface PeerRemoteUsageNodeApiItem {
+  nodeId: number;
+  nodeName: string;
+  remoteUrl: string;
+  shareId: number;
+  portRangeStart: number;
+  portRangeEnd: number;
+  maxBandwidth: number;
+  currentFlow: number;
+  expiryTime: number;
+  usedPorts: number[];
+  bindings: PeerRemoteUsageBindingApiItem[];
+  activeBindingNum: number;
+  syncError?: string;
+  instances?: PeerShareInstanceApiItem[];
+  flows?: PeerShareFlowApiItem[];
+  runtimeInstances?: PeerShareRuntimeInstanceApiItem[];
 }
 
 export interface UserTunnelApiItem {
@@ -698,6 +813,11 @@ export interface NodeInstancePortApiData {
   instances: NodeInstancePortApiItem[];
 }
 
+export interface NodeInstanceOrderUpdatePayload {
+  nodeId: number;
+  instanceIds: string[];
+}
+
 export interface MonitorNodeMetricsApiItem extends MonitorNodeApiItem {
   cpuUsage: number;
   memoryUsage: number;
@@ -898,7 +1018,14 @@ export interface SystemUpgradeRunApiData {
 }
 
 export interface SystemUpgradeStatusApiData {
-  state: "" | "running" | "success" | "backup_failed" | "rollback_running" | "rolled_back" | "rollback_failed";
+  state:
+    | ""
+    | "running"
+    | "success"
+    | "backup_failed"
+    | "rollback_running"
+    | "rolled_back"
+    | "rollback_failed";
   fromVersion?: string;
   toVersion?: string;
   stage?: string;

@@ -1,10 +1,25 @@
-import type { NodeRenewalCycle } from "./renewal";
-import type { NodeSystemInfo } from "./system-info";
 import type { MonitorNodeInstanceGroupMemberApiItem } from "@/api/types";
+import type { Node, NodeExpiryInstance } from "./types";
 
-import { useSortable } from "@dnd-kit/sortable";
+import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  type DragEndEvent,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useRef, useEffect } from "react";
+import { ExternalLink, GripVertical } from "lucide-react";
 
 import { deriveNodeVisualState } from "./display";
 import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
@@ -37,53 +52,6 @@ import {
   getDistroColor,
 } from "@/components/distro-icon";
 import { MonitorTerminalButton } from "@/pages/monitor-terminal";
-interface Node {
-  id: number;
-  inx?: number;
-  name: string;
-  remark?: string;
-  expiryTime?: number;
-  renewalCycle?: NodeRenewalCycle;
-  expiryReminderDismissed?: number;
-  expiryReminderDismissedUntil: number | null;
-  expiryInstances?: NodeExpiryInstance[];
-  ip: string;
-  serverIp: string;
-  intranetIp?: string;
-  serverIpV4?: string;
-  serverIpV6?: string;
-  port: string;
-  tcpListenAddr?: string;
-  udpListenAddr?: string;
-  extraIPs?: string;
-  version?: string;
-  http?: number;
-  tls?: number;
-  socks?: number;
-  status: number;
-  isRemote?: number;
-  remoteUrl?: string;
-  syncError?: string;
-  connectionStatus: "online" | "offline";
-  paused?: number;
-  systemInfo?: NodeSystemInfo | null;
-  copyLoading?: boolean;
-  upgradeLoading?: boolean;
-  rollbackLoading?: boolean;
-  groupId?: number | null;
-  onlineCount?: number;
-  trafficRatio?: number;
-}
-interface NodeExpiryInstance {
-  nodeId: number;
-  instanceId: string;
-  displayIndex?: number;
-  displayName?: string;
-  expiryTime: number;
-  renewalCycle: NodeRenewalCycle;
-  expiryReminderDismissed?: number;
-  expiryReminderDismissedUntil?: number | null;
-}
 interface RealtimeInstanceMetric {
   tcpConns: number;
   udpConns: number;
@@ -148,7 +116,15 @@ interface NodeListViewProps {
   onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onResetInstanceTraffic?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onReorderInstances: (
+    nodeId: number,
+    activeInstanceId: string,
+    overInstanceId: string,
+  ) => void;
   onInstallMimicDeps?: (node: Node) => void;
+  onShareNode: (node: Node) => void;
+  onViewRemoteDetail: (node: Node) => void;
+  shareCounts: Record<number, number>;
 }
 
 const NODE_INSTANCE_EXPANDED_STORAGE_KEY = "node-instance-expanded-node-ids";
@@ -291,6 +267,7 @@ function NodeInstanceRows({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onReorderInstances,
   onInstallMimicDeps,
 }: {
   node: Node;
@@ -304,11 +281,41 @@ function NodeInstanceRows({
   onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onResetInstanceTraffic?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onReorderInstances: (
+    nodeId: number,
+    activeInstanceId: string,
+    overInstanceId: string,
+  ) => void;
   onInstallMimicDeps?: (node: Node) => void;
 }) {
   const [openExpiryInstanceId, setOpenExpiryInstanceId] = useState<string | null>(
     null,
   );
+  const instanceSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+  const sortableInstanceIds = members.map((member, index) =>
+    getInstanceSortableId(member, index),
+  );
+
+  const handleInstanceDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+    const activeIndex = sortableInstanceIds.indexOf(String(active.id));
+    const overIndex = sortableInstanceIds.indexOf(String(over.id));
+    const activeInstanceId = members[activeIndex]?.instanceId?.trim();
+    const overInstanceId = members[overIndex]?.instanceId?.trim();
+
+    if (!activeInstanceId || !overInstanceId) return;
+    onReorderInstances(node.id, activeInstanceId, overInstanceId);
+  };
 
   useEffect(() => {
     const closeOtherInstanceExpiry = (event: Event) => {
@@ -359,9 +366,21 @@ function NodeInstanceRows({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="w-full max-w-full overflow-x-auto px-3 pb-2">
-      <table className="w-full min-w-[1420px] table-fixed text-[13px]">
+      <DndContext
+        collisionDetection={closestCenter}
+        sensors={instanceSensors}
+        onDragEnd={handleInstanceDragEnd}
+      >
+      <SortableContext
+        items={sortableInstanceIds}
+        strategy={verticalListSortingStrategy}
+      >
+      <table className="w-full min-w-[1460px] table-fixed text-[13px]">
         <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
           <tr>
+            <th className="w-[40px] px-0 py-2 text-center font-medium" title="拖拽排序">
+              排序
+            </th>
             <th className="w-[60px] px-1 py-2 text-center font-medium">状态</th>
             <th className="w-[105px] px-1 py-2 text-left font-medium">
               实例名称
@@ -383,15 +402,17 @@ function NodeInstanceRows({
         <tbody>
           {members.length === 0 ? (
             <tr>
-              <td className="px-2 py-8 text-center text-default-500" colSpan={13}>
+              <td className="px-2 py-8 text-center text-default-500" colSpan={14}>
                 暂无实例上报
               </td>
             </tr>
           ) : (
             members.map((member, memberIndex) => (
-              <tr
+              <SortableInstanceRow
                 key={member.instanceId || `${member.nodeId}-${member.displayIndex || 0}`}
-                className={`border-b border-divider/60 last:border-b-0 hover:bg-default-50/70 dark:hover:bg-default-100/10 ${openExpiryInstanceId === member.instanceId ? "relative z-[9999]" : "relative z-[1]"}`}
+                id={getInstanceSortableId(member, memberIndex)}
+                isPopoverOpen={openExpiryInstanceId === member.instanceId}
+                sortableDisabled={!member.instanceId?.trim()}
               >
                 <td className="px-2 py-2.5 text-center align-middle">
                   <StatusDot
@@ -660,13 +681,70 @@ function NodeInstanceRows({
                     </Button>
                   </div>
                 </td>
-              </tr>
+              </SortableInstanceRow>
             ))
           )}
         </tbody>
       </table>
+      </SortableContext>
+      </DndContext>
       </div>
     </div>
+  );
+}
+
+const getInstanceSortableId = (
+  member: MonitorNodeInstanceGroupMemberApiItem,
+  index: number,
+) => `${member.nodeId}:${member.instanceId?.trim() || `missing-${index}`}`;
+
+function SortableInstanceRow({
+  id,
+  isPopoverOpen,
+  sortableDisabled,
+  children,
+}: {
+  id: string;
+  isPopoverOpen: boolean;
+  sortableDisabled: boolean;
+  children: React.ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, disabled: sortableDisabled });
+
+  return (
+    <tr
+      ref={setNodeRef}
+      className={`border-b border-divider/60 last:border-b-0 hover:bg-default-50/70 dark:hover:bg-default-100/10 ${isPopoverOpen ? "z-[9999]" : "z-[1]"} ${isDragging ? "bg-primary-100/80 shadow-lg dark:bg-primary-500/20" : ""}`}
+      style={{
+        position: "relative",
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.75 : 1,
+      }}
+    >
+      <td className="w-[40px] px-0 py-2 text-center align-middle">
+        <button
+          {...attributes}
+          {...listeners}
+          aria-label="拖拽调整实例顺序"
+          className="inline-flex h-7 w-7 cursor-grab touch-none items-center justify-center rounded text-default-400 transition-colors hover:bg-default-200/70 hover:text-default-700 active:cursor-grabbing disabled:cursor-default disabled:opacity-30"
+          disabled={sortableDisabled}
+          title="拖拽调整实例顺序"
+          type="button"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </td>
+      {children}
+    </tr>
   );
 }
 function SortableTableRow({
@@ -692,10 +770,14 @@ function SortableTableRow({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onReorderInstances,
   onInstallMimicDeps,
   realtimeInstanceMetrics,
   isLastNode,
   upgradeProgress,
+  onShareNode,
+  onViewRemoteDetail,
+  shareCounts,
 }: any) {
   const [expiryPopoverOpen, setExpiryPopoverOpen] = useState(false);
   const expiryButtonRef = useRef<HTMLButtonElement>(null);
@@ -754,7 +836,7 @@ function SortableTableRow({
     isDragging,
     attributes,
     listeners,
-  } = useSortable({ id: node.id });
+  } = useSortable({ id: node.id, disabled: node.isRemote === 1 });
   const style: any = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -820,22 +902,22 @@ function SortableTableRow({
       ref={setNodeRef}
       className={`cursor-pointer ${isExpanded ? "border-b border-primary-300/70 shadow-[inset_3px_0_0_rgba(59,130,246,0.65)]" : ""}`}
       style={style}
-      onClick={() => onToggleExpanded?.(node.id)}
+      onClick={() => node.isRemote !== 1 && onToggleExpanded?.(node.id)}
     >
       <TableCell className={rowBg}>
         <div
           className="flex items-center justify-center h-full"
           onClick={(e) => e.stopPropagation()}
         >
-          <Checkbox
-            isSelected={selectedIds.has(node.id)}
-            onValueChange={() => toggleSelect(node.id)}
-          />
+          {node.isRemote !== 1 && <Checkbox
+              isSelected={selectedIds.has(node.id)}
+              onValueChange={() => toggleSelect(node.id)}
+            />}
         </div>
       </TableCell>
       <TableCell className={rowBg}>
         <div className="flex items-center justify-center">
-          <button
+          {node.isRemote !== 1 ? <button
             className="inline-flex h-6 w-6 items-center justify-center rounded text-default-500 transition-colors hover:bg-default-200/70 hover:text-foreground"
             title={isExpanded ? "收起实例" : "展开实例"}
             type="button"
@@ -856,12 +938,12 @@ function SortableTableRow({
             >
               <path d="m6 9 6 6 6-6" />
             </svg>
-          </button>
+          </button> : <span className="text-default-300">-</span>}
         </div>
       </TableCell>
       <TableCell className={rowBg}>
         <div className="flex items-center justify-center">
-          <div
+          {node.isRemote !== 1 && <div
             className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
             {...attributes}
             {...listeners}
@@ -875,7 +957,7 @@ function SortableTableRow({
             >
               <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
             </svg>
-          </div>
+          </div>}
         </div>
       </TableCell>
       <TableCell className={`px-1 text-center align-middle ${rowBg}`}>
@@ -1138,6 +1220,15 @@ function SortableTableRow({
               </Dropdown>
               <Button
                 className="min-h-7 shrink-0 px-2"
+                color="primary"
+                size="sm"
+                variant="flat"
+                onPress={() => onShareNode(node)}
+              >
+                分享{shareCounts[node.id] ? ` ${shareCounts[node.id]}` : ""}
+              </Button>
+              <Button
+                className="min-h-7 shrink-0 px-2"
                 color="warning"
                 isDisabled={node.connectionStatus !== "online"}
                 isLoading={node.upgradeLoading}
@@ -1167,6 +1258,18 @@ function SortableTableRow({
               </Button>
             </>
           )}
+          {node.isRemote === 1 && (
+            <Button
+              className="min-h-7 shrink-0 px-2"
+              color="secondary"
+              size="sm"
+              variant="flat"
+              onPress={() => onViewRemoteDetail(node)}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              远程详情
+            </Button>
+          )}
           <Button
             className="min-h-7 shrink-0 px-2"
             color="danger"
@@ -1179,7 +1282,7 @@ function SortableTableRow({
         </div>
       </TableCell>
     </TableRow>
-    {isExpanded && (
+    {node.isRemote !== 1 && isExpanded && (
       <TableRow
         key={`${node.id}-instances`}
         className="bg-default-50/30 dark:bg-default-100/5"
@@ -1200,6 +1303,7 @@ function SortableTableRow({
             onConfigureInstance={onConfigureInstance}
             onDeleteInstance={onDeleteInstance}
             onResetInstanceTraffic={onResetInstanceTraffic}
+            onReorderInstances={onReorderInstances}
             onInstallMimicDeps={onInstallMimicDeps}
           />
         </TableCell>
@@ -1237,22 +1341,27 @@ export function NodeListView({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onReorderInstances,
   onInstallMimicDeps,
+  onShareNode,
+  onViewRemoteDetail,
+  shareCounts,
 }: NodeListViewProps) {
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(
     readExpandedNodeIds,
   );
+  const localDisplayNodes = displayNodes.filter((node) => node.isRemote !== 1);
   const isAllSelected =
-    displayNodes.length > 0 &&
-    displayNodes.every((node) => selectedIds.has(node.id));
+    localDisplayNodes.length > 0 &&
+    localDisplayNodes.every((node) => selectedIds.has(node.id));
   const isAllExpanded =
-    displayNodes.length > 0 &&
-    displayNodes.every((node) => expandedNodeIds.has(node.id));
-  const expandedNodeCount = displayNodes.filter((node) =>
+    localDisplayNodes.length > 0 &&
+    localDisplayNodes.every((node) => expandedNodeIds.has(node.id));
+  const expandedNodeCount = localDisplayNodes.filter((node) =>
     expandedNodeIds.has(node.id),
   ).length;
   const isPartiallyExpanded =
-    expandedNodeCount > 0 && expandedNodeCount < displayNodes.length;
+    expandedNodeCount > 0 && expandedNodeCount < localDisplayNodes.length;
 
   const toggleExpandedNode = (nodeId: number) => {
     setExpandedNodeIds(() => {
@@ -1274,7 +1383,7 @@ export function NodeListView({
     setExpandedNodeIds(() => {
       const next = readExpandedNodeIds();
 
-      displayNodes.forEach((node) => {
+      localDisplayNodes.forEach((node) => {
         if (isAllExpanded) next.delete(node.id);
         else next.add(node.id);
       });
@@ -1310,12 +1419,12 @@ export function NodeListView({
           <TableColumn className="w-[64px] whitespace-nowrap px-1 py-2 text-center">
             <button
               className={`inline-flex items-center justify-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-default-200/70 disabled:cursor-default disabled:opacity-40 ${isPartiallyExpanded ? "text-primary" : ""}`}
-              disabled={displayNodes.length === 0}
+              disabled={localDisplayNodes.length === 0}
               title={
                 isAllExpanded
                   ? "闭合全部实例"
                   : isPartiallyExpanded
-                    ? `已展开 ${expandedNodeCount}/${displayNodes.length}，点击展开全部`
+                      ? `已展开 ${expandedNodeCount}/${localDisplayNodes.length}，点击展开全部`
                     : "展开全部实例"
               }
               type="button"
@@ -1526,7 +1635,11 @@ export function NodeListView({
                   onConfigureInstance,
                   onDeleteInstance,
                   onResetInstanceTraffic,
+                  onReorderInstances,
                   onInstallMimicDeps,
+                  onShareNode,
+                  onViewRemoteDetail,
+                  shareCounts,
                 }}
               />
             ))

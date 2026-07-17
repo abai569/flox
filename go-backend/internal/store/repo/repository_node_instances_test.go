@@ -1,10 +1,99 @@
 package repo
 
 import (
+	"errors"
 	"testing"
 
 	"go-backend/internal/store/model"
 )
+
+func TestUpdateNodeInstanceOrderPersistsCompleteOrder(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	node := model.Node{Name: "node-1", Secret: "secret", CreatedTime: 1}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	for i, instanceID := range []string{"instance-a", "instance-b", "instance-c"} {
+		instance := model.NodeInstance{NodeID: node.ID, InstanceID: instanceID, DisplayIndex: i + 1, CreatedTime: 1, UpdatedTime: 1}
+		if err := r.db.Create(&instance).Error; err != nil {
+			t.Fatalf("create node instance %s: %v", instanceID, err)
+		}
+	}
+
+	if err := r.UpdateNodeInstanceOrder(node.ID, []string{"instance-c", "instance-a", "instance-b"}); err != nil {
+		t.Fatalf("update node instance order: %v", err)
+	}
+	instances, err := r.ListNodeInstances(node.ID)
+	if err != nil {
+		t.Fatalf("list node instances: %v", err)
+	}
+	for i, want := range []string{"instance-c", "instance-a", "instance-b"} {
+		if instances[i].InstanceID != want || instances[i].DisplayIndex != i+1 {
+			t.Fatalf("position %d: expected %s at index %d, got %s at index %d", i, want, i+1, instances[i].InstanceID, instances[i].DisplayIndex)
+		}
+	}
+}
+
+func TestUpdateNodeInstanceOrderRejectsInvalidSetsWithoutChanges(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	for _, node := range []model.Node{
+		{ID: 1, Name: "node-1", Secret: "secret-1", CreatedTime: 1},
+		{ID: 2, Name: "node-2", Secret: "secret-2", CreatedTime: 1},
+	} {
+		if err := r.db.Create(&node).Error; err != nil {
+			t.Fatalf("create node: %v", err)
+		}
+	}
+	for _, instance := range []model.NodeInstance{
+		{NodeID: 1, InstanceID: "instance-a", DisplayIndex: 1, CreatedTime: 1, UpdatedTime: 1},
+		{NodeID: 1, InstanceID: "instance-b", DisplayIndex: 2, CreatedTime: 1, UpdatedTime: 1},
+		{NodeID: 2, InstanceID: "foreign", DisplayIndex: 1, CreatedTime: 1, UpdatedTime: 1},
+		{NodeID: 1, InstanceID: "default", DisplayIndex: 99, CreatedTime: 1, UpdatedTime: 1},
+	} {
+		if err := r.db.Create(&instance).Error; err != nil {
+			t.Fatalf("create node instance: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name        string
+		nodeID      int64
+		instanceIDs []string
+	}{
+		{name: "missing node id", nodeID: 0, instanceIDs: []string{"instance-a", "instance-b"}},
+		{name: "missing instance ids", nodeID: 1, instanceIDs: nil},
+		{name: "empty instance id", nodeID: 1, instanceIDs: []string{"instance-a", " "}},
+		{name: "duplicate instance id", nodeID: 1, instanceIDs: []string{"instance-a", "instance-a"}},
+		{name: "incomplete set", nodeID: 1, instanceIDs: []string{"instance-a"}},
+		{name: "foreign instance", nodeID: 1, instanceIDs: []string{"instance-a", "foreign"}},
+		{name: "unknown node", nodeID: 99, instanceIDs: []string{"instance-a"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := r.UpdateNodeInstanceOrder(tt.nodeID, tt.instanceIDs)
+			if !errors.Is(err, ErrInvalidNodeInstanceOrder) {
+				t.Fatalf("expected invalid order error, got %v", err)
+			}
+			var indexes []int
+			if err := r.db.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id IN ?", 1, []string{"instance-a", "instance-b"}).Order("instance_id").Pluck("display_index", &indexes).Error; err != nil {
+				t.Fatalf("load display indexes: %v", err)
+			}
+			if len(indexes) != 2 || indexes[0] != 1 || indexes[1] != 2 {
+				t.Fatalf("expected original indexes [1 2], got %v", indexes)
+			}
+		})
+	}
+}
 
 func TestListOnlineNodeInstancesByNodeIDsTxUsesTransactionConnection(t *testing.T) {
 	r, err := Open(":memory:")

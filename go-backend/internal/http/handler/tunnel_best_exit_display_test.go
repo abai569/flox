@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"go-backend/internal/auth"
+	"go-backend/internal/http/middleware"
 	"go-backend/internal/store/repo"
 )
 
@@ -294,6 +297,7 @@ func TestTunnelGetAttachesBestExitStateToSelectedTunnel(t *testing.T) {
 
 	body := bytes.NewReader([]byte(`{"id":77}`))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/tunnel/get", body)
+	req = req.WithContext(context.WithValue(req.Context(), middleware.ClaimsContextKey, auth.Claims{Sub: "1", RoleID: 0}))
 	res := httptest.NewRecorder()
 	h.tunnelGet(res, req)
 

@@ -322,7 +322,7 @@ func TestDiagnosisUsesFederationRuntimeForRemoteNodes(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		if got := strings.TrimSpace(r.Header.Get("Authorization")); got != "Bearer "+remoteToken {
+		if got := strings.TrimSpace(r.Header.Get("Authorization")); got != remoteToken {
 			w.WriteHeader(http.StatusUnauthorized)
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": -1, "msg": "unauthorized"})
 			return

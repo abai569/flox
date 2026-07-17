@@ -418,6 +418,10 @@ func (h *Handler) onNodeOnline(nodeID int64) {
 	go h.notifyNodeOnline(nodeID)
 }
 
+func (h *Handler) onNodeInstanceOnline(nodeID int64, instanceID string) {
+	h.syncPeerShareRuntimesToInstance(nodeID, instanceID)
+}
+
 func (h *Handler) onNodeOffline(nodeID int64) {
 	go h.notifyNodeOffline(nodeID)
 }

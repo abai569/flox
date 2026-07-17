@@ -811,6 +811,59 @@ func TestOpenMigratesVeryLegacyNodeAndTunnelColumns(t *testing.T) {
 	}
 }
 
+func TestOpenMigratesLegacyPeerShareToAllEnabledScope(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "legacy-peer-share.db")
+	legacyDB, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite: %v", err)
+	}
+	now := time.Now().UnixMilli()
+	if _, err := legacyDB.Exec(`
+		CREATE TABLE peer_share (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			node_id INTEGER NOT NULL,
+			token TEXT NOT NULL UNIQUE,
+			max_bandwidth INTEGER DEFAULT 0,
+			expiry_time INTEGER DEFAULT 0,
+			port_range_start INTEGER DEFAULT 0,
+			port_range_end INTEGER DEFAULT 0,
+			current_flow INTEGER DEFAULT 0,
+			is_active INTEGER DEFAULT 1,
+			created_time INTEGER NOT NULL,
+			updated_time INTEGER NOT NULL,
+			allowed_domains TEXT DEFAULT '',
+			allowed_ips TEXT DEFAULT ''
+		)
+	`); err != nil {
+		t.Fatalf("create legacy peer_share: %v", err)
+	}
+	if _, err := legacyDB.Exec(`INSERT INTO peer_share(name, node_id, token, created_time, updated_time) VALUES(?, ?, ?, ?, ?)`, "legacy-share", 7, "legacy-token", now, now); err != nil {
+		t.Fatalf("insert legacy peer share: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite: %v", err)
+	}
+
+	r, err := repo.Open(dbPath)
+	if err != nil {
+		t.Fatalf("open migrated sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	share, err := r.GetPeerShareByToken("legacy-token")
+	if err != nil || share == nil {
+		t.Fatalf("load migrated share: %+v err=%v", share, err)
+	}
+	if share.ScopeType != "all_enabled" || share.AutoIncludeNewInstances != 1 || share.MinHealthyInstances != 1 {
+		t.Fatalf("unexpected migrated scope defaults: %+v", share)
+	}
+	for _, table := range []string{"peer_share_instance", "peer_share_runtime_instance", "peer_share_flow"} {
+		if !r.DB().Migrator().HasTable(table) {
+			t.Fatalf("expected migrated table %s", table)
+		}
+	}
+}
+
 func readTableColumns(t *testing.T, db *gorm.DB, table string) map[string]bool {
 	t.Helper()
 

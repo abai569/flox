@@ -115,6 +115,9 @@ func shouldSkip(path string) bool {
 }
 
 func requiresAdmin(path string) bool {
+	if path == "/api/v1/federation/node/import" {
+		return true
+	}
 	if strings.HasPrefix(path, "/api/v1/monitor/permission/") {
 		return true
 	}

@@ -272,6 +272,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 	h.healthCheck.SetOnResult(h.onServiceMonitorResult)
 	h.qualityProber = newTunnelQualityProber(h)
 	h.wsServer.SetNodeOnlineHook(h.onNodeOnline)
+	h.wsServer.SetNodeInstanceOnlineHook(h.onNodeInstanceOnline)
 	h.wsServer.SetNodeOfflineHook(h.onNodeOffline)
 	h.wsServer.SetNodeInstanceOfflineHook(h.onNodeInstanceOffline)
 	h.wsServer.SetNodeMetricHook(func(nodeID int64, info ws.SystemInfo) {
@@ -378,6 +379,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/install-alternative", h.nodeInstallAlternative)
 	mux.HandleFunc("/api/v1/node/install-offline", h.nodeInstallOffline)
 	mux.HandleFunc("/api/v1/node/update-order", h.nodeUpdateOrder)
+	mux.HandleFunc("/api/v1/node/instance-order/update", h.nodeInstanceOrderUpdate)
 	mux.HandleFunc("/api/v1/node/dismiss-expiry-reminder", h.nodeDismissExpiryReminder)
 	mux.HandleFunc("/api/v1/node/refresh-expiry-reminder", h.nodeRefreshExpiryReminder)
 	mux.HandleFunc("/api/v1/node/batch-delete", h.nodeBatchDelete)
@@ -488,6 +490,20 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/group/permission/assign", h.groupPermissionAssign)
 	mux.HandleFunc("/api/v1/group/permission/remove", h.groupPermissionRemove)
 	mux.HandleFunc("/api/v1/open_api/sub_store", h.openAPISubStore)
+	mux.HandleFunc("/api/v1/federation/share/list", h.federationShareList)
+	mux.HandleFunc("/api/v1/federation/share/create", h.federationShareCreate)
+	mux.HandleFunc("/api/v1/federation/share/update", h.federationShareUpdate)
+	mux.HandleFunc("/api/v1/federation/share/delete", h.federationShareDelete)
+	mux.HandleFunc("/api/v1/federation/share/reset-flow", h.federationShareResetFlow)
+	mux.HandleFunc("/api/v1/federation/share/remote-usage/list", h.federationRemoteUsageList)
+	mux.HandleFunc("/api/v1/federation/connect", h.authPeer(h.federationConnect))
+	mux.HandleFunc("/api/v1/federation/tunnel/create", h.authPeer(h.federationTunnelCreate))
+	mux.HandleFunc("/api/v1/federation/runtime/reserve-port", h.authPeer(h.federationRuntimeReservePort))
+	mux.HandleFunc("/api/v1/federation/runtime/apply-role", h.authPeer(h.federationRuntimeApplyRole))
+	mux.HandleFunc("/api/v1/federation/runtime/release-role", h.authPeer(h.federationRuntimeReleaseRole))
+	mux.HandleFunc("/api/v1/federation/runtime/diagnose", h.authPeer(h.federationRuntimeDiagnose))
+	mux.HandleFunc("/api/v1/federation/runtime/command", h.authPeer(h.federationRuntimeCommand))
+	mux.HandleFunc("/api/v1/federation/node/import", h.nodeImport)
 	mux.HandleFunc("/api/v1/announcement/get", h.getAnnouncement)
 	mux.HandleFunc("/api/v1/announcement/update", h.updateAnnouncement)
 	mux.HandleFunc("/api/v1/license/info", h.licenseInfo)
@@ -818,6 +834,8 @@ func (h *Handler) nodeList(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.OK(safeItems))
 		return
 	}
+
+	h.syncRemoteNodeStatuses(items)
 
 	response.WriteJSON(w, response.OK(items))
 }
@@ -1373,8 +1391,12 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 		} else {
 			nowMs := time.Now().UnixMilli()
 			h.recordTunnelMetricsFromFlowItems(node.ID, items, nowMs)
+			instanceID := strings.TrimSpace(r.URL.Query().Get("instance_id"))
+			if instanceID == "" {
+				instanceID = strings.TrimSpace(r.URL.Query().Get("instanceId"))
+			}
 			for _, item := range items {
-				h.processFlowItem(node.ID, item)
+				h.processFlowItem(node.ID, instanceID, item)
 			}
 		}
 	}

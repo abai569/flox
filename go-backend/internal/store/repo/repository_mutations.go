@@ -386,14 +386,6 @@ func (r *Repository) UpdateNodePublicIP(nodeID int64, publicIP string) error {
 		Update("server_ip", publicIP).Error
 }
 
-func (r *Repository) UpdateNodeRemoteConfig(nodeID int64, remoteConfig string) error {
-	if r == nil || r.db == nil {
-		return errors.New("repository not initialized")
-	}
-	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
-		Update("remote_config", remoteConfig).Error
-}
-
 func (r *Repository) UpdateNodePublicIPs(nodeID int64, ipv4, ipv6 string) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
@@ -1034,6 +1026,27 @@ func (r *Repository) DeleteNodeCascade(nodeID int64) error {
 		return errors.New("repository not initialized")
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		var shareIDs []int64
+		if err := tx.Model(&model.PeerShare{}).Where("node_id = ?", nodeID).Pluck("id", &shareIDs).Error; err != nil {
+			return err
+		}
+		if len(shareIDs) > 0 {
+			if err := tx.Where("share_id IN ?", shareIDs).Delete(&model.PeerShareFlow{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("share_id IN ?", shareIDs).Delete(&model.PeerShareRuntimeInstance{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("share_id IN ?", shareIDs).Delete(&model.PeerShareRuntime{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("share_id IN ?", shareIDs).Delete(&model.PeerShareInstance{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("id IN ?", shareIDs).Delete(&model.PeerShare{}).Error; err != nil {
+				return err
+			}
+		}
 		var instances []model.NodeInstance
 		if err := tx.Select("node_id", "instance_id").Where("node_id = ?", nodeID).Find(&instances).Error; err != nil {
 			return err
@@ -1051,6 +1064,9 @@ func (r *Repository) DeleteNodeCascade(nodeID int64) error {
 			return err
 		}
 		if err := tx.Where("node_id = ?", nodeID).Delete(&model.NodeInstance{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("node_id = ?", nodeID).Delete(&model.FederationTunnelBinding{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("id = ?", nodeID).Delete(&model.Node{}).Error
@@ -1160,6 +1176,20 @@ func (r *Repository) UpdateTunnelTx(tx *gorm.DB, tunnelID int64, name string, ty
 	return tx.Model(&model.Tunnel{}).
 		Where("id = ?", tunnelID).
 		Updates(updates).Error
+}
+
+func (r *Repository) NextTunnelUpdatedTimeTx(tx *gorm.DB, tunnelID int64, now int64) (int64, error) {
+	if tx == nil {
+		return 0, errors.New("database unavailable")
+	}
+	var tunnel model.Tunnel
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "updated_time").Where("id = ?", tunnelID).First(&tunnel).Error; err != nil {
+		return 0, err
+	}
+	if now <= tunnel.UpdatedTime {
+		now = tunnel.UpdatedTime + 1
+	}
+	return now, nil
 }
 
 func (r *Repository) GetTunnelUpdatedTime(tunnelID int64) (int64, error) {
@@ -1394,6 +1424,9 @@ func (r *Repository) DeleteTunnelCascade(tunnelID int64) error {
 			return err
 		}
 		if err := tx.Where("tunnel_id = ?", tunnelID).Delete(&model.ChainTunnel{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("tunnel_id = ?", tunnelID).Delete(&model.FederationTunnelBinding{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("id = ?", tunnelID).Delete(&model.Tunnel{}).Error
@@ -3009,6 +3042,46 @@ func (r *Repository) RevokeGroupPermissionPairTx(tx *gorm.DB, userGroupID, tunne
 	}
 
 	return revoked, nil
+}
+
+func (r *Repository) ReplaceFederationTunnelBindingsTx(tx *gorm.DB, tunnelID int64, bindings []FederationTunnelBinding) error {
+	if tx == nil {
+		return errors.New("database unavailable")
+	}
+	if err := tx.Where("tunnel_id = ?", tunnelID).Delete(&model.FederationTunnelBinding{}).Error; err != nil {
+		return err
+	}
+	if len(bindings) == 0 {
+		return nil
+	}
+
+	rows := make([]model.FederationTunnelBinding, 0, len(bindings))
+	now := time.Now().UnixMilli()
+	for _, b := range bindings {
+		created := b.CreatedTime
+		if created <= 0 {
+			created = now
+		}
+		updated := b.UpdatedTime
+		if updated <= 0 {
+			updated = created
+		}
+		rows = append(rows, model.FederationTunnelBinding{
+			TunnelID:        tunnelID,
+			NodeID:          b.NodeID,
+			ChainType:       b.ChainType,
+			HopInx:          b.HopInx,
+			RemoteURL:       b.RemoteURL,
+			ResourceKey:     b.ResourceKey,
+			RemoteBindingID: b.RemoteBindingID,
+			AllocatedPort:   b.AllocatedPort,
+			Status:          b.Status,
+			CreatedTime:     created,
+			UpdatedTime:     updated,
+		})
+	}
+
+	return tx.Create(&rows).Error
 }
 
 func (r *Repository) InsertGroupPermission(userGroupID, tunnelGroupID int64, now int64) error {

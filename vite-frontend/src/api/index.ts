@@ -71,6 +71,10 @@ import type {
   DiscountCodeItem,
   BalanceLogItem,
   SubscriptionPackageApiItem,
+  PeerShareApiItem,
+  PeerShareMutationPayload,
+  PeerRemoteUsageNodeApiItem,
+  NodeInstanceOrderUpdatePayload,
 } from "./types";
 
 import axios from "axios";
@@ -321,11 +325,21 @@ export const getNodeInstallCommandOffline = (id: number) =>
 export const updateNodeOrder = (data: {
   nodes: Array<{ id: number; inx: number }>;
 }) => Network.post("/node/update-order", data);
+export const updateNodeInstanceOrder = (data: NodeInstanceOrderUpdatePayload) =>
+  Network.post("/node/instance-order/update", data);
 export const dismissNodeExpiryReminder = (id: number, instanceId?: string) =>
-  Network.post("/node/dismiss-expiry-reminder", { id, nodeId: id, instanceId: instanceId || "" });
+  Network.post("/node/dismiss-expiry-reminder", {
+    id,
+    nodeId: id,
+    instanceId: instanceId || "",
+  });
 
 export const refreshNodeExpiryReminder = (id: number, instanceId?: string) =>
-  Network.post("/node/refresh-expiry-reminder", { id, nodeId: id, instanceId: instanceId || "" });
+  Network.post("/node/refresh-expiry-reminder", {
+    id,
+    nodeId: id,
+    instanceId: instanceId || "",
+  });
 export const pauseNode = (nodeId: number) =>
   Network.post("/node/pause", { nodeId });
 export const resumeNode = (nodeId: number) =>
@@ -369,7 +383,9 @@ export const installMimicDeps = (ids?: number[]) =>
 
 // 隧道CRUD操作 - 全部使用POST请求
 export const createTunnel = (data: TunnelMutationPayload) =>
-  Network.post<TunnelCreateApiData>("/tunnel/create", data, { timeout: 120000 });
+  Network.post<TunnelCreateApiData>("/tunnel/create", data, {
+    timeout: 120000,
+  });
 export const getTunnelList = () =>
   Network.post<TunnelApiItem[]>("/tunnel/list");
 export const getTunnelById = (id: number) =>
@@ -572,8 +588,7 @@ export const batchResetNodeInstanceTraffic = (data: {
   reason?: string;
   inFlowBefore?: number;
   outFlowBefore?: number;
-}) =>
-  Network.post<BatchOperationResult>("/node/batch-reset-traffic", data);
+}) => Network.post<BatchOperationResult>("/node/batch-reset-traffic", data);
 export const recordNodeOfflineLog = (
   nodeId: number,
   inFlowBefore: number,
@@ -688,6 +703,26 @@ export const assignGroupPermission = (data: {
 }) => Network.post("/group/permission/assign", data);
 export const removeGroupPermission = (id: number) =>
   Network.post("/group/permission/remove", { id });
+
+// 面板共享 (Federation)
+export const getPeerShareList = () =>
+  Network.post<PeerShareApiItem[]>("/federation/share/list");
+export const createPeerShare = (data: PeerShareMutationPayload) =>
+  Network.post("/federation/share/create", data);
+export const updatePeerShare = (
+  data: PeerShareMutationPayload & { id: number },
+) => Network.post("/federation/share/update", data);
+export const deletePeerShare = (id: number) =>
+  Network.post("/federation/share/delete", { id });
+export const resetPeerShareFlow = (id: number) =>
+  Network.post("/federation/share/reset-flow", { id });
+export const getPeerRemoteUsageList = (nodeId?: number) =>
+  Network.post<PeerRemoteUsageNodeApiItem[]>(
+    "/federation/share/remote-usage/list",
+    nodeId ? { nodeId } : {},
+  );
+export const importRemoteNode = (data: { remoteUrl: string; token: string }) =>
+  Network.post("/federation/node/import", data);
 
 export interface BackupTypes {
   users?: boolean;

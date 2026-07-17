@@ -2,6 +2,8 @@ import type {
   BatchOperationFailure,
   ForwardApiItem,
   NodeGroupApiItem,
+  PeerRemoteUsageNodeApiItem,
+  PeerShareApiItem,
   SpeedLimitApiItem,
 } from "@/api/types";
 
@@ -63,6 +65,8 @@ import {
   createForward,
   getForwardList,
   getLicenseInfo,
+  getPeerRemoteUsageList,
+  getPeerShareList,
   getSpeedLimitList,
   updateForward,
   deleteForward,
@@ -150,6 +154,7 @@ interface Forward {
   inFlow: number;
   outFlow: number;
   serviceRunning: boolean;
+  federationShareFlow?: number;
   createdTime: string;
   userName?: string;
   userRemark?: string;
@@ -1514,7 +1519,93 @@ const SortableCompactTableRow = ({
   );
 };
 const getForwardDisplayFlow = (forward: Forward): number => {
-  return (forward.inFlow || 0) + (forward.outFlow || 0);
+  const directFlow = (forward.inFlow || 0) + (forward.outFlow || 0);
+
+  return directFlow > 0 ? directFlow : forward.federationShareFlow || 0;
+};
+
+const parseShareIdFromTunnelName = (tunnelName: string): number | null => {
+  const match = /^Share-(\d+)-Port-/.exec(tunnelName.trim());
+  const shareId = match ? Number(match[1]) : 0;
+
+  return shareId > 0 ? shareId : null;
+};
+
+const mergeFederationShareFlow = (
+  forwards: Forward[],
+  remoteUsage: PeerRemoteUsageNodeApiItem[],
+  localShares: PeerShareApiItem[],
+): Forward[] => {
+  const flowByShare = new Map<string, number>();
+  const shareKeysByForward = new Map<number, Set<string>>();
+
+  localShares.forEach((share) => {
+    if (share.id > 0 && share.currentFlow > 0) {
+      flowByShare.set(`local:${share.id}`, share.currentFlow);
+    }
+  });
+  remoteUsage.forEach((item) => {
+    const shareKey = `remote:${item.nodeId}:${item.shareId}`;
+
+    if (item.shareId > 0 && item.currentFlow > 0) {
+      flowByShare.set(shareKey, item.currentFlow);
+    }
+    item.bindings.forEach((binding) => {
+      if (binding.chainType !== 1) return;
+      const match = /^forward:(\d+)$/.exec(binding.resourceKey.trim());
+      const forwardId = match ? Number(match[1]) : 0;
+
+      if (forwardId <= 0) return;
+      const shareKeys = shareKeysByForward.get(forwardId) || new Set<string>();
+
+      shareKeys.add(shareKey);
+      shareKeysByForward.set(forwardId, shareKeys);
+    });
+  });
+
+  const resolvedShareByForwardId = new Map<number, string>();
+
+  forwards.forEach((forward) => {
+    const candidates = shareKeysByForward.get(forward.id) || new Set<string>();
+
+    if (candidates.size === 0) {
+      const nameShareId = parseShareIdFromTunnelName(forward.tunnelName);
+
+      if (nameShareId) candidates.add(`local:${nameShareId}`);
+    }
+    const resolved = Array.from(candidates).sort(
+      (a, b) => (flowByShare.get(b) || 0) - (flowByShare.get(a) || 0),
+    )[0];
+
+    if (resolved && flowByShare.has(resolved)) {
+      resolvedShareByForwardId.set(forward.id, resolved);
+    }
+  });
+  const forwardCountByShare = new Map<number, number>();
+
+  resolvedShareByForwardId.forEach((shareId) => {
+    forwardCountByShare.set(
+      shareId,
+      (forwardCountByShare.get(shareId) || 0) + 1,
+    );
+  });
+
+  return forwards.map((forward) => {
+    const shareId = resolvedShareByForwardId.get(forward.id);
+    const shareFlow = shareId ? flowByShare.get(shareId) || 0 : 0;
+
+    if (!shareId || shareFlow <= 0 || getForwardDisplayFlow(forward) > 0) {
+      return forward;
+    }
+
+    return {
+      ...forward,
+      federationShareFlow: Math.max(
+        1,
+        Math.floor(shareFlow / (forwardCountByShare.get(shareId) || 1)),
+      ),
+    };
+  });
 };
 
 export default function ForwardPage() {
@@ -2400,20 +2491,37 @@ export default function ForwardPage() {
   };
   const modeBtnConfig = getModeButtonConfig();
   // 切换精简模式
-  const applyForwardList = useCallback(async (items: Forward[]) => {
-    const normalized = normalizeForwardItems(items);
+  const applyForwardList = useCallback(
+    async (items: Forward[]) => {
+      const normalized = normalizeForwardItems(items);
+      let displayItems = normalized;
 
-    setForwards(normalized);
-    const { order, fromDatabase } = buildForwardOrder(
-      normalized,
-      null,
-    );
+      if (isAdmin && normalized.length > 0) {
+        const [usageRes, shareRes] = await Promise.all([
+          getPeerRemoteUsageList(),
+          getPeerShareList(),
+        ]);
 
-    setForwardOrder(order);
-    if (fromDatabase) {
-      saveOrder(FORWARD_ORDER_KEY, order);
-    }
-  }, []);
+        displayItems = mergeFederationShareFlow(
+          normalized,
+          usageRes.code === 0 && Array.isArray(usageRes.data)
+            ? usageRes.data
+            : [],
+          shareRes.code === 0 && Array.isArray(shareRes.data)
+            ? shareRes.data
+            : [],
+        );
+      }
+      setForwards(displayItems);
+      const { order, fromDatabase } = buildForwardOrder(displayItems, null);
+
+      setForwardOrder(order);
+      if (fromDatabase) {
+        saveOrder(FORWARD_ORDER_KEY, order);
+      }
+    },
+    [isAdmin],
+  );
   const refreshForwardList = useCallback(
     async (lod = true) => {
       if (lod) setLoading(true);
@@ -5073,7 +5181,7 @@ export default function ForwardPage() {
               </span>
             </div>
             <div className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium bg-danger-500/10 text-danger-600 dark:text-default-400">
-              ⇅{formatFlow((forward.inFlow || 0) + (forward.outFlow || 0))}
+              ⇅{formatFlow(getForwardDisplayFlow(forward))}
             </div>
           </div>
           <div className="flex gap-1.5 mt-3">

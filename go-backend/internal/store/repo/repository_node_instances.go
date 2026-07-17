@@ -3,6 +3,7 @@ package repo
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+var ErrInvalidNodeInstanceOrder = errors.New("invalid node instance order")
 
 type NodeInstanceUpsert struct {
 	NodeID      int64
@@ -534,6 +537,89 @@ func (r *Repository) ListNodeInstances(nodeID int64) ([]model.NodeInstance, erro
 		Order("display_index ASC, id ASC").
 		Find(&instances).Error
 	return instances, err
+}
+
+func (r *Repository) UpdateNodeInstanceOrder(nodeID int64, instanceIDs []string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if nodeID <= 0 {
+			return fmt.Errorf("%w: node id is required", ErrInvalidNodeInstanceOrder)
+		}
+		if len(instanceIDs) == 0 {
+			return fmt.Errorf("%w: instance ids are required", ErrInvalidNodeInstanceOrder)
+		}
+
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Where("id = ?", nodeID).First(&node).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("%w: node does not exist", ErrInvalidNodeInstanceOrder)
+			}
+			return err
+		}
+
+		orderedIDs := make([]string, len(instanceIDs))
+		requested := make(map[string]struct{}, len(instanceIDs))
+		for i, instanceID := range instanceIDs {
+			instanceID = strings.TrimSpace(instanceID)
+			if instanceID == "" {
+				return fmt.Errorf("%w: instance id is required", ErrInvalidNodeInstanceOrder)
+			}
+			if _, exists := requested[instanceID]; exists {
+				return fmt.Errorf("%w: duplicate instance id", ErrInvalidNodeInstanceOrder)
+			}
+			requested[instanceID] = struct{}{}
+			orderedIDs[i] = instanceID
+		}
+
+		var instances []model.NodeInstance
+		where, args := validNodeInstanceWhere()
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id", "instance_id").
+			Where("node_id = ?", nodeID).
+			Where(where, args...).
+			Find(&instances).Error; err != nil {
+			return err
+		}
+		if len(instances) != len(orderedIDs) {
+			return fmt.Errorf("%w: instance set does not match node", ErrInvalidNodeInstanceOrder)
+		}
+		instanceRowIDs := make(map[string]int64, len(instances))
+		for _, instance := range instances {
+			instanceRowIDs[instance.InstanceID] = instance.ID
+		}
+		for _, instanceID := range orderedIDs {
+			if _, exists := instanceRowIDs[instanceID]; !exists {
+				return fmt.Errorf("%w: instance set does not match node", ErrInvalidNodeInstanceOrder)
+			}
+		}
+
+		// Move every row out of the positive range before assigning the final order.
+		for i, instanceID := range orderedIDs {
+			result := tx.Model(&model.NodeInstance{}).
+				Where("id = ? AND node_id = ?", instanceRowIDs[instanceID], nodeID).
+				Update("display_index", -(i + 1))
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("node instance changed while updating order")
+			}
+		}
+		for i, instanceID := range orderedIDs {
+			result := tx.Model(&model.NodeInstance{}).
+				Where("id = ? AND node_id = ?", instanceRowIDs[instanceID], nodeID).
+				Update("display_index", i+1)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return errors.New("node instance changed while updating order")
+			}
+		}
+		return nil
+	})
 }
 
 func (r *Repository) ListOnlineNodeInstancesByNodeIDs(nodeIDs []int64) (map[int64][]model.NodeInstance, error) {

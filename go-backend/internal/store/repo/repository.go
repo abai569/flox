@@ -61,6 +61,12 @@ type UserTunnelDetail = model.UserTunnelDetail
 type UserForwardDetail = model.UserForwardDetail
 type StatisticsFlow = model.StatisticsFlow
 type Node = model.Node
+type PeerShare = model.PeerShare
+type PeerShareInstance = model.PeerShareInstance
+type PeerShareRuntime = model.PeerShareRuntime
+type PeerShareRuntimeInstance = model.PeerShareRuntimeInstance
+type PeerShareFlow = model.PeerShareFlow
+type FederationTunnelBinding = model.FederationTunnelBinding
 type BackupData = model.BackupData
 type UserBackup = model.UserBackup
 type NodeBackup = model.NodeBackup
@@ -210,6 +216,10 @@ func (r *Repository) Close() error {
 }
 
 func autoMigrateAll(db *gorm.DB) error {
+	hadPeerShare := db.Migrator().HasTable(&model.PeerShare{})
+	if err := migratePeerShareInstanceScopeColumns(db); err != nil {
+		return fmt.Errorf("migrate peer share instance scope columns: %w", err)
+	}
 	models := []interface{}{
 		&model.User{},
 		&model.UserQuota{},
@@ -237,6 +247,12 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.GroupPermissionGrant{},
 		&model.MonitorPermission{},
 		&model.ViteConfig{},
+		&model.PeerShare{},
+		&model.PeerShareInstance{},
+		&model.PeerShareRuntime{},
+		&model.PeerShareRuntimeInstance{},
+		&model.PeerShareFlow{},
+		&model.FederationTunnelBinding{},
 		&model.Announcement{},
 		&model.SchemaVersion{},
 		&model.NodeMetric{},
@@ -272,6 +288,11 @@ func autoMigrateAll(db *gorm.DB) error {
 		}
 	} else {
 		for _, item := range models {
+			if hadPeerShare {
+				if _, ok := item.(*model.PeerShare); ok {
+					continue
+				}
+			}
 			if err := db.AutoMigrate(item); err != nil {
 				return err
 			}
@@ -312,6 +333,11 @@ func autoMigrateAll(db *gorm.DB) error {
 				continue
 			}
 		}
+		if hadPeerShare {
+			if _, ok := item.(*model.PeerShare); ok {
+				continue
+			}
+		}
 		if err := db.AutoMigrate(item); err != nil {
 			return err
 		}
@@ -327,6 +353,13 @@ func autoMigrateAll(db *gorm.DB) error {
 	_ = db.Model(&model.Node{}).Where("LOWER(TRIM(server_ip)) = ?", "auto").Update("server_ip", "")
 	_ = db.Model(&model.Node{}).Where("TRIM(port) = ?", "1000-65535").Update("port", "10000-65535")
 	_ = db.Where("TRIM(instance_id) = '' OR LOWER(TRIM(instance_id)) = ?", "default").Delete(&model.NodeInstance{})
+	_ = db.Model(&model.PeerShare{}).Where("scope_type IS NULL OR TRIM(scope_type) = ''").Updates(map[string]interface{}{
+		"scope_type": "all_enabled", "auto_include_new_instances": 1, "min_healthy_instances": 1,
+	})
+	_ = db.Model(&model.PeerShare{}).Where("min_healthy_instances < 1").Update("min_healthy_instances", 1)
+	if hadPeerShare && !db.Migrator().HasIndex(&model.PeerShare{}, "idx_peer_share_node") {
+		_ = db.Migrator().CreateIndex(&model.PeerShare{}, "idx_peer_share_node")
+	}
 	if err := migrateNodeInstanceExpiryFromNode(db); err != nil {
 		return fmt.Errorf("migrate node instance expiry: %w", err)
 	}
@@ -338,6 +371,21 @@ func autoMigrateAll(db *gorm.DB) error {
 		}
 	}
 
+	return nil
+}
+
+func migratePeerShareInstanceScopeColumns(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&model.PeerShare{}) {
+		return nil
+	}
+	for _, field := range []string{"ScopeType", "AutoIncludeNewInstances", "MinHealthyInstances"} {
+		if db.Migrator().HasColumn(&model.PeerShare{}, field) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(&model.PeerShare{}, field); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -442,6 +490,10 @@ func preparePostgresLegacySchema(db *gorm.DB) error {
 	type rename struct{ table, oldName, newName string }
 	renames := []rename{
 		{"vite_config", "vite_config_name_key", "uni_vite_config_name"},
+		{"peer_share", "peer_share_token_key", "uni_peer_share_token"},
+		{"peer_share_runtime", "peer_share_runtime_reservation_id_key", "uni_peer_share_runtime_reservation_id"},
+		{"peer_share_runtime", "peer_share_runtime_resource_key_key", "uni_peer_share_runtime_resource_key"},
+		{"federation_tunnel_binding", "federation_tunnel_binding_resource_key_key", "uni_federation_tunnel_binding_resource_key"},
 	}
 
 	for _, r := range renames {
@@ -2019,6 +2071,534 @@ func (r *Repository) NextIndex(table string) int {
 	return int(maxInx) + 1
 }
 
+// ─── PeerShare CRUD ──────────────────────────────────────────────────
+
+func (r *Repository) CreatePeerShare(share *model.PeerShare) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Create(share).Error
+}
+
+func (r *Repository) UpdatePeerShare(share *model.PeerShare) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.PeerShare{}).Where("id = ?", share.ID).Updates(map[string]interface{}{
+		"name": share.Name, "max_bandwidth": share.MaxBandwidth,
+		"expiry_time": share.ExpiryTime, "port_range_start": share.PortRangeStart,
+		"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
+		"updated_time": share.UpdatedTime, "allowed_domains": share.AllowedDomains,
+		"allowed_ips": share.AllowedIPs, "scope_type": share.ScopeType,
+		"auto_include_new_instances": share.AutoIncludeNewInstances,
+		"min_healthy_instances":      share.MinHealthyInstances,
+	}).Error
+}
+
+func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instanceIDs []string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if share == nil || share.ID <= 0 {
+		return errors.New("share is invalid")
+	}
+	seen := make(map[string]struct{}, len(instanceIDs))
+	items := make([]model.PeerShareInstance, 0, len(instanceIDs))
+	for _, raw := range instanceIDs {
+		instanceID := strings.TrimSpace(raw)
+		if instanceID == "" {
+			continue
+		}
+		if _, ok := seen[instanceID]; ok {
+			continue
+		}
+		seen[instanceID] = struct{}{}
+		items = append(items, model.PeerShareInstance{
+			ShareID: share.ID, NodeID: share.NodeID, InstanceID: instanceID,
+			CreatedTime: share.UpdatedTime, UpdatedTime: share.UpdatedTime,
+		})
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.PeerShare{}).Where("id = ?", share.ID).Updates(map[string]interface{}{
+			"name": share.Name, "max_bandwidth": share.MaxBandwidth,
+			"expiry_time": share.ExpiryTime, "port_range_start": share.PortRangeStart,
+			"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
+			"updated_time": share.UpdatedTime, "allowed_domains": share.AllowedDomains,
+			"allowed_ips": share.AllowedIPs, "scope_type": share.ScopeType,
+			"auto_include_new_instances": share.AutoIncludeNewInstances,
+			"min_healthy_instances":      share.MinHealthyInstances,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("share_id = ?", share.ID).Delete(&model.PeerShareInstance{}).Error; err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			return nil
+		}
+		return tx.Create(&items).Error
+	})
+}
+
+func (r *Repository) DeletePeerShare(id int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("share_id = ?", id).Delete(&model.PeerShareFlow{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("share_id = ?", id).Delete(&model.PeerShareRuntimeInstance{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("share_id = ?", id).Delete(&model.PeerShareInstance{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("share_id = ?", id).Delete(&model.PeerShareRuntime{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ?", id).Delete(&model.PeerShare{}).Error
+	})
+}
+
+func (r *Repository) GetPeerShare(id int64) (*model.PeerShare, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var s model.PeerShare
+	err := r.db.Where("id = ?", id).First(&s).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *Repository) GetPeerShareByToken(token string) (*model.PeerShare, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var s model.PeerShare
+	err := r.db.Where("token = ?", token).First(&s).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *Repository) ListPeerShares() ([]model.PeerShare, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var shares []model.PeerShare
+	err := r.db.Order("id DESC").Find(&shares).Error
+	return shares, err
+}
+
+func (r *Repository) AddPeerShareCurrentFlow(shareID int64, delta int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if shareID <= 0 || delta <= 0 {
+		return nil
+	}
+	return r.db.Model(&model.PeerShare{}).Where("id = ?", shareID).
+		UpdateColumns(map[string]interface{}{
+			"current_flow": gorm.Expr("current_flow + ?", delta),
+			"updated_time": unixMilliNow(),
+		}).Error
+}
+
+func (r *Repository) ResetPeerShareCurrentFlow(shareID int64, updatedTime int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if shareID <= 0 {
+		return nil
+	}
+	if updatedTime <= 0 {
+		updatedTime = unixMilliNow()
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.PeerShare{}).Where("id = ?", shareID).Updates(map[string]interface{}{
+			"current_flow": 0, "updated_time": updatedTime,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("share_id = ?", shareID).Delete(&model.PeerShareFlow{}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.PeerShareRuntimeInstance{}).Where("share_id = ?", shareID).Updates(map[string]interface{}{
+			"current_flow": 0, "updated_time": updatedTime,
+		}).Error
+	})
+}
+
+// ─── PeerShareRuntime CRUD ───────────────────────────────────────────
+
+func (r *Repository) CreatePeerShareRuntime(item *model.PeerShareRuntime) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if item == nil {
+		return errors.New("runtime item is nil")
+	}
+	return r.db.Create(item).Error
+}
+
+func (r *Repository) UpdatePeerShareRuntime(item *model.PeerShareRuntime) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if item == nil {
+		return errors.New("runtime item is nil")
+	}
+	return r.db.Model(&model.PeerShareRuntime{}).Where("id = ?", item.ID).Updates(map[string]interface{}{
+		"binding_id": item.BindingID, "role": item.Role,
+		"chain_name": item.ChainName, "service_name": item.ServiceName,
+		"protocol": item.Protocol, "strategy": item.Strategy,
+		"port": item.Port, "target": item.Target,
+		"applied": item.Applied, "status": item.Status,
+		"updated_time": item.UpdatedTime,
+	}).Error
+}
+
+func (r *Repository) MarkPeerShareRuntimeReleased(id int64, updatedTime int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.PeerShareRuntime{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"status": 0, "applied": 0, "updated_time": updatedTime,
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.PeerShareRuntimeInstance{}).Where("runtime_id = ?", id).Updates(map[string]interface{}{
+			"status": 0, "applied": 0, "healthy": 0, "updated_time": updatedTime,
+		}).Error
+	})
+}
+
+func (r *Repository) GetPeerShareRuntimeByResourceKey(shareID int64, resourceKey string) (*model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var item model.PeerShareRuntime
+	err := r.db.Where("share_id = ? AND resource_key = ?", shareID, resourceKey).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) GetPeerShareRuntimeByReservationID(shareID int64, reservationID string) (*model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var item model.PeerShareRuntime
+	err := r.db.Where("share_id = ? AND reservation_id = ?", shareID, reservationID).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) GetPeerShareRuntimeByBindingID(shareID int64, bindingID string) (*model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var item model.PeerShareRuntime
+	err := r.db.Where("share_id = ? AND binding_id = ?", shareID, bindingID).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) GetPeerShareRuntimeByID(id int64) (*model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var item model.PeerShareRuntime
+	err := r.db.Where("id = ?", id).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) ListActivePeerShareRuntimesByShareID(shareID int64) ([]model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var out []model.PeerShareRuntime
+	err := r.db.Where("share_id = ? AND status = 1", shareID).Order("port ASC, id ASC").Find(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = make([]model.PeerShareRuntime, 0)
+	}
+	return out, nil
+}
+
+func (r *Repository) ListActivePeerShareRuntimePorts(shareID int64, nodeID int64) ([]int, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var ports []int
+	err := r.db.Model(&model.PeerShareRuntime{}).
+		Where("share_id = ? AND node_id = ? AND status = 1 AND port > 0", shareID, nodeID).
+		Pluck("port", &ports).Error
+	if err != nil {
+		return nil, err
+	}
+	if ports == nil {
+		ports = make([]int, 0)
+	}
+	return ports, nil
+}
+
+func (r *Repository) ListActiveForwardPeerShareRuntimesByServiceName(serviceName string) ([]model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var items []model.PeerShareRuntime
+	err := r.db.Where("service_name = ? AND status = 1 AND role = ?", serviceName, "forward").
+		Order("id ASC").
+		Find(&items).Error
+	if err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = make([]model.PeerShareRuntime, 0)
+	}
+	return items, nil
+}
+
+func (r *Repository) ListActiveForwardPeerShareRuntimesByNodeAndServiceName(nodeID int64, serviceName string) ([]model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	serviceName = strings.TrimSpace(serviceName)
+	if serviceName == "" {
+		return []model.PeerShareRuntime{}, nil
+	}
+	var items []model.PeerShareRuntime
+	err := r.db.Where("node_id = ? AND service_name = ? AND status = 1 AND role = ?", nodeID, serviceName, "forward").
+		Order("id ASC").
+		Find(&items).Error
+	if err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = make([]model.PeerShareRuntime, 0)
+	}
+	return items, nil
+}
+
+func (r *Repository) ListActiveForwardPeerShareRuntimeServiceNamesByNode(nodeID int64) ([]string, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var names []string
+	err := r.db.Model(&model.PeerShareRuntime{}).
+		Where("node_id = ? AND status = 1 AND role = ? AND service_name <> ''", nodeID, "forward").
+		Pluck("service_name", &names).Error
+	if err != nil {
+		return nil, err
+	}
+	if names == nil {
+		names = make([]string, 0)
+	}
+	return names, nil
+}
+
+func (r *Repository) HasRecentUnboundForwardPeerShareRuntimeOnNode(nodeID int64, minUpdatedTime int64) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	var count int64
+	err := r.db.Model(&model.PeerShareRuntime{}).
+		Where("node_id = ? AND status = 1 AND role = ? AND applied = 0 AND updated_time >= ? AND (service_name = '' OR service_name IS NULL)", nodeID, "forward", minUpdatedTime).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *Repository) GetActiveForwardPeerShareRuntimeByPort(shareID int64, port int) (*model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var item model.PeerShareRuntime
+	err := r.db.Where("share_id = ? AND port = ? AND status = 1 AND role = ?", shareID, port, "forward").First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) GetActiveForwardPeerShareRuntimeByServiceName(shareID int64, serviceName string) (*model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	serviceName = strings.TrimSpace(serviceName)
+	if shareID <= 0 || serviceName == "" {
+		return nil, nil
+	}
+	var item model.PeerShareRuntime
+	err := r.db.Where("share_id = ? AND service_name = ? AND status = 1 AND role = ?", shareID, serviceName, "forward").
+		Order("id ASC").
+		First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) ExistsActivePeerShareRuntimeOnNodePort(nodeID int64, port int) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	var count int64
+	err := r.db.Model(&model.PeerShareRuntime{}).
+		Where("node_id = ? AND port = ? AND status = 1", nodeID, port).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (r *Repository) UpdatePeerShareRuntimeServiceName(id int64, serviceName string, updatedTime int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.PeerShareRuntime{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"service_name": serviceName,
+		"applied":      1,
+		"updated_time": updatedTime,
+	}).Error
+}
+
+func (r *Repository) MarkPeerShareRuntimeReleasedByPort(shareID int64, port int, updatedTime int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if shareID <= 0 || port <= 0 {
+		return nil
+	}
+	if updatedTime <= 0 {
+		updatedTime = unixMilliNow()
+	}
+	return r.db.Model(&model.PeerShareRuntime{}).Where("share_id = ? AND port = ? AND status = 1", shareID, port).Updates(map[string]interface{}{
+		"status":       0,
+		"applied":      0,
+		"service_name": "",
+		"updated_time": updatedTime,
+	}).Error
+}
+
+func (r *Repository) MarkForwardPeerShareRuntimeReleasedByServiceName(shareID int64, serviceName string, updatedTime int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	serviceName = strings.TrimSpace(serviceName)
+	if shareID <= 0 || serviceName == "" {
+		return nil
+	}
+	if updatedTime <= 0 {
+		updatedTime = unixMilliNow()
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var runtimeIDs []int64
+		if err := tx.Model(&model.PeerShareRuntime{}).
+			Where("share_id = ? AND status = 1 AND role = ? AND service_name = ?", shareID, "forward", serviceName).
+			Pluck("id", &runtimeIDs).Error; err != nil {
+			return err
+		}
+		if len(runtimeIDs) == 0 {
+			return nil
+		}
+		if err := tx.Model(&model.PeerShareRuntime{}).Where("id IN ?", runtimeIDs).Updates(map[string]interface{}{
+			"status": 0, "applied": 0, "service_name": "", "updated_time": updatedTime,
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.PeerShareRuntimeInstance{}).Where("runtime_id IN ?", runtimeIDs).Updates(map[string]interface{}{
+			"status": 0, "applied": 0, "healthy": 0, "updated_time": updatedTime,
+		}).Error
+	})
+}
+
+// ─── FederationTunnelBinding ─────────────────────────────────────────
+
+func (r *Repository) UpsertFederationTunnelBinding(item *model.FederationTunnelBinding) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if item == nil {
+		return errors.New("binding item is nil")
+	}
+	return r.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "tunnel_id"}, {Name: "node_id"}, {Name: "chain_type"}, {Name: "hop_inx"},
+		},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"remote_url", "resource_key", "remote_binding_id",
+			"allocated_port", "status", "updated_time",
+		}),
+	}).Create(item).Error
+}
+
+func (r *Repository) ListActiveFederationTunnelBindingsByTunnel(tunnelID int64) ([]model.FederationTunnelBinding, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var out []model.FederationTunnelBinding
+	err := r.db.Where("tunnel_id = ? AND status = 1", tunnelID).
+		Order("chain_type ASC, hop_inx ASC, id ASC").Find(&out).Error
+	if err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = make([]model.FederationTunnelBinding, 0)
+	}
+	return out, nil
+}
+
+func (r *Repository) DeleteFederationTunnelBindingsByTunnel(tunnelID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Where("tunnel_id = ?", tunnelID).Delete(&model.FederationTunnelBinding{}).Error
+}
+
 // ─── Export Methods ──────────────────────────────────────────────────
 
 var coreTables = []string{
@@ -3275,6 +3855,9 @@ func migrateSchema(db *gorm.DB) error {
 	if err := normalizeStrategy(&model.ChainTunnel{}, "chain_tunnel", "round"); err != nil {
 		return err
 	}
+	if err := normalizeStrategy(&model.PeerShareRuntime{}, "peer_share_runtime", "round"); err != nil {
+		return err
+	}
 
 	if ver < 3 {
 		if err := migrateViteConfigValueColumnTypeFn(db); err != nil {
@@ -3390,6 +3973,8 @@ func migratePostgresTrafficInt64Columns(db *gorm.DB) error {
 		{TableName: "user_tunnel", ColumnName: "flow"},
 		{TableName: "user_tunnel", ColumnName: "in_flow"},
 		{TableName: "user_tunnel", ColumnName: "out_flow"},
+		{TableName: "peer_share", ColumnName: "max_bandwidth"},
+		{TableName: "peer_share", ColumnName: "current_flow"},
 	}
 
 	for _, column := range columns {

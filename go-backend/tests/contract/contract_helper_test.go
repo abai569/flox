@@ -82,6 +82,14 @@ func startMockNodeSession(t *testing.T, baseURL string, nodeSecret string) func(
 				"message":   "OK",
 				"requestId": cmd.RequestID,
 			}
+			if strings.EqualFold(strings.TrimSpace(cmd.Type), "TcpPing") {
+				respPayload["data"] = map[string]interface{}{
+					"success":     true,
+					"averageTime": 8.5,
+					"packetLoss":  0,
+					"message":     "mock tcp ok",
+				}
+			}
 			respBytes, _ := json.Marshal(respPayload)
 			_ = conn.WriteMessage(websocket.TextMessage, respBytes)
 		}
@@ -163,6 +171,9 @@ func mustContractSlice(t *testing.T, data interface{}, label string) []interface
 	t.Helper()
 	if data == nil {
 		t.Fatalf("%s: data is nil", label)
+	}
+	if page, ok := data.(map[string]interface{}); ok {
+		data = page["items"]
 	}
 	s, ok := data.([]interface{})
 	if !ok {

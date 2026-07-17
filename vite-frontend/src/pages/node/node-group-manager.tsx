@@ -170,18 +170,22 @@ export function NodeGroupManager({
         isOpen={isOpen}
         placement="center"
         scrollBehavior="inside"
-        size="2xl"
+        size="xl"
         onOpenChange={onOpenChange}
       >
         <ModalContent>
-          <ModalHeader>节点分组管理</ModalHeader>
+          <ModalHeader className="flex items-center justify-between gap-3">
+            <span>节点分组管理</span>
+            <Button
+              className="shrink-0"
+              color="primary"
+              size="sm"
+              onPress={() => handleOpenModal()}
+            >
+              创建分组
+            </Button>
+          </ModalHeader>
           <ModalBody>
-            <div className="mb-4">
-              <Button color="primary" onClick={() => handleOpenModal()}>
-                创建分组
-              </Button>
-            </div>
-
             {loading ? (
               <div className="flex justify-center py-8">
                 <Spinner size="sm" />

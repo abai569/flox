@@ -1,4 +1,4 @@
-import { Route, Routes, useNavigate, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 
 import IndexPage from "@/pages/index";
@@ -124,6 +124,10 @@ function App() {
     <Routes>
       <Route element={<LoginRoute />} path="/" />
       <Route element={<TZPage />} path="/tz" />
+      <Route
+        element={<Navigate replace to="/node" />}
+        path="/panel-sharing"
+      />
       <Route
         element={
           <ProtectedRoute skipLayout={true}>
