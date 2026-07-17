@@ -3527,7 +3527,7 @@ export default function NodePage() {
                     variant="flat"
                     onPress={() => setImportNodeOpen(true)}
                   >
-                    导入远程节点
+                    远程节点
                   </Button>
                   <Button
                     color="primary"
