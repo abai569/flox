@@ -943,8 +943,8 @@ function SortableTableRow({
     position: expiryPopoverOpen || isDragging ? "relative" : undefined,
   };
   const remoteVisualMembers = (node.remoteInstances || [])
-    .filter((instance) => instance.inScope)
-    .map((instance) => ({
+    .filter((instance: RemoteInstance) => instance.inScope)
+    .map((instance: RemoteInstance) => ({
       status: instance.status ?? 0,
       weight: instance.weight ?? 1,
     }));
@@ -952,7 +952,9 @@ function SortableTableRow({
     ? deriveNodeVisualState(remoteVisualMembers)
     : null;
   const remoteOnline = node.connectionStatus === "online" && !node.syncError;
-  const remoteInstances = (node.remoteInstances || []).filter((instance) => instance.inScope);
+  const remoteInstances = (node.remoteInstances || []).filter(
+    (instance: RemoteInstance) => instance.inScope,
+  );
   const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
   const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
