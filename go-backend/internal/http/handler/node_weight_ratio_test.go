@@ -16,7 +16,7 @@ import (
 	"go-backend/internal/store/repo"
 )
 
-func TestNodeWeightUpdateSetsRemoteInstanceTrafficRatio(t *testing.T) {
+func TestNodeWeightUpdateRejectsRemoteInstanceTrafficRatio(t *testing.T) {
 	r, err := repo.Open(filepath.Join(t.TempDir(), "remote-ratio.db"))
 	if err != nil {
 		t.Fatalf("open repo: %v", err)
@@ -49,11 +49,11 @@ func TestNodeWeightUpdateSetsRemoteInstanceTrafficRatio(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if payload.Code != 0 {
-		t.Fatalf("expected success, got code %d message %q", payload.Code, payload.Msg)
+	if payload.Code == 0 {
+		t.Fatalf("expected provider-controlled ratio rejection, got code %d message %q", payload.Code, payload.Msg)
 	}
 	instances, err := r.ListNodeInstances(node.ID)
-	if err != nil || len(instances) != 1 || instances[0].TrafficRatio != 3.5 {
-		t.Fatalf("expected persisted ratio 3.5, instances=%+v err=%v", instances, err)
+	if err != nil || len(instances) != 1 || instances[0].TrafficRatio != 0 {
+		t.Fatalf("expected ratio unchanged, instances=%+v err=%v", instances, err)
 	}
 }

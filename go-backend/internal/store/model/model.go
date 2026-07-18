@@ -442,34 +442,36 @@ type SchemaVersion struct {
 func (SchemaVersion) TableName() string { return "schema_version" }
 
 type PeerShare struct {
-	ID                      int64  `gorm:"primaryKey;autoIncrement" json:"id"`
-	Name                    string `gorm:"type:text;not null" json:"name"`
-	NodeID                  int64  `gorm:"column:node_id;not null;index:idx_peer_share_node" json:"nodeId"`
-	Token                   string `gorm:"type:text;not null;uniqueIndex" json:"token"`
-	MaxBandwidth            int64  `gorm:"column:max_bandwidth;default:0" json:"maxBandwidth"`
-	ExpiryTime              int64  `gorm:"column:expiry_time;default:0" json:"expiryTime"`
-	PortRangeStart          int    `gorm:"column:port_range_start;default:0" json:"portRangeStart"`
-	PortRangeEnd            int    `gorm:"column:port_range_end;default:0" json:"portRangeEnd"`
-	CurrentFlow             int64  `gorm:"column:current_flow;default:0" json:"currentFlow"`
-	IsActive                int    `gorm:"column:is_active;default:1" json:"isActive"`
-	ScopeType               string `gorm:"column:scope_type;type:varchar(32);not null;default:'all_enabled'" json:"scopeType"`
-	AutoIncludeNewInstances int    `gorm:"column:auto_include_new_instances;not null;default:1" json:"autoIncludeNewInstances"`
-	MinHealthyInstances     int    `gorm:"column:min_healthy_instances;not null;default:1" json:"minHealthyInstances"`
-	CreatedTime             int64  `gorm:"column:created_time;not null" json:"createdTime"`
-	UpdatedTime             int64  `gorm:"column:updated_time;not null" json:"updatedTime"`
-	AllowedDomains          string `gorm:"column:allowed_domains;type:text;default:''" json:"allowedDomains"`
-	AllowedIPs              string `gorm:"column:allowed_ips;type:text;default:''" json:"allowedIps"`
+	ID                      int64   `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name                    string  `gorm:"type:text;not null" json:"name"`
+	NodeID                  int64   `gorm:"column:node_id;not null;index:idx_peer_share_node" json:"nodeId"`
+	Token                   string  `gorm:"type:text;not null;uniqueIndex" json:"token"`
+	MaxBandwidth            int64   `gorm:"column:max_bandwidth;default:0" json:"maxBandwidth"`
+	ExpiryTime              int64   `gorm:"column:expiry_time;default:0" json:"expiryTime"`
+	PortRangeStart          int     `gorm:"column:port_range_start;default:0" json:"portRangeStart"`
+	PortRangeEnd            int     `gorm:"column:port_range_end;default:0" json:"portRangeEnd"`
+	CurrentFlow             int64   `gorm:"column:current_flow;default:0" json:"currentFlow"`
+	TrafficRatio            float64 `gorm:"column:traffic_ratio;not null;default:1.0" json:"trafficRatio"`
+	IsActive                int     `gorm:"column:is_active;default:1" json:"isActive"`
+	ScopeType               string  `gorm:"column:scope_type;type:varchar(32);not null;default:'all_enabled'" json:"scopeType"`
+	AutoIncludeNewInstances int     `gorm:"column:auto_include_new_instances;not null;default:1" json:"autoIncludeNewInstances"`
+	MinHealthyInstances     int     `gorm:"column:min_healthy_instances;not null;default:1" json:"minHealthyInstances"`
+	CreatedTime             int64   `gorm:"column:created_time;not null" json:"createdTime"`
+	UpdatedTime             int64   `gorm:"column:updated_time;not null" json:"updatedTime"`
+	AllowedDomains          string  `gorm:"column:allowed_domains;type:text;default:''" json:"allowedDomains"`
+	AllowedIPs              string  `gorm:"column:allowed_ips;type:text;default:''" json:"allowedIps"`
 }
 
 func (PeerShare) TableName() string { return "peer_share" }
 
 type PeerShareInstance struct {
-	ID          int64  `gorm:"primaryKey;autoIncrement" json:"id"`
-	ShareID     int64  `gorm:"column:share_id;not null;uniqueIndex:idx_peer_share_instance" json:"shareId"`
-	NodeID      int64  `gorm:"column:node_id;not null;index:idx_peer_share_instance_node" json:"nodeId"`
-	InstanceID  string `gorm:"column:instance_id;type:varchar(100);not null;uniqueIndex:idx_peer_share_instance" json:"instanceId"`
-	CreatedTime int64  `gorm:"column:created_time;not null" json:"createdTime"`
-	UpdatedTime int64  `gorm:"column:updated_time;not null" json:"updatedTime"`
+	ID           int64   `gorm:"primaryKey;autoIncrement" json:"id"`
+	ShareID      int64   `gorm:"column:share_id;not null;uniqueIndex:idx_peer_share_instance" json:"shareId"`
+	NodeID       int64   `gorm:"column:node_id;not null;index:idx_peer_share_instance_node" json:"nodeId"`
+	InstanceID   string  `gorm:"column:instance_id;type:varchar(100);not null;uniqueIndex:idx_peer_share_instance" json:"instanceId"`
+	TrafficRatio float64 `gorm:"column:traffic_ratio;not null;default:0" json:"trafficRatio"`
+	CreatedTime  int64   `gorm:"column:created_time;not null" json:"createdTime"`
+	UpdatedTime  int64   `gorm:"column:updated_time;not null" json:"updatedTime"`
 }
 
 func (PeerShareInstance) TableName() string { return "peer_share_instance" }

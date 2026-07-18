@@ -731,6 +731,8 @@ export const deletePeerShare = (id: number) =>
   Network.post("/federation/share/delete", { id });
 export const resetPeerShareFlow = (id: number) =>
   Network.post("/federation/share/reset-flow", { id });
+export const updatePeerShareStatus = (id: number, isActive: number) =>
+  Network.post("/federation/share/update-status", { id, isActive });
 export const getPeerRemoteUsageList = (nodeId?: number) =>
   Network.post<PeerRemoteUsageNodeApiItem[]>(
     "/federation/share/remote-usage/list",

@@ -98,7 +98,6 @@ import {
   resumeNode,
   getConfigByName,
   installMimicDeps,
-  updateNodeWeight,
   updateNodeInstanceProfile,
   updateNodeInstanceOrder,
   getPeerShareList,
@@ -1761,39 +1760,6 @@ export default function NodePage() {
       }
     },
     [nodeInstanceMembers],
-  );
-  const updateRemoteInstanceTrafficRatio = useCallback(
-    async (nodeId: number, instanceId: string, trafficRatio: number) => {
-      const node = nodeList.find((item) => item.id === nodeId);
-      const instance = node?.remoteInstances?.find(
-        (item) => item.instanceId === instanceId,
-      );
-      const response = await updateNodeWeight(
-        nodeId,
-        instance?.weight ?? 1,
-        instanceId,
-        trafficRatio,
-      );
-
-      if (response.code !== 0) {
-        throw new Error(response.msg || "更新远程实例倍率失败");
-      }
-      setNodeList((current) =>
-        current.map((node) =>
-          node.id === nodeId
-            ? {
-                ...node,
-                remoteInstances: node.remoteInstances?.map((instance) =>
-                  instance.instanceId === instanceId
-                    ? { ...instance, trafficRatio }
-                    : instance,
-                ),
-              }
-            : node,
-        ),
-      );
-    },
-    [nodeList],
   );
   const openInstanceConfigEditor = (member: MonitorNodeInstanceGroupMemberApiItem) => {
     const renewalCycle = String(member.renewalCycle || "");
@@ -3922,7 +3888,6 @@ export default function NodePage() {
                                         nodeFilterMode={nodeFilterMode}
                                         nodeGroups={nodeGroups}
                                         onConfigureInstance={openInstanceConfigEditor}
-                                        onUpdateRemoteInstanceTrafficRatio={updateRemoteInstanceTrafficRatio}
                                         onDeleteInstance={setInstanceDeleteTarget}
                                         onResetInstanceTraffic={resetInstanceTraffic}
                                         onReorderInstances={reorderNodeInstances}
@@ -4013,7 +3978,6 @@ export default function NodePage() {
                     nodeFilterMode={nodeFilterMode}
                     nodeGroups={nodeGroups}
                     onConfigureInstance={openInstanceConfigEditor}
-                    onUpdateRemoteInstanceTrafficRatio={updateRemoteInstanceTrafficRatio}
                     onDeleteInstance={setInstanceDeleteTarget}
                     onResetInstanceTraffic={resetInstanceTraffic}
                     onReorderInstances={reorderNodeInstances}

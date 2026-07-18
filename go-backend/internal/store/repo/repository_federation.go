@@ -50,7 +50,7 @@ type ActiveForwardPortRow struct {
 	UpdatedTime int64
 }
 
-func (r *Repository) ReplacePeerShareInstances(shareID, nodeID int64, instanceIDs []string, now int64) error {
+func (r *Repository) ReplacePeerShareInstances(shareID, nodeID int64, instanceIDs []string, now int64, instanceTrafficRatios ...map[string]float64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -61,6 +61,10 @@ func (r *Repository) ReplacePeerShareInstances(shareID, nodeID int64, instanceID
 		now = time.Now().UnixMilli()
 	}
 	seen := make(map[string]struct{}, len(instanceIDs))
+	ratios := map[string]float64{}
+	if len(instanceTrafficRatios) > 0 && instanceTrafficRatios[0] != nil {
+		ratios = instanceTrafficRatios[0]
+	}
 	items := make([]model.PeerShareInstance, 0, len(instanceIDs))
 	for _, raw := range instanceIDs {
 		instanceID := strings.TrimSpace(raw)
@@ -71,7 +75,7 @@ func (r *Repository) ReplacePeerShareInstances(shareID, nodeID int64, instanceID
 			continue
 		}
 		seen[instanceID] = struct{}{}
-		items = append(items, model.PeerShareInstance{ShareID: shareID, NodeID: nodeID, InstanceID: instanceID, CreatedTime: now, UpdatedTime: now})
+		items = append(items, model.PeerShareInstance{ShareID: shareID, NodeID: nodeID, InstanceID: instanceID, TrafficRatio: ratios[instanceID], CreatedTime: now, UpdatedTime: now})
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("share_id = ?", shareID).Delete(&model.PeerShareInstance{}).Error; err != nil {
@@ -114,7 +118,7 @@ func (r *Repository) UpdatePeerShareInstance(item *model.PeerShareInstance) erro
 		return errors.New("share instance is invalid")
 	}
 	return r.db.Model(&model.PeerShareInstance{}).Where("id = ?", item.ID).Updates(map[string]interface{}{
-		"node_id": item.NodeID, "instance_id": strings.TrimSpace(item.InstanceID), "updated_time": item.UpdatedTime,
+		"node_id": item.NodeID, "instance_id": strings.TrimSpace(item.InstanceID), "traffic_ratio": item.TrafficRatio, "updated_time": item.UpdatedTime,
 	}).Error
 }
 
@@ -432,6 +436,18 @@ func (r *Repository) RemoteNodeExists(remoteURL, token string) (bool, error) {
 	return count > 0, err
 }
 
+func (r *Repository) GetRemoteNodeByCredentials(remoteURL, token string) (*model.Node, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var node model.Node
+	err := r.db.Where("is_remote = 1 AND remote_url = ? AND remote_token = ?", strings.TrimRight(strings.TrimSpace(remoteURL), "/"), strings.TrimSpace(token)).First(&node).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &node, err
+}
+
 // ListRemoteNodes returns all nodes with is_remote=1, ordered by id desc.
 func (r *Repository) ListRemoteNodes() ([]RemoteNodeRow, error) {
 	if r == nil || r.db == nil {
@@ -458,6 +474,13 @@ func (r *Repository) UpdateNodeRemoteConfig(nodeID int64, configJSON string) err
 		return errors.New("repository not initialized")
 	}
 	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).Update("remote_config", configJSON).Error
+}
+
+func (r *Repository) UpdateRemoteNodeTrafficRatio(nodeID int64, trafficRatio float64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).Where("id = ? AND is_remote = 1", nodeID).Update("traffic_ratio", trafficRatio).Error
 }
 
 // ListActiveBindingsForNode returns active federation tunnel bindings for a node.
@@ -648,14 +671,18 @@ func (r *Repository) ListTunnelIDsByNamePrefix(prefix string) ([]int64, error) {
 }
 
 // CreateRemoteNode inserts a new remote node.
-func (r *Repository) CreateRemoteNode(name, secret, serverIP, portRange string, now int64, status int, inx int, remoteURL, remoteToken, remoteConfigJSON string) error {
+func (r *Repository) CreateRemoteNode(name, secret, serverIP, portRange string, now int64, status int, inx int, remoteURL, remoteToken, remoteConfigJSON string, trafficRatio ...float64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
+	}
+	ratio := 1.0
+	if len(trafficRatio) > 0 {
+		ratio = trafficRatio[0]
 	}
 	node := model.Node{
 		Name:          name,
 		Secret:        secret,
-		TrafficRatio:  1,
+		TrafficRatio:  ratio,
 		ServerIP:      serverIP,
 		ServerIPV4:    sql.NullString{},
 		ServerIPV6:    sql.NullString{},

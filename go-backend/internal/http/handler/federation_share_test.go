@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -14,6 +15,26 @@ import (
 	"go-backend/internal/http/response"
 	"go-backend/internal/store/repo"
 )
+
+func TestValidatePeerShareTrafficRatios(t *testing.T) {
+	instanceIDs := []string{"instance-a"}
+	for _, ratio := range []float64{0, -1, 100.1, math.NaN(), math.Inf(1)} {
+		if err := validatePeerShareTrafficRatios(ratio, instanceIDs, nil); err == nil {
+			t.Fatalf("expected share ratio %v to be rejected", ratio)
+		}
+	}
+	if err := validatePeerShareTrafficRatios(1, instanceIDs, map[string]float64{"instance-a": 0}); err != nil {
+		t.Fatalf("expected zero instance override to inherit: %v", err)
+	}
+	for _, ratio := range []float64{-1, 100.1, math.NaN(), math.Inf(1)} {
+		if err := validatePeerShareTrafficRatios(1, instanceIDs, map[string]float64{"instance-a": ratio}); err == nil {
+			t.Fatalf("expected instance ratio %v to be rejected", ratio)
+		}
+	}
+	if err := validatePeerShareTrafficRatios(1, instanceIDs, map[string]float64{"instance-b": 1}); err == nil {
+		t.Fatal("expected out-of-scope instance override to be rejected")
+	}
+}
 
 func TestFederationShareCreateRejectsRemoteNode(t *testing.T) {
 	r, err := repo.Open(filepath.Join(t.TempDir(), "panel.db"))

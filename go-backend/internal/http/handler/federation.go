@@ -3,7 +3,9 @@ package handler
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"sort"
@@ -14,7 +16,6 @@ import (
 
 	"go-backend/internal/http/client"
 	"go-backend/internal/http/response"
-	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 )
 
@@ -25,18 +26,20 @@ type federationTunnelRequest struct {
 }
 
 type createPeerShareRequest struct {
-	Name                    string   `json:"name"`
-	NodeID                  int64    `json:"nodeId"`
-	MaxBandwidth            int64    `json:"maxBandwidth"`
-	ExpiryTime              int64    `json:"expiryTime"`
-	PortRangeStart          int      `json:"portRangeStart"`
-	PortRangeEnd            int      `json:"portRangeEnd"`
-	AllowedDomains          string   `json:"allowedDomains"`
-	AllowedIPs              string   `json:"allowedIps"`
-	ScopeType               string   `json:"scopeType"`
-	AutoIncludeNewInstances *bool    `json:"autoIncludeNewInstances"`
-	MinHealthyInstances     int      `json:"minHealthyInstances"`
-	InstanceIDs             []string `json:"instanceIds"`
+	Name                    string             `json:"name"`
+	NodeID                  int64              `json:"nodeId"`
+	MaxBandwidth            int64              `json:"maxBandwidth"`
+	ExpiryTime              int64              `json:"expiryTime"`
+	PortRangeStart          int                `json:"portRangeStart"`
+	PortRangeEnd            int                `json:"portRangeEnd"`
+	AllowedDomains          string             `json:"allowedDomains"`
+	AllowedIPs              string             `json:"allowedIps"`
+	ScopeType               string             `json:"scopeType"`
+	AutoIncludeNewInstances *bool              `json:"autoIncludeNewInstances"`
+	MinHealthyInstances     int                `json:"minHealthyInstances"`
+	InstanceIDs             []string           `json:"instanceIds"`
+	TrafficRatio            *float64           `json:"trafficRatio"`
+	InstanceTrafficRatios   map[string]float64 `json:"instanceTrafficRatios"`
 }
 
 type deletePeerShareRequest struct {
@@ -47,24 +50,42 @@ type resetPeerShareFlowRequest struct {
 	ID int64 `json:"id"`
 }
 
+type updatePeerShareStatusRequest struct {
+	ID       int64 `json:"id"`
+	IsActive int   `json:"isActive"`
+}
+
 type updatePeerShareRequest struct {
-	ID                      int64    `json:"id"`
-	Name                    string   `json:"name"`
-	MaxBandwidth            int64    `json:"maxBandwidth"`
-	ExpiryTime              int64    `json:"expiryTime"`
-	PortRangeStart          int      `json:"portRangeStart"`
-	PortRangeEnd            int      `json:"portRangeEnd"`
-	AllowedDomains          string   `json:"allowedDomains"`
-	AllowedIPs              string   `json:"allowedIps"`
-	ScopeType               string   `json:"scopeType"`
-	AutoIncludeNewInstances *bool    `json:"autoIncludeNewInstances"`
-	MinHealthyInstances     int      `json:"minHealthyInstances"`
-	InstanceIDs             []string `json:"instanceIds"`
+	ID                      int64              `json:"id"`
+	Name                    string             `json:"name"`
+	MaxBandwidth            int64              `json:"maxBandwidth"`
+	ExpiryTime              int64              `json:"expiryTime"`
+	PortRangeStart          int                `json:"portRangeStart"`
+	PortRangeEnd            int                `json:"portRangeEnd"`
+	AllowedDomains          string             `json:"allowedDomains"`
+	AllowedIPs              string             `json:"allowedIps"`
+	ScopeType               string             `json:"scopeType"`
+	AutoIncludeNewInstances *bool              `json:"autoIncludeNewInstances"`
+	MinHealthyInstances     int                `json:"minHealthyInstances"`
+	InstanceIDs             []string           `json:"instanceIds"`
+	TrafficRatio            *float64           `json:"trafficRatio"`
+	InstanceTrafficRatios   map[string]float64 `json:"instanceTrafficRatios"`
 }
 
 type nodeImportRequest struct {
 	RemoteURL string `json:"remoteUrl"`
 	Token     string `json:"token"`
+}
+
+func normalizeRemotePanelURL(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if !strings.HasPrefix(strings.ToLower(value), "http://") && !strings.HasPrefix(strings.ToLower(value), "https://") {
+		value = "https://" + value
+	}
+	return strings.TrimRight(value, "/")
 }
 
 type federationRuntimeReservePortRequest struct {
@@ -131,6 +152,8 @@ type peerShareInstanceStatus struct {
 	DisplayName   string  `json:"displayName,omitempty"`
 	DisplayIndex  int     `json:"displayIndex,omitempty"`
 	Hostname      string  `json:"hostname"`
+	PublicIPV4    string  `json:"publicIpV4"`
+	PublicIPV6    string  `json:"publicIpV6"`
 	Version       string  `json:"version"`
 	Status        int     `json:"status"`
 	Weight        int     `json:"weight"`
@@ -275,14 +298,14 @@ func (h *Handler) peerShareInstanceStatuses(share *repo.PeerShare) ([]peerShareI
 	if err != nil {
 		return nil, err
 	}
-	selected := make(map[string]struct{}, len(selectedRows))
+	selected := make(map[string]float64, len(selectedRows))
 	for _, row := range selectedRows {
-		selected[row.InstanceID] = struct{}{}
+		selected[row.InstanceID] = row.TrafficRatio
 	}
 	out := make([]peerShareInstanceStatus, 0, len(instances)+len(selectedRows))
 	seen := make(map[string]struct{}, len(instances))
 	for _, inst := range instances {
-		_, explicitlySelected := selected[inst.InstanceID]
+		overrideRatio, explicitlySelected := selected[inst.InstanceID]
 		inScope := explicitlySelected
 		if share.ScopeType == "all_enabled" && share.AutoIncludeNewInstances == 1 {
 			inScope = true
@@ -290,7 +313,8 @@ func (h *Handler) peerShareInstanceStatuses(share *repo.PeerShare) ([]peerShareI
 		out = append(out, peerShareInstanceStatus{
 			InstanceID: inst.InstanceID, DisplayName: inst.DisplayName,
 			DisplayIndex: inst.DisplayIndex, Hostname: inst.Hostname,
-			Version: inst.Version, Status: inst.Status, Weight: inst.Weight, TrafficRatio: inst.TrafficRatio,
+			PublicIPV4: inst.PublicIPV4, PublicIPV6: inst.PublicIPV6,
+			Version: inst.Version, Status: inst.Status, Weight: inst.Weight, TrafficRatio: overrideRatio,
 			ExpiryTime: nullableInt64Value(inst.ExpiryTime), RenewalCycle: nullableStringValue(inst.RenewalCycle),
 			FlowResetTime: inst.FlowResetTime, TrafficLimit: inst.TrafficLimit,
 			TotalInFlow: inst.TotalInFlow, TotalOutFlow: inst.TotalOutFlow, PeriodRx: inst.PeriodRx, PeriodTx: inst.PeriodTx,
@@ -305,7 +329,7 @@ func (h *Handler) peerShareInstanceStatuses(share *repo.PeerShare) ([]peerShareI
 		if _, ok := seen[row.InstanceID]; ok {
 			continue
 		}
-		out = append(out, peerShareInstanceStatus{InstanceID: row.InstanceID, Selected: true, InScope: true})
+		out = append(out, peerShareInstanceStatus{InstanceID: row.InstanceID, TrafficRatio: row.TrafficRatio, Selected: true, InScope: true})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].DisplayIndex != out[j].DisplayIndex {
@@ -335,8 +359,10 @@ func remoteNodeInstanceSyncItems(items []client.RemoteNodeInstance) []repo.Remot
 	for _, item := range items {
 		out = append(out, repo.RemoteNodeInstanceSync{
 			InstanceID: item.InstanceID, DisplayName: item.DisplayName, DisplayIndex: item.DisplayIndex,
-			Hostname: item.Hostname, Version: item.Version, Status: item.Status, Weight: item.Weight,
-			ExpiryTime: item.ExpiryTime, RenewalCycle: item.RenewalCycle, FlowResetTime: item.FlowResetTime,
+			Hostname: item.Hostname, PublicIPV4: item.PublicIPV4, PublicIPV6: item.PublicIPV6,
+			Version: item.Version, Status: item.Status, Weight: item.Weight,
+			TrafficRatio: item.TrafficRatio,
+			ExpiryTime:   item.ExpiryTime, RenewalCycle: item.RenewalCycle, FlowResetTime: item.FlowResetTime,
 			TrafficLimit: item.TrafficLimit, TotalInFlow: item.TotalInFlow, TotalOutFlow: item.TotalOutFlow,
 			PeriodRx: item.PeriodRx, PeriodTx: item.PeriodTx, NetInSpeed: item.NetInSpeed, NetOutSpeed: item.NetOutSpeed,
 			NetInBytes: item.NetInBytes, NetOutBytes: item.NetOutBytes, TCPConns: item.TCPConns, UDPConns: item.UDPConns,
@@ -346,23 +372,41 @@ func remoteNodeInstanceSyncItems(items []client.RemoteNodeInstance) []repo.Remot
 	return out
 }
 
-func mergeRemoteInstanceTrafficRatios(items []client.RemoteNodeInstance, local []model.NodeInstance) []client.RemoteNodeInstance {
-	ratios := make(map[string]float64, len(local))
-	for _, item := range local {
-		ratios[item.InstanceID] = item.TrafficRatio
-	}
-	for i := range items {
-		items[i].TrafficRatio = ratios[items[i].InstanceID]
-	}
-	return items
-}
-
 func mustPeerShareConnectInstances(h *Handler, share *repo.PeerShare) []peerShareInstanceStatus {
 	items, err := h.peerShareInstanceStatuses(share)
 	if err != nil {
 		return []peerShareInstanceStatus{}
 	}
-	return items
+	result := make([]peerShareInstanceStatus, 0, len(items))
+	for _, item := range items {
+		if !item.InScope {
+			continue
+		}
+		if item.TrafficRatio <= 0 {
+			item.TrafficRatio = share.TrafficRatio
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
+func validatePeerShareTrafficRatios(trafficRatio float64, instanceIDs []string, instanceRatios map[string]float64) error {
+	if math.IsNaN(trafficRatio) || math.IsInf(trafficRatio, 0) || trafficRatio <= 0 || trafficRatio > 100 {
+		return errors.New("trafficRatio must be greater than 0 and at most 100")
+	}
+	allowed := make(map[string]struct{}, len(instanceIDs))
+	for _, instanceID := range instanceIDs {
+		allowed[instanceID] = struct{}{}
+	}
+	for instanceID, ratio := range instanceRatios {
+		if _, ok := allowed[strings.TrimSpace(instanceID)]; !ok {
+			return fmt.Errorf("instanceTrafficRatios contains out-of-scope instance %s", instanceID)
+		}
+		if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio < 0 || ratio > 100 {
+			return fmt.Errorf("instance traffic ratio for %s must be 0 or greater than 0 and at most 100", instanceID)
+		}
+	}
+	return nil
 }
 
 func buildFederationServiceConfig(serviceName, addr, protocol, role, chainName string, targetCount int, interfaceName string) map[string]interface{} {
@@ -536,6 +580,14 @@ func (h *Handler) federationShareCreate(w http.ResponseWriter, r *http.Request) 
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
+	trafficRatio := 1.0
+	if req.TrafficRatio != nil {
+		trafficRatio = *req.TrafficRatio
+	}
+	if err := validatePeerShareTrafficRatios(trafficRatio, instanceIDs, req.InstanceTrafficRatios); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
+	}
 
 	now := time.Now().UnixMilli()
 	token := randomToken(32)
@@ -545,6 +597,7 @@ func (h *Handler) federationShareCreate(w http.ResponseWriter, r *http.Request) 
 		NodeID:                  req.NodeID,
 		Token:                   token,
 		MaxBandwidth:            req.MaxBandwidth,
+		TrafficRatio:            trafficRatio,
 		ExpiryTime:              req.ExpiryTime,
 		PortRangeStart:          req.PortRangeStart,
 		PortRangeEnd:            req.PortRangeEnd,
@@ -562,7 +615,7 @@ func (h *Handler) federationShareCreate(w http.ResponseWriter, r *http.Request) 
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-	if err := h.repo.ReplacePeerShareInstances(share.ID, share.NodeID, instanceIDs, now); err != nil {
+	if err := h.repo.ReplacePeerShareInstances(share.ID, share.NodeID, instanceIDs, now, req.InstanceTrafficRatios); err != nil {
 		_ = h.repo.DeletePeerShare(share.ID)
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -628,6 +681,42 @@ func (h *Handler) federationShareResetFlow(w http.ResponseWriter, r *http.Reques
 	if err := h.repo.ResetPeerShareCurrentFlow(req.ID, time.Now().UnixMilli()); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
+	}
+
+	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) federationShareUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("Invalid method"))
+		return
+	}
+
+	var req updatePeerShareStatusRequest
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("Invalid JSON"))
+		return
+	}
+	if req.ID <= 0 || (req.IsActive != 0 && req.IsActive != 1) {
+		response.WriteJSON(w, response.ErrDefault("Invalid share status"))
+		return
+	}
+	share, err := h.repo.GetPeerShare(req.ID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if share == nil {
+		response.WriteJSON(w, response.ErrDefault("Share not found"))
+		return
+	}
+	if err := h.repo.UpdatePeerShareActive(req.ID, req.IsActive, time.Now().UnixMilli()); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if req.IsActive == 0 {
+		h.cleanupPeerShareRuntimes(req.ID)
+		h.cleanupFederationTunnels(req.ID)
 	}
 
 	response.WriteJSON(w, response.OKEmpty())
@@ -718,9 +807,26 @@ func (h *Handler) federationShareUpdate(w http.ResponseWriter, r *http.Request) 
 		for _, item := range existingInstances {
 			requestedInstanceIDs = append(requestedInstanceIDs, item.InstanceID)
 		}
+		if req.InstanceTrafficRatios == nil {
+			req.InstanceTrafficRatios = make(map[string]float64, len(existingInstances))
+			for _, item := range existingInstances {
+				req.InstanceTrafficRatios[item.InstanceID] = item.TrafficRatio
+			}
+		}
 	}
 	scopeType, autoInclude, minHealthy, instanceIDs, err := h.validatePeerShareScope(share.NodeID, scopeType, autoRequested, minHealthy, requestedInstanceIDs)
 	if err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
+	}
+	trafficRatio := share.TrafficRatio
+	if trafficRatio == 0 {
+		trafficRatio = 1
+	}
+	if req.TrafficRatio != nil {
+		trafficRatio = *req.TrafficRatio
+	}
+	if err := validatePeerShareTrafficRatios(trafficRatio, instanceIDs, req.InstanceTrafficRatios); err != nil {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
@@ -735,9 +841,10 @@ func (h *Handler) federationShareUpdate(w http.ResponseWriter, r *http.Request) 
 	share.ScopeType = scopeType
 	share.AutoIncludeNewInstances = autoInclude
 	share.MinHealthyInstances = minHealthy
+	share.TrafficRatio = trafficRatio
 	share.UpdatedTime = time.Now().UnixMilli()
 
-	if err := h.repo.UpdatePeerShareWithInstances(share, instanceIDs); err != nil {
+	if err := h.repo.UpdatePeerShareWithInstances(share, instanceIDs, req.InstanceTrafficRatios); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
@@ -787,11 +894,12 @@ func (h *Handler) federationRemoteUsageList(w http.ResponseWriter, r *http.Reque
 				expiryTime = info.ExpiryTime
 				portRangeStart = info.PortRangeStart
 				portRangeEnd = info.PortRangeEnd
-				localInstances, syncErr := h.repo.SyncRemoteNodeInstances(nodeID, remoteNodeInstanceSyncItems(info.Instances), time.Now().UnixMilli())
+				_, syncErr := h.repo.SyncRemoteNodeInstances(nodeID, remoteNodeInstanceSyncItems(info.Instances), time.Now().UnixMilli())
 				if syncErr != nil {
 					syncError = syncErr.Error()
 				}
-				remoteInstances = mergeRemoteInstanceTrafficRatios(info.Instances, localInstances)
+				remoteInstances = info.Instances
+				_ = h.repo.UpdateRemoteNodeTrafficRatio(nodeID, info.TrafficRatio)
 				remoteFlows = info.Flows
 				remoteRuntimeInstances = info.RuntimeInstances
 				currentFlow, remoteInFlow, remoteOutFlow = aggregateRemoteShareFlows(info)
@@ -799,6 +907,7 @@ func (h *Handler) federationRemoteUsageList(w http.ResponseWriter, r *http.Reque
 				configData := remoteShareUsageConfigMap(node.RemoteConfig.String)
 				for key, value := range map[string]interface{}{
 					"shareId":           info.ShareID,
+					"trafficRatio":      info.TrafficRatio,
 					"maxBandwidth":      info.MaxBandwidth,
 					"currentFlow":       info.CurrentFlow,
 					"remoteCurrentFlow": currentFlow,
@@ -1015,7 +1124,7 @@ func (h *Handler) nodeImport(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("Remote URL and Token are required"))
 		return
 	}
-	req.RemoteURL = strings.TrimRight(strings.TrimSpace(req.RemoteURL), "/")
+	req.RemoteURL = normalizeRemotePanelURL(req.RemoteURL)
 	req.Token = strings.TrimSpace(req.Token)
 	exists, err := h.repo.RemoteNodeExists(req.RemoteURL, req.Token)
 	if err != nil {
@@ -1043,6 +1152,7 @@ func (h *Handler) nodeImport(w http.ResponseWriter, r *http.Request) {
 	// Prepare config json for local storage (metadata about limits)
 	configData := map[string]interface{}{
 		"shareId":        info.ShareID,
+		"trafficRatio":   info.TrafficRatio,
 		"maxBandwidth":   info.MaxBandwidth,
 		"currentFlow":    info.CurrentFlow,
 		"expiryTime":     info.ExpiryTime,
@@ -1070,7 +1180,17 @@ func (h *Handler) nodeImport(w http.ResponseWriter, r *http.Request) {
 		req.RemoteURL,
 		req.Token,
 		string(configBytes),
+		info.TrafficRatio,
 	); err != nil {
+		response.WriteJSON(w, response.Err(-2, "Database error: "+err.Error()))
+		return
+	}
+	remoteNode, err := h.repo.GetRemoteNodeByCredentials(req.RemoteURL, req.Token)
+	if err != nil || remoteNode == nil {
+		response.WriteJSON(w, response.Err(-2, "Database error: failed to load imported node"))
+		return
+	}
+	if _, err = h.repo.SyncRemoteNodeInstances(remoteNode.ID, remoteNodeInstanceSyncItems(info.Instances), now); err != nil {
 		response.WriteJSON(w, response.Err(-2, "Database error: "+err.Error()))
 		return
 	}
@@ -1179,6 +1299,7 @@ func (h *Handler) federationConnect(w http.ResponseWriter, r *http.Request) {
 		"status":                  nodeInfo.Status,
 		"maxBandwidth":            share.MaxBandwidth,
 		"currentFlow":             share.CurrentFlow,
+		"trafficRatio":            share.TrafficRatio,
 		"expiryTime":              share.ExpiryTime,
 		"portRangeStart":          share.PortRangeStart,
 		"portRangeEnd":            share.PortRangeEnd,
@@ -2237,12 +2358,12 @@ func (h *Handler) syncRemoteNodeStatuses(items []map[string]interface{}) {
 	for _, r := range results {
 		if r.info != nil && h.repo != nil {
 			nodeID := asInt64(items[r.index]["id"], 0)
-			localInstances, err := h.repo.SyncRemoteNodeInstances(nodeID, remoteNodeInstanceSyncItems(r.instances), time.Now().UnixMilli())
+			_, err := h.repo.SyncRemoteNodeInstances(nodeID, remoteNodeInstanceSyncItems(r.instances), time.Now().UnixMilli())
 			if err != nil {
 				r.syncError = err.Error()
-			} else {
-				r.instances = mergeRemoteInstanceTrafficRatios(r.instances, localInstances)
 			}
+			_ = h.repo.UpdateRemoteNodeTrafficRatio(nodeID, r.info.TrafficRatio)
+			items[r.index]["trafficRatio"] = r.info.TrafficRatio
 		}
 		items[r.index]["status"] = r.status
 		items[r.index]["remoteCurrentFlow"] = r.currentFlow
@@ -2254,6 +2375,7 @@ func (h *Handler) syncRemoteNodeStatuses(items []map[string]interface{}) {
 		if r.info != nil {
 			configData, _ := json.Marshal(map[string]interface{}{
 				"shareId": r.info.ShareID, "maxBandwidth": r.info.MaxBandwidth, "currentFlow": r.info.CurrentFlow,
+				"trafficRatio":      r.info.TrafficRatio,
 				"remoteCurrentFlow": r.currentFlow, "remoteInFlow": r.inFlow, "remoteOutFlow": r.outFlow,
 				"expiryTime": r.info.ExpiryTime, "portRangeStart": r.info.PortRangeStart, "portRangeEnd": r.info.PortRangeEnd,
 				"remoteInstances": r.instances,

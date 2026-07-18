@@ -60,14 +60,12 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 	portRange := strings.TrimSpace(req.PortRange)
 	if instanceID != "" {
 		if req.TrafficRatio != nil {
-			if node.IsRemote != 1 {
-				response.WriteJSON(w, response.ErrDefault("仅远程节点实例可设置独立倍率"))
+			if node.IsRemote == 1 {
+				response.WriteJSON(w, response.ErrDefault("远程节点实例倍率由分享方控制"))
 				return
 			}
-			if *req.TrafficRatio < 0 {
-				response.WriteJSON(w, response.ErrDefault("流量倍率不能小于0，0表示继承节点倍率"))
-				return
-			}
+			response.WriteJSON(w, response.ErrDefault("仅分享方可设置实例独立倍率"))
+			return
 		}
 		if err := validateNodeWeightInstancePortRange(portRange); err != nil {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))

@@ -46,8 +46,9 @@ export function NodeImportModal({
     let normalizedUrl = remoteUrl.trim();
 
     if (!/^https?:\/\//i.test(normalizedUrl)) {
-      normalizedUrl = `http://${normalizedUrl}`;
+      normalizedUrl = `https://${normalizedUrl}`;
     }
+    normalizedUrl = normalizedUrl.replace(/\/+$/, "");
 
     setLoading(true);
     try {
@@ -80,7 +81,7 @@ export function NodeImportModal({
             autoComplete="off"
             label="远程面板地址"
             name="flox-federation-remote-url"
-            placeholder="https://panel.example.com"
+            placeholder="panel.example.com"
             readOnly={inputsReadOnly}
             spellCheck={false}
             value={remoteUrl}

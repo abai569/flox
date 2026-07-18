@@ -22,6 +22,7 @@ type RemoteNodeInfo struct {
 	Status                  int                     `json:"status"`
 	MaxBandwidth            int64                   `json:"maxBandwidth"`
 	CurrentFlow             int64                   `json:"currentFlow"`
+	TrafficRatio            float64                 `json:"trafficRatio"`
 	ExpiryTime              int64                   `json:"expiryTime"`
 	PortRangeStart          int                     `json:"portRangeStart"`
 	PortRangeEnd            int                     `json:"portRangeEnd"`
@@ -38,6 +39,8 @@ type RemoteNodeInstance struct {
 	DisplayName   string  `json:"displayName"`
 	DisplayIndex  int     `json:"displayIndex"`
 	Hostname      string  `json:"hostname"`
+	PublicIPV4    string  `json:"publicIpV4"`
+	PublicIPV6    string  `json:"publicIpV6"`
 	Version       string  `json:"version"`
 	Status        int     `json:"status"`
 	Weight        int     `json:"weight"`

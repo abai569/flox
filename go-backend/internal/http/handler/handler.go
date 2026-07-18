@@ -495,6 +495,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/federation/share/update", h.federationShareUpdate)
 	mux.HandleFunc("/api/v1/federation/share/delete", h.federationShareDelete)
 	mux.HandleFunc("/api/v1/federation/share/reset-flow", h.federationShareResetFlow)
+	mux.HandleFunc("/api/v1/federation/share/update-status", h.federationShareUpdateStatus)
 	mux.HandleFunc("/api/v1/federation/share/remote-usage/list", h.federationRemoteUsageList)
 	mux.HandleFunc("/api/v1/federation/connect", h.authPeer(h.federationConnect))
 	mux.HandleFunc("/api/v1/federation/tunnel/create", h.authPeer(h.federationTunnelCreate))

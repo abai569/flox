@@ -19,8 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useRef, useEffect } from "react";
-import { Check, GripVertical, Pencil, X } from "lucide-react";
-import toast from "react-hot-toast";
+import { GripVertical } from "lucide-react";
 
 import { deriveNodeVisualState } from "./display";
 import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
@@ -124,11 +123,6 @@ interface NodeListViewProps {
     activeInstanceId: string,
     overInstanceId: string,
   ) => void;
-  onUpdateRemoteInstanceTrafficRatio: (
-    nodeId: number,
-    instanceId: string,
-    trafficRatio: number,
-  ) => Promise<void>;
   onInstallMimicDeps?: (node: Node) => void;
   onShareNode: (node: Node) => void;
   onViewRemoteDetail: (node: Node) => void;
@@ -316,21 +310,13 @@ function InstanceIPRegionCell({
 }
 
 function RemoteNodeInstanceRows({
-  nodeId,
   instances,
   parentTrafficRatio,
   formatTraffic,
-  onUpdateTrafficRatio,
 }: {
-  nodeId: number;
   instances: RemoteInstance[];
   parentTrafficRatio: number;
   formatTraffic: (bytes: number) => string;
-  onUpdateTrafficRatio: (
-    nodeId: number,
-    instanceId: string,
-    trafficRatio: number,
-  ) => Promise<void>;
 }) {
   return (
     <div className="mx-3 my-2 border-l-2 border-secondary-400/70 bg-secondary-50/50 dark:bg-secondary-100/10">
@@ -463,10 +449,7 @@ function RemoteNodeInstanceRows({
                   </td>
                   <td className="px-2 py-2.5 text-center">
                     <RemoteTrafficRatioCell
-                      instanceId={instanceId}
-                      nodeId={nodeId}
                       value={trafficRatio}
-                      onUpdate={onUpdateTrafficRatio}
                     />
                   </td>
                   <td className="px-2 py-2.5 text-left text-xs text-default-600">
@@ -542,99 +525,14 @@ function RemoteNodeInstanceRows({
 }
 
 function RemoteTrafficRatioCell({
-  nodeId,
-  instanceId,
   value,
-  onUpdate,
 }: {
-  nodeId: number;
-  instanceId?: string;
   value: number;
-  onUpdate: (
-    nodeId: number,
-    instanceId: string,
-    value: number,
-  ) => Promise<void>;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value));
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!editing) setDraft(String(value));
-  }, [editing, value]);
-
-  const save = async () => {
-    const next = Number(draft);
-
-    if (!instanceId || !Number.isFinite(next) || next <= 0 || next > 100) {
-      toast.error("实例倍率必须大于 0 且不超过 100");
-      return;
-    }
-    setSaving(true);
-    try {
-      await onUpdate(nodeId, instanceId, next);
-      setEditing(false);
-      toast.success("远程实例倍率已更新");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "更新远程实例倍率失败",
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!editing) {
-    return (
-      <button
-        className="inline-flex h-7 items-center gap-1 rounded px-1.5 text-default-700 transition-colors hover:bg-default-200/70 hover:text-primary disabled:cursor-default disabled:opacity-60"
-        disabled={!instanceId}
-        title={instanceId ? "编辑实例倍率" : "实例 ID 缺失，无法编辑"}
-        type="button"
-        onClick={() => setEditing(true)}
-      >
-        <span>{value.toFixed(2).replace(/\.00$/, "")}x</span>
-        <Pencil className="h-3 w-3" />
-      </button>
-    );
-  }
-
   return (
-    <div className="inline-flex items-center gap-0.5">
-      <input
-        className="h-7 w-14 rounded border border-default-300 bg-background px-1 text-center text-xs outline-none focus:border-primary"
-        disabled={saving}
-        inputMode="decimal"
-        min="0.01"
-        step="0.1"
-        type="number"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") void save();
-          if (event.key === "Escape") setEditing(false);
-        }}
-      />
-      <button
-        className="inline-flex h-7 w-7 items-center justify-center rounded text-success-600 hover:bg-success-500/10 disabled:opacity-50"
-        disabled={saving}
-        title="保存倍率"
-        type="button"
-        onClick={() => void save()}
-      >
-        <Check className="h-3.5 w-3.5" />
-      </button>
-      <button
-        className="inline-flex h-7 w-7 items-center justify-center rounded text-default-500 hover:bg-default-200/70 disabled:opacity-50"
-        disabled={saving}
-        title="取消编辑"
-        type="button"
-        onClick={() => setEditing(false)}
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-    </div>
+    <span className="text-default-700">
+      {value.toFixed(2).replace(/\.00$/, "")}x
+    </span>
   );
 }
 
@@ -1219,7 +1117,6 @@ function SortableTableRow({
   onDeleteInstance,
   onResetInstanceTraffic,
   onReorderInstances,
-  onUpdateRemoteInstanceTrafficRatio,
   onInstallMimicDeps,
   realtimeInstanceMetrics,
   isLastNode,
@@ -1542,7 +1439,7 @@ function SortableTableRow({
 
               return remoteUrl ? (
                 <button
-                  className="inline-block max-w-[180px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
+                  className="inline-block max-w-[150px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
                   title={remoteUrl}
                   type="button"
                   onClick={(event) => {
@@ -1550,7 +1447,7 @@ function SortableTableRow({
                     copyToClipboard(remoteUrl, "远程地址");
                   }}
                 >
-                  {remoteUrl}
+                  {formatInstanceIPForCell(remoteUrl)}
                 </button>
               ) : (
                 <span className="text-sm text-default-400">-</span>
@@ -1587,9 +1484,11 @@ function SortableTableRow({
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex justify-center">
           <span className="text-sm font-mono text-default-600 tabular-nums">
-              {node.connectionStatus === "online"
-                ? (node.onlineCount ?? 0)
-                : "-"}
+              {node.isRemote === 1
+                ? ""
+                : node.connectionStatus === "online"
+                  ? (node.onlineCount ?? 0)
+                  : "-"}
           </span>
         </div>
       </TableCell>
@@ -1872,12 +1771,12 @@ function SortableTableRow({
           {node.isRemote !== 1 && (
             <Button
               className="min-h-7 shrink-0 px-2"
-              color="primary"
+              color={shareCounts[node.id] ? "success" : "primary"}
               size="sm"
               variant="flat"
               onPress={() => onShareNode(node)}
             >
-              分享{shareCounts[node.id] ? ` ${shareCounts[node.id]}` : ""}
+              分享
             </Button>
           )}
         </div>
@@ -1921,13 +1820,11 @@ function SortableTableRow({
               <RemoteNodeInstanceRows
                 formatTraffic={formatTraffic}
                 instances={remoteInstances}
-                nodeId={node.id}
                 parentTrafficRatio={
                   node.trafficRatio && node.trafficRatio > 0
                     ? node.trafficRatio
                     : 1
                 }
-                onUpdateTrafficRatio={onUpdateRemoteInstanceTrafficRatio}
               />
         </TableCell>
       </TableRow>
@@ -1965,7 +1862,6 @@ export function NodeListView({
   onDeleteInstance,
   onResetInstanceTraffic,
   onReorderInstances,
-  onUpdateRemoteInstanceTrafficRatio,
   onInstallMimicDeps,
   onShareNode,
   onViewRemoteDetail,
@@ -2277,7 +2173,6 @@ export function NodeListView({
                   onDeleteInstance,
                   onResetInstanceTraffic,
                   onReorderInstances,
-                  onUpdateRemoteInstanceTrafficRatio,
                   onInstallMimicDeps,
                   onShareNode,
                   onViewRemoteDetail,

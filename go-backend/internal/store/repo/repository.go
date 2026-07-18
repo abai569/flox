@@ -2090,12 +2090,22 @@ func (r *Repository) UpdatePeerShare(share *model.PeerShare) error {
 		"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
 		"updated_time": share.UpdatedTime, "allowed_domains": share.AllowedDomains,
 		"allowed_ips": share.AllowedIPs, "scope_type": share.ScopeType,
+		"traffic_ratio":              share.TrafficRatio,
 		"auto_include_new_instances": share.AutoIncludeNewInstances,
 		"min_healthy_instances":      share.MinHealthyInstances,
 	}).Error
 }
 
-func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instanceIDs []string) error {
+func (r *Repository) UpdatePeerShareActive(id int64, isActive int, now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.PeerShare{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"is_active": isActive, "updated_time": now,
+	}).Error
+}
+
+func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instanceIDs []string, instanceTrafficRatios ...map[string]float64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -2103,6 +2113,10 @@ func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instan
 		return errors.New("share is invalid")
 	}
 	seen := make(map[string]struct{}, len(instanceIDs))
+	ratios := map[string]float64{}
+	if len(instanceTrafficRatios) > 0 && instanceTrafficRatios[0] != nil {
+		ratios = instanceTrafficRatios[0]
+	}
 	items := make([]model.PeerShareInstance, 0, len(instanceIDs))
 	for _, raw := range instanceIDs {
 		instanceID := strings.TrimSpace(raw)
@@ -2115,7 +2129,8 @@ func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instan
 		seen[instanceID] = struct{}{}
 		items = append(items, model.PeerShareInstance{
 			ShareID: share.ID, NodeID: share.NodeID, InstanceID: instanceID,
-			CreatedTime: share.UpdatedTime, UpdatedTime: share.UpdatedTime,
+			TrafficRatio: ratios[instanceID],
+			CreatedTime:  share.UpdatedTime, UpdatedTime: share.UpdatedTime,
 		})
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
@@ -2125,6 +2140,7 @@ func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instan
 			"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
 			"updated_time": share.UpdatedTime, "allowed_domains": share.AllowedDomains,
 			"allowed_ips": share.AllowedIPs, "scope_type": share.ScopeType,
+			"traffic_ratio":              share.TrafficRatio,
 			"auto_include_new_instances": share.AutoIncludeNewInstances,
 			"min_healthy_instances":      share.MinHealthyInstances,
 		}).Error; err != nil {

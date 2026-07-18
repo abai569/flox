@@ -143,6 +143,7 @@ export interface PeerShareApiItem {
   token: string;
   maxBandwidth: number;
   currentFlow: number;
+  trafficRatio: number;
   expiryTime: number;
   portRangeStart: number;
   portRangeEnd: number;
@@ -226,6 +227,8 @@ export interface PeerShareMutationPayload {
   instanceIds?: string[];
   autoIncludeNewInstances?: boolean;
   minHealthyInstances?: number;
+  trafficRatio: number;
+  instanceTrafficRatios: Record<string, number>;
 }
 
 export interface PeerRemoteUsageBindingApiItem {

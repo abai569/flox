@@ -195,7 +195,7 @@ func TestUpsertNodeInstanceClearsRuntimeTrafficWhenOfflineInstanceMovesServer(t 
 	}
 }
 
-func TestSyncRemoteNodeInstancesPreservesLocalTrafficRatio(t *testing.T) {
+func TestSyncRemoteNodeInstancesReplacesLocalTrafficRatio(t *testing.T) {
 	r, err := Open(filepath.Join(t.TempDir(), "remote-instance-ratio.db"))
 	if err != nil {
 		t.Fatalf("open repo: %v", err)
@@ -213,15 +213,15 @@ func TestSyncRemoteNodeInstancesPreservesLocalTrafficRatio(t *testing.T) {
 	}
 
 	instances, err := r.SyncRemoteNodeInstances(node.ID, []RemoteNodeInstanceSync{{
-		InstanceID: "instance-a", DisplayName: "Source A", Status: 1, Weight: 4, TotalInFlow: 100, TotalOutFlow: 200,
+		InstanceID: "instance-a", DisplayName: "Source A", PublicIPV4: "203.0.113.30", PublicIPV6: "2001:db8::30", Status: 1, Weight: 4, TrafficRatio: 7.5, TotalInFlow: 100, TotalOutFlow: 200,
 	}}, now+1)
 	if err != nil {
 		t.Fatalf("sync remote instances: %v", err)
 	}
-	if len(instances) != 1 || instances[0].TrafficRatio != 3.5 {
-		t.Fatalf("expected local ratio 3.5 to survive sync, got %+v", instances)
+	if len(instances) != 1 || instances[0].TrafficRatio != 7.5 {
+		t.Fatalf("expected provider ratio 7.5 to replace local ratio, got %+v", instances)
 	}
-	if instances[0].DisplayName != "Source A" || instances[0].Weight != 4 || instances[0].TotalInFlow != 100 || instances[0].TotalOutFlow != 200 {
+	if instances[0].DisplayName != "Source A" || instances[0].PublicIPV4 != "203.0.113.30" || instances[0].PublicIPV6 != "2001:db8::30" || instances[0].Weight != 4 || instances[0].TotalInFlow != 100 || instances[0].TotalOutFlow != 200 {
 		t.Fatalf("expected remote fields to update, got %+v", instances[0])
 	}
 	storedNode, err := r.GetNodeByID(node.ID)
