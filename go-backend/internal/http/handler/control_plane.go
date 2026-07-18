@@ -133,6 +133,9 @@ func (h *Handler) buildDiagnosisStreamStartItems(workItems []diagnosisWorkItem) 
 		for key, value := range workItem.metadata {
 			item[key] = value
 		}
+		if remote, _ := workItem.metadata["remoteNode"].(bool); remote {
+			item["targetIp"] = ""
+		}
 		items = append(items, item)
 	}
 
@@ -1300,7 +1303,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 		}
 	}
 
-	return forward.Name, h.expandDiagnosisWorkItemsByInstances(workItems), nil
+	return forward.Name, h.prepareDiagnosisWorkItems(workItems), nil
 }
 
 func (h *Handler) diagnoseTunnelRuntime(ctx context.Context, tunnelID int64) (map[string]interface{}, error) {
@@ -1473,7 +1476,27 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 	}
 
 	tunnelType := map[bool]string{true: "端口转发", false: "隧道转发"}[tunnel.Type == 1]
-	return tunnelName, tunnelType, h.expandDiagnosisWorkItemsByInstances(workItems), nil
+	return tunnelName, tunnelType, h.prepareDiagnosisWorkItems(workItems), nil
+}
+
+func (h *Handler) prepareDiagnosisWorkItems(workItems []diagnosisWorkItem) []diagnosisWorkItem {
+	workItems = h.expandDiagnosisWorkItemsByInstances(workItems)
+	for i := range workItems {
+		remote := false
+		if node, err := h.getNodeRecord(workItems[i].fromNodeID); err == nil && node.IsRemote == 1 {
+			remote = true
+		}
+		if !remote && workItems[i].hasChainHop {
+			if node, err := h.getNodeRecord(workItems[i].toNode.NodeID); err == nil && node.IsRemote == 1 {
+				remote = true
+			}
+		}
+		if remote {
+			workItems[i].metadata = cloneDiagnosisMetadata(workItems[i].metadata)
+			workItems[i].metadata["remoteNode"] = true
+		}
+	}
+	return workItems
 }
 
 func (h *Handler) expandDiagnosisWorkItemsByInstances(workItems []diagnosisWorkItem) []diagnosisWorkItem {
@@ -1856,6 +1879,9 @@ func (h *Handler) cachedNode(nodeCache map[int64]*nodeRecord, nodeID int64) (*no
 }
 
 func newDiagnosisResultItem(fromNodeID int64, targetIP string, targetPort int, description string, metadata map[string]interface{}) map[string]interface{} {
+	if remote, _ := metadata["remoteNode"].(bool); remote {
+		targetIP = ""
+	}
 	item := map[string]interface{}{
 		"nodeName":    fmt.Sprintf("node_%d", fromNodeID),
 		"nodeId":      strconv.FormatInt(fromNodeID, 10),
@@ -2076,7 +2102,9 @@ func (h *Handler) appendExitTestRotation(results *[]map[string]interface{}, from
 			h.appendPathDiagnosis(&single, map[int64]*nodeRecord{}, fromNodeID, target.host, target.port, description, metadata, options)
 			if len(single) > 0 && asBool(single[0]["success"], false) {
 				item := single[0]
-				item["targetIp"] = exitTestTargets[0].host
+				if remote, _ := metadata["remoteNode"].(bool); !remote {
+					item["targetIp"] = exitTestTargets[0].host
+				}
 				if idx > 0 {
 					item["actualTarget"] = target.name
 				}

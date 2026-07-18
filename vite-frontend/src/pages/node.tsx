@@ -2603,15 +2603,7 @@ export default function NodePage() {
     const overId = Number(over.id);
 
     if (isNaN(activeId) || isNaN(overId)) return;
-    if (
-      nodeList.find((node) => node.id === activeId)?.isRemote === 1 ||
-      nodeList.find((node) => node.id === overId)?.isRemote === 1
-    ) {
-      return;
-    }
-    const displayNodeIds = displayNodes
-      .filter((node) => node.isRemote !== 1)
-      .map((node) => node.id);
+    const displayNodeIds = displayNodes.map((node) => node.id);
     const oldIndex = displayNodeIds.indexOf(activeId);
     const newIndex = displayNodeIds.indexOf(overId);
 
@@ -2633,9 +2625,7 @@ export default function NodePage() {
     setNodeOrder(newOrder);
     saveOrder("node-order", newOrder);
     try {
-      const nodesToUpdate = newOrder
-        .filter((id) => nodeList.find((node) => node.id === id)?.isRemote !== 1)
-        .map((id, index) => ({ id, inx: index }));
+      const nodesToUpdate = newOrder.map((id, index) => ({ id, inx: index }));
       const response = await updateNodeOrder({ nodes: nodesToUpdate });
 
       if (response.code === 0) {
@@ -2845,7 +2835,7 @@ export default function NodePage() {
     );
   }, [displayNodes]);
   const sortableNodeIds = useMemo(
-    () => displayNodes.filter((node) => node.isRemote !== 1).map((node) => node.id),
+    () => displayNodes.map((node) => node.id),
     [displayNodes],
   );
   const groupedNodes = useMemo(() => {
@@ -2947,7 +2937,7 @@ export default function NodePage() {
                     isSelected={selectedIds.has(node.id)}
                     onValueChange={() => toggleSelect(node.id)}
                   />}
-                {node.isRemote !== 1 && <div
+                <div
                   className="cursor-grab active:cursor-grabbing p-1 text-default-400 hover:text-default-600 transition-colors"
                   {...listeners}
                   style={{ touchAction: "none" }}
@@ -2961,7 +2951,7 @@ export default function NodePage() {
                   >
                     <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
                   </svg>
-                </div>}
+                </div>
                 {/* WGM 状态 */}
                 {node.mimicStatus === "ok" || node.mimicStatus === "deps_ready" ? (
                   <span className="text-green-500 text-sm" title="WGM 就绪">✅</span>
@@ -3729,11 +3719,7 @@ export default function NodePage() {
                       >
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
                           {displayNodes.map((node) => (
-                            <SortableItem
-                              disabled={node.isRemote === 1}
-                              key={node.id}
-                              id={node.id}
-                            >
+                            <SortableItem key={node.id} id={node.id}>
                               {(listeners) => renderNodeCard(node, listeners)}
                             </SortableItem>
                           ))}

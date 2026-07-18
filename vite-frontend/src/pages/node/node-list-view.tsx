@@ -223,13 +223,36 @@ const getInstanceLabel = (
 
 type RemoteInstance = NonNullable<Node["remoteInstances"]>[number];
 
+function NodeTableColGroup() {
+  return (
+    <colgroup>
+      <col className="w-[50px]" />
+      <col className="w-[50px]" />
+      <col className="w-[64px]" />
+      <col className="w-[70px]" />
+      <col className="w-[90px]" />
+      <col className="w-[50px]" />
+      <col className="w-[100px]" />
+      <col className="w-[130px]" />
+      <col className="w-[70px]" />
+      <col className="w-[120px]" />
+      <col className="w-[110px]" />
+      <col className="w-[110px]" />
+      <col className="w-[100px]" />
+      <col className="w-[110px]" />
+      <col className="w-[160px]" />
+      <col className="w-[270px]" />
+    </colgroup>
+  );
+}
+
 const getRemoteInstanceLabel = (instance: RemoteInstance) => {
   const displayName = instance.displayName?.trim();
 
   if (displayName) return displayName;
   if (instance.displayIndex != null) return `实例 ${instance.displayIndex}`;
 
-  return instance.instanceId || "实例";
+  return "实例";
 };
 
 const formatCountryCity = (region?: string): string => {
@@ -317,58 +340,57 @@ function InstanceIPRegionCell({
 
 function RemoteNodeInstanceRows({
   instances,
+  flows,
   parentTrafficRatio,
   formatTraffic,
 }: {
   instances: RemoteInstance[];
+  flows: NonNullable<Node["remoteFlows"]>;
   parentTrafficRatio: number;
   formatTraffic: (bytes: number) => string;
 }) {
   return (
-    <div className="mx-3 my-2 border-l-2 border-secondary-400/70 bg-secondary-50/50 dark:bg-secondary-100/10">
-      <div className="w-full max-w-full overflow-x-auto px-3 pb-2">
-        <table className="w-full min-w-[1420px] table-fixed text-[13px]">
+    <div className="my-2 bg-secondary-50/50 shadow-[inset_2px_0_0_rgba(168,85,247,0.7)] dark:bg-secondary-100/10">
+      <div className="w-full max-w-full overflow-x-auto pb-2">
+        <table className="w-full min-w-[1654px] table-fixed text-[13px]">
+          <NodeTableColGroup />
           <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
             <tr>
-              <th className="w-[170px] px-2 py-2 text-left font-medium">
+              <th aria-label="选择" />
+              <th aria-label="排序" />
+              <th aria-label="展开" />
+              <th className="px-1 py-2 text-center font-medium">
+                状态
+              </th>
+              <th className="px-1 py-2 text-left font-medium">
                 实例名称
                 <span className="font-normal text-secondary-500">
                   ^{instances.length}个
                 </span>
               </th>
-              <th className="w-[80px] px-2 py-2 text-center font-medium">
-                状态
-              </th>
-              <th className="w-[70px] px-2 py-2 text-center font-medium">
-                权重
-              </th>
-              <th className="w-[115px] px-2 py-2 text-center font-medium">
+              <th className="px-1 py-2 text-center font-medium">
                 倍率
               </th>
-              <th className="w-[180px] px-2 py-2 text-left font-medium">
-                IP / 地区
-              </th>
-              <th className="w-[70px] px-2 py-2 text-center font-medium">
+              <th aria-label="节点分组" />
+              <th aria-label="地址" />
+              <th className="px-1 py-2 text-center font-medium">
                 在线数
               </th>
-              <th className="w-[110px] px-2 py-2 text-center font-medium">
-                周期流量
+              <th className="px-1 py-2 text-right font-medium">
+                分享流量
               </th>
-              <th className="w-[100px] px-2 py-2 text-center font-medium">
+              <th className="px-1 py-2 text-right font-medium">
                 上行流量
               </th>
-              <th className="w-[100px] px-2 py-2 text-center font-medium">
+              <th className="px-1 py-2 text-right font-medium">
                 下行流量
               </th>
-              <th className="w-[100px] px-2 py-2 text-center font-medium">
-                流量限额
-              </th>
-              <th className="w-[110px] px-2 py-2 text-center font-medium">
-                到期时间
-              </th>
-              <th className="w-[110px] px-2 py-2 text-center font-medium">
+              <th className="px-1 py-2 text-right font-medium">
                 共享范围
               </th>
+              <th aria-label="到期提醒" />
+              <th aria-label="备注" />
+              <th aria-label="操作" />
             </tr>
           </thead>
           <tbody>
@@ -381,36 +403,21 @@ function RemoteNodeInstanceRows({
                 instance.trafficRatio != null && instance.trafficRatio > 0
                   ? instance.trafficRatio
                   : parentTrafficRatio;
-              const upFlow = instance.periodTx ?? instance.totalOutFlow;
-              const downFlow = instance.periodRx ?? instance.totalInFlow;
-              const periodFlow =
-                upFlow != null || downFlow != null
-                  ? (upFlow ?? 0) + (downFlow ?? 0)
-                  : undefined;
-              const onlineCount =
-                instance.onlineCount ??
-                (instance.tcpConns != null || instance.udpConns != null
-                  ? (instance.tcpConns ?? 0) + (instance.udpConns ?? 0)
-                  : undefined);
-              const expiry = instance.expiryTime
-                ? instance.expiryTime < 100000000000
-                  ? instance.expiryTime * 1000
-                  : instance.expiryTime
-                : 0;
-              const ipRows = [
-                {
-                  key: "v4",
-                  ip: instance.publicIpV4?.trim(),
-                  region: formatCountryCity(instance.publicIpV4Region),
-                  countryCode: instance.publicIpV4CountryCode,
-                },
-                {
-                  key: "v6",
-                  ip: instance.publicIpV6?.trim(),
-                  region: formatCountryCity(instance.publicIpV6Region),
-                  countryCode: instance.publicIpV6CountryCode,
-                },
-              ].filter((item) => item.ip || item.region);
+              const instanceFlows = flows.filter(
+                (flow) =>
+                  flow.instanceId === instanceId &&
+                  flow.runtimeId > 0 &&
+                  flow.periodType.toLowerCase() === "total",
+              );
+              const upFlow = instanceFlows.reduce(
+                (total, flow) => total + flow.inFlow,
+                0,
+              );
+              const downFlow = instanceFlows.reduce(
+                (total, flow) => total + flow.outFlow,
+                0,
+              );
+              const periodFlow = upFlow + downFlow;
 
               return (
                 <tr
@@ -420,106 +427,54 @@ function RemoteNodeInstanceRows({
                   }
                   className="border-b border-divider/60 last:border-b-0"
                 >
-                  <td className="px-2 py-2.5 text-left align-middle">
-                    <span className="block truncate font-medium text-foreground">
-                      {label}
-                    </span>
-                    {instanceId ? (
-                      <span
-                        className="block truncate font-mono text-[11px] text-default-400"
-                        title={instanceId}
-                      >
-                        {instanceId}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-2.5 text-center align-middle">
+                  <td />
+                  <td />
+                  <td />
+                  <td className="px-1 py-2.5 text-center align-middle">
                     {instance.status == null ? (
                       <span className="text-default-400">-</span>
                     ) : (
-                    <span className="inline-flex items-center gap-1.5">
                       <StatusDot
                         active={!disabled && online}
-                          tone={
-                            disabled ? "default" : online ? "success" : "danger"
-                          }
+                        tone={disabled ? "default" : online ? "success" : "danger"}
+                        title={disabled ? "已禁用" : online ? "在线" : "离线"}
                       />
-                      <span className="text-xs text-default-600">
-                        {disabled ? "已禁用" : online ? "在线" : "离线"}
-                      </span>
-                    </span>
                     )}
                   </td>
-                  <td className="px-2 py-2.5 text-center font-mono text-default-700">
-                    {instance.weight ?? "-"}
+                  <td className="px-1 py-2.5 text-left align-middle">
+                    <span className="block truncate font-medium text-foreground">
+                      {label}
+                    </span>
                   </td>
-                  <td className="px-2 py-2.5 text-center">
+                  <td className="px-1 py-2.5 text-center">
                     <RemoteTrafficRatioCell
                       value={trafficRatio}
                     />
                   </td>
-                  <td className="px-2 py-2.5 text-left text-xs text-default-600">
-                    {ipRows.length ? (
-                      <div className="space-y-1">
-                        {ipRows.map((item) => (
-                          <div
-                            key={item.key}
-                            className="flex min-w-0 items-center gap-1.5 whitespace-nowrap"
-                          >
-                            {item.region ? (
-                              <CountryFlag
-                                code={item.countryCode}
-                                title={item.region}
-                              />
-                            ) : null}
-                            <span
-                              className="max-w-[110px] truncate font-mono"
-                              title={item.ip}
-                            >
-                              {item.ip
-                                ? formatInstanceIPForCell(item.ip)
-                                : item.region}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-default-400">-</span>
-                    )}
+                  <td />
+                  <td />
+                  <td className="px-1 py-2.5 text-center font-mono text-default-700">
+                    {instance.onlineCount ?? 0}
                   </td>
-                  <td className="px-2 py-2.5 text-center font-mono text-default-700">
-                    {onlineCount ?? "-"}
+                  <td className="px-1 py-2.5 text-right text-danger-600 dark:text-danger-400">
+                    {formatTraffic(periodFlow)}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-danger-600 dark:text-danger-400">
-                    {periodFlow == null ? "-" : formatTraffic(periodFlow)}
+                  <td className="px-1 py-2.5 text-right text-success-700 dark:text-success-300">
+                    {formatTraffic(upFlow)}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-success-700 dark:text-success-300">
-                    {upFlow == null ? "-" : formatTraffic(upFlow)}
+                  <td className="px-1 py-2.5 text-right text-primary-700 dark:text-primary-300">
+                    {formatTraffic(downFlow)}
                   </td>
-                  <td className="px-2 py-2.5 text-center text-primary-700 dark:text-primary-300">
-                    {downFlow == null ? "-" : formatTraffic(downFlow)}
-                  </td>
-                  <td className="px-2 py-2.5 text-center text-default-700">
-                    {instance.trafficLimit == null
-                      ? "-"
-                      : instance.trafficLimit > 0
-                        ? `${instance.trafficLimit} GB`
-                        : "不限"}
-                  </td>
-                  <td className="px-2 py-2.5 text-center text-default-700">
-                    {instance.expiryTime == null
-                      ? "-"
-                      : expiry
-                        ? new Date(expiry).toLocaleDateString("zh-CN")
-                        : "永久"}
-                  </td>
-                  <td className="px-2 py-2.5 text-center text-default-700">
+                  <td className="px-1 py-2.5 text-right text-default-700">
                     {instance.selected
                       ? "指定共享"
                       : instance.inScope
                         ? "范围内"
                         : "-"}
                   </td>
+                  <td />
+                  <td />
+                  <td />
                 </tr>
               );
             })}
@@ -649,10 +604,10 @@ function NodeInstanceRows({
 
   return (
     <div
-      className="mx-3 my-2 overflow-visible border-l-2 border-primary-400/70 bg-primary-50/70 dark:bg-primary-100/10"
+      className="my-2 overflow-visible bg-primary-50/70 shadow-[inset_2px_0_0_rgba(59,130,246,0.7)] dark:bg-primary-100/10"
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="w-full max-w-full overflow-x-auto px-3 pb-2">
+      <div className="w-full max-w-full overflow-x-auto pb-2">
       <DndContext
         collisionDetection={closestCenter}
         sensors={instanceSensors}
@@ -662,55 +617,51 @@ function NodeInstanceRows({
         items={sortableInstanceIds}
         strategy={verticalListSortingStrategy}
       >
-      <table className="w-full min-w-[1460px] table-fixed text-[13px]">
+      <table className="w-full min-w-[1654px] table-fixed text-[13px]">
+        <NodeTableColGroup />
         <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
           <tr>
-                  <th
-                    className="w-[40px] px-0 py-2 text-center font-medium"
-                    title="拖拽排序"
-                  >
-              排序
-            </th>
-                  <th className="w-[60px] px-1 py-2 text-center font-medium">
+                  <th aria-label="选择" />
+                  <th className="px-0 py-2 text-center font-medium" title="拖拽排序">
+                    排序
+                  </th>
+                  <th className="px-1 py-2 text-center font-medium">WGM</th>
+                  <th className="px-1 py-2 text-center font-medium">
                     状态
                   </th>
-            <th className="w-[105px] px-1 py-2 text-left font-medium">
+            <th className="px-1 py-2 text-left font-medium">
               实例名称
                     <span className="font-normal text-primary-500">
                       ^{members.length}个
                     </span>
                   </th>
-                  <th className="w-[125px] px-1 py-2 text-left font-medium">
-                    IP / 地区
-                  </th>
-                  <th className="w-[120px] px-1 py-2 text-center font-medium">
+                  <th className="px-1 py-2 text-center font-medium">
                     版本
                   </th>
-                  <th className="w-[65px] px-1 py-2 text-center font-medium">
+                  <th aria-label="节点分组" />
+                  <th className="px-1 py-2 text-left font-medium">IP / 地区</th>
+                  <th className="px-1 py-2 text-center font-medium">
                     在线数
                   </th>
-                  <th className="w-[110px] px-1 py-2 text-center font-medium">
+                  <th className="px-1 py-2 text-right font-medium">
                     周期流量
                   </th>
-                  <th className="w-[100px] px-1 py-2 text-center font-medium">
+                  <th className="px-1 py-2 text-right font-medium">
                     上行流量
                   </th>
-                  <th className="w-[100px] px-1 py-2 text-center font-medium">
+                  <th className="px-1 py-2 text-right font-medium">
                     下行流量
                   </th>
-                  <th className="w-[90px] px-1 py-2 text-center font-medium">
+                  <th className="px-1 py-2 text-right font-medium">
                     流量限额
                   </th>
-                  <th className="w-[60px] px-1 py-2 text-center font-medium">
-                    WGM
-                  </th>
-                  <th className="w-[110px] px-1 py-2 text-center font-medium">
+                  <th className="px-1 py-2 text-center font-medium">
                     到期提醒
                   </th>
-                  <th className="w-[10em] min-w-[10em] max-w-[10em] px-1 py-2 text-left font-medium">
+                  <th className="px-1 py-2 text-left font-medium">
                     备注
                   </th>
-                  <th className="w-[210px] px-1 py-2 text-left font-medium">
+                  <th className="px-1 py-2 text-left font-medium">
                     操作
             </th>
           </tr>
@@ -720,7 +671,7 @@ function NodeInstanceRows({
             <tr>
                     <td
                       className="px-2 py-8 text-center text-default-500"
-                      colSpan={14}
+                      colSpan={16}
                     >
                 暂无实例上报
               </td>
@@ -735,6 +686,28 @@ function NodeInstanceRows({
                 id={getInstanceSortableId(member, memberIndex)}
                 isPopoverOpen={openExpiryInstanceId === member.instanceId}
                 sortableDisabled={!member.instanceId?.trim()}
+                wgmCell={
+                  <td className="px-1 py-3 text-center">
+                    {(node as any).mimicStatus === "ok" ||
+                    (node as any).mimicStatus === "deps_ready" ? (
+                      <span className="text-green-500" title="WGM 就绪">✅</span>
+                    ) : (node as any).mimicStatus ? (
+                      <button
+                        className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+                        title={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onInstallMimicDeps?.(node);
+                        }}
+                      >
+                        ❌
+                      </button>
+                    ) : (
+                      <span className="text-default-400">-</span>
+                    )}
+                  </td>
+                }
               >
                 <td className="px-2 py-2.5 text-center align-middle">
                   <StatusDot
@@ -760,11 +733,6 @@ function NodeInstanceRows({
                           {getInstanceLabel(member)}
                         </span>
                 </td>
-                <InstanceIPRegionCell
-                  copyToClipboard={copyToClipboard}
-                  member={member}
-                />
-
                 <td className="overflow-visible px-2 py-3 text-center text-default-700">
                   {upgradeProgress && upgradeProgress.percent < 100 ? (
                     <div className="mx-auto w-[105px] space-y-1">
@@ -800,7 +768,12 @@ function NodeInstanceRows({
                     "-"
                   )}
                 </td>
-                <td className="px-2 py-3 text-center font-mono text-default-700">
+                <td />
+                <InstanceIPRegionCell
+                  copyToClipboard={copyToClipboard}
+                  member={member}
+                />
+                <td className="px-1 py-3 text-center font-mono text-default-700">
                   {member.status === 1
                     ? (() => {
                         const realtime = getRealtimeMetric(member);
@@ -811,8 +784,8 @@ function NodeInstanceRows({
                       })()
                     : "-"}
                 </td>
-                <td className="px-2 py-3 text-center text-danger-600 dark:text-danger-400">
-                  <div className="inline-flex items-center justify-center gap-1">
+                <td className="px-1 py-3 text-right text-danger-600 dark:text-danger-400">
+                  <div className="inline-flex items-center justify-end gap-1">
                     <span>
                       {(() => {
                         const realtime = getRealtimeMetric(member);
@@ -851,46 +824,24 @@ function NodeInstanceRows({
                     )}
                   </div>
                 </td>
-                <td className="px-2 py-3 text-center text-success-700 dark:text-success-300">
+                <td className="px-1 py-3 text-right text-success-700 dark:text-success-300">
                   {formatTraffic(
                     getRealtimeMetric(member)?.periodTraffic?.tx ??
                       member.periodTx ??
                       0,
                   )}
                 </td>
-                <td className="px-2 py-3 text-center text-primary-700 dark:text-primary-300">
+                <td className="px-1 py-3 text-right text-primary-700 dark:text-primary-300">
                   {formatTraffic(
                     getRealtimeMetric(member)?.periodTraffic?.rx ??
                       member.periodRx ??
                       0,
                   )}
                 </td>
-                <td className="px-2 py-3 text-center text-default-700">
+                <td className="px-1 py-3 text-right text-default-700">
                         {(member.trafficLimit ?? 0) > 0
                           ? `${member.trafficLimit} GB`
                           : "不限"}
-                </td>
-                <td className="px-2 py-3 text-center">
-                        {(node as any).mimicStatus === "ok" ||
-                        (node as any).mimicStatus === "deps_ready" ? (
-                          <span className="text-green-500" title="WGM 就绪">
-                            ✅
-                          </span>
-                  ) : (node as any).mimicStatus ? (
-                    <button
-                      className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
-                      title={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onInstallMimicDeps?.(node);
-                      }}
-                    >
-                      ❌
-                    </button>
-                  ) : (
-                    <span className="text-default-400">-</span>
-                  )}
                 </td>
                 <td className="px-2 py-3 text-center text-default-700">
                         {member.expiryTime && member.renewalCycle
@@ -1054,11 +1005,13 @@ function SortableInstanceRow({
   id,
   isPopoverOpen,
   sortableDisabled,
+  wgmCell,
   children,
 }: {
   id: string;
   isPopoverOpen: boolean;
   sortableDisabled: boolean;
+  wgmCell: React.ReactNode;
   children: React.ReactNode;
 }) {
   const {
@@ -1081,7 +1034,8 @@ function SortableInstanceRow({
         opacity: isDragging ? 0.75 : 1,
       }}
     >
-      <td className="w-[40px] px-0 py-2 text-center align-middle">
+      <td />
+      <td className="px-0 py-2 text-center align-middle">
         <button
           {...attributes}
           {...listeners}
@@ -1095,6 +1049,7 @@ function SortableInstanceRow({
           <GripVertical className="h-4 w-4" />
         </button>
       </td>
+      {wgmCell}
       {children}
     </tr>
   );
@@ -1188,7 +1143,7 @@ function SortableTableRow({
     isDragging,
     attributes,
     listeners,
-  } = useSortable({ id: node.id, disabled: node.isRemote === 1 });
+  } = useSortable({ id: node.id });
   const style: any = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -1292,6 +1247,25 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={rowBg}>
         <div className="flex items-center justify-center">
+            <div
+            className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <svg
+              aria-hidden="true"
+              className="w-4 h-4"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
+            </svg>
+              </div>
+        </div>
+      </TableCell>
+      <TableCell className={rowBg}>
+        <div className="flex items-center justify-center">
             {isExpandable ? (
               <button
             className="inline-flex h-6 w-6 items-center justify-center rounded text-default-500 transition-colors hover:bg-default-200/70 hover:text-foreground"
@@ -1317,27 +1291,6 @@ function SortableTableRow({
               </button>
             ) : (
               <span className="text-default-300">-</span>
-            )}
-        </div>
-      </TableCell>
-      <TableCell className={rowBg}>
-        <div className="flex items-center justify-center">
-            {node.isRemote !== 1 && (
-              <div
-            className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <svg
-              aria-hidden="true"
-              className="w-4 h-4"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
-            </svg>
-              </div>
             )}
         </div>
       </TableCell>
@@ -1825,6 +1778,7 @@ function SortableTableRow({
               colSpan={16}
             >
               <RemoteNodeInstanceRows
+                flows={node.remoteFlows || []}
                 formatTraffic={formatTraffic}
                 instances={remoteInstances}
                 parentTrafficRatio={
@@ -1931,6 +1885,7 @@ export function NodeListView({
     <div className="overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
       <Table
         aria-label="节点列表"
+        className="min-w-[1654px] table-fixed"
         classNames={{
           th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
           td: "py-3 border-b border-divider/30 group-data-[last=true]:border-b-0 bg-white/80 backdrop-blur-sm dark:bg-content1/50",
@@ -1938,6 +1893,7 @@ export function NodeListView({
           wrapper: "p-0 shadow-none bg-transparent rounded-none",
         }}
       >
+        <NodeTableColGroup />
         <TableHeader>
           <TableColumn className="whitespace-nowrap flex-shrink-0 w-[50px] text-center">
             <div className="flex items-center justify-center h-full">
@@ -1946,6 +1902,9 @@ export function NodeListView({
                 onValueChange={toggleSelectAll}
               />
             </div>
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
+            排序
           </TableColumn>
           <TableColumn className="w-[64px] whitespace-nowrap px-1 py-2 text-center">
             <button
@@ -1975,9 +1934,6 @@ export function NodeListView({
                 <path d="m6 9 6 6 6-6" />
               </svg>
             </button>
-          </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
-            排序
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center w-[70px]">
             状态

@@ -6,6 +6,7 @@ export interface ForwardDiagnosisEntry {
   nodeId: string;
   targetIp: string;
   targetPort?: number;
+  remoteNode?: boolean;
   message?: string;
   averageTime?: number;
   packetLoss?: number;

@@ -101,7 +101,7 @@ type Server struct {
 	pending               map[string]pendingRequest
 	subscribers           map[int]chan NodeMessage
 	nextSubscriberID      int
-	serviceConnections    map[int64]map[string]int                      // nodeID -> serviceName -> connections
+	serviceConnections    map[int64]map[string]map[string]int           // nodeID -> instanceID -> serviceName -> connections
 	serviceConnUpdateTime map[int64]int64                               // nodeID -> last update time
 	forwardMetrics        map[int64]map[int64]map[string]*ForwardMetric // forwardID -> nodeID -> serviceName -> metric
 	forwardMetricsMu      sync.RWMutex
@@ -198,15 +198,24 @@ func (s *Server) SetNodeMetricHook(fn func(nodeID int64, info SystemInfo)) {
 func (s *Server) GetServiceConnections(nodeID int64) map[string]int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if conns, ok := s.serviceConnections[nodeID]; ok {
-		// 返回副本避免外部修改
-		result := make(map[string]int, len(conns))
-		for k, v := range conns {
-			result[k] = v
+	result := make(map[string]int)
+	for _, conns := range s.serviceConnections[nodeID] {
+		for name, count := range conns {
+			result[name] += count
 		}
-		return result
 	}
-	return nil
+	return result
+}
+
+func (s *Server) GetInstanceServiceConnections(nodeID int64, instanceID string) map[string]int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	conns := s.serviceConnections[nodeID][strings.TrimSpace(instanceID)]
+	result := make(map[string]int, len(conns))
+	for name, count := range conns {
+		result[name] = count
+	}
+	return result
 }
 
 // GetForwardCurrentConnections 获取指定转发的当前连接数
@@ -233,8 +242,8 @@ func (s *Server) GetForwardCurrentConnections(nodeID int64, forwardID int64) int
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	conns := s.serviceConnections[nodeID]
-	if conns == nil {
+	instanceConns := s.serviceConnections[nodeID]
+	if instanceConns == nil {
 		return 0
 	}
 
@@ -242,9 +251,11 @@ func (s *Server) GetForwardCurrentConnections(nodeID int64, forwardID int64) int
 	// 服务名格式：{forwardID}_{userID}_{userTunnelID}_tcp 或 _udp
 	// 遍历所有连接数，匹配以 "{forwardID}_" 开头的服务
 	prefix := fmt.Sprintf("%d_", forwardID)
-	for serviceName, count := range conns {
-		if strings.HasPrefix(serviceName, prefix) {
-			total += count
+	for _, conns := range instanceConns {
+		for serviceName, count := range conns {
+			if strings.HasPrefix(serviceName, prefix) {
+				total += count
+			}
 		}
 	}
 	return total
@@ -311,7 +322,7 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		byConn:                make(map[*websocket.Conn]*nodeSession),
 		pending:               make(map[string]pendingRequest),
 		subscribers:           make(map[int]chan NodeMessage),
-		serviceConnections:    make(map[int64]map[string]int),
+		serviceConnections:    make(map[int64]map[string]map[string]int),
 		serviceConnUpdateTime: make(map[int64]int64),
 		forwardMetrics:        make(map[int64]map[int64]map[string]*ForwardMetric), // forwardID -> nodeID -> serviceName -> metric
 		nodeOfflineTime:       make(map[int64]int64),                               // nodeID -> offline timestamp
@@ -553,6 +564,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		current, ok := s.nodes[nodeID][instanceID]
 		if ok && current.conn.conn == conn {
 			delete(s.nodes[nodeID], instanceID)
+			delete(s.serviceConnections[nodeID], instanceID)
 			removedCurrentInstance = true
 			if len(s.nodes[nodeID]) == 0 {
 				delete(s.nodes, nodeID)
@@ -625,7 +637,10 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 						}
 						// 缓存服务连接数
 						s.mu.Lock()
-						s.serviceConnections[nodeID] = sysInfo.ServiceConnections
+						if s.serviceConnections[nodeID] == nil {
+							s.serviceConnections[nodeID] = make(map[string]map[string]int)
+						}
+						s.serviceConnections[nodeID][strings.TrimSpace(sysInfo.InstanceID)] = sysInfo.ServiceConnections
 						s.serviceConnUpdateTime[nodeID] = time.Now().Unix()
 						// 更新 service_name
 						if sysInfo.ServiceName != "" {
@@ -788,7 +803,10 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 				}
 				// 缓存服务连接数
 				s.mu.Lock()
-				s.serviceConnections[nodeID] = sysInfo.ServiceConnections
+				if s.serviceConnections[nodeID] == nil {
+					s.serviceConnections[nodeID] = make(map[string]map[string]int)
+				}
+				s.serviceConnections[nodeID][strings.TrimSpace(sysInfo.InstanceID)] = sysInfo.ServiceConnections
 				s.serviceConnUpdateTime[nodeID] = time.Now().Unix()
 				s.mu.Unlock()
 				_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
@@ -1284,6 +1302,7 @@ func (s *Server) DisconnectNode(nodeID int64) {
 	}
 	instanceOfflineHook := s.onNodeInstanceOffline
 	delete(s.nodes, nodeID)
+	delete(s.serviceConnections, nodeID)
 	s.mu.Unlock()
 
 	s.failPendingForNode(nodeID, "节点被面板踢下线")

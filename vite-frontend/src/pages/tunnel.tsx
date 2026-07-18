@@ -4530,7 +4530,7 @@ export default function TunnelPage() {
                                                   {instanceLine}
                                                 </div>
                                               )}
-                                              <div className="text-xs text-default-500 truncate">
+                                              {!result.remoteNode && <div className="text-xs text-default-500 truncate">
                                                 {result.actualTarget ? (
                                                   <>
                                                     {result.actualTarget}:
@@ -4556,7 +4556,7 @@ export default function TunnelPage() {
                                                     :{result.targetPort}
                                                   </>
                                                 )}
-                                              </div>
+                                              </div>}
                                             </div>
                                           </div>
                                         </td>
@@ -4730,7 +4730,7 @@ export default function TunnelPage() {
                                             {instanceLine}
                                           </div>
                                         )}
-                                        <div className="text-xs text-default-500 mt-0.5">
+                                        {!result.remoteNode && <div className="text-xs text-default-500 mt-0.5">
                                           {result.actualTarget ? (
                                             <>
                                               {result.actualTarget}:
@@ -4754,7 +4754,7 @@ export default function TunnelPage() {
                                               :{result.targetPort}
                                             </>
                                           )}
-                                        </div>
+                                        </div>}
                                       </div>
                                       <div
                                         className={`flex-shrink-0 inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium ${isDiagnosing ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : isSuccess ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
