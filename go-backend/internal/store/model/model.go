@@ -465,13 +465,12 @@ type PeerShare struct {
 func (PeerShare) TableName() string { return "peer_share" }
 
 type PeerShareInstance struct {
-	ID           int64   `gorm:"primaryKey;autoIncrement" json:"id"`
-	ShareID      int64   `gorm:"column:share_id;not null;uniqueIndex:idx_peer_share_instance" json:"shareId"`
-	NodeID       int64   `gorm:"column:node_id;not null;index:idx_peer_share_instance_node" json:"nodeId"`
-	InstanceID   string  `gorm:"column:instance_id;type:varchar(100);not null;uniqueIndex:idx_peer_share_instance" json:"instanceId"`
-	TrafficRatio float64 `gorm:"column:traffic_ratio;not null;default:0" json:"trafficRatio"`
-	CreatedTime  int64   `gorm:"column:created_time;not null" json:"createdTime"`
-	UpdatedTime  int64   `gorm:"column:updated_time;not null" json:"updatedTime"`
+	ID          int64  `gorm:"primaryKey;autoIncrement" json:"id"`
+	ShareID     int64  `gorm:"column:share_id;not null;uniqueIndex:idx_peer_share_instance" json:"shareId"`
+	NodeID      int64  `gorm:"column:node_id;not null;index:idx_peer_share_instance_node" json:"nodeId"`
+	InstanceID  string `gorm:"column:instance_id;type:varchar(100);not null;uniqueIndex:idx_peer_share_instance" json:"instanceId"`
+	CreatedTime int64  `gorm:"column:created_time;not null" json:"createdTime"`
+	UpdatedTime int64  `gorm:"column:updated_time;not null" json:"updatedTime"`
 }
 
 func (PeerShareInstance) TableName() string { return "peer_share_instance" }

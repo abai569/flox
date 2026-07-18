@@ -47,7 +47,6 @@ type RemoteNodeInstanceSync struct {
 	Version       string
 	Status        int
 	Weight        int
-	TrafficRatio  float64
 	ExpiryTime    int64
 	RenewalCycle  string
 	FlowResetTime int
@@ -335,7 +334,7 @@ func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeIns
 			"display_index": item.DisplayIndex, "hostname": strings.TrimSpace(item.Hostname),
 			"public_ip_v4": strings.TrimSpace(item.PublicIPV4), "public_ip_v6": strings.TrimSpace(item.PublicIPV6),
 			"version": item.Version,
-			"status":  item.Status, "weight": item.Weight, "traffic_ratio": item.TrafficRatio,
+			"status":  item.Status, "weight": item.Weight,
 			"flow_reset_time": item.FlowResetTime, "traffic_limit": item.TrafficLimit,
 			"total_in_flow": item.TotalInFlow, "total_out_flow": item.TotalOutFlow, "period_rx": item.PeriodRx, "period_tx": item.PeriodTx,
 			"net_in_speed": item.NetInSpeed, "net_out_speed": item.NetOutSpeed, "net_in_bytes": item.NetInBytes, "net_out_bytes": item.NetOutBytes,
@@ -354,7 +353,7 @@ func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeIns
 		}
 		if err := r.db.Model(&model.NodeInstance{}).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "node_id"}, {Name: "instance_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "public_ip_v4", "public_ip_v6", "version", "status", "weight", "traffic_ratio", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "total_in_flow", "total_out_flow", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
+			DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "public_ip_v4", "public_ip_v6", "version", "status", "weight", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "total_in_flow", "total_out_flow", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
 		}).Create(values).Error; err != nil {
 			return nil, err
 		}

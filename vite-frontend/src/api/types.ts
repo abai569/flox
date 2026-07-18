@@ -167,7 +167,6 @@ export interface PeerShareInstanceApiItem {
   hostname?: string;
   status?: number;
   weight?: number;
-  trafficRatio?: number;
   version?: string;
   renewalCycle?: "month" | "quarter" | "halfYear" | "" | "year";
   flowResetTime?: number;
@@ -228,7 +227,6 @@ export interface PeerShareMutationPayload {
   autoIncludeNewInstances?: boolean;
   minHealthyInstances?: number;
   trafficRatio: number;
-  instanceTrafficRatios: Record<string, number>;
 }
 
 export interface PeerRemoteUsageBindingApiItem {

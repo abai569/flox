@@ -2105,7 +2105,7 @@ func (r *Repository) UpdatePeerShareActive(id int64, isActive int, now int64) er
 	}).Error
 }
 
-func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instanceIDs []string, instanceTrafficRatios ...map[string]float64) error {
+func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instanceIDs []string) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -2113,10 +2113,6 @@ func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instan
 		return errors.New("share is invalid")
 	}
 	seen := make(map[string]struct{}, len(instanceIDs))
-	ratios := map[string]float64{}
-	if len(instanceTrafficRatios) > 0 && instanceTrafficRatios[0] != nil {
-		ratios = instanceTrafficRatios[0]
-	}
 	items := make([]model.PeerShareInstance, 0, len(instanceIDs))
 	for _, raw := range instanceIDs {
 		instanceID := strings.TrimSpace(raw)
@@ -2129,8 +2125,7 @@ func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instan
 		seen[instanceID] = struct{}{}
 		items = append(items, model.PeerShareInstance{
 			ShareID: share.ID, NodeID: share.NodeID, InstanceID: instanceID,
-			TrafficRatio: ratios[instanceID],
-			CreatedTime:  share.UpdatedTime, UpdatedTime: share.UpdatedTime,
+			CreatedTime: share.UpdatedTime, UpdatedTime: share.UpdatedTime,
 		})
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {

@@ -399,10 +399,6 @@ function RemoteNodeInstanceRows({
               const instanceId = instance.instanceId?.trim();
               const disabled = instance.weight != null && instance.weight <= 0;
               const online = instance.status === 1;
-              const trafficRatio =
-                instance.trafficRatio != null && instance.trafficRatio > 0
-                  ? instance.trafficRatio
-                  : parentTrafficRatio;
               const instanceFlows = flows.filter(
                 (flow) =>
                   flow.instanceId === instanceId &&
@@ -448,7 +444,7 @@ function RemoteNodeInstanceRows({
                   </td>
                   <td className="px-1 py-2.5 text-center">
                     <RemoteTrafficRatioCell
-                      value={trafficRatio}
+                      value={parentTrafficRatio}
                     />
                   </td>
                   <td />
