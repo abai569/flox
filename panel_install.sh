@@ -1344,8 +1344,8 @@ restore_panel_data() {
     return 1
   fi
 
-  # 检查是否有可用备份
-  if ! ls -1d "${backup_base}"/flox_backup_* &>/dev/null; then
+  # 检查是否有可用备份（手动备份 + Web 在线升级备份）
+  if ! compgen -G "${backup_base}/flox_backup_*" >/dev/null && ! compgen -G "${backup_base}/flox_web_upgrade_*" >/dev/null; then
     echo "❌ 未找到任何备份文件，请先执行备份操作"
     return 1
   fi
@@ -1365,9 +1365,13 @@ restore_panel_data() {
     bname=$(basename "$dir")
     local bsize
     bsize=$(du -sh "$dir" 2>/dev/null | cut -f1)
-    echo "  $idx. $bname ($bsize)"
+    local btype="手动备份"
+    if [[ "$bname" == flox_web_upgrade_* ]]; then
+      btype="升级备份"
+    fi
+    echo "  $idx. $bname [$btype] ($bsize)"
     idx=$((idx + 1))
-  done < <(ls -1d "${backup_base}"/flox_backup_* | sort -r)
+  done < <(find "$backup_base" -maxdepth 1 -type d \( -name 'flox_backup_*' -o -name 'flox_web_upgrade_*' \) | sort -r)
   echo "==============================================="
 
   if [[ "$idx" -eq 1 ]]; then
