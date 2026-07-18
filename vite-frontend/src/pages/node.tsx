@@ -3362,7 +3362,7 @@ export default function NodePage() {
               </Button>
               <Button
                 className="min-h-8 w-full"
-                color="primary"
+                color={shareCounts[node.id] ? "success" : "primary"}
                 size="sm"
                 variant="flat"
                 onPress={() => setSharingNode(node)}

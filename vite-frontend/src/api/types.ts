@@ -226,7 +226,6 @@ export interface PeerShareMutationPayload {
   instanceIds?: string[];
   autoIncludeNewInstances?: boolean;
   minHealthyInstances?: number;
-  trafficRatio: number;
 }
 
 export interface PeerRemoteUsageBindingApiItem {
