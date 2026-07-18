@@ -44,7 +44,7 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 
 	forwardID, userID, userTunnelID, ok := parseFlowServiceIDs(serviceName)
 	if ok {
-		inFlow, outFlow := h.scaleFlowByTunnel(forwardID, item.D, item.U)
+		inFlow, outFlow := h.scaleFlowByTunnel(forwardID, nodeID, item.D, item.U)
 		if err := h.repo.AddFlow(forwardID, userID, userTunnelID, inFlow, outFlow); err != nil {
 			log.Printf("[flow] AddFlow failed forward=%d user=%d: %v", forwardID, userID, err)
 		}
@@ -307,19 +307,14 @@ func (h *Handler) enforcePeerShareFlowLimit(shareID int64) {
 	}
 }
 
-func (h *Handler) scaleFlowByTunnel(forwardID int64, inFlow int64, outFlow int64) (int64, int64) {
-	forward, err := h.getForwardRecord(forwardID)
-	if err != nil || forward == nil {
-		return inFlow, outFlow
+func (h *Handler) scaleFlowByTunnel(forwardID, nodeID int64, inFlow int64, outFlow int64) (int64, int64) {
+	ratio, err := h.repo.GetForwardFlowRatio(forwardID, nodeID)
+	if err != nil || ratio <= 0 {
+		ratio = 1
 	}
 
-	tunnel, err := h.getTunnelRecord(forward.TunnelID)
-	if err != nil || tunnel == nil {
-		return inFlow, outFlow
-	}
-
-	scaledIn := int64(float64(inFlow) * tunnel.TrafficRatio)
-	scaledOut := int64(float64(outFlow) * tunnel.TrafficRatio)
+	scaledIn := int64(float64(inFlow) * ratio)
+	scaledOut := int64(float64(outFlow) * ratio)
 	return scaledIn, scaledOut
 }
 

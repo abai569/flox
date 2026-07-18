@@ -133,9 +133,6 @@ func (h *Handler) buildDiagnosisStreamStartItems(workItems []diagnosisWorkItem) 
 		for key, value := range workItem.metadata {
 			item[key] = value
 		}
-		if remote, _ := workItem.metadata["remoteNode"].(bool); remote {
-			item["targetIp"] = ""
-		}
 		items = append(items, item)
 	}
 
@@ -1136,7 +1133,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 	case 1:
 		for _, inNode := range inNodes {
 			for _, target := range targets {
-				description := fmt.Sprintf("入口(%s)->目标(%s)", inNode.NodeName, target.Address)
+				description := fmt.Sprintf("入口[%s]->目标[%s]", inNode.NodeName, target.Address)
 				workItems = append(workItems, diagnosisWorkItem{
 					fromNodeID:  inNode.NodeID,
 					targetIP:    target.IP,
@@ -1152,7 +1149,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 		for _, inNode := range inNodes {
 			if len(chainHops) > 0 {
 				for _, firstNode := range chainHops[0] {
-					description := fmt.Sprintf("入口(%s)->第1跳(%s)", inNode.NodeName, firstNode.NodeName)
+					description := fmt.Sprintf("入口[%s]->第1跳[%s]", inNode.NodeName, firstNode.NodeName)
 					workItems = append(workItems, diagnosisWorkItem{
 						fromNodeID:    inNode.NodeID,
 						toNode:        firstNode,
@@ -1169,7 +1166,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 				}
 			} else {
 				for _, outNode := range outNodes {
-					description := fmt.Sprintf("入口(%s)->出口(%s)", inNode.NodeName, outNode.NodeName)
+					description := fmt.Sprintf("入口[%s]->出口[%s]", inNode.NodeName, outNode.NodeName)
 					workItems = append(workItems, diagnosisWorkItem{
 						fromNodeID:    inNode.NodeID,
 						toNode:        outNode,
@@ -1190,7 +1187,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 			for _, currentNode := range hop {
 				if i+1 < len(chainHops) {
 					for _, nextNode := range chainHops[i+1] {
-						description := fmt.Sprintf("第%d跳(%s)->第%d跳(%s)", i+1, currentNode.NodeName, i+2, nextNode.NodeName)
+						description := fmt.Sprintf("第%d跳[%s]->第%d跳[%s]", i+1, currentNode.NodeName, i+2, nextNode.NodeName)
 						workItems = append(workItems, diagnosisWorkItem{
 							fromNodeID:    currentNode.NodeID,
 							toNode:        nextNode,
@@ -1208,7 +1205,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 					}
 				} else {
 					for _, outNode := range outNodes {
-						description := fmt.Sprintf("第%d跳(%s)->出口(%s)", i+1, currentNode.NodeName, outNode.NodeName)
+						description := fmt.Sprintf("第%d跳[%s]->出口[%s]", i+1, currentNode.NodeName, outNode.NodeName)
 						workItems = append(workItems, diagnosisWorkItem{
 							fromNodeID:    currentNode.NodeID,
 							toNode:        outNode,
@@ -1229,7 +1226,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 
 		for _, outNode := range outNodes {
 			for _, target := range targets {
-				description := fmt.Sprintf("出口(%s)->目标(%s)", outNode.NodeName, target.Address)
+				description := fmt.Sprintf("出口[%s]->目标[落地]", outNode.NodeName)
 				workItems = append(workItems, diagnosisWorkItem{
 					fromNodeID:  outNode.NodeID,
 					targetIP:    target.IP,
@@ -1249,7 +1246,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 					seenNodes[inNode.NodeID] = true
 					workItems = append(workItems, diagnosisWorkItem{
 						fromNodeID:  inNode.NodeID,
-						description: fmt.Sprintf("SDWAN状态(%s)", inNode.NodeName),
+						description: fmt.Sprintf("SDWAN状态[%s]", inNode.NodeName),
 						metadata: map[string]interface{}{
 							"sdwanCheck": true,
 							"nodeName":   inNode.NodeName,
@@ -1263,7 +1260,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 						seenNodes[cn.NodeID] = true
 						workItems = append(workItems, diagnosisWorkItem{
 							fromNodeID:  cn.NodeID,
-							description: fmt.Sprintf("SDWAN状态(%s)", cn.NodeName),
+							description: fmt.Sprintf("SDWAN状态[%s]", cn.NodeName),
 							metadata: map[string]interface{}{
 								"sdwanCheck": true,
 								"nodeName":   cn.NodeName,
@@ -1277,7 +1274,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 					seenNodes[outNode.NodeID] = true
 					workItems = append(workItems, diagnosisWorkItem{
 						fromNodeID:  outNode.NodeID,
-						description: fmt.Sprintf("SDWAN状态(%s)", outNode.NodeName),
+						description: fmt.Sprintf("SDWAN状态[%s]", outNode.NodeName),
 						metadata: map[string]interface{}{
 							"sdwanCheck": true,
 							"nodeName":   outNode.NodeName,
@@ -1289,7 +1286,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 	default:
 		for _, inNode := range inNodes {
 			for _, target := range targets {
-				description := fmt.Sprintf("入口(%s)->目标(%s)", inNode.NodeName, target.Address)
+				description := fmt.Sprintf("入口[%s]->目标[%s]", inNode.NodeName, target.Address)
 				workItems = append(workItems, diagnosisWorkItem{
 					fromNodeID:  inNode.NodeID,
 					targetIP:    target.IP,
@@ -1355,7 +1352,7 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 	switch tunnel.Type {
 	case 1:
 		for _, inNode := range inNodes {
-			description := fmt.Sprintf("入口(%s)->外网", inNode.NodeName)
+			description := fmt.Sprintf("入口[%s]->外网", inNode.NodeName)
 			workItems = append(workItems, diagnosisWorkItem{
 				fromNodeID:  inNode.NodeID,
 				targetIP:    "",
@@ -1371,7 +1368,7 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 		for _, inNode := range inNodes {
 			if len(chainHops) > 0 {
 				for _, firstNode := range chainHops[0] {
-					description := fmt.Sprintf("入口(%s)->第1跳(%s)", inNode.NodeName, firstNode.NodeName)
+					description := fmt.Sprintf("入口[%s]->第1跳[%s]", inNode.NodeName, firstNode.NodeName)
 					workItems = append(workItems, diagnosisWorkItem{
 						fromNodeID:    inNode.NodeID,
 						toNode:        firstNode,
@@ -1388,7 +1385,7 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 				}
 			} else {
 				for _, outNode := range outNodes {
-					description := fmt.Sprintf("入口(%s)->出口(%s)", inNode.NodeName, outNode.NodeName)
+					description := fmt.Sprintf("入口[%s]->出口[%s]", inNode.NodeName, outNode.NodeName)
 					workItems = append(workItems, diagnosisWorkItem{
 						fromNodeID:    inNode.NodeID,
 						toNode:        outNode,
@@ -1409,7 +1406,7 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 			for _, currentNode := range hop {
 				if i+1 < len(chainHops) {
 					for _, nextNode := range chainHops[i+1] {
-						description := fmt.Sprintf("第%d跳(%s)->第%d跳(%s)", i+1, currentNode.NodeName, i+2, nextNode.NodeName)
+						description := fmt.Sprintf("第%d跳[%s]->第%d跳[%s]", i+1, currentNode.NodeName, i+2, nextNode.NodeName)
 						workItems = append(workItems, diagnosisWorkItem{
 							fromNodeID:    currentNode.NodeID,
 							toNode:        nextNode,
@@ -1427,7 +1424,7 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 					}
 				} else {
 					for _, outNode := range outNodes {
-						description := fmt.Sprintf("第%d跳(%s)->出口(%s)", i+1, currentNode.NodeName, outNode.NodeName)
+						description := fmt.Sprintf("第%d跳[%s]->出口[%s]", i+1, currentNode.NodeName, outNode.NodeName)
 						workItems = append(workItems, diagnosisWorkItem{
 							fromNodeID:    currentNode.NodeID,
 							toNode:        outNode,
@@ -1447,7 +1444,7 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 		}
 
 		for _, outNode := range outNodes {
-			description := fmt.Sprintf("出口(%s)->外网", outNode.NodeName)
+			description := fmt.Sprintf("出口[%s]->外网", outNode.NodeName)
 			workItems = append(workItems, diagnosisWorkItem{
 				fromNodeID:  outNode.NodeID,
 				targetIP:    "",
@@ -1461,7 +1458,7 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 		}
 	default:
 		for _, inNode := range inNodes {
-			description := fmt.Sprintf("入口(%s)->外网", inNode.NodeName)
+			description := fmt.Sprintf("入口[%s]->外网", inNode.NodeName)
 			workItems = append(workItems, diagnosisWorkItem{
 				fromNodeID:  inNode.NodeID,
 				targetIP:    "",
@@ -1494,6 +1491,16 @@ func (h *Handler) prepareDiagnosisWorkItems(workItems []diagnosisWorkItem) []dia
 		if remote {
 			workItems[i].metadata = cloneDiagnosisMetadata(workItems[i].metadata)
 			workItems[i].metadata["remoteNode"] = true
+		}
+		hideTargetAddress := false
+		if workItems[i].hasChainHop {
+			if node, err := h.getNodeRecord(workItems[i].toNode.NodeID); err == nil && node.IsRemote == 1 {
+				hideTargetAddress = true
+			}
+		}
+		if hideTargetAddress {
+			workItems[i].metadata = cloneDiagnosisMetadata(workItems[i].metadata)
+			workItems[i].metadata["hideTargetAddress"] = true
 		}
 	}
 	return workItems
@@ -1879,9 +1886,6 @@ func (h *Handler) cachedNode(nodeCache map[int64]*nodeRecord, nodeID int64) (*no
 }
 
 func newDiagnosisResultItem(fromNodeID int64, targetIP string, targetPort int, description string, metadata map[string]interface{}) map[string]interface{} {
-	if remote, _ := metadata["remoteNode"].(bool); remote {
-		targetIP = ""
-	}
 	item := map[string]interface{}{
 		"nodeName":    fmt.Sprintf("node_%d", fromNodeID),
 		"nodeId":      strconv.FormatInt(fromNodeID, 10),
@@ -2102,7 +2106,7 @@ func (h *Handler) appendExitTestRotation(results *[]map[string]interface{}, from
 			h.appendPathDiagnosis(&single, map[int64]*nodeRecord{}, fromNodeID, target.host, target.port, description, metadata, options)
 			if len(single) > 0 && asBool(single[0]["success"], false) {
 				item := single[0]
-				if remote, _ := metadata["remoteNode"].(bool); !remote {
+				if hide, _ := metadata["hideTargetAddress"].(bool); !hide {
 					item["targetIp"] = exitTestTargets[0].host
 				}
 				if idx > 0 {

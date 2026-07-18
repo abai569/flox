@@ -769,7 +769,9 @@ export default function TunnelPage() {
     }
     const parts = ip.split(".");
 
-    if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.**`;
+    if (parts.length >= 3) return `${parts.slice(0, 2).join(".")}.*`;
+
+    if (parts.length === 2) return `${parts[0]}.*`;
 
     return ip;
   };
@@ -4523,18 +4525,20 @@ export default function TunnelPage() {
                                             )}
                                             <div className="flex-1 min-w-0">
                                               <div className="font-medium text-foreground truncate">
-                                                {result.description}
+                                                 {result.description.replace(/\(Remote\)/g, "(Rem)")}
                                               </div>
                                               {instanceLine && (
                                                 <div className="text-[11px] text-primary truncate">
                                                   {instanceLine}
                                                 </div>
                                               )}
-                                              {!result.remoteNode && <div className="text-xs text-default-500 truncate">
-                                                {result.actualTarget ? (
-                                                  <>
-                                                    {result.actualTarget}:
-                                                    {result.targetPort}
+                                               <div className="text-xs text-default-500 truncate">
+                                                 {result.actualTarget ? (
+                                                   <>
+                                                     {result.hideTargetAddress
+                                                       ? "****"
+                                                       : maskPublicIP(result.actualTarget || result.targetIp)}:
+                                                     {result.targetPort}
                                                   </>
                                                 ) : (
                                                   <>
@@ -4549,14 +4553,12 @@ export default function TunnelPage() {
                                                         )
                                                       }
                                                     >
-                                                      {maskPublicIP(
-                                                        result.targetIp,
-                                                      )}
+                                                       {result.hideTargetAddress ? "****" : maskPublicIP(result.targetIp)}
                                                     </button>
                                                     :{result.targetPort}
                                                   </>
                                                 )}
-                                              </div>}
+                                               </div>
                                             </div>
                                           </div>
                                         </td>
@@ -4723,18 +4725,20 @@ export default function TunnelPage() {
                                       )}
                                       <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-sm text-foreground break-words">
-                                          {result.description}
+                                           {result.description.replace(/\(Remote\)/g, "(Rem)")}
                                         </div>
                                         {instanceLine && (
                                           <div className="text-[11px] text-primary mt-0.5 break-words">
                                             {instanceLine}
                                           </div>
                                         )}
-                                        {!result.remoteNode && <div className="text-xs text-default-500 mt-0.5">
-                                          {result.actualTarget ? (
-                                            <>
-                                              {result.actualTarget}:
-                                              {result.targetPort}
+                                         <div className="text-xs text-default-500 mt-0.5">
+                                           {result.actualTarget ? (
+                                             <>
+                                               {result.hideTargetAddress
+                                                 ? "****"
+                                                 : maskPublicIP(result.actualTarget || result.targetIp)}:
+                                               {result.targetPort}
                                             </>
                                           ) : (
                                             <>
@@ -4749,12 +4753,12 @@ export default function TunnelPage() {
                                                   )
                                                 }
                                               >
-                                                {maskPublicIP(result.targetIp)}
+                                                 {result.hideTargetAddress ? "****" : maskPublicIP(result.targetIp)}
                                               </button>
                                               :{result.targetPort}
                                             </>
                                           )}
-                                        </div>}
+                                         </div>
                                       </div>
                                       <div
                                         className={`flex-shrink-0 inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-medium ${isDiagnosing ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : isSuccess ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}

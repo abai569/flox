@@ -72,6 +72,7 @@ import { MonitorTerminalProvider } from "@/pages/monitor-terminal";
 import {
   createNode,
   getNodeList,
+  getPeerRemoteUsageList,
   bootstrapNodeSDWAN,
   updateNode,
   deleteNode,
@@ -666,6 +667,11 @@ export default function NodePage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
   const [shareCounts, setShareCounts] = useState<Record<number, number>>({});
+  const [remoteUsageByNode, setRemoteUsageByNode] = useState<Record<number, {
+    usedPorts: number[];
+    portRangeStart: number;
+    portRangeEnd: number;
+  }>>({});
   const [sharingNode, setSharingNode] = useState<Node | null>(null);
   const [importNodeOpen, setImportNodeOpen] = useState(false);
   const [remoteDetailNode, setRemoteDetailNode] = useState<Node | null>(null);
@@ -1021,6 +1027,27 @@ export default function NodePage() {
             mergeNodeRealtimeState(node, previousById.get(node.id)),
           );
         });
+        if (nodesData.some((node) => node.isRemote === 1)) {
+          getPeerRemoteUsageList()
+            .then((usageRes) => {
+              if (usageRes.code !== 0 || !Array.isArray(usageRes.data)) return;
+              setRemoteUsageByNode(
+                usageRes.data.reduce<Record<number, {
+                  usedPorts: number[];
+                  portRangeStart: number;
+                  portRangeEnd: number;
+                }>>((acc, item) => {
+                  acc[item.nodeId] = {
+                    usedPorts: item.usedPorts || [],
+                    portRangeStart: item.portRangeStart || 0,
+                    portRangeEnd: item.portRangeEnd || 0,
+                  };
+                  return acc;
+                }, {}),
+              );
+            })
+            .catch(() => undefined);
+        }
         const hasDbOrdering = nodesData.some(
           (n) => n.inx !== undefined && n.inx !== 0,
         );
@@ -2895,6 +2922,28 @@ export default function NodePage() {
     const remoteVisualMeta = remoteVisualMembers.length
       ? deriveNodeVisualState(remoteVisualMembers)
       : null;
+    const remoteShareFlows = (node.remoteFlows || []).filter(
+      (flow) =>
+        flow.periodType.toLowerCase() === "total" &&
+        (!flow.instanceId ||
+          (node.remoteInstances || []).some(
+            (instance) =>
+              instance.inScope && instance.instanceId === flow.instanceId,
+          )),
+    );
+    const remotePeriodRx = remoteShareFlows.reduce(
+      (total, flow) => total + flow.outFlow,
+      0,
+    );
+    const remotePeriodTx = remoteShareFlows.reduce(
+      (total, flow) => total + flow.inFlow,
+      0,
+    );
+    const remotePeriodFlow = remoteShareFlows.some(
+      (flow) => flow.instanceId,
+    )
+      ? remotePeriodRx + remotePeriodTx
+      : node.remoteCurrentFlow ?? remotePeriodRx + remotePeriodTx;
     const remoteOnline = node.connectionStatus === "online" && !node.syncError;
     const remoteExpiryTime = node.remoteExpiryTime && node.remoteExpiryTime > 0
       ? (node.remoteExpiryTime < 100000000000 ? node.remoteExpiryTime * 1000 : node.remoteExpiryTime)
@@ -2912,6 +2961,7 @@ export default function NodePage() {
         : "bg-warning-500/10 text-warning-600 dark:text-warning-400";
     const hasRemark = Boolean(node.remark?.trim());
     const hasExpiryInfo = Boolean(
+      node.isRemote !== 1 &&
       expiryTarget?.expiryTime &&
       expiryTarget.expiryTime > 0 &&
       expiryTarget.renewalCycle &&
@@ -3170,7 +3220,7 @@ export default function NodePage() {
               <span className="text-default-600">周期流量</span>
               <span className="font-medium text-sm text-danger-600 dark:text-danger-400">
                 {node.isRemote === 1
-                  ? formatTraffic(node.remoteCurrentFlow ?? (node.remoteInFlow ?? 0) + (node.remoteOutFlow ?? 0))
+                   ? formatTraffic(remotePeriodFlow)
                   : realtimeNodeMetrics[node.id]
                   ? formatTraffic(
                     (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
@@ -3184,13 +3234,13 @@ export default function NodePage() {
                 <div className="flex justify-between items-center">
                   <span>↑ 上行</span>
                   <span className="font-medium text-success-600 dark:text-success-400">
-                    {formatTraffic(node.remoteInFlow ?? 0)}
+                    {formatTraffic(remotePeriodTx)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span>↓ 下行</span>
                   <span className="font-medium text-primary-600 dark:text-primary-400">
-                    {formatTraffic(node.remoteOutFlow ?? 0)}
+                    {formatTraffic(remotePeriodRx)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -3367,7 +3417,7 @@ export default function NodePage() {
                 variant="flat"
                 onPress={() => setSharingNode(node)}
               >
-                分享{shareCounts[node.id] ? ` ${shareCounts[node.id]}` : ""}
+                分享
               </Button>
             </div>
             <div className="grid gap-2 grid-cols-4">
@@ -3889,7 +3939,8 @@ export default function NodePage() {
                                           realtimeNodeInstanceMetrics
                                         }
                                         selectedIds={selectedIds}
-                                        shareCounts={shareCounts}
+                                         shareCounts={shareCounts}
+                                         remoteUsageByNode={remoteUsageByNode}
                                         setFilterGroupId={setFilterGroupId}
                                         setNodeFilterMode={setNodeFilterMode}
                                         toggleSelect={toggleSelect}
@@ -3976,6 +4027,7 @@ export default function NodePage() {
                     realtimeNodeInstanceMetrics={realtimeNodeInstanceMetrics}
                     selectedIds={selectedIds}
                     shareCounts={shareCounts}
+                    remoteUsageByNode={remoteUsageByNode}
                     setFilterGroupId={setFilterGroupId}
                     setNodeFilterMode={setNodeFilterMode}
                     toggleSelect={toggleSelect}

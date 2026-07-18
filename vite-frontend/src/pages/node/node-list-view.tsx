@@ -127,6 +127,11 @@ interface NodeListViewProps {
   onShareNode: (node: Node) => void;
   onViewRemoteDetail: (node: Node) => void;
   shareCounts: Record<number, number>;
+  remoteUsageByNode: Record<number, {
+    usedPorts: number[];
+    portRangeStart: number;
+    portRangeEnd: number;
+  }>;
 }
 
 const NODE_GROUP_NONE = -1;
@@ -377,7 +382,7 @@ function RemoteNodeInstanceRows({
                 在线数
               </th>
               <th className="px-1 py-2 text-right font-medium">
-                分享流量
+                 周期流量
               </th>
               <th className="px-1 py-2 text-right font-medium">
                 上行流量
@@ -402,16 +407,23 @@ function RemoteNodeInstanceRows({
               const instanceFlows = flows.filter(
                 (flow) =>
                   flow.instanceId === instanceId &&
-                  flow.runtimeId > 0 &&
                   flow.periodType.toLowerCase() === "total",
               );
+              const aggregateFlows =
+                instances.length === 1
+                  ? flows.filter(
+                      (flow) =>
+                        !flow.instanceId &&
+                        flow.periodType.toLowerCase() === "total",
+                    )
+                  : [];
               const upFlow = instanceFlows.reduce(
                 (total, flow) => total + flow.inFlow,
-                0,
+                aggregateFlows.reduce((total, flow) => total + flow.inFlow, 0),
               );
               const downFlow = instanceFlows.reduce(
                 (total, flow) => total + flow.outFlow,
-                0,
+                aggregateFlows.reduce((total, flow) => total + flow.outFlow, 0),
               );
               const periodFlow = upFlow + downFlow;
 
@@ -1081,6 +1093,7 @@ function SortableTableRow({
   onShareNode,
   onViewRemoteDetail,
   shareCounts,
+  remoteUsageByNode,
 }: any) {
   const [expiryPopoverOpen, setExpiryPopoverOpen] = useState(false);
   const expiryButtonRef = useRef<HTMLButtonElement>(null);
@@ -1161,6 +1174,33 @@ function SortableTableRow({
   const remoteInstances = (node.remoteInstances || []).filter(
     (instance: RemoteInstance) => instance.inScope,
   );
+  const remoteConnectionCount = remoteInstances.reduce(
+    (total: number, instance: RemoteInstance) =>
+      total + (instance.onlineCount ?? 0),
+    0,
+  );
+  const remoteShareFlows = (node.remoteFlows || []).filter(
+    (flow: NonNullable<Node["remoteFlows"]>[number]) =>
+      flow.periodType.toLowerCase() === "total" &&
+      (!flow.instanceId ||
+        remoteInstances.some(
+          (instance: RemoteInstance) => instance.instanceId === flow.instanceId,
+        )),
+  );
+  const remotePeriodRx = remoteShareFlows.reduce(
+    (total: number, flow: NonNullable<Node["remoteFlows"]>[number]) =>
+      total + flow.outFlow,
+    0,
+  );
+  const remotePeriodTx = remoteShareFlows.reduce(
+    (total: number, flow: NonNullable<Node["remoteFlows"]>[number]) =>
+      total + flow.inFlow,
+    0,
+  );
+  const remotePeriodFlow =
+    remotePeriodRx + remotePeriodTx > 0
+      ? remotePeriodRx + remotePeriodTx
+      : node.remoteCurrentFlow ?? 0;
   const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
   const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
@@ -1392,19 +1432,34 @@ function SortableTableRow({
             if (node.isRemote === 1) {
               const remoteUrl = node.remoteUrl?.trim();
               const displayAddress = remoteUrl?.replace(/^https?:\/\//i, "") || "";
+              const remoteUsage = remoteUsageByNode[node.id];
+              const portRangeStart = remoteUsage?.portRangeStart || 0;
+              const portRangeEnd = remoteUsage?.portRangeEnd || 0;
+              const usedPorts = new Set(remoteUsage?.usedPorts || []).size;
+              const totalPorts =
+                portRangeStart > 0 && portRangeEnd >= portRangeStart
+                  ? portRangeEnd - portRangeStart + 1
+                  : 0;
 
               return remoteUrl ? (
-                <button
-                  className="inline-block max-w-[150px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
-                  title={displayAddress}
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    copyToClipboard(displayAddress, "远程地址");
-                  }}
-                >
-                  {formatInstanceIPForCell(remoteUrl)}
-                </button>
+                <div className="min-w-0 px-1 text-xs font-medium text-default-700">
+                  <button
+                    className="block max-w-[150px] truncate rounded text-left transition-colors hover:bg-default-200/50 hover:text-primary"
+                    title={displayAddress}
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      copyToClipboard(displayAddress, "远程地址");
+                    }}
+                  >
+                    {formatInstanceIPForCell(remoteUrl)}
+                  </button>
+                  <span className="block text-[11px] font-mono text-default-500">
+                    {totalPorts > 0
+                      ? `${usedPorts}/${totalPorts} & ${portRangeStart}-${portRangeEnd}`
+                      : "-"}
+                  </span>
+                </div>
               ) : (
                 <span className="text-sm text-default-400">-</span>
               );
@@ -1441,7 +1496,7 @@ function SortableTableRow({
         <div className="flex justify-center">
           <span className="text-sm font-mono text-default-600 tabular-nums">
               {node.isRemote === 1
-                ? ""
+                  ? remoteConnectionCount
                 : node.connectionStatus === "online"
                   ? (node.onlineCount ?? 0)
                   : "-"}
@@ -1454,13 +1509,7 @@ function SortableTableRow({
         <div className="flex w-[104px] items-center justify-end gap-1">
           <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
             {node.isRemote === 1
-                ? node.remoteCurrentFlow != null
-                  ? formatTraffic(node.remoteCurrentFlow)
-                  : node.remoteInFlow != null || node.remoteOutFlow != null
-                    ? formatTraffic(
-                        (node.remoteInFlow ?? 0) + (node.remoteOutFlow ?? 0),
-                      )
-                    : "-"
+                ? formatTraffic(remotePeriodFlow)
               : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   (realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0) +
@@ -1477,9 +1526,7 @@ function SortableTableRow({
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-success-700 dark:text-success-300">
             {node.isRemote === 1
-                ? node.remoteInFlow == null
-                  ? "-"
-                  : formatTraffic(node.remoteInFlow)
+                ? formatTraffic(remotePeriodTx)
               : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0,
@@ -1494,9 +1541,7 @@ function SortableTableRow({
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-primary-700 dark:text-primary-300">
             {node.isRemote === 1
-                ? node.remoteOutFlow == null
-                  ? "-"
-                  : formatTraffic(node.remoteOutFlow)
+                ? formatTraffic(remotePeriodRx)
               : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0,
@@ -1823,6 +1868,7 @@ export function NodeListView({
   onShareNode,
   onViewRemoteDetail,
   shareCounts,
+  remoteUsageByNode,
 }: NodeListViewProps) {
   const [expandedNodeIds, setExpandedNodeIds] =
     useState<Set<number>>(readExpandedNodeIds);
@@ -2135,7 +2181,8 @@ export function NodeListView({
                   onInstallMimicDeps,
                   onShareNode,
                   onViewRemoteDetail,
-                  shareCounts,
+                shareCounts,
+                remoteUsageByNode,
                 }}
               />
             ))

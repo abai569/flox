@@ -359,7 +359,7 @@ func autoMigrateAll(db *gorm.DB) error {
 	_ = db.Model(&model.PeerShare{}).Where("scope_type IS NULL OR TRIM(scope_type) = ''").Updates(map[string]interface{}{
 		"scope_type": "all_enabled", "auto_include_new_instances": 1, "min_healthy_instances": 1,
 	})
-	_ = db.Model(&model.PeerShare{}).Where("min_healthy_instances < 1").Update("min_healthy_instances", 1)
+	_ = db.Model(&model.PeerShare{}).Where("min_healthy_instances <> 1").Update("min_healthy_instances", 1)
 	if hadPeerShare && !db.Migrator().HasIndex(&model.PeerShare{}, "idx_peer_share_node") {
 		_ = db.Migrator().CreateIndex(&model.PeerShare{}, "idx_peer_share_node")
 	}
@@ -2099,7 +2099,8 @@ func (r *Repository) UpdatePeerShare(share *model.PeerShare) error {
 	}
 	return r.db.Model(&model.PeerShare{}).Where("id = ?", share.ID).Updates(map[string]interface{}{
 		"name": share.Name, "max_bandwidth": share.MaxBandwidth,
-		"expiry_time": share.ExpiryTime, "port_range_start": share.PortRangeStart,
+		"current_flow": share.CurrentFlow,
+		"expiry_time":  share.ExpiryTime, "port_range_start": share.PortRangeStart,
 		"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
 		"updated_time": share.UpdatedTime, "allowed_domains": share.AllowedDomains,
 		"allowed_ips": share.AllowedIPs, "scope_type": share.ScopeType,
@@ -2144,7 +2145,8 @@ func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instan
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.PeerShare{}).Where("id = ?", share.ID).Updates(map[string]interface{}{
 			"name": share.Name, "max_bandwidth": share.MaxBandwidth,
-			"expiry_time": share.ExpiryTime, "port_range_start": share.PortRangeStart,
+			"current_flow": share.CurrentFlow,
+			"expiry_time":  share.ExpiryTime, "port_range_start": share.PortRangeStart,
 			"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
 			"updated_time": share.UpdatedTime, "allowed_domains": share.AllowedDomains,
 			"allowed_ips": share.AllowedIPs, "scope_type": share.ScopeType,

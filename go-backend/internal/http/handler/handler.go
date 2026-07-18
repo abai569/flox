@@ -18,6 +18,7 @@ import (
 
 	"go-backend/internal/auth"
 	"go-backend/internal/health"
+	"go-backend/internal/http/client"
 	"go-backend/internal/http/middleware"
 	"go-backend/internal/http/response"
 	"go-backend/internal/metrics"
@@ -245,6 +246,12 @@ type flowItem struct {
 	N string `json:"n"`
 	U int64  `json:"u"`
 	D int64  `json:"d"`
+}
+
+type remoteForwardMetricFallback struct {
+	inSpeed     uint64
+	outSpeed    uint64
+	connections int
 }
 
 const (
@@ -1039,6 +1046,34 @@ func (h *Handler) forwardList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 补充当前连接数和实时带宽
+	remoteMetrics := make(map[int64]remoteForwardMetricFallback)
+	if remoteNodes, remoteErr := h.repo.ListRemoteNodes(); remoteErr == nil {
+		fc := client.NewFederationClientWithTimeout(3 * time.Second)
+		localDomain := h.federationLocalDomain()
+		for _, remoteNode := range remoteNodes {
+			if !remoteNode.RemoteURL.Valid || !remoteNode.RemoteToken.Valid {
+				continue
+			}
+			info, connectErr := fc.Connect(
+				strings.TrimSpace(remoteNode.RemoteURL.String),
+				strings.TrimSpace(remoteNode.RemoteToken.String),
+				localDomain,
+			)
+			if connectErr != nil || info == nil {
+				continue
+			}
+			var fallback remoteForwardMetricFallback
+			for _, instance := range info.Instances {
+				if !instance.InScope {
+					continue
+				}
+				fallback.inSpeed += uint64(maxInt64(instance.NetInSpeed, 0))
+				fallback.outSpeed += uint64(maxInt64(instance.NetOutSpeed, 0))
+				fallback.connections += int(instance.TCPConns + instance.UDPConns)
+			}
+			remoteMetrics[remoteNode.ID] = fallback
+		}
+	}
 	for i := range items {
 		forwardID := asInt64(items[i]["id"], 0)
 		status := asInt(items[i]["status"], 1)
@@ -1055,17 +1090,20 @@ func (h *Handler) forwardList(w http.ResponseWriter, r *http.Request) {
 			if err == nil && len(ports) > 0 {
 				// 使用第一个入口节点的连接数
 				nodeID := ports[0].NodeID
-				conns := h.GetForwardConnections(nodeID, forwardID)
-				items[i]["currentConnections"] = conns
-
-				// 获取实时带宽数据
-				if metric := h.wsServer.GetForwardMetric(forwardID); metric != nil {
-					fmt.Printf("[api.forward] forwardID=%d inSpeed=%d outSpeed=%d\n", forwardID, metric.InSpeed, metric.OutSpeed)
-					items[i]["inSpeed"] = metric.InSpeed
-					items[i]["outSpeed"] = metric.OutSpeed
+				if fallback, ok := remoteMetrics[nodeID]; ok {
+					items[i]["currentConnections"] = fallback.connections
+					items[i]["inSpeed"] = fallback.inSpeed
+					items[i]["outSpeed"] = fallback.outSpeed
 				} else {
-					items[i]["inSpeed"] = 0
-					items[i]["outSpeed"] = 0
+					items[i]["currentConnections"] = h.GetForwardConnections(nodeID, forwardID)
+					// 获取实时带宽数据
+					if metric := h.wsServer.GetForwardMetric(forwardID); metric != nil {
+						items[i]["inSpeed"] = metric.InSpeed
+						items[i]["outSpeed"] = metric.OutSpeed
+					} else {
+						items[i]["inSpeed"] = 0
+						items[i]["outSpeed"] = 0
+					}
 				}
 			} else {
 				items[i]["currentConnections"] = 0

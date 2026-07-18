@@ -306,7 +306,7 @@ const compareForwardUserNameAsc = (a: string, b: string): number => {
   });
 };
 const normalizeForwardTunnelName = (tunnelName?: string): string => {
-  const normalized = (tunnelName || "").trim();
+  const normalized = (tunnelName || "").trim().replace(/\(Remote\)/g, "(Rem)");
 
   return normalized || UNCATEGORIZED_FORWARD_TUNNEL_NAME;
 };
@@ -3019,7 +3019,10 @@ export default function ForwardPage() {
     const nodeName = (nodeId: number) => {
       const node = nodes.find((item) => item.id === nodeId);
 
-      return (node?.name || `node${nodeId}`).trim().replace(/[\\/|:*?"<>\s]+/g, "-");
+      return (node?.name || `node${nodeId}`)
+        .trim()
+        .replace(/\(Remote\)/g, "(Rem)")
+        .replace(/[\\/|:*?"<>\s]+/g, "-");
     };
     const ids = [
       ...manualInNodeId.map((item) => item.nodeId),
@@ -3578,7 +3581,9 @@ export default function ForwardPage() {
     }
     const parts = ip.split(".");
 
-    if (parts.length >= 2) return `${parts.slice(0, -1).join(".")}.**`;
+    if (parts.length >= 3) return `${parts.slice(0, 2).join(".")}.*`;
+
+    if (parts.length === 2) return `${parts[0]}.*`;
 
     return ip;
   };
@@ -7567,19 +7572,19 @@ export default function ForwardPage() {
                                             )}
                                             <div className="flex-1 min-w-0">
                                               <div className="font-medium text-foreground truncate">
-                                                {result.description}
+                                                 {result.description.replace(/\(Remote\)/g, "(Rem)")}
                                               </div>
                                               {instanceLine && (
                                                 <div className="text-[11px] text-primary truncate">
                                                   {instanceLine}
                                                 </div>
                                               )}
-                                              {!result.remoteNode && <div className="text-xs text-default-500 truncate">
-                                                <span className="truncate">
-                                                  {maskPublicIP(result.targetIp)}
-                                                  :{result.targetPort}
-                                                </span>
-                                              </div>}
+                                               <div className="text-xs text-default-500 truncate">
+                                                 <span className="truncate">
+                                                    {result.hideTargetAddress ? "****" : maskPublicIP(result.targetIp)}
+                                                   :{result.targetPort}
+                                                 </span>
+                                               </div>
                                             </div>
                                           </div>
                                         </td>
@@ -7827,19 +7832,19 @@ export default function ForwardPage() {
                                       )}
                                       <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-sm text-foreground break-words">
-                                          {result.description}
+                                           {result.description.replace(/\(Remote\)/g, "(Rem)")}
                                         </div>
                                         {instanceLine && (
                                           <div className="text-[11px] text-primary mt-0.5 break-words">
                                             {instanceLine}
                                           </div>
                                         )}
-                                        {!result.remoteNode && <div className="text-xs text-default-500 mt-0.5 truncate">
-                                          <span className="truncate">
-                                            {maskPublicIP(result.targetIp)}
-                                            :{result.targetPort}
-                                          </span>
-                                        </div>}
+                                         <div className="text-xs text-default-500 mt-0.5 truncate">
+                                           <span className="truncate">
+                                              {result.hideTargetAddress ? "****" : maskPublicIP(result.targetIp)}
+                                             :{result.targetPort}
+                                           </span>
+                                         </div>
                                       </div>
                                       <div
                                         className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${isDiagnosing ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : isSuccess ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}

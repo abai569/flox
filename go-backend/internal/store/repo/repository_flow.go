@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -565,4 +566,81 @@ func (r *Repository) ListNodeIDsByTunnelIDs(tunnelIDs []int64) ([]int64, error) 
 		}
 	}
 	return result, nil
+}
+
+// GetForwardFlowRatio resolves the billing ratio for one flow report.
+// Purely local manual tunnels use their displayed topology ratio once; all
+// other tunnels use the ratio of the node that reported the flow.
+func (r *Repository) GetForwardFlowRatio(forwardID, nodeID int64) (float64, error) {
+	if r == nil || r.db == nil {
+		return 0, errors.New("repository not initialized")
+	}
+
+	var tunnel struct {
+		ID     int64
+		Name   string
+		Remark sql.NullString
+	}
+	if err := r.db.Table("forward").
+		Select("tunnel.id, tunnel.name, tunnel.remark").
+		Joins("JOIN tunnel ON tunnel.id = forward.tunnel_id").
+		Where("forward.id = ?", forwardID).
+		First(&tunnel).Error; err != nil {
+		return 0, err
+	}
+
+	manual := isManualTunnelNameRemark(tunnel.Name, tunnel.Remark.String)
+	type chainNode struct {
+		NodeID       int64
+		TrafficRatio float64
+		IsRemote     int
+	}
+	var chainNodes []chainNode
+	if err := r.db.Table("chain_tunnel").
+		Select("chain_tunnel.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
+		Joins("JOIN node ON node.id = chain_tunnel.node_id").
+		Where("chain_tunnel.tunnel_id = ?", tunnel.ID).
+		Find(&chainNodes).Error; err != nil {
+		return 0, err
+	}
+	var entryNodes []chainNode
+	if err := r.db.Table("forward_port").
+		Select("forward_port.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
+		Joins("JOIN node ON node.id = forward_port.node_id").
+		Joins("JOIN forward ON forward.id = forward_port.forward_id").
+		Where("forward.id = ?", forwardID).
+		Find(&entryNodes).Error; err != nil {
+		return 0, err
+	}
+	chainNodes = append(chainNodes, entryNodes...)
+
+	if manual {
+		totalRatio := 0.0
+		hasRemote := false
+		for _, node := range chainNodes {
+			ratio := node.TrafficRatio
+			if ratio <= 0 {
+				ratio = 1
+			}
+			totalRatio += ratio
+			hasRemote = hasRemote || node.IsRemote == 1
+		}
+		if !hasRemote && totalRatio > 0 {
+			return totalRatio, nil
+		}
+	}
+
+	var node struct {
+		TrafficRatio float64
+	}
+	if err := r.db.Table("node").
+		Select("COALESCE(traffic_ratio, 1.0) AS traffic_ratio").
+		Where("id = ?", nodeID).
+		First(&node).Error; err != nil {
+		return 1, nil
+	}
+	if node.TrafficRatio <= 0 {
+		return 1, nil
+	}
+	return node.TrafficRatio, nil
 }

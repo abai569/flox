@@ -8,6 +8,7 @@ export interface DiagnosisEntry {
   targetPort?: number;
   actualTarget?: string;
   remoteNode?: boolean;
+  hideTargetAddress?: boolean;
   message?: string;
   averageTime?: number;
   packetLoss?: number;

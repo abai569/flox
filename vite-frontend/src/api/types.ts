@@ -225,8 +225,9 @@ export interface PeerShareMutationPayload {
   scopeType?: "all_enabled" | "selected";
   instanceIds?: string[];
   autoIncludeNewInstances?: boolean;
-  minHealthyInstances?: number;
+  currentFlow?: number;
   trafficRatio: number;
+  minHealthyInstances?: number;
 }
 
 export interface PeerRemoteUsageBindingApiItem {
@@ -249,6 +250,7 @@ export interface PeerRemoteUsageNodeApiItem {
   portRangeStart: number;
   portRangeEnd: number;
   maxBandwidth: number;
+  trafficRatio?: number;
   currentFlow: number;
   expiryTime: number;
   usedPorts: number[];
