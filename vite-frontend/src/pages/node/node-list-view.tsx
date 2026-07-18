@@ -178,7 +178,13 @@ const readExpandedNodeIds = (): Set<number> => {
 };
 
 const formatInstanceIPForCell = (ip?: string): string => {
-  const value = ip?.trim() || "";
+  const rawValue = ip?.trim() || "";
+
+  if (!rawValue) return "-";
+  const value = rawValue
+    .replace(/^https?:\/\//i, "")
+    .split(/[/?#]/, 1)[0]
+    .replace(/:\d+$/, "");
 
   if (!value) return "-";
   if (value.includes(":")) {
@@ -1436,15 +1442,16 @@ function SortableTableRow({
         {(() => {
             if (node.isRemote === 1) {
               const remoteUrl = node.remoteUrl?.trim();
+              const displayAddress = remoteUrl?.replace(/^https?:\/\//i, "") || "";
 
               return remoteUrl ? (
                 <button
                   className="inline-block max-w-[150px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
-                  title={remoteUrl}
+                  title={displayAddress}
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
-                    copyToClipboard(remoteUrl, "远程地址");
+                    copyToClipboard(displayAddress, "远程地址");
                   }}
                 >
                   {formatInstanceIPForCell(remoteUrl)}
@@ -1756,7 +1763,7 @@ function SortableTableRow({
               variant="flat"
               onPress={() => onViewRemoteDetail(node)}
             >
-              远程详情
+              详情
             </Button>
           )}
           <Button

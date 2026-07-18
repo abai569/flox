@@ -3318,7 +3318,7 @@ export default function NodePage() {
           <div className="space-y-3">
             {node.isRemote === 1 ? (
               <div className="grid grid-cols-2 gap-2">
-                <Button color="secondary" size="sm" variant="flat" onPress={() => setRemoteDetailNode(node)}>远程详情</Button>
+                <Button color="secondary" size="sm" variant="flat" onPress={() => setRemoteDetailNode(node)}>详情</Button>
                 <Button color="danger" size="sm" variant="flat" onPress={() => handleDelete(node)}>删除</Button>
               </div>
             ) : <>
@@ -3619,7 +3619,7 @@ export default function NodePage() {
                     variant="flat"
                     onPress={() => setImportNodeOpen(true)}
                   >
-                    远程节点
+                    远程
                   </Button>
                   <Button
                     color="primary"
