@@ -1581,7 +1581,7 @@ const mergeFederationShareFlow = (
       resolvedShareByForwardId.set(forward.id, resolved);
     }
   });
-  const forwardCountByShare = new Map<number, number>();
+  const forwardCountByShare = new Map<string, number>();
 
   resolvedShareByForwardId.forEach((shareId) => {
     forwardCountByShare.set(
