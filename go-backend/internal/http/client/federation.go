@@ -34,11 +34,14 @@ type RemoteNodeInfo struct {
 }
 
 type RemoteNodeInstance struct {
-	InstanceID string `json:"instanceId"`
-	Hostname   string `json:"hostname"`
-	Status     int    `json:"status"`
-	Selected   bool   `json:"selected"`
-	InScope    bool   `json:"inScope"`
+	InstanceID   string `json:"instanceId"`
+	DisplayName  string `json:"displayName"`
+	DisplayIndex int    `json:"displayIndex"`
+	Hostname     string `json:"hostname"`
+	Status       int    `json:"status"`
+	Weight       int    `json:"weight"`
+	Selected     bool   `json:"selected"`
+	InScope      bool   `json:"inScope"`
 }
 
 type RemoteShareFlow struct {

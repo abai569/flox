@@ -65,7 +65,9 @@ export function NodeGroupManager({
       ]);
 
       setGroups(res.data || []);
-      setAllNodes(nodeRes.data || []);
+      setAllNodes(
+        (nodeRes.data || []).filter((node: NodeApiItem) => node.isRemote !== 1),
+      );
     } catch (error) {
       toast.error("加载数据失败");
     } finally {

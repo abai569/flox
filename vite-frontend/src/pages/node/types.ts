@@ -34,6 +34,15 @@ export interface Node {
   extraIPs?: string;
   remoteConfig?: string;
   remoteUrl?: string;
+  remoteInstances?: Array<{
+    instanceId: string;
+    displayName?: string;
+    displayIndex?: number;
+    status?: number;
+    weight?: number;
+    selected: boolean;
+    inScope: boolean;
+  }>;
   syncError?: string;
   isRemote?: number;
   version?: string;
@@ -53,6 +62,12 @@ export interface Node {
   secret?: string;
   onlineCount?: number;
   trafficRatio?: number;
+  trafficLimit?: number;
+  remoteCurrentFlow?: number;
+  remoteInFlow?: number;
+  remoteOutFlow?: number;
+  remoteMaxBandwidth?: number;
+  remoteExpiryTime?: number;
   periodTraffic?: {
     rx: number;
     tx: number;

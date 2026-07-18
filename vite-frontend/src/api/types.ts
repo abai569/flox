@@ -17,7 +17,13 @@ export interface NodeApiItem {
   isRemote?: number;
   remoteUrl?: string;
   remoteConfig?: string;
+  remoteInstances?: PeerShareInstanceApiItem[];
   syncError?: string;
+  remoteCurrentFlow?: number;
+  remoteInFlow?: number;
+  remoteOutFlow?: number;
+  remoteMaxBandwidth?: number;
+  remoteExpiryTime?: number;
   // 周期流量统计
   periodTraffic?: {
     rx: number;
@@ -155,8 +161,11 @@ export interface PeerShareApiItem {
 
 export interface PeerShareInstanceApiItem {
   instanceId: string;
+  displayName?: string;
+  displayIndex?: number;
   hostname?: string;
   status?: number;
+  weight?: number;
   selected: boolean;
   inScope: boolean;
 }

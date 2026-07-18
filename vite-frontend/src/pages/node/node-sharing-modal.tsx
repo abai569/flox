@@ -6,18 +6,13 @@ import type {
 import type { Node } from "./types";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  Copy,
-  Eye,
-  EyeOff,
-  RotateCcw,
-  Trash2,
-} from "lucide-react";
+import { Copy, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 
 import {
   createPeerShare,
   deletePeerShare,
+  getConfigByName,
   getPeerShareList,
   resetPeerShareFlow,
   updatePeerShare,
@@ -96,6 +91,7 @@ export function NodeSharingModal({
   );
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [resettingId, setResettingId] = useState<number | null>(null);
+  const [panelAddress, setPanelAddress] = useState("");
 
   const loadShares = useCallback(async () => {
     if (!node) return;
@@ -128,6 +124,28 @@ export function NodeSharingModal({
     setDeleteTarget(null);
     void loadShares();
   }, [isOpen, node, loadShares]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const fallbackAddress = window.location.origin;
+
+    getConfigByName("panel_domain")
+      .then((res) => {
+        const configured = res.code === 0 ? res.data?.value?.trim() : "";
+
+        if (!configured) {
+          setPanelAddress(fallbackAddress);
+
+          return;
+        }
+        setPanelAddress(
+          /^https?:\/\//i.test(configured)
+            ? configured.replace(/\/$/, "")
+            : `https://${configured.replace(/\/$/, "")}`,
+        );
+      })
+      .catch(() => setPanelAddress(fallbackAddress));
+  }, [isOpen]);
 
   const beginEdit = (share: PeerShareApiItem) => {
     setForm({
@@ -168,7 +186,10 @@ export function NodeSharingModal({
     if (form.scopeType === "selected" && form.instanceIds.length === 0)
       return "请至少选择一个实例";
     const scopedInstanceCount =
-      form.scopeType === "selected" ? form.instanceIds.length : instances.length;
+      form.scopeType === "selected"
+        ? form.instanceIds.length
+        : instances.length;
+
     if (
       scopedInstanceCount > 0 &&
       form.minHealthyInstances > scopedInstanceCount
@@ -264,10 +285,10 @@ export function NodeSharingModal({
     }
   };
 
-  const copyToken = async (token: string) => {
+  const copyValue = async (value: string, label: string) => {
     try {
-      await navigator.clipboard.writeText(token);
-      toast.success("Token 已复制");
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label}已复制`);
     } catch {
       toast.error("复制失败");
     }
@@ -384,67 +405,98 @@ export function NodeSharingModal({
                           }
                         />
                       </div>
-                      <div className="mt-3 flex min-w-0 items-center gap-2">
-                        <code className="min-w-0 flex-1 truncate rounded bg-default-100 px-2 py-1.5 text-xs">
-                          {visibleTokens.has(share.id)
-                            ? share.token
-                            : "•".repeat(24)}
-                        </code>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          title={
-                            visibleTokens.has(share.id)
-                              ? "隐藏 Token"
-                              : "显示 Token"
-                          }
-                          variant="flat"
-                          onPress={() =>
-                            setVisibleTokens((prev) => {
-                              const next = new Set(prev);
+                      <div className="mt-3 space-y-2">
+                        <div>
+                          <div className="mb-1 text-xs text-default-500">
+                            远程面板地址
+                          </div>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <code className="min-w-0 flex-1 truncate rounded bg-default-100 px-2 py-1.5 text-xs">
+                              {panelAddress || window.location.origin}
+                            </code>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              title="复制远程面板地址"
+                              variant="flat"
+                              onPress={() =>
+                                copyValue(
+                                  panelAddress || window.location.origin,
+                                  "远程面板地址",
+                                )
+                              }
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-1 text-xs text-default-500">
+                            分享 Token
+                          </div>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <code className="min-w-0 flex-1 truncate rounded bg-default-100 px-2 py-1.5 text-xs">
+                              {visibleTokens.has(share.id)
+                                ? share.token
+                                : "•".repeat(24)}
+                            </code>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              title={
+                                visibleTokens.has(share.id)
+                                  ? "隐藏 Token"
+                                  : "显示 Token"
+                              }
+                              variant="flat"
+                              onPress={() =>
+                                setVisibleTokens((prev) => {
+                                  const next = new Set(prev);
 
-                              next.has(share.id)
-                                ? next.delete(share.id)
-                                : next.add(share.id);
+                                  next.has(share.id)
+                                    ? next.delete(share.id)
+                                    : next.add(share.id);
 
-                              return next;
-                            })
-                          }
-                        >
-                          {visibleTokens.has(share.id) ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          title="复制 Token"
-                          variant="flat"
-                          onPress={() => copyToken(share.token)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                                  return next;
+                                })
+                              }
+                            >
+                              {visibleTokens.has(share.id) ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              title="复制分享 Token"
+                              variant="flat"
+                              onPress={() =>
+                                copyValue(share.token, "分享 Token")
+                              }
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                       <div className="mt-3 rounded-md bg-default-100/50 p-2 text-xs text-default-600">
-                        实例{" "}
-                        {scopedInstanceCount}{" "}
-                        · 已部署{" "}
-                        {deployedInstances.size}{" "}
-                        · Runtime{" "}
+                        实例 {scopedInstanceCount} · 已部署{" "}
+                        {deployedInstances.size} · Runtime{" "}
                         {share.activeRuntimeNum || 0}
                       </div>
                       <div className="mt-3 flex flex-wrap justify-end gap-2">
                         <Button
-                          isIconOnly
+                          className="min-h-8 px-3"
+                          color="primary"
                           isLoading={resettingId === share.id}
                           size="sm"
                           title="归零流量"
                           variant="flat"
                           onPress={() => resetFlow(share)}
                         >
-                          <RotateCcw className="h-4 w-4" />
+                          归零
                         </Button>
                         <Button
                           className="min-h-8 px-3"
@@ -457,14 +509,14 @@ export function NodeSharingModal({
                           编辑
                         </Button>
                         <Button
-                          isIconOnly
-                          color="danger"
+                          className="min-h-8 px-3"
+                          color="primary"
                           size="sm"
                           title="删除分享"
                           variant="flat"
                           onPress={() => setDeleteTarget(share)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          删除
                         </Button>
                       </div>
                     </div>

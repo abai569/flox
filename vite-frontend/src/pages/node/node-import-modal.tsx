@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { importRemoteNode } from "@/api";
@@ -27,8 +26,10 @@ export function NodeImportModal({
   const [remoteUrl, setRemoteUrl] = useState("");
   const [token, setToken] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inputsReadOnly, setInputsReadOnly] = useState(true);
 
   useEffect(() => {
+    setInputsReadOnly(true);
     if (!isOpen) {
       setRemoteUrl("");
       setToken("");
@@ -76,17 +77,27 @@ export function NodeImportModal({
         <ModalHeader>导入远程节点</ModalHeader>
         <ModalBody className="space-y-4">
           <Input
+            autoComplete="off"
             label="远程面板地址"
+            name="flox-federation-remote-url"
             placeholder="https://panel.example.com"
+            readOnly={inputsReadOnly}
+            spellCheck={false}
             value={remoteUrl}
             onChange={(event) => setRemoteUrl(event.target.value)}
+            onFocus={() => setInputsReadOnly(false)}
           />
           <Input
+            autoComplete="new-password"
             label="分享 Token"
+            name="flox-federation-share-token"
             placeholder="输入提供方生成的 Token"
+            readOnly={inputsReadOnly}
+            spellCheck={false}
             type="password"
             value={token}
             onChange={(event) => setToken(event.target.value)}
+            onFocus={() => setInputsReadOnly(false)}
           />
         </ModalBody>
         <ModalFooter>
@@ -94,7 +105,6 @@ export function NodeImportModal({
             取消
           </Button>
           <Button color="secondary" isLoading={loading} onPress={handleSubmit}>
-            <Download className="h-4 w-4" />
             导入
           </Button>
         </ModalFooter>

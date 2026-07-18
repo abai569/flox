@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useRef, useEffect } from "react";
-import { ExternalLink, GripVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 
 import { deriveNodeVisualState } from "./display";
 import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
@@ -127,6 +127,29 @@ interface NodeListViewProps {
   shareCounts: Record<number, number>;
 }
 
+const NODE_GROUP_NONE = -1;
+const NODE_GROUP_REMOTE = -2;
+
+const getRemoteExpiryChipProps = (timestamp?: number) => {
+  if (!timestamp || timestamp <= 0) {
+    return {
+      label: "永久",
+      className: "bg-success-500/10 text-success-600 dark:text-success-400",
+    };
+  }
+  const expiry = timestamp < 100000000000 ? timestamp * 1000 : timestamp;
+  const days = Math.ceil((expiry - Date.now()) / 86400000);
+
+  return {
+    label: new Date(expiry).toLocaleDateString("zh-CN"),
+    className: days <= 0
+      ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+      : days <= 7
+        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+        : "bg-success-500/10 text-success-600 dark:text-success-400",
+  };
+};
+
 const NODE_INSTANCE_EXPANDED_STORAGE_KEY = "node-instance-expanded-node-ids";
 
 const readExpandedNodeIds = (): Set<number> => {
@@ -179,6 +202,17 @@ const getInstanceLabel = (
   if (displayName) return displayName;
 
   return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
+};
+
+type RemoteInstance = NonNullable<Node["remoteInstances"]>[number];
+
+const getRemoteInstanceLabel = (instance: RemoteInstance) => {
+  const displayName = instance.displayName?.trim();
+
+  if (displayName) return displayName;
+  if (instance.displayIndex != null) return `实例 ${instance.displayIndex}`;
+
+  return instance.instanceId || "实例";
 };
 
 const formatCountryCity = (region?: string): string => {
@@ -252,6 +286,69 @@ function InstanceIPRegionCell({
         </div>
       )}
     </td>
+  );
+}
+
+function RemoteNodeInstanceRows({ instances }: { instances: RemoteInstance[] }) {
+  return (
+    <div className="mx-3 my-2 border-l-2 border-secondary-400/70 bg-secondary-50/50 dark:bg-secondary-100/10">
+      <div className="w-full max-w-full overflow-x-auto px-3 pb-2">
+        <table className="w-full min-w-[620px] table-fixed text-[13px]">
+          <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
+            <tr>
+              <th className="w-[260px] px-3 py-2 text-left font-medium">
+                实例名称
+                <span className="font-normal text-secondary-500">^{instances.length}个</span>
+              </th>
+              <th className="w-[100px] px-3 py-2 text-center font-medium">状态</th>
+              <th className="w-[100px] px-3 py-2 text-center font-medium">权重</th>
+              <th className="w-[160px] px-3 py-2 text-center font-medium">共享范围</th>
+            </tr>
+          </thead>
+          <tbody>
+            {instances.map((instance, index) => {
+              const label = getRemoteInstanceLabel(instance);
+              const instanceId = instance.instanceId?.trim();
+              const disabled = (instance.weight ?? 1) <= 0;
+              const online = instance.status === 1;
+
+              return (
+                <tr
+                  key={instanceId || `${instance.displayIndex ?? "instance"}-${index}`}
+                  className="border-b border-divider/60 last:border-b-0"
+                >
+                  <td className="px-3 py-2.5 text-left align-middle">
+                    <span className="block truncate font-medium text-foreground">{label}</span>
+                    {instanceId && instanceId !== label ? (
+                      <span className="block truncate font-mono text-[11px] text-default-400" title={instanceId}>
+                        {instanceId}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-2.5 text-center align-middle">
+                    <span className="inline-flex items-center gap-1.5">
+                      <StatusDot
+                        active={!disabled && online}
+                        tone={disabled ? "default" : online ? "success" : "danger"}
+                      />
+                      <span className="text-xs text-default-600">
+                        {disabled ? "已禁用" : online ? "在线" : "离线"}
+                      </span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center font-mono text-default-700">
+                    {instance.weight ?? 1}
+                  </td>
+                  <td className="px-3 py-2.5 text-center text-default-700">
+                    {instance.selected ? "指定共享" : "范围内"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -845,9 +942,22 @@ function SortableTableRow({
     zIndex: expiryPopoverOpen ? 9999 : isDragging ? 99 : 1,
     position: expiryPopoverOpen || isDragging ? "relative" : undefined,
   };
+  const remoteVisualMembers = (node.remoteInstances || [])
+    .filter((instance) => instance.inScope)
+    .map((instance) => ({
+      status: instance.status ?? 0,
+      weight: instance.weight ?? 1,
+    }));
+  const remoteVisualMeta = remoteVisualMembers.length
+    ? deriveNodeVisualState(remoteVisualMembers)
+    : null;
+  const remoteOnline = node.connectionStatus === "online" && !node.syncError;
+  const remoteInstances = (node.remoteInstances || []).filter((instance) => instance.inScope);
+  const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
+  const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
     ? "bg-primary-50/70 dark:bg-default-900/40"
-    : isExpanded
+    : isActuallyExpanded
       ? "bg-primary-100/80 dark:bg-default-100/30"
       : "";
   const visualMeta = deriveNodeVisualState(instanceMembers, node.paused);
@@ -894,15 +1004,18 @@ function SortableTableRow({
     return null;
   };
   const expiryChipProps = hasExpiryInfo ? getExpiryChipProps() : null;
+  const remoteExpiryChipProps = node.isRemote === 1
+    ? getRemoteExpiryChipProps(node.remoteExpiryTime)
+    : null;
 
   return (
     <>
     <TableRow
       key={node.id}
       ref={setNodeRef}
-      className={`cursor-pointer ${isExpanded ? "border-b border-primary-300/70 shadow-[inset_3px_0_0_rgba(59,130,246,0.65)]" : ""}`}
+      className={`${isExpandable ? "cursor-pointer" : "cursor-default"} ${isActuallyExpanded ? "border-b border-primary-300/70 shadow-[inset_3px_0_0_rgba(59,130,246,0.65)]" : ""}`}
       style={style}
-      onClick={() => node.isRemote !== 1 && onToggleExpanded?.(node.id)}
+      onClick={() => isExpandable && onToggleExpanded?.(node.id)}
     >
       <TableCell className={rowBg}>
         <div
@@ -917,9 +1030,9 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={rowBg}>
         <div className="flex items-center justify-center">
-          {node.isRemote !== 1 ? <button
+          {isExpandable ? <button
             className="inline-flex h-6 w-6 items-center justify-center rounded text-default-500 transition-colors hover:bg-default-200/70 hover:text-foreground"
-            title={isExpanded ? "收起实例" : "展开实例"}
+            title={isActuallyExpanded ? "收起实例" : "展开实例"}
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -928,7 +1041,7 @@ function SortableTableRow({
           >
             <svg
               aria-hidden="true"
-              className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+              className={`h-4 w-4 transition-transform ${isActuallyExpanded ? "rotate-180" : ""}`}
               fill="none"
               stroke="currentColor"
               strokeLinecap="round"
@@ -961,15 +1074,31 @@ function SortableTableRow({
         </div>
       </TableCell>
       <TableCell className={`px-1 text-center align-middle ${rowBg}`}>
-        <div className="flex items-center justify-center gap-0.5" title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
-          <StatusDot
-            active={visualMeta.state !== "offline"}
-            tone={visualMeta.color}
-          />
-          <span className="text-xs font-mono tabular-nums text-default-600">
-            {visualMeta.onlineCount}/{visualMeta.disabledCount}/{visualMeta.totalCount}
-          </span>
-        </div>
+        {node.isRemote === 1 ? (
+          <div
+            className="flex items-center justify-center gap-0.5"
+            title={remoteVisualMeta
+              ? `在线${remoteVisualMeta.onlineCount}/禁用${remoteVisualMeta.disabledCount}/全部${remoteVisualMeta.totalCount}`
+              : remoteOnline ? "在线" : "离线"}
+          >
+            <StatusDot
+              active={remoteVisualMeta ? remoteVisualMeta.state !== "offline" : remoteOnline}
+              tone={remoteVisualMeta?.color || (remoteOnline ? "success" : "danger")}
+            />
+            <span className="text-xs font-mono tabular-nums text-default-600">
+              {remoteVisualMeta
+                ? `${remoteVisualMeta.onlineCount}/${remoteVisualMeta.disabledCount}/${remoteVisualMeta.totalCount}`
+                : remoteOnline ? "在线" : "离线"}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-0.5" title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
+            <StatusDot active={visualMeta.state !== "offline"} tone={visualMeta.color} />
+            <span className="text-xs font-mono tabular-nums text-default-600">
+              {visualMeta.onlineCount}/{visualMeta.disabledCount}/{visualMeta.totalCount}
+            </span>
+          </div>
+        )}
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex items-center gap-2 min-w-0">
@@ -991,7 +1120,11 @@ function SortableTableRow({
         </span>
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
-        {node.groupId && node.groupId > 0 ? (
+        {node.isRemote === 1 ? (
+          <div className="inline-flex items-center justify-center rounded bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">
+            远程组
+          </div>
+        ) : node.groupId && node.groupId > 0 ? (
           (() => {
             const group = nodeGroups.find((g: any) => g.id == node.groupId);
 
@@ -1059,7 +1192,9 @@ function SortableTableRow({
       >
         <div className="flex w-[104px] items-center justify-end gap-1">
           <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
-            {realtimeNodeMetrics?.[node.id]
+            {node.isRemote === 1
+              ? formatTraffic(node.remoteCurrentFlow ?? (node.remoteInFlow ?? 0) + (node.remoteOutFlow ?? 0))
+              : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   (realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0) +
                     (realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0),
@@ -1073,7 +1208,9 @@ function SortableTableRow({
       >
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-success-700 dark:text-success-300">
-            {realtimeNodeMetrics?.[node.id]
+            {node.isRemote === 1
+              ? formatTraffic(node.remoteInFlow ?? 0)
+              : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0,
                 )
@@ -1086,7 +1223,9 @@ function SortableTableRow({
       >
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-primary-700 dark:text-primary-300">
-            {realtimeNodeMetrics?.[node.id]
+            {node.isRemote === 1
+              ? formatTraffic(node.remoteOutFlow ?? 0)
+              : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0,
                 )
@@ -1094,8 +1233,21 @@ function SortableTableRow({
           </span>
         </div>
       </TableCell>
+      <TableCell className={`whitespace-nowrap px-1 text-right ${rowBg}`}>
+        {node.isRemote === 1
+          ? node.remoteMaxBandwidth && node.remoteMaxBandwidth > 0
+            ? formatTraffic(node.remoteMaxBandwidth)
+            : "不限"
+          : node.trafficLimit && node.trafficLimit > 0
+            ? formatTraffic(node.trafficLimit)
+            : "不限"}
+      </TableCell>
       <TableCell className={`whitespace-nowrap text-center ${rowBg}`}>
-        {hasExpiryInfo && expiryChipProps ? (
+        {remoteExpiryChipProps ? (
+          <span className={`inline-flex rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium ${remoteExpiryChipProps.className}`}>
+            {remoteExpiryChipProps.label}
+          </span>
+        ) : hasExpiryInfo && expiryChipProps ? (
           <div className="relative inline-flex justify-center">
             <button
               ref={expiryButtonRef}
@@ -1220,15 +1372,6 @@ function SortableTableRow({
               </Dropdown>
               <Button
                 className="min-h-7 shrink-0 px-2"
-                color="primary"
-                size="sm"
-                variant="flat"
-                onPress={() => onShareNode(node)}
-              >
-                分享{shareCounts[node.id] ? ` ${shareCounts[node.id]}` : ""}
-              </Button>
-              <Button
-                className="min-h-7 shrink-0 px-2"
                 color="warning"
                 isDisabled={node.connectionStatus !== "online"}
                 isLoading={node.upgradeLoading}
@@ -1266,7 +1409,6 @@ function SortableTableRow({
               variant="flat"
               onPress={() => onViewRemoteDetail(node)}
             >
-              <ExternalLink className="h-3.5 w-3.5" />
               远程详情
             </Button>
           )}
@@ -1279,17 +1421,28 @@ function SortableTableRow({
           >
             删除
           </Button>
+          {node.isRemote !== 1 && (
+            <Button
+              className="min-h-7 shrink-0 px-2"
+              color="primary"
+              size="sm"
+              variant="flat"
+              onPress={() => onShareNode(node)}
+            >
+              分享{shareCounts[node.id] ? ` ${shareCounts[node.id]}` : ""}
+            </Button>
+          )}
         </div>
       </TableCell>
     </TableRow>
-    {node.isRemote !== 1 && isExpanded && (
+    {node.isRemote !== 1 && isActuallyExpanded && (
       <TableRow
         key={`${node.id}-instances`}
         className="bg-default-50/30 dark:bg-default-100/5"
       >
         <TableCell
           className="w-0 max-w-0 overflow-visible p-0"
-          colSpan={15}
+          colSpan={16}
         >
           <NodeInstanceRows
             copyToClipboard={copyToClipboard}
@@ -1306,6 +1459,16 @@ function SortableTableRow({
             onReorderInstances={onReorderInstances}
             onInstallMimicDeps={onInstallMimicDeps}
           />
+        </TableCell>
+      </TableRow>
+    )}
+    {node.isRemote === 1 && isActuallyExpanded && remoteInstances.length > 0 && (
+      <TableRow
+        key={`${node.id}-remote-instances`}
+        className="bg-default-50/30 dark:bg-default-100/5"
+      >
+        <TableCell className="w-0 max-w-0 overflow-visible p-0" colSpan={16}>
+          <RemoteNodeInstanceRows instances={remoteInstances} />
         </TableCell>
       </TableRow>
     )}
@@ -1351,17 +1514,22 @@ export function NodeListView({
     readExpandedNodeIds,
   );
   const localDisplayNodes = displayNodes.filter((node) => node.isRemote !== 1);
+  const expandableDisplayNodes = displayNodes.filter((node) =>
+    node.isRemote === 1
+      ? (node.remoteInstances || []).some((instance) => instance.inScope)
+      : true,
+  );
   const isAllSelected =
     localDisplayNodes.length > 0 &&
     localDisplayNodes.every((node) => selectedIds.has(node.id));
   const isAllExpanded =
-    localDisplayNodes.length > 0 &&
-    localDisplayNodes.every((node) => expandedNodeIds.has(node.id));
-  const expandedNodeCount = localDisplayNodes.filter((node) =>
+    expandableDisplayNodes.length > 0 &&
+    expandableDisplayNodes.every((node) => expandedNodeIds.has(node.id));
+  const expandedNodeCount = expandableDisplayNodes.filter((node) =>
     expandedNodeIds.has(node.id),
   ).length;
   const isPartiallyExpanded =
-    expandedNodeCount > 0 && expandedNodeCount < localDisplayNodes.length;
+    expandedNodeCount > 0 && expandedNodeCount < expandableDisplayNodes.length;
 
   const toggleExpandedNode = (nodeId: number) => {
     setExpandedNodeIds(() => {
@@ -1383,7 +1551,7 @@ export function NodeListView({
     setExpandedNodeIds(() => {
       const next = readExpandedNodeIds();
 
-      localDisplayNodes.forEach((node) => {
+      expandableDisplayNodes.forEach((node) => {
         if (isAllExpanded) next.delete(node.id);
         else next.add(node.id);
       });
@@ -1419,12 +1587,12 @@ export function NodeListView({
           <TableColumn className="w-[64px] whitespace-nowrap px-1 py-2 text-center">
             <button
               className={`inline-flex items-center justify-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-default-200/70 disabled:cursor-default disabled:opacity-40 ${isPartiallyExpanded ? "text-primary" : ""}`}
-              disabled={localDisplayNodes.length === 0}
+              disabled={expandableDisplayNodes.length === 0}
               title={
                 isAllExpanded
                   ? "闭合全部实例"
                   : isPartiallyExpanded
-                      ? `已展开 ${expandedNodeCount}/${localDisplayNodes.length}，点击展开全部`
+                      ? `已展开 ${expandedNodeCount}/${expandableDisplayNodes.length}，点击展开全部`
                     : "展开全部实例"
               }
               type="button"
@@ -1479,8 +1647,10 @@ export function NodeListView({
               selectedKeys={
                 filterGroupId === null
                   ? []
-                  : filterGroupId === -1
+                  : filterGroupId === NODE_GROUP_NONE
                     ? ["none"]
+                    : filterGroupId === NODE_GROUP_REMOTE
+                      ? ["remote"]
                     : [String(filterGroupId)]
               }
               size="sm"
@@ -1491,7 +1661,9 @@ export function NodeListView({
                 if (!selected || selected === "all") {
                   setFilterGroupId(null);
                 } else if (selected === "none") {
-                  setFilterGroupId(-1);
+                  setFilterGroupId(NODE_GROUP_NONE);
+                } else if (selected === "remote") {
+                  setFilterGroupId(NODE_GROUP_REMOTE);
                 } else {
                   setFilterGroupId(parseInt(selected));
                 }
@@ -1504,6 +1676,12 @@ export function NodeListView({
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-gray-300 flex-shrink-0" />
                   <span>未分组</span>
+                </div>
+              </SelectItem>
+              <SelectItem key="remote" textValue="远程组">
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 flex-shrink-0 rounded-full bg-purple-500" />
+                  <span>远程组</span>
                 </div>
               </SelectItem>
               {nodeGroups.map((group) => (
@@ -1536,6 +1714,9 @@ export function NodeListView({
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[110px] max-w-[110px] text-right">
             下行流量
+          </TableColumn>
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-right">
+            流量限额
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             <Select
@@ -1583,7 +1764,7 @@ export function NodeListView({
         <TableBody>
           {displayNodes.length === 0 ? (
             <TableRow>
-              <TableCell className="py-16 text-center" colSpan={15}>
+              <TableCell className="py-16 text-center" colSpan={16}>
                 <div className="flex flex-col items-center justify-center">
                   <h3 className="text-base font-medium text-foreground mb-1">
                     未找到匹配的节点

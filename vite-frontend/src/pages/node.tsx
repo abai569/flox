@@ -204,6 +204,8 @@ type NodeViewMode = "grid" | "list" | "grouped";
 type DNSProviderAvailability = { aliyun: boolean; cloudflare: boolean };
 const EXPIRING_SOON_DAYS = 7;
 const DEFAULT_INSTANCE_PORT_RANGE = "10000-65535";
+const NODE_GROUP_NONE = -1;
+const NODE_GROUP_REMOTE = -2;
 
 const extractSDWANConfigPath = (raw?: string): string => {
   if (!raw) {
@@ -2789,8 +2791,11 @@ export default function NodePage() {
     const groupFiltered =
       filterGroupId !== null
         ? keywordFiltered.filter((node) => {
-          if (filterGroupId === -1) {
-            return !node.groupId || node.groupId === 0;
+          if (filterGroupId === NODE_GROUP_REMOTE) {
+            return node.isRemote === 1;
+          }
+          if (filterGroupId === NODE_GROUP_NONE) {
+            return node.isRemote !== 1 && (!node.groupId || node.groupId === 0);
           }
 
           return node.groupId === filterGroupId;
@@ -2854,8 +2859,23 @@ export default function NodePage() {
     });
     groupsMap.set("none", { group: null, nodes: [] });
     displayNodes.forEach((node) => {
-      const groupId =
-        node.groupId && node.groupId > 0 ? Number(node.groupId) : "none";
+      const groupId = node.isRemote === 1
+        ? NODE_GROUP_REMOTE
+        : node.groupId && node.groupId > 0
+          ? Number(node.groupId)
+          : "none";
+
+      if (groupId === NODE_GROUP_REMOTE && !groupsMap.has(NODE_GROUP_REMOTE)) {
+        groupsMap.set(NODE_GROUP_REMOTE, {
+          group: {
+            id: NODE_GROUP_REMOTE,
+            name: "远程组",
+            color: "#8b5cf6",
+            inx: -1,
+          } as NodeGroupApiItem,
+          nodes: [],
+        });
+      }
 
       if (groupsMap.has(groupId)) {
         groupsMap.get(groupId)!.nodes.push(node);
@@ -2876,6 +2896,30 @@ export default function NodePage() {
       expiryTarget?.renewalCycle ?? node.renewalCycle,
     );
     const visualMeta = deriveNodeVisualState(nodeInstanceMembers[node.id], node.paused);
+    const remoteVisualMembers = (node.remoteInstances || [])
+      .filter((instance) => instance.inScope)
+      .map((instance) => ({
+        status: instance.status ?? 0,
+        weight: instance.weight ?? 1,
+      }));
+    const remoteVisualMeta = remoteVisualMembers.length
+      ? deriveNodeVisualState(remoteVisualMembers)
+      : null;
+    const remoteOnline = node.connectionStatus === "online" && !node.syncError;
+    const remoteExpiryTime = node.remoteExpiryTime && node.remoteExpiryTime > 0
+      ? (node.remoteExpiryTime < 100000000000 ? node.remoteExpiryTime * 1000 : node.remoteExpiryTime)
+      : 0;
+    const remoteExpiryDays = remoteExpiryTime
+      ? Math.ceil((remoteExpiryTime - Date.now()) / 86400000)
+      : null;
+    const remoteExpiryLabel = remoteExpiryTime
+      ? new Date(remoteExpiryTime).toLocaleDateString("zh-CN")
+      : "永久";
+    const remoteExpiryClass = remoteExpiryDays === null || remoteExpiryDays > 7
+      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+      : remoteExpiryDays <= 0
+        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+        : "bg-warning-500/10 text-warning-600 dark:text-warning-400";
     const hasRemark = Boolean(node.remark?.trim());
     const hasExpiryInfo = Boolean(
       expiryTarget?.expiryTime &&
@@ -2928,7 +2972,11 @@ export default function NodePage() {
                   >❌</span>
                 ) : null}
               </div>
-              {node.groupId && node.groupId > 0 ? (
+              {node.isRemote === 1 ? (
+                <div className="flex-shrink-0 inline-flex items-center justify-center rounded bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">
+                  远程组
+                </div>
+              ) : node.groupId && node.groupId > 0 ? (
                 (() => {
                   const group = (nodeGroups || []).find(
                     (g: any) => Number(g.id) === Number(node.groupId),
@@ -3028,15 +3076,31 @@ export default function NodePage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-0.5" title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
-                <StatusDot
-                  active={visualMeta.state !== "offline"}
-                  tone={visualMeta.color}
-                />
-                <span className="text-xs font-mono tabular-nums text-default-500">
-                  {visualMeta.onlineCount}/{visualMeta.disabledCount}/{visualMeta.totalCount}
-                </span>
-              </div>
+              {node.isRemote === 1 ? (
+                <div
+                  className="flex items-center gap-0.5"
+                  title={remoteVisualMeta
+                    ? `在线${remoteVisualMeta.onlineCount}/禁用${remoteVisualMeta.disabledCount}/全部${remoteVisualMeta.totalCount}`
+                    : remoteOnline ? "在线" : "离线"}
+                >
+                  <StatusDot
+                    active={remoteVisualMeta ? remoteVisualMeta.state !== "offline" : remoteOnline}
+                    tone={remoteVisualMeta?.color || (remoteOnline ? "success" : "danger")}
+                  />
+                  <span className="text-xs font-mono tabular-nums text-default-500">
+                    {remoteVisualMeta
+                      ? `${remoteVisualMeta.onlineCount}/${remoteVisualMeta.disabledCount}/${remoteVisualMeta.totalCount}`
+                      : remoteOnline ? "在线" : "离线"}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-0.5" title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
+                  <StatusDot active={visualMeta.state !== "offline"} tone={visualMeta.color} />
+                  <span className="text-xs font-mono tabular-nums text-default-500">
+                    {visualMeta.onlineCount}/{visualMeta.disabledCount}/{visualMeta.totalCount}
+                  </span>
+                </div>
+              )}
               <h3
                 className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
                 title={node.name}
@@ -3115,7 +3179,9 @@ export default function NodePage() {
             <div className="flex justify-between text-sm">
               <span className="text-default-600">周期流量</span>
               <span className="font-medium text-sm text-danger-600 dark:text-danger-400">
-                {realtimeNodeMetrics[node.id]
+                {node.isRemote === 1
+                  ? formatTraffic(node.remoteCurrentFlow ?? (node.remoteInFlow ?? 0) + (node.remoteOutFlow ?? 0))
+                  : realtimeNodeMetrics[node.id]
                   ? formatTraffic(
                     (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
                     (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
@@ -3123,7 +3189,33 @@ export default function NodePage() {
                   : "-"}
               </span>
             </div>
-            {realtimeNodeMetrics[node.id]?.periodTraffic && (
+            {node.isRemote === 1 ? (
+              <div className="text-xs text-default-500 space-y-0.5 mt-1">
+                <div className="flex justify-between items-center">
+                  <span>↑ 上行</span>
+                  <span className="font-medium text-success-600 dark:text-success-400">
+                    {formatTraffic(node.remoteInFlow ?? 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>↓ 下行</span>
+                  <span className="font-medium text-primary-600 dark:text-primary-400">
+                    {formatTraffic(node.remoteOutFlow ?? 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>流量限额</span>
+                  <span className="font-medium">
+                    {node.remoteMaxBandwidth && node.remoteMaxBandwidth > 0
+                      ? formatTraffic(node.remoteMaxBandwidth)
+                      : "不限"}
+                  </span>
+                </div>
+                <div className={`mt-1 inline-flex rounded-lg px-2.5 py-1 ${remoteExpiryClass}`}>
+                  {remoteExpiryLabel}
+                </div>
+              </div>
+            ) : realtimeNodeMetrics[node.id]?.periodTraffic && (
               <div className="text-xs text-default-500 space-y-0.5 mt-1">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">

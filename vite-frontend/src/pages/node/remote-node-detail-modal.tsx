@@ -1,8 +1,10 @@
-import type { PeerRemoteUsageNodeApiItem } from "@/api/types";
+import type {
+  PeerRemoteUsageNodeApiItem,
+  PeerShareInstanceApiItem,
+} from "@/api/types";
 import type { Node } from "./types";
 
 import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, Server } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { getPeerRemoteUsageList } from "@/api";
@@ -23,6 +25,17 @@ interface RemoteNodeDetailModalProps {
   onClose: () => void;
   formatTraffic: (bytes: number) => string;
 }
+
+const getInstanceName = (instance: PeerShareInstanceApiItem) => {
+  const displayName = instance.displayName?.trim();
+
+  if (displayName) return displayName;
+  if (instance.displayIndex && instance.displayIndex > 0) {
+    return `实例 ${instance.displayIndex}`;
+  }
+
+  return instance.instanceId || "实例";
+};
 
 export function RemoteNodeDetailModal({
   node,
@@ -64,6 +77,7 @@ export function RemoteNodeDetailModal({
     const runtimeInstances = (usage?.runtimeInstances || []).filter(
       (runtime) => runtime.instanceId === instance.instanceId,
     );
+
     return {
       ...instance,
       currentFlow: runtimeInstances.reduce(
@@ -84,9 +98,8 @@ export function RemoteNodeDetailModal({
   return (
     <Modal isOpen={isOpen} scrollBehavior="inside" size="2xl" onClose={onClose}>
       <ModalContent>
-        <ModalHeader className="flex min-w-0 items-center gap-2">
-          <Server className="h-5 w-5 shrink-0" />
-          <span className="truncate">{node?.name || "远程节点"}</span>
+        <ModalHeader className="truncate">
+          {node?.name || "远程节点"}
         </ModalHeader>
         <ModalBody className="space-y-4">
           {loading ? (
@@ -96,8 +109,7 @@ export function RemoteNodeDetailModal({
           ) : (
             <>
               {(usage?.syncError || node?.syncError) && (
-                <div className="flex items-start gap-2 rounded-md border border-warning-300/50 bg-warning-50 p-3 text-sm text-warning-700 dark:bg-warning-100/10 dark:text-warning-400">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="rounded-md border border-warning-300/50 bg-warning-50 p-3 text-sm text-warning-700 dark:bg-warning-100/10 dark:text-warning-400">
                   <span className="break-all">
                     {usage?.syncError || node?.syncError}
                   </span>
@@ -130,10 +142,7 @@ export function RemoteNodeDetailModal({
                 />
               </div>
               <section className="space-y-2">
-                <h3 className="flex items-center gap-2 text-sm font-semibold">
-                  <Activity className="h-4 w-4" />
-                  实例部署
-                </h3>
+                <h3 className="text-sm font-semibold">实例部署</h3>
                 {instanceDetails.length === 0 ? (
                   <div className="rounded-md border border-dashed border-divider p-4 text-sm text-default-500">
                     后端暂未返回实例级部署信息
@@ -157,9 +166,7 @@ export function RemoteNodeDetailModal({
                             key={instance.instanceId}
                             className="border-t border-divider"
                           >
-                            <td className="p-2">
-                              {instance.hostname || instance.instanceId}
-                            </td>
+                            <td className="p-2">{getInstanceName(instance)}</td>
                             <td className="p-2">
                               <Chip
                                 color={

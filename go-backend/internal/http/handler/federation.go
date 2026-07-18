@@ -125,11 +125,14 @@ type peerShareListItem struct {
 }
 
 type peerShareInstanceStatus struct {
-	InstanceID string `json:"instanceId"`
-	Hostname   string `json:"hostname"`
-	Status     int    `json:"status"`
-	Selected   bool   `json:"selected"`
-	InScope    bool   `json:"inScope"`
+	InstanceID   string `json:"instanceId"`
+	DisplayName  string `json:"displayName,omitempty"`
+	DisplayIndex int    `json:"displayIndex,omitempty"`
+	Hostname     string `json:"hostname"`
+	Status       int    `json:"status"`
+	Weight       int    `json:"weight"`
+	Selected     bool   `json:"selected"`
+	InScope      bool   `json:"inScope"`
 }
 
 type remoteUsageBindingItem struct {
@@ -145,22 +148,27 @@ type remoteUsageBindingItem struct {
 }
 
 type remoteUsageNodeItem struct {
-	NodeID           int64                          `json:"nodeId"`
-	NodeName         string                         `json:"nodeName"`
-	RemoteURL        string                         `json:"remoteUrl"`
-	ShareID          int64                          `json:"shareId"`
-	PortRangeStart   int                            `json:"portRangeStart"`
-	PortRangeEnd     int                            `json:"portRangeEnd"`
-	MaxBandwidth     int64                          `json:"maxBandwidth"`
-	CurrentFlow      int64                          `json:"currentFlow"`
-	ExpiryTime       int64                          `json:"expiryTime"`
-	UsedPorts        []int                          `json:"usedPorts"`
-	Bindings         []remoteUsageBindingItem       `json:"bindings"`
-	ActiveBindingNum int                            `json:"activeBindingNum"`
-	SyncError        string                         `json:"syncError,omitempty"`
-	Instances        []client.RemoteNodeInstance    `json:"instances"`
-	Flows            []client.RemoteShareFlow       `json:"flows"`
-	RuntimeInstances []client.RemoteRuntimeInstance `json:"runtimeInstances"`
+	NodeID             int64                          `json:"nodeId"`
+	NodeName           string                         `json:"nodeName"`
+	RemoteURL          string                         `json:"remoteUrl"`
+	ShareID            int64                          `json:"shareId"`
+	PortRangeStart     int                            `json:"portRangeStart"`
+	PortRangeEnd       int                            `json:"portRangeEnd"`
+	MaxBandwidth       int64                          `json:"maxBandwidth"`
+	CurrentFlow        int64                          `json:"currentFlow"`
+	RemoteCurrentFlow  int64                          `json:"remoteCurrentFlow"`
+	RemoteInFlow       int64                          `json:"remoteInFlow"`
+	RemoteOutFlow      int64                          `json:"remoteOutFlow"`
+	RemoteMaxBandwidth int64                          `json:"remoteMaxBandwidth"`
+	RemoteExpiryTime   int64                          `json:"remoteExpiryTime"`
+	ExpiryTime         int64                          `json:"expiryTime"`
+	UsedPorts          []int                          `json:"usedPorts"`
+	Bindings           []remoteUsageBindingItem       `json:"bindings"`
+	ActiveBindingNum   int                            `json:"activeBindingNum"`
+	SyncError          string                         `json:"syncError,omitempty"`
+	Instances          []client.RemoteNodeInstance    `json:"instances"`
+	Flows              []client.RemoteShareFlow       `json:"flows"`
+	RuntimeInstances   []client.RemoteRuntimeInstance `json:"runtimeInstances"`
 }
 
 func (h *Handler) validatePeerShareScope(nodeID int64, rawScope string, autoRequested *bool, minHealthy int, requested []string) (string, int, int, []string, error) {
@@ -257,7 +265,12 @@ func (h *Handler) peerShareInstanceStatuses(share *repo.PeerShare) ([]peerShareI
 		if share.ScopeType == "all_enabled" && share.AutoIncludeNewInstances == 1 {
 			inScope = true
 		}
-		out = append(out, peerShareInstanceStatus{InstanceID: inst.InstanceID, Hostname: inst.Hostname, Status: inst.Status, Selected: explicitlySelected, InScope: inScope})
+		out = append(out, peerShareInstanceStatus{
+			InstanceID: inst.InstanceID, DisplayName: inst.DisplayName,
+			DisplayIndex: inst.DisplayIndex, Hostname: inst.Hostname,
+			Status: inst.Status, Weight: inst.Weight,
+			Selected: explicitlySelected, InScope: inScope,
+		})
 		seen[inst.InstanceID] = struct{}{}
 	}
 	for _, row := range selectedRows {
@@ -266,7 +279,12 @@ func (h *Handler) peerShareInstanceStatuses(share *repo.PeerShare) ([]peerShareI
 		}
 		out = append(out, peerShareInstanceStatus{InstanceID: row.InstanceID, Selected: true, InScope: true})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].InstanceID < out[j].InstanceID })
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].DisplayIndex != out[j].DisplayIndex {
+			return out[i].DisplayIndex < out[j].DisplayIndex
+		}
+		return out[i].InstanceID < out[j].InstanceID
+	})
 	return out, nil
 }
 
@@ -679,7 +697,9 @@ func (h *Handler) federationRemoteUsageList(w http.ResponseWriter, r *http.Reque
 		nodeID := node.ID
 		nodeName := node.Name
 
-		shareID, maxBandwidth, currentFlow, expiryTime, portRangeStart, portRangeEnd := parseRemoteShareUsageConfig(node.RemoteConfig.String)
+		cached := parseRemoteShareUsageConfigExtended(node.RemoteConfig.String)
+		shareID, maxBandwidth, currentFlow, expiryTime, portRangeStart, portRangeEnd := cached.shareID, cached.maxBandwidth, cached.currentFlow, cached.expiryTime, cached.portRangeStart, cached.portRangeEnd
+		remoteInFlow, remoteOutFlow := cached.inFlow, cached.outFlow
 
 		var syncError string
 		remoteInstances := make([]client.RemoteNodeInstance, 0)
@@ -701,17 +721,29 @@ func (h *Handler) federationRemoteUsageList(w http.ResponseWriter, r *http.Reque
 				remoteInstances = info.Instances
 				remoteFlows = info.Flows
 				remoteRuntimeInstances = info.RuntimeInstances
+				currentFlow, remoteInFlow, remoteOutFlow = aggregateRemoteShareFlows(info)
 
-				configData, _ := json.Marshal(map[string]interface{}{
-					"shareId":        info.ShareID,
-					"maxBandwidth":   info.MaxBandwidth,
-					"currentFlow":    info.CurrentFlow,
-					"expiryTime":     info.ExpiryTime,
-					"portRangeStart": info.PortRangeStart,
-					"portRangeEnd":   info.PortRangeEnd,
-				})
-				_ = h.repo.UpdateNodeRemoteConfig(nodeID, string(configData))
+				configData := remoteShareUsageConfigMap(node.RemoteConfig.String)
+				for key, value := range map[string]interface{}{
+					"shareId":           info.ShareID,
+					"maxBandwidth":      info.MaxBandwidth,
+					"currentFlow":       info.CurrentFlow,
+					"remoteCurrentFlow": currentFlow,
+					"remoteInFlow":      remoteInFlow,
+					"remoteOutFlow":     remoteOutFlow,
+					"expiryTime":        info.ExpiryTime,
+					"portRangeStart":    info.PortRangeStart,
+					"portRangeEnd":      info.PortRangeEnd,
+					"remoteInstances":   info.Instances,
+				} {
+					configData[key] = value
+				}
+				configBytes, _ := json.Marshal(configData)
+				_ = h.repo.UpdateNodeRemoteConfig(nodeID, string(configBytes))
 			}
+		}
+		if len(remoteInstances) == 0 && len(cached.instances) > 0 {
+			remoteInstances = cached.instances
 		}
 
 		bindingRows, err := h.repo.ListActiveBindingsForNode(nodeID)
@@ -774,22 +806,27 @@ func (h *Handler) federationRemoteUsageList(w http.ResponseWriter, r *http.Reque
 		sort.Ints(usedPorts)
 
 		items = append(items, remoteUsageNodeItem{
-			NodeID:           nodeID,
-			NodeName:         nodeName,
-			RemoteURL:        url,
-			ShareID:          shareID,
-			PortRangeStart:   portRangeStart,
-			PortRangeEnd:     portRangeEnd,
-			MaxBandwidth:     maxBandwidth,
-			CurrentFlow:      currentFlow,
-			ExpiryTime:       expiryTime,
-			UsedPorts:        usedPorts,
-			Bindings:         bindings,
-			ActiveBindingNum: len(bindings),
-			SyncError:        syncError,
-			Instances:        remoteInstances,
-			Flows:            remoteFlows,
-			RuntimeInstances: remoteRuntimeInstances,
+			NodeID:             nodeID,
+			NodeName:           nodeName,
+			RemoteURL:          url,
+			ShareID:            shareID,
+			PortRangeStart:     portRangeStart,
+			PortRangeEnd:       portRangeEnd,
+			MaxBandwidth:       maxBandwidth,
+			CurrentFlow:        currentFlow,
+			RemoteCurrentFlow:  currentFlow,
+			RemoteInFlow:       remoteInFlow,
+			RemoteOutFlow:      remoteOutFlow,
+			RemoteMaxBandwidth: maxBandwidth,
+			RemoteExpiryTime:   expiryTime,
+			ExpiryTime:         expiryTime,
+			UsedPorts:          usedPorts,
+			Bindings:           bindings,
+			ActiveBindingNum:   len(bindings),
+			SyncError:          syncError,
+			Instances:          remoteInstances,
+			Flows:              remoteFlows,
+			RuntimeInstances:   remoteRuntimeInstances,
 		})
 	}
 
@@ -819,23 +856,71 @@ func validateRemoteNodePort(node *nodeRecord, port int) error {
 }
 
 func parseRemoteShareUsageConfig(raw string) (int64, int64, int64, int64, int, int) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0, 0, 0, 0, 0, 0
+	parsed := parseRemoteShareUsageConfigExtended(raw)
+	return parsed.shareID, parsed.maxBandwidth, parsed.currentFlow, parsed.expiryTime, parsed.portRangeStart, parsed.portRangeEnd
+}
+
+type parsedRemoteShareUsageConfig struct {
+	shareID        int64
+	maxBandwidth   int64
+	currentFlow    int64
+	inFlow         int64
+	outFlow        int64
+	expiryTime     int64
+	portRangeStart int
+	portRangeEnd   int
+	instances      []client.RemoteNodeInstance
+}
+
+func parseRemoteShareUsageConfigExtended(raw string) parsedRemoteShareUsageConfig {
+	cfg := remoteShareUsageConfigMap(raw)
+	if len(cfg) == 0 {
+		return parsedRemoteShareUsageConfig{}
 	}
 
+	parsed := parsedRemoteShareUsageConfig{
+		shareID:        asInt64(cfg["shareId"], 0),
+		maxBandwidth:   asInt64(cfg["remoteMaxBandwidth"], asInt64(cfg["maxBandwidth"], 0)),
+		currentFlow:    asInt64(cfg["remoteCurrentFlow"], asInt64(cfg["currentFlow"], 0)),
+		inFlow:         asInt64(cfg["remoteInFlow"], 0),
+		outFlow:        asInt64(cfg["remoteOutFlow"], 0),
+		expiryTime:     asInt64(cfg["remoteExpiryTime"], asInt64(cfg["expiryTime"], 0)),
+		portRangeStart: int(asInt64(cfg["portRangeStart"], 0)),
+		portRangeEnd:   int(asInt64(cfg["portRangeEnd"], 0)),
+	}
+	if rawInstances, ok := cfg["remoteInstances"]; ok {
+		instancesJSON, _ := json.Marshal(rawInstances)
+		_ = json.Unmarshal(instancesJSON, &parsed.instances)
+	}
+	return parsed
+}
+
+func remoteShareUsageConfigMap(raw string) map[string]interface{} {
 	var cfg map[string]interface{}
-	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		return 0, 0, 0, 0, 0, 0
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &cfg); err != nil || cfg == nil {
+		return make(map[string]interface{})
 	}
+	return cfg
+}
 
-	shareID := asInt64(cfg["shareId"], 0)
-	maxBandwidth := asInt64(cfg["maxBandwidth"], 0)
-	currentFlow := asInt64(cfg["currentFlow"], 0)
-	expiryTime := asInt64(cfg["expiryTime"], 0)
-	portRangeStart := int(asInt64(cfg["portRangeStart"], 0))
-	portRangeEnd := int(asInt64(cfg["portRangeEnd"], 0))
-	return shareID, maxBandwidth, currentFlow, expiryTime, portRangeStart, portRangeEnd
+func aggregateRemoteShareFlows(info *client.RemoteNodeInfo) (currentFlow, inFlow, outFlow int64) {
+	if info == nil {
+		return 0, 0, 0
+	}
+	currentFlow = info.CurrentFlow
+	matched := false
+	for _, flow := range info.Flows {
+		if strings.ToLower(strings.TrimSpace(flow.PeriodType)) != "total" || flow.RuntimeID != 0 || strings.TrimSpace(flow.InstanceID) != "" {
+			continue
+		}
+		matched = true
+		inFlow += flow.InFlow
+		outFlow += flow.OutFlow
+	}
+	if !matched {
+		inFlow, outFlow = 0, 0
+	}
+	return currentFlow, inFlow, outFlow
 }
 
 func (h *Handler) nodeImport(w http.ResponseWriter, r *http.Request) {
@@ -2007,6 +2092,7 @@ func (h *Handler) syncRemoteNodeStatuses(items []map[string]interface{}) {
 		index       int
 		remoteURL   string
 		remoteToken string
+		cached      parsedRemoteShareUsageConfig
 	}
 
 	var remotes []remoteEntry
@@ -2022,7 +2108,7 @@ func (h *Handler) syncRemoteNodeStatuses(items []map[string]interface{}) {
 		if url == "" || token == "" {
 			continue
 		}
-		remotes = append(remotes, remoteEntry{index: i, remoteURL: url, remoteToken: token})
+		remotes = append(remotes, remoteEntry{index: i, remoteURL: url, remoteToken: token, cached: parseRemoteShareUsageConfigExtended(asString(item["remoteConfig"]))})
 	}
 	if len(remotes) == 0 {
 		return
@@ -2032,9 +2118,16 @@ func (h *Handler) syncRemoteNodeStatuses(items []map[string]interface{}) {
 	fc := client.NewFederationClientWithTimeout(5 * time.Second)
 
 	type syncResult struct {
-		index     int
-		status    int
-		syncError string
+		index        int
+		status       int
+		syncError    string
+		instances    []client.RemoteNodeInstance
+		currentFlow  int64
+		inFlow       int64
+		outFlow      int64
+		maxBandwidth int64
+		expiryTime   int64
+		info         *client.RemoteNodeInfo
 	}
 
 	results := make([]syncResult, len(remotes))
@@ -2046,17 +2139,23 @@ func (h *Handler) syncRemoteNodeStatuses(items []map[string]interface{}) {
 			info, err := fc.Connect(e.remoteURL, e.remoteToken, localDomain)
 			if err != nil {
 				errMsg := err.Error()
+				result := syncResult{index: e.index, status: 0, syncError: errMsg, instances: e.cached.instances, currentFlow: e.cached.currentFlow, inFlow: e.cached.inFlow, outFlow: e.cached.outFlow, maxBandwidth: e.cached.maxBandwidth, expiryTime: e.cached.expiryTime}
 				if strings.Contains(errMsg, "401") || strings.Contains(errMsg, "Invalid token") || strings.Contains(errMsg, "Unauthorized") {
-					results[idx] = syncResult{index: e.index, status: 0, syncError: "provider_share_deleted"}
+					result.syncError = "provider_share_deleted"
 				} else if strings.Contains(errMsg, "403") || strings.Contains(errMsg, "Share is disabled") {
-					results[idx] = syncResult{index: e.index, status: 0, syncError: "provider_share_disabled"}
+					result.syncError = "provider_share_disabled"
 				} else if strings.Contains(errMsg, "Share expired") {
-					results[idx] = syncResult{index: e.index, status: 0, syncError: "provider_share_expired"}
-				} else {
-					results[idx] = syncResult{index: e.index, status: 0, syncError: errMsg}
+					result.syncError = "provider_share_expired"
 				}
+				results[idx] = result
 			} else {
-				results[idx] = syncResult{index: e.index, status: info.Status, syncError: ""}
+				currentFlow, inFlow, outFlow := aggregateRemoteShareFlows(info)
+				results[idx] = syncResult{
+					index: e.index, status: info.Status, syncError: "",
+					instances:   info.Instances,
+					currentFlow: currentFlow, inFlow: inFlow, outFlow: outFlow,
+					maxBandwidth: info.MaxBandwidth, expiryTime: info.ExpiryTime, info: info,
+				}
 			}
 		}(i, entry)
 	}
@@ -2064,6 +2163,21 @@ func (h *Handler) syncRemoteNodeStatuses(items []map[string]interface{}) {
 
 	for _, r := range results {
 		items[r.index]["status"] = r.status
+		items[r.index]["remoteCurrentFlow"] = r.currentFlow
+		items[r.index]["remoteInFlow"] = r.inFlow
+		items[r.index]["remoteOutFlow"] = r.outFlow
+		items[r.index]["remoteMaxBandwidth"] = r.maxBandwidth
+		items[r.index]["remoteExpiryTime"] = r.expiryTime
+		items[r.index]["remoteInstances"] = r.instances
+		if r.info != nil {
+			configData, _ := json.Marshal(map[string]interface{}{
+				"shareId": r.info.ShareID, "maxBandwidth": r.info.MaxBandwidth, "currentFlow": r.info.CurrentFlow,
+				"remoteCurrentFlow": r.currentFlow, "remoteInFlow": r.inFlow, "remoteOutFlow": r.outFlow,
+				"expiryTime": r.info.ExpiryTime, "portRangeStart": r.info.PortRangeStart, "portRangeEnd": r.info.PortRangeEnd,
+				"remoteInstances": r.instances,
+			})
+			_ = h.repo.UpdateNodeRemoteConfig(asInt64(items[r.index]["id"], 0), string(configData))
+		}
 		if r.syncError != "" {
 			items[r.index]["syncError"] = r.syncError
 		}
