@@ -57,8 +57,8 @@ export interface UserApiItem {
   num: number;
   expTime?: number;
   flowResetTime?: number;
-  inFlow?: number;
-  outFlow?: number;
+  totalInFlow?: number;
+  totalOutFlow?: number;
   dailyQuotaGB?: number;
   monthlyQuotaGB?: number;
   dailyUsedBytes?: number;
@@ -166,6 +166,25 @@ export interface PeerShareInstanceApiItem {
   hostname?: string;
   status?: number;
   weight?: number;
+  trafficRatio?: number;
+  version?: string;
+  renewalCycle?: "month" | "quarter" | "halfYear" | "" | "year";
+  flowResetTime?: number;
+  publicIpV4?: string;
+  publicIpV6?: string;
+  publicIpV4Region?: string;
+  publicIpV4CountryCode?: string;
+  publicIpV6Region?: string;
+  publicIpV6CountryCode?: string;
+  onlineCount?: number;
+  tcpConns?: number;
+  udpConns?: number;
+  periodRx?: number;
+  periodTx?: number;
+  totalInFlow?: number;
+  totalOutFlow?: number;
+  trafficLimit?: number;
+  expiryTime?: number;
   selected: boolean;
   inScope: boolean;
 }

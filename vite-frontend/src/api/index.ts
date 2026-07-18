@@ -139,7 +139,21 @@ export const getUserPackageInfo = () =>
 // 节点CRUD操作 - 全部使用POST请求
 export const createNode = (data: NodeMutationPayload) =>
   Network.post("/node/create", data);
-export const getNodeList = () => Network.post<NodeApiItem[]>("/node/list");
+export const getNodeList = async () => {
+  const response = await Network.post<NodeApiItem[]>("/node/list");
+
+  if (Array.isArray(response.data)) {
+    response.data = response.data.map((node) => ({
+      ...node,
+      name:
+        node.isRemote === 1
+          ? node.name.replace(/\s*\(Remote\)\s*$/i, "").trim() || node.name
+          : node.name,
+    }));
+  }
+
+  return response;
+};
 export const getDashboardNodeExpiryList = () =>
   Network.post<NodeApiItem[]>("/node/list", {});
 export const updateNode = (data: NodeMutationPayload) =>
@@ -148,7 +162,8 @@ export const updateNodeWeight = (
   nodeId: number,
   weight: number,
   instanceId?: string,
-) => Network.post("/node/weight", { nodeId, weight, instanceId });
+  trafficRatio?: number,
+) => Network.post("/node/weight", { nodeId, weight, instanceId, trafficRatio });
 export const updateNodeInstanceProfile = (data: {
   nodeId: number;
   instanceId: string;

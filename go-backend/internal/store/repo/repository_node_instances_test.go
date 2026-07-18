@@ -2,7 +2,9 @@ package repo
 
 import (
 	"errors"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"go-backend/internal/store/model"
 )
@@ -190,5 +192,40 @@ func TestUpsertNodeInstanceClearsRuntimeTrafficWhenOfflineInstanceMovesServer(t 
 	}
 	if got.TrafficLimit != 100 || got.TotalInFlow != 111 || got.TotalOutFlow != 222 {
 		t.Fatalf("expected limit usage preserved, got limit=%d total=(%d,%d)", got.TrafficLimit, got.TotalInFlow, got.TotalOutFlow)
+	}
+}
+
+func TestSyncRemoteNodeInstancesPreservesLocalTrafficRatio(t *testing.T) {
+	r, err := Open(filepath.Join(t.TempDir(), "remote-instance-ratio.db"))
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+
+	now := time.Now().UnixMilli()
+	node := model.Node{Name: "remote", Secret: "secret", ServerIP: "127.0.0.1", Port: "0", IsRemote: 1, TrafficRatio: 2.5, CreatedTime: now, Status: 1, TCPListenAddr: "[::]", UDPListenAddr: "[::]"}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	instance := model.NodeInstance{NodeID: node.ID, InstanceID: "instance-a", TrafficRatio: 3.5, Weight: 1, CreatedTime: now, UpdatedTime: now}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatalf("create instance: %v", err)
+	}
+
+	instances, err := r.SyncRemoteNodeInstances(node.ID, []RemoteNodeInstanceSync{{
+		InstanceID: "instance-a", DisplayName: "Source A", Status: 1, Weight: 4, TotalInFlow: 100, TotalOutFlow: 200,
+	}}, now+1)
+	if err != nil {
+		t.Fatalf("sync remote instances: %v", err)
+	}
+	if len(instances) != 1 || instances[0].TrafficRatio != 3.5 {
+		t.Fatalf("expected local ratio 3.5 to survive sync, got %+v", instances)
+	}
+	if instances[0].DisplayName != "Source A" || instances[0].Weight != 4 || instances[0].TotalInFlow != 100 || instances[0].TotalOutFlow != 200 {
+		t.Fatalf("expected remote fields to update, got %+v", instances[0])
+	}
+	storedNode, err := r.GetNodeByID(node.ID)
+	if err != nil || storedNode == nil || storedNode.TrafficRatio != 2.5 {
+		t.Fatalf("expected local node ratio 2.5 to survive sync, node=%+v err=%v", storedNode, err)
 	}
 }

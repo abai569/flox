@@ -34,14 +34,34 @@ type RemoteNodeInfo struct {
 }
 
 type RemoteNodeInstance struct {
-	InstanceID   string `json:"instanceId"`
-	DisplayName  string `json:"displayName"`
-	DisplayIndex int    `json:"displayIndex"`
-	Hostname     string `json:"hostname"`
-	Status       int    `json:"status"`
-	Weight       int    `json:"weight"`
-	Selected     bool   `json:"selected"`
-	InScope      bool   `json:"inScope"`
+	InstanceID    string  `json:"instanceId"`
+	DisplayName   string  `json:"displayName"`
+	DisplayIndex  int     `json:"displayIndex"`
+	Hostname      string  `json:"hostname"`
+	Version       string  `json:"version"`
+	Status        int     `json:"status"`
+	Weight        int     `json:"weight"`
+	TrafficRatio  float64 `json:"trafficRatio"`
+	ExpiryTime    int64   `json:"expiryTime"`
+	RenewalCycle  string  `json:"renewalCycle"`
+	FlowResetTime int     `json:"flowResetTime"`
+	TrafficLimit  int64   `json:"trafficLimit"`
+	TotalInFlow   int64   `json:"totalInFlow"`
+	TotalOutFlow  int64   `json:"totalOutFlow"`
+	PeriodRx      int64   `json:"periodRx"`
+	PeriodTx      int64   `json:"periodTx"`
+	NetInSpeed    int64   `json:"netInSpeed"`
+	NetOutSpeed   int64   `json:"netOutSpeed"`
+	NetInBytes    int64   `json:"netInBytes"`
+	NetOutBytes   int64   `json:"netOutBytes"`
+	TCPConns      int64   `json:"tcpConns"`
+	UDPConns      int64   `json:"udpConns"`
+	Uptime        int64   `json:"uptime"`
+	CPUUsage      float64 `json:"cpuUsage"`
+	MemUsage      float64 `json:"memUsage"`
+	DiskUsage     float64 `json:"diskUsage"`
+	Selected      bool    `json:"selected"`
+	InScope       bool    `json:"inScope"`
 }
 
 type RemoteShareFlow struct {

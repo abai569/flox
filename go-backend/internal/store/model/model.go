@@ -156,6 +156,7 @@ type NodeInstance struct {
 	Remark                       string         `gorm:"column:remark;type:text;default:''"`
 	Status                       int            `gorm:"column:status;not null;default:1"`
 	Weight                       int            `gorm:"column:weight;not null;default:1"`
+	TrafficRatio                 float64        `gorm:"column:traffic_ratio;not null;default:0"`
 	DisplayIndex                 int            `gorm:"column:display_index;not null;default:0"`
 	PortRange                    string         `gorm:"column:port_range;type:varchar(255);default:''"`
 	ExpiryTime                   sql.NullInt64  `gorm:"column:expiry_time"`

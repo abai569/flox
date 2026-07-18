@@ -36,6 +36,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		RenewalCycle  interface{} `json:"renewalCycle"`
 		FlowResetTime int         `json:"flowResetTime"`
 		TrafficLimit  int64       `json:"trafficLimit"`
+		TrafficRatio  *float64    `json:"trafficRatio"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -49,7 +50,8 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("权重必须在0-10之间，0表示禁用承载"))
 		return
 	}
-	if _, err := h.getNodeRecord(req.NodeID); err != nil {
+	node, err := h.getNodeRecord(req.NodeID)
+	if err != nil {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
@@ -57,6 +59,16 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 	instanceID := strings.TrimSpace(req.InstanceID)
 	portRange := strings.TrimSpace(req.PortRange)
 	if instanceID != "" {
+		if req.TrafficRatio != nil {
+			if node.IsRemote != 1 {
+				response.WriteJSON(w, response.ErrDefault("仅远程节点实例可设置独立倍率"))
+				return
+			}
+			if *req.TrafficRatio < 0 {
+				response.WriteJSON(w, response.ErrDefault("流量倍率不能小于0，0表示继承节点倍率"))
+				return
+			}
+		}
 		if err := validateNodeWeightInstancePortRange(portRange); err != nil {
 			response.WriteJSON(w, response.ErrDefault(err.Error()))
 			return
@@ -88,7 +100,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		if expiryTime > 0 {
 			expiryInput = expiryTime
 		}
-		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Remark, req.Weight, portRange, expiryInput, renewalCycle, flowResetTime, req.TrafficLimit, time.Now().UnixMilli()); err != nil {
+		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Remark, req.Weight, portRange, expiryInput, renewalCycle, flowResetTime, req.TrafficLimit, req.TrafficRatio, time.Now().UnixMilli()); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
@@ -112,6 +124,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		"renewalCycle":  normalizeNodeRenewalCycle(asString(req.RenewalCycle)),
 		"flowResetTime": req.FlowResetTime,
 		"trafficLimit":  req.TrafficLimit,
+		"trafficRatio":  req.TrafficRatio,
 	}))
 }
 

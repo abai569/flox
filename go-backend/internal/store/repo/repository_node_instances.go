@@ -37,6 +37,34 @@ type NodeInstanceUpsert struct {
 	Now         int64
 }
 
+type RemoteNodeInstanceSync struct {
+	InstanceID    string
+	DisplayName   string
+	DisplayIndex  int
+	Hostname      string
+	Version       string
+	Status        int
+	Weight        int
+	ExpiryTime    int64
+	RenewalCycle  string
+	FlowResetTime int
+	TrafficLimit  int64
+	TotalInFlow   int64
+	TotalOutFlow  int64
+	PeriodRx      int64
+	PeriodTx      int64
+	NetInSpeed    int64
+	NetOutSpeed   int64
+	NetInBytes    int64
+	NetOutBytes   int64
+	TCPConns      int64
+	UDPConns      int64
+	Uptime        int64
+	CPUUsage      float64
+	MemUsage      float64
+	DiskUsage     float64
+}
+
 type NodeInstanceCount struct {
 	Total  int64
 	Online int64
@@ -244,7 +272,7 @@ func (r *Repository) UpdateNodeInstanceWeight(nodeID int64, instanceID string, w
 		Updates(map[string]interface{}{"weight": weight, "updated_time": now}).Error
 }
 
-func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, remark string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, flowResetTime int, trafficLimit int64, now int64) error {
+func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, remark string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, flowResetTime int, trafficLimit int64, trafficRatio *float64, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -255,22 +283,78 @@ func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, 
 	if instanceID == "" {
 		return errors.New("node instance id is required")
 	}
-	return r.db.Model(&model.NodeInstance{}).
+	updates := map[string]interface{}{
+		"display_name":                    strings.TrimSpace(displayName),
+		"remark":                          strings.TrimSpace(remark),
+		"weight":                          weight,
+		"port_range":                      strings.TrimSpace(portRange),
+		"expiry_time":                     nullInt64FromInterface(expiryTime),
+		"renewal_cycle":                   nullStringFromInterface(renewalCycle),
+		"flow_reset_time":                 flowResetTime,
+		"traffic_limit":                   trafficLimit,
+		"expiry_reminder_dismissed":       0,
+		"expiry_reminder_dismissed_until": sql.NullInt64{},
+		"traffic_notified_mask":           0,
+		"updated_time":                    now,
+	}
+	if trafficRatio != nil {
+		updates["traffic_ratio"] = *trafficRatio
+	}
+	result := r.db.Model(&model.NodeInstance{}).
 		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
-		Updates(map[string]interface{}{
-			"display_name":                    strings.TrimSpace(displayName),
-			"remark":                          strings.TrimSpace(remark),
-			"weight":                          weight,
-			"port_range":                      strings.TrimSpace(portRange),
-			"expiry_time":                     nullInt64FromInterface(expiryTime),
-			"renewal_cycle":                   nullStringFromInterface(renewalCycle),
-			"flow_reset_time":                 flowResetTime,
-			"traffic_limit":                   trafficLimit,
-			"expiry_reminder_dismissed":       0,
-			"expiry_reminder_dismissed_until": sql.NullInt64{},
-			"traffic_notified_mask":           0,
-			"updated_time":                    now,
-		}).Error
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("node instance not found")
+	}
+	return nil
+}
+
+func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeInstanceSync, now int64) ([]model.NodeInstance, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	if nodeID <= 0 {
+		return nil, errors.New("node id is required")
+	}
+	if now <= 0 {
+		now = unixMilliNow()
+	}
+	for _, item := range items {
+		instanceID := normalizeNodeInstanceID(item.InstanceID)
+		if instanceID == "" {
+			continue
+		}
+		values := map[string]interface{}{
+			"node_id": nodeID, "instance_id": instanceID, "display_name": strings.TrimSpace(item.DisplayName),
+			"display_index": item.DisplayIndex, "hostname": strings.TrimSpace(item.Hostname), "version": strings.TrimSpace(item.Version),
+			"status": item.Status, "weight": item.Weight, "traffic_ratio": float64(0),
+			"flow_reset_time": item.FlowResetTime, "traffic_limit": item.TrafficLimit,
+			"total_in_flow": item.TotalInFlow, "total_out_flow": item.TotalOutFlow, "period_rx": item.PeriodRx, "period_tx": item.PeriodTx,
+			"net_in_speed": item.NetInSpeed, "net_out_speed": item.NetOutSpeed, "net_in_bytes": item.NetInBytes, "net_out_bytes": item.NetOutBytes,
+			"tcp_conns": item.TCPConns, "udp_conns": item.UDPConns, "uptime": item.Uptime, "cpu_usage": item.CPUUsage,
+			"mem_usage": item.MemUsage, "disk_usage": item.DiskUsage, "last_seen_at": now, "created_time": now, "updated_time": now,
+		}
+		if item.ExpiryTime > 0 {
+			values["expiry_time"] = item.ExpiryTime
+		} else {
+			values["expiry_time"] = nil
+		}
+		if item.RenewalCycle != "" {
+			values["renewal_cycle"] = item.RenewalCycle
+		} else {
+			values["renewal_cycle"] = nil
+		}
+		if err := r.db.Model(&model.NodeInstance{}).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "node_id"}, {Name: "instance_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "version", "status", "weight", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "total_in_flow", "total_out_flow", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
+		}).Create(values).Error; err != nil {
+			return nil, err
+		}
+	}
+	return r.ListNodeInstances(nodeID)
 }
 
 func (r *Repository) RefreshNodeInstanceExpiryReminder(nodeID int64, instanceID string) error {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -13,6 +14,7 @@ import (
 
 	"go-backend/internal/http/client"
 	"go-backend/internal/http/response"
+	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 )
 
@@ -125,14 +127,34 @@ type peerShareListItem struct {
 }
 
 type peerShareInstanceStatus struct {
-	InstanceID   string `json:"instanceId"`
-	DisplayName  string `json:"displayName,omitempty"`
-	DisplayIndex int    `json:"displayIndex,omitempty"`
-	Hostname     string `json:"hostname"`
-	Status       int    `json:"status"`
-	Weight       int    `json:"weight"`
-	Selected     bool   `json:"selected"`
-	InScope      bool   `json:"inScope"`
+	InstanceID    string  `json:"instanceId"`
+	DisplayName   string  `json:"displayName,omitempty"`
+	DisplayIndex  int     `json:"displayIndex,omitempty"`
+	Hostname      string  `json:"hostname"`
+	Version       string  `json:"version"`
+	Status        int     `json:"status"`
+	Weight        int     `json:"weight"`
+	TrafficRatio  float64 `json:"trafficRatio"`
+	ExpiryTime    int64   `json:"expiryTime"`
+	RenewalCycle  string  `json:"renewalCycle"`
+	FlowResetTime int     `json:"flowResetTime"`
+	TrafficLimit  int64   `json:"trafficLimit"`
+	TotalInFlow   int64   `json:"totalInFlow"`
+	TotalOutFlow  int64   `json:"totalOutFlow"`
+	PeriodRx      int64   `json:"periodRx"`
+	PeriodTx      int64   `json:"periodTx"`
+	NetInSpeed    int64   `json:"netInSpeed"`
+	NetOutSpeed   int64   `json:"netOutSpeed"`
+	NetInBytes    int64   `json:"netInBytes"`
+	NetOutBytes   int64   `json:"netOutBytes"`
+	TCPConns      int64   `json:"tcpConns"`
+	UDPConns      int64   `json:"udpConns"`
+	Uptime        int64   `json:"uptime"`
+	CPUUsage      float64 `json:"cpuUsage"`
+	MemUsage      float64 `json:"memUsage"`
+	DiskUsage     float64 `json:"diskUsage"`
+	Selected      bool    `json:"selected"`
+	InScope       bool    `json:"inScope"`
 }
 
 type remoteUsageBindingItem struct {
@@ -268,7 +290,13 @@ func (h *Handler) peerShareInstanceStatuses(share *repo.PeerShare) ([]peerShareI
 		out = append(out, peerShareInstanceStatus{
 			InstanceID: inst.InstanceID, DisplayName: inst.DisplayName,
 			DisplayIndex: inst.DisplayIndex, Hostname: inst.Hostname,
-			Status: inst.Status, Weight: inst.Weight,
+			Version: inst.Version, Status: inst.Status, Weight: inst.Weight, TrafficRatio: inst.TrafficRatio,
+			ExpiryTime: nullableInt64Value(inst.ExpiryTime), RenewalCycle: nullableStringValue(inst.RenewalCycle),
+			FlowResetTime: inst.FlowResetTime, TrafficLimit: inst.TrafficLimit,
+			TotalInFlow: inst.TotalInFlow, TotalOutFlow: inst.TotalOutFlow, PeriodRx: inst.PeriodRx, PeriodTx: inst.PeriodTx,
+			NetInSpeed: inst.NetInSpeed, NetOutSpeed: inst.NetOutSpeed, NetInBytes: inst.NetInBytes, NetOutBytes: inst.NetOutBytes,
+			TCPConns: inst.TCPConns, UDPConns: inst.UDPConns, Uptime: inst.Uptime,
+			CPUUsage: inst.CPUUsage, MemUsage: inst.MemUsage, DiskUsage: inst.DiskUsage,
 			Selected: explicitlySelected, InScope: inScope,
 		})
 		seen[inst.InstanceID] = struct{}{}
@@ -286,6 +314,47 @@ func (h *Handler) peerShareInstanceStatuses(share *repo.PeerShare) ([]peerShareI
 		return out[i].InstanceID < out[j].InstanceID
 	})
 	return out, nil
+}
+
+func nullableInt64Value(value sql.NullInt64) int64 {
+	if value.Valid {
+		return value.Int64
+	}
+	return 0
+}
+
+func nullableStringValue(value sql.NullString) string {
+	if value.Valid {
+		return value.String
+	}
+	return ""
+}
+
+func remoteNodeInstanceSyncItems(items []client.RemoteNodeInstance) []repo.RemoteNodeInstanceSync {
+	out := make([]repo.RemoteNodeInstanceSync, 0, len(items))
+	for _, item := range items {
+		out = append(out, repo.RemoteNodeInstanceSync{
+			InstanceID: item.InstanceID, DisplayName: item.DisplayName, DisplayIndex: item.DisplayIndex,
+			Hostname: item.Hostname, Version: item.Version, Status: item.Status, Weight: item.Weight,
+			ExpiryTime: item.ExpiryTime, RenewalCycle: item.RenewalCycle, FlowResetTime: item.FlowResetTime,
+			TrafficLimit: item.TrafficLimit, TotalInFlow: item.TotalInFlow, TotalOutFlow: item.TotalOutFlow,
+			PeriodRx: item.PeriodRx, PeriodTx: item.PeriodTx, NetInSpeed: item.NetInSpeed, NetOutSpeed: item.NetOutSpeed,
+			NetInBytes: item.NetInBytes, NetOutBytes: item.NetOutBytes, TCPConns: item.TCPConns, UDPConns: item.UDPConns,
+			Uptime: item.Uptime, CPUUsage: item.CPUUsage, MemUsage: item.MemUsage, DiskUsage: item.DiskUsage,
+		})
+	}
+	return out
+}
+
+func mergeRemoteInstanceTrafficRatios(items []client.RemoteNodeInstance, local []model.NodeInstance) []client.RemoteNodeInstance {
+	ratios := make(map[string]float64, len(local))
+	for _, item := range local {
+		ratios[item.InstanceID] = item.TrafficRatio
+	}
+	for i := range items {
+		items[i].TrafficRatio = ratios[items[i].InstanceID]
+	}
+	return items
 }
 
 func mustPeerShareConnectInstances(h *Handler, share *repo.PeerShare) []peerShareInstanceStatus {
@@ -718,7 +787,11 @@ func (h *Handler) federationRemoteUsageList(w http.ResponseWriter, r *http.Reque
 				expiryTime = info.ExpiryTime
 				portRangeStart = info.PortRangeStart
 				portRangeEnd = info.PortRangeEnd
-				remoteInstances = info.Instances
+				localInstances, syncErr := h.repo.SyncRemoteNodeInstances(nodeID, remoteNodeInstanceSyncItems(info.Instances), time.Now().UnixMilli())
+				if syncErr != nil {
+					syncError = syncErr.Error()
+				}
+				remoteInstances = mergeRemoteInstanceTrafficRatios(info.Instances, localInstances)
 				remoteFlows = info.Flows
 				remoteRuntimeInstances = info.RuntimeInstances
 				currentFlow, remoteInFlow, remoteOutFlow = aggregateRemoteShareFlows(info)
@@ -734,7 +807,7 @@ func (h *Handler) federationRemoteUsageList(w http.ResponseWriter, r *http.Reque
 					"expiryTime":        info.ExpiryTime,
 					"portRangeStart":    info.PortRangeStart,
 					"portRangeEnd":      info.PortRangeEnd,
-					"remoteInstances":   info.Instances,
+					"remoteInstances":   remoteInstances,
 				} {
 					configData[key] = value
 				}
@@ -2162,6 +2235,15 @@ func (h *Handler) syncRemoteNodeStatuses(items []map[string]interface{}) {
 	wg.Wait()
 
 	for _, r := range results {
+		if r.info != nil && h.repo != nil {
+			nodeID := asInt64(items[r.index]["id"], 0)
+			localInstances, err := h.repo.SyncRemoteNodeInstances(nodeID, remoteNodeInstanceSyncItems(r.instances), time.Now().UnixMilli())
+			if err != nil {
+				r.syncError = err.Error()
+			} else {
+				r.instances = mergeRemoteInstanceTrafficRatios(r.instances, localInstances)
+			}
+		}
 		items[r.index]["status"] = r.status
 		items[r.index]["remoteCurrentFlow"] = r.currentFlow
 		items[r.index]["remoteInFlow"] = r.inFlow

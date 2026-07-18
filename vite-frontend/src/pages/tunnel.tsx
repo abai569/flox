@@ -583,8 +583,11 @@ export default function TunnelPage() {
   const renderNodeSelectItems = () =>
     nodes.map((node) => {
       const group = nodeGroups.find((item) => item.id === node.groupId);
-      const groupName = group?.name || "未分组";
-      const groupColor = (group as any)?.color as string | undefined;
+      const isRemote = Number((node as any).isRemote || 0) === 1;
+      const groupName = isRemote ? "远程组" : group?.name || "未分组";
+      const groupColor = isRemote
+        ? "#a855f7"
+        : ((group as any)?.color as string | undefined);
 
       return (
         <SelectItem

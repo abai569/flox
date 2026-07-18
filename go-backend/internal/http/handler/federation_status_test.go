@@ -8,8 +8,50 @@ import (
 	"testing"
 
 	"go-backend/internal/http/client"
+	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 )
+
+func TestFederationConnectReturnsInstanceTrafficRatioAndUsage(t *testing.T) {
+	r, err := repo.Open(filepath.Join(t.TempDir(), "connect-instance.db"))
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	node := model.Node{Name: "source", Secret: "secret", ServerIP: "127.0.0.1", Port: "20000-20010", CreatedTime: 1, Status: 1, TCPListenAddr: "[::]", UDPListenAddr: "[::]"}
+	if err := r.DB().Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	instance := model.NodeInstance{NodeID: node.ID, InstanceID: "instance-a", DisplayName: "A", Hostname: "host-a", Status: 1, Weight: 4, TrafficRatio: 2.5, PeriodRx: 11, PeriodTx: 22, TrafficLimit: 100, CreatedTime: 1, UpdatedTime: 1}
+	if err := r.DB().Create(&instance).Error; err != nil {
+		t.Fatalf("create instance: %v", err)
+	}
+	share := &repo.PeerShare{Name: "share", NodeID: node.ID, Token: "connect-token", ScopeType: "all_enabled", AutoIncludeNewInstances: 1, MinHealthyInstances: 1, IsActive: 1, CreatedTime: 1, UpdatedTime: 1}
+	if err := r.CreatePeerShare(share); err != nil {
+		t.Fatalf("create share: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/federation/connect", nil)
+	req.Header.Set("Authorization", share.Token)
+	res := httptest.NewRecorder()
+	(&Handler{repo: r}).federationConnect(res, req)
+	var payload struct {
+		Code int `json:"code"`
+		Data struct {
+			Instances []client.RemoteNodeInstance `json:"instances"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Code != 0 || len(payload.Data.Instances) != 1 {
+		t.Fatalf("unexpected response: code=%d instances=%+v", payload.Code, payload.Data.Instances)
+	}
+	got := payload.Data.Instances[0]
+	if got.TrafficRatio != 2.5 || got.PeriodRx != 11 || got.PeriodTx != 22 || got.TrafficLimit != 100 || got.Hostname != "host-a" {
+		t.Fatalf("unexpected instance fields: %+v", got)
+	}
+}
 
 func TestSyncRemoteNodeStatusesReturnsAndCachesUsage(t *testing.T) {
 	r, err := repo.Open(filepath.Join(t.TempDir(), "remote-status.db"))
@@ -24,7 +66,7 @@ func TestSyncRemoteNodeStatusesReturnsAndCachesUsage(t *testing.T) {
 			"data": map[string]interface{}{
 				"shareId": 7, "status": 1, "currentFlow": 300, "maxBandwidth": 900, "expiryTime": 1234,
 				"portRangeStart": 20000, "portRangeEnd": 20010,
-				"instances": []map[string]interface{}{{"instanceId": "instance-a", "displayName": "A", "weight": 4}},
+				"instances": []map[string]interface{}{{"instanceId": "instance-a", "displayName": "A", "weight": 4, "trafficRatio": 9.0, "periodRx": 11, "periodTx": 22}},
 				"flows": []map[string]interface{}{
 					{"runtimeId": 0, "instanceId": "", "periodType": "total", "inFlow": 100, "outFlow": 200},
 					{"runtimeId": 0, "instanceId": "", "periodType": "total", "inFlow": 3, "outFlow": 4},
@@ -50,6 +92,10 @@ func TestSyncRemoteNodeStatusesReturnsAndCachesUsage(t *testing.T) {
 	}
 	if item["remoteMaxBandwidth"] != int64(900) || item["remoteExpiryTime"] != int64(1234) {
 		t.Fatalf("unexpected synchronized limits: %+v", item)
+	}
+	instances, ok := item["remoteInstances"].([]client.RemoteNodeInstance)
+	if !ok || len(instances) != 1 || instances[0].TrafficRatio != 0 || instances[0].PeriodRx != 11 || instances[0].PeriodTx != 22 {
+		t.Fatalf("expected local inherited ratio and remote period traffic, got %#v", item["remoteInstances"])
 	}
 
 	stored, err := r.GetNodeByID(item["id"].(int64))

@@ -655,6 +655,7 @@ func (r *Repository) CreateRemoteNode(name, secret, serverIP, portRange string, 
 	node := model.Node{
 		Name:          name,
 		Secret:        secret,
+		TrafficRatio:  1,
 		ServerIP:      serverIP,
 		ServerIPV4:    sql.NullString{},
 		ServerIPV6:    sql.NullString{},

@@ -19,7 +19,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useRef, useEffect } from "react";
-import { GripVertical } from "lucide-react";
+import { Check, GripVertical, Pencil, X } from "lucide-react";
+import toast from "react-hot-toast";
 
 import { deriveNodeVisualState } from "./display";
 import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
@@ -115,12 +116,19 @@ interface NodeListViewProps {
   realtimeNodeInstanceMetrics?: Record<string, RealtimeInstanceMetric>;
   onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
-  onResetInstanceTraffic?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onResetInstanceTraffic?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
   onReorderInstances: (
     nodeId: number,
     activeInstanceId: string,
     overInstanceId: string,
   ) => void;
+  onUpdateRemoteInstanceTrafficRatio: (
+    nodeId: number,
+    instanceId: string,
+    trafficRatio: number,
+  ) => Promise<void>;
   onInstallMimicDeps?: (node: Node) => void;
   onShareNode: (node: Node) => void;
   onViewRemoteDetail: (node: Node) => void;
@@ -131,7 +139,13 @@ const NODE_GROUP_NONE = -1;
 const NODE_GROUP_REMOTE = -2;
 
 const getRemoteExpiryChipProps = (timestamp?: number) => {
-  if (!timestamp || timestamp <= 0) {
+  if (timestamp == null) {
+    return {
+      label: "-",
+      className: "text-default-400",
+    };
+  }
+  if (timestamp <= 0) {
     return {
       label: "永久",
       className: "bg-success-500/10 text-success-600 dark:text-success-400",
@@ -142,7 +156,8 @@ const getRemoteExpiryChipProps = (timestamp?: number) => {
 
   return {
     label: new Date(expiry).toLocaleDateString("zh-CN"),
-    className: days <= 0
+    className:
+      days <= 0
       ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
       : days <= 7
         ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
@@ -201,7 +216,9 @@ const getInstanceLabel = (
 
   if (displayName) return displayName;
 
-  return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
+  return member.displayIndex
+    ? `实例 ${member.displayIndex}`
+    : member.instanceId || "实例";
 };
 
 type RemoteInstance = NonNullable<Node["remoteInstances"]>[number];
@@ -219,11 +236,15 @@ const formatCountryCity = (region?: string): string => {
   const parts = region?.trim().split(/\s+/).filter(Boolean) || [];
 
   if (parts.length <= 2) return parts.join(" ");
-  const country = ["香港", "澳门", "台湾"].includes(parts[0]) ? "中国" : parts[0];
+  const country = ["香港", "澳门", "台湾"].includes(parts[0])
+    ? "中国"
+    : parts[0];
   if (parts.includes("香港")) return "中国 香港";
   if (parts.includes("澳门")) return "中国 澳门";
   if (parts.includes("台湾")) {
-    const cityParts = parts.slice(1).filter((part) => !["中国", "台湾"].includes(part));
+    const cityParts = parts
+      .slice(1)
+      .filter((part) => !["中国", "台湾"].includes(part));
     const city = cityParts.length ? cityParts[cityParts.length - 1] : "";
 
     return city ? `中国 ${city}` : "中国 台湾";
@@ -266,8 +287,13 @@ function InstanceIPRegionCell({
       ) : (
         <div className="space-y-1">
           {rows.map((item) => (
-            <div key={item.key} className="flex min-w-0 items-center justify-start gap-1.5 whitespace-nowrap">
-              {item.region ? <CountryFlag code={item.countryCode} title={item.region} /> : null}
+            <div
+              key={item.key}
+              className="flex min-w-0 items-center justify-start gap-1.5 whitespace-nowrap"
+            >
+              {item.region ? (
+                <CountryFlag code={item.countryCode} title={item.region} />
+              ) : null}
               {item.ip ? (
                 <button
                   className="inline-block min-w-0 max-w-[108px] truncate rounded bg-transparent px-0.5 text-right font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
@@ -289,58 +315,221 @@ function InstanceIPRegionCell({
   );
 }
 
-function RemoteNodeInstanceRows({ instances }: { instances: RemoteInstance[] }) {
+function RemoteNodeInstanceRows({
+  nodeId,
+  instances,
+  parentTrafficRatio,
+  formatTraffic,
+  onUpdateTrafficRatio,
+}: {
+  nodeId: number;
+  instances: RemoteInstance[];
+  parentTrafficRatio: number;
+  formatTraffic: (bytes: number) => string;
+  onUpdateTrafficRatio: (
+    nodeId: number,
+    instanceId: string,
+    trafficRatio: number,
+  ) => Promise<void>;
+}) {
   return (
     <div className="mx-3 my-2 border-l-2 border-secondary-400/70 bg-secondary-50/50 dark:bg-secondary-100/10">
       <div className="w-full max-w-full overflow-x-auto px-3 pb-2">
-        <table className="w-full min-w-[620px] table-fixed text-[13px]">
+        <table className="w-full min-w-[1420px] table-fixed text-[13px]">
           <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
             <tr>
-              <th className="w-[260px] px-3 py-2 text-left font-medium">
+              <th className="w-[170px] px-2 py-2 text-left font-medium">
                 实例名称
-                <span className="font-normal text-secondary-500">^{instances.length}个</span>
+                <span className="font-normal text-secondary-500">
+                  ^{instances.length}个
+                </span>
               </th>
-              <th className="w-[100px] px-3 py-2 text-center font-medium">状态</th>
-              <th className="w-[100px] px-3 py-2 text-center font-medium">权重</th>
-              <th className="w-[160px] px-3 py-2 text-center font-medium">共享范围</th>
+              <th className="w-[80px] px-2 py-2 text-center font-medium">
+                状态
+              </th>
+              <th className="w-[70px] px-2 py-2 text-center font-medium">
+                权重
+              </th>
+              <th className="w-[115px] px-2 py-2 text-center font-medium">
+                倍率
+              </th>
+              <th className="w-[180px] px-2 py-2 text-left font-medium">
+                IP / 地区
+              </th>
+              <th className="w-[70px] px-2 py-2 text-center font-medium">
+                在线数
+              </th>
+              <th className="w-[110px] px-2 py-2 text-center font-medium">
+                周期流量
+              </th>
+              <th className="w-[100px] px-2 py-2 text-center font-medium">
+                上行流量
+              </th>
+              <th className="w-[100px] px-2 py-2 text-center font-medium">
+                下行流量
+              </th>
+              <th className="w-[100px] px-2 py-2 text-center font-medium">
+                流量限额
+              </th>
+              <th className="w-[110px] px-2 py-2 text-center font-medium">
+                到期时间
+              </th>
+              <th className="w-[110px] px-2 py-2 text-center font-medium">
+                共享范围
+              </th>
             </tr>
           </thead>
           <tbody>
             {instances.map((instance, index) => {
               const label = getRemoteInstanceLabel(instance);
               const instanceId = instance.instanceId?.trim();
-              const disabled = (instance.weight ?? 1) <= 0;
+              const disabled = instance.weight != null && instance.weight <= 0;
               const online = instance.status === 1;
+              const trafficRatio =
+                instance.trafficRatio != null && instance.trafficRatio > 0
+                  ? instance.trafficRatio
+                  : parentTrafficRatio;
+              const upFlow = instance.periodTx ?? instance.totalOutFlow;
+              const downFlow = instance.periodRx ?? instance.totalInFlow;
+              const periodFlow =
+                upFlow != null || downFlow != null
+                  ? (upFlow ?? 0) + (downFlow ?? 0)
+                  : undefined;
+              const onlineCount =
+                instance.onlineCount ??
+                (instance.tcpConns != null || instance.udpConns != null
+                  ? (instance.tcpConns ?? 0) + (instance.udpConns ?? 0)
+                  : undefined);
+              const expiry = instance.expiryTime
+                ? instance.expiryTime < 100000000000
+                  ? instance.expiryTime * 1000
+                  : instance.expiryTime
+                : 0;
+              const ipRows = [
+                {
+                  key: "v4",
+                  ip: instance.publicIpV4?.trim(),
+                  region: formatCountryCity(instance.publicIpV4Region),
+                  countryCode: instance.publicIpV4CountryCode,
+                },
+                {
+                  key: "v6",
+                  ip: instance.publicIpV6?.trim(),
+                  region: formatCountryCity(instance.publicIpV6Region),
+                  countryCode: instance.publicIpV6CountryCode,
+                },
+              ].filter((item) => item.ip || item.region);
 
               return (
                 <tr
-                  key={instanceId || `${instance.displayIndex ?? "instance"}-${index}`}
+                  key={
+                    instanceId ||
+                    `${instance.displayIndex ?? "instance"}-${index}`
+                  }
                   className="border-b border-divider/60 last:border-b-0"
                 >
-                  <td className="px-3 py-2.5 text-left align-middle">
-                    <span className="block truncate font-medium text-foreground">{label}</span>
-                    {instanceId && instanceId !== label ? (
-                      <span className="block truncate font-mono text-[11px] text-default-400" title={instanceId}>
+                  <td className="px-2 py-2.5 text-left align-middle">
+                    <span className="block truncate font-medium text-foreground">
+                      {label}
+                    </span>
+                    {instanceId ? (
+                      <span
+                        className="block truncate font-mono text-[11px] text-default-400"
+                        title={instanceId}
+                      >
                         {instanceId}
                       </span>
                     ) : null}
                   </td>
-                  <td className="px-3 py-2.5 text-center align-middle">
+                  <td className="px-2 py-2.5 text-center align-middle">
+                    {instance.status == null ? (
+                      <span className="text-default-400">-</span>
+                    ) : (
                     <span className="inline-flex items-center gap-1.5">
                       <StatusDot
                         active={!disabled && online}
-                        tone={disabled ? "default" : online ? "success" : "danger"}
+                          tone={
+                            disabled ? "default" : online ? "success" : "danger"
+                          }
                       />
                       <span className="text-xs text-default-600">
                         {disabled ? "已禁用" : online ? "在线" : "离线"}
                       </span>
                     </span>
+                    )}
                   </td>
-                  <td className="px-3 py-2.5 text-center font-mono text-default-700">
-                    {instance.weight ?? 1}
+                  <td className="px-2 py-2.5 text-center font-mono text-default-700">
+                    {instance.weight ?? "-"}
                   </td>
-                  <td className="px-3 py-2.5 text-center text-default-700">
-                    {instance.selected ? "指定共享" : "范围内"}
+                  <td className="px-2 py-2.5 text-center">
+                    <RemoteTrafficRatioCell
+                      instanceId={instanceId}
+                      nodeId={nodeId}
+                      value={trafficRatio}
+                      onUpdate={onUpdateTrafficRatio}
+                    />
+                  </td>
+                  <td className="px-2 py-2.5 text-left text-xs text-default-600">
+                    {ipRows.length ? (
+                      <div className="space-y-1">
+                        {ipRows.map((item) => (
+                          <div
+                            key={item.key}
+                            className="flex min-w-0 items-center gap-1.5 whitespace-nowrap"
+                          >
+                            {item.region ? (
+                              <CountryFlag
+                                code={item.countryCode}
+                                title={item.region}
+                              />
+                            ) : null}
+                            <span
+                              className="max-w-[110px] truncate font-mono"
+                              title={item.ip}
+                            >
+                              {item.ip
+                                ? formatInstanceIPForCell(item.ip)
+                                : item.region}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-default-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2.5 text-center font-mono text-default-700">
+                    {onlineCount ?? "-"}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-danger-600 dark:text-danger-400">
+                    {periodFlow == null ? "-" : formatTraffic(periodFlow)}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-success-700 dark:text-success-300">
+                    {upFlow == null ? "-" : formatTraffic(upFlow)}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-primary-700 dark:text-primary-300">
+                    {downFlow == null ? "-" : formatTraffic(downFlow)}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-default-700">
+                    {instance.trafficLimit == null
+                      ? "-"
+                      : instance.trafficLimit > 0
+                        ? `${instance.trafficLimit} GB`
+                        : "不限"}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-default-700">
+                    {instance.expiryTime == null
+                      ? "-"
+                      : expiry
+                        ? new Date(expiry).toLocaleDateString("zh-CN")
+                        : "永久"}
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-default-700">
+                    {instance.selected
+                      ? "指定共享"
+                      : instance.inScope
+                        ? "范围内"
+                        : "-"}
                   </td>
                 </tr>
               );
@@ -348,6 +537,103 @@ function RemoteNodeInstanceRows({ instances }: { instances: RemoteInstance[] }) 
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function RemoteTrafficRatioCell({
+  nodeId,
+  instanceId,
+  value,
+  onUpdate,
+}: {
+  nodeId: number;
+  instanceId?: string;
+  value: number;
+  onUpdate: (
+    nodeId: number,
+    instanceId: string,
+    value: number,
+  ) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [editing, value]);
+
+  const save = async () => {
+    const next = Number(draft);
+
+    if (!instanceId || !Number.isFinite(next) || next <= 0 || next > 100) {
+      toast.error("实例倍率必须大于 0 且不超过 100");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onUpdate(nodeId, instanceId, next);
+      setEditing(false);
+      toast.success("远程实例倍率已更新");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "更新远程实例倍率失败",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <button
+        className="inline-flex h-7 items-center gap-1 rounded px-1.5 text-default-700 transition-colors hover:bg-default-200/70 hover:text-primary disabled:cursor-default disabled:opacity-60"
+        disabled={!instanceId}
+        title={instanceId ? "编辑实例倍率" : "实例 ID 缺失，无法编辑"}
+        type="button"
+        onClick={() => setEditing(true)}
+      >
+        <span>{value.toFixed(2).replace(/\.00$/, "")}x</span>
+        <Pencil className="h-3 w-3" />
+      </button>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-0.5">
+      <input
+        className="h-7 w-14 rounded border border-default-300 bg-background px-1 text-center text-xs outline-none focus:border-primary"
+        disabled={saving}
+        inputMode="decimal"
+        min="0.01"
+        step="0.1"
+        type="number"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") void save();
+          if (event.key === "Escape") setEditing(false);
+        }}
+      />
+      <button
+        className="inline-flex h-7 w-7 items-center justify-center rounded text-success-600 hover:bg-success-500/10 disabled:opacity-50"
+        disabled={saving}
+        title="保存倍率"
+        type="button"
+        onClick={() => void save()}
+      >
+        <Check className="h-3.5 w-3.5" />
+      </button>
+      <button
+        className="inline-flex h-7 w-7 items-center justify-center rounded text-default-500 hover:bg-default-200/70 disabled:opacity-50"
+        disabled={saving}
+        title="取消编辑"
+        type="button"
+        onClick={() => setEditing(false)}
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
@@ -377,7 +663,9 @@ function NodeInstanceRows({
   onViewTrafficLogs?: (node: Node) => void;
   onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
-  onResetInstanceTraffic?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
+  onResetInstanceTraffic?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
   onReorderInstances: (
     nodeId: number,
     activeInstanceId: string,
@@ -385,9 +673,9 @@ function NodeInstanceRows({
   ) => void;
   onInstallMimicDeps?: (node: Node) => void;
 }) {
-  const [openExpiryInstanceId, setOpenExpiryInstanceId] = useState<string | null>(
-    null,
-  );
+  const [openExpiryInstanceId, setOpenExpiryInstanceId] = useState<
+    string | null
+  >(null);
   const instanceSensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, {
@@ -435,9 +723,7 @@ function NodeInstanceRows({
       );
   }, [openExpiryInstanceId]);
 
-  const getRealtimeMetric = (
-    member: MonitorNodeInstanceGroupMemberApiItem,
-  ) =>
+  const getRealtimeMetric = (member: MonitorNodeInstanceGroupMemberApiItem) =>
     realtimeInstanceMetrics[
       `${member.nodeId}:${member.instanceId?.trim() || ""}`
     ];
@@ -475,38 +761,73 @@ function NodeInstanceRows({
       <table className="w-full min-w-[1460px] table-fixed text-[13px]">
         <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
           <tr>
-            <th className="w-[40px] px-0 py-2 text-center font-medium" title="拖拽排序">
+                  <th
+                    className="w-[40px] px-0 py-2 text-center font-medium"
+                    title="拖拽排序"
+                  >
               排序
             </th>
-            <th className="w-[60px] px-1 py-2 text-center font-medium">状态</th>
+                  <th className="w-[60px] px-1 py-2 text-center font-medium">
+                    状态
+                  </th>
             <th className="w-[105px] px-1 py-2 text-left font-medium">
               实例名称
-              <span className="font-normal text-primary-500">^{members.length}个</span>
+                    <span className="font-normal text-primary-500">
+                      ^{members.length}个
+                    </span>
+                  </th>
+                  <th className="w-[125px] px-1 py-2 text-left font-medium">
+                    IP / 地区
+                  </th>
+                  <th className="w-[120px] px-1 py-2 text-center font-medium">
+                    版本
+                  </th>
+                  <th className="w-[65px] px-1 py-2 text-center font-medium">
+                    在线数
+                  </th>
+                  <th className="w-[110px] px-1 py-2 text-center font-medium">
+                    周期流量
+                  </th>
+                  <th className="w-[100px] px-1 py-2 text-center font-medium">
+                    上行流量
+                  </th>
+                  <th className="w-[100px] px-1 py-2 text-center font-medium">
+                    下行流量
+                  </th>
+                  <th className="w-[90px] px-1 py-2 text-center font-medium">
+                    流量限额
+                  </th>
+                  <th className="w-[60px] px-1 py-2 text-center font-medium">
+                    WGM
+                  </th>
+                  <th className="w-[110px] px-1 py-2 text-center font-medium">
+                    到期提醒
+                  </th>
+                  <th className="w-[10em] min-w-[10em] max-w-[10em] px-1 py-2 text-left font-medium">
+                    备注
+                  </th>
+                  <th className="w-[210px] px-1 py-2 text-left font-medium">
+                    操作
             </th>
-            <th className="w-[125px] px-1 py-2 text-left font-medium">IP / 地区</th>
-            <th className="w-[120px] px-1 py-2 text-center font-medium">版本</th>
-            <th className="w-[65px] px-1 py-2 text-center font-medium">在线数</th>
-            <th className="w-[110px] px-1 py-2 text-center font-medium">周期流量</th>
-            <th className="w-[100px] px-1 py-2 text-center font-medium">上行流量</th>
-            <th className="w-[100px] px-1 py-2 text-center font-medium">下行流量</th>
-            <th className="w-[90px] px-1 py-2 text-center font-medium">流量限额</th>
-            <th className="w-[60px] px-1 py-2 text-center font-medium">WGM</th>
-            <th className="w-[110px] px-1 py-2 text-center font-medium">到期提醒</th>
-            <th className="w-[10em] min-w-[10em] max-w-[10em] px-1 py-2 text-left font-medium">备注</th>
-            <th className="w-[210px] px-1 py-2 text-left font-medium">操作</th>
           </tr>
         </thead>
         <tbody>
           {members.length === 0 ? (
             <tr>
-              <td className="px-2 py-8 text-center text-default-500" colSpan={14}>
+                    <td
+                      className="px-2 py-8 text-center text-default-500"
+                      colSpan={14}
+                    >
                 暂无实例上报
               </td>
             </tr>
           ) : (
             members.map((member, memberIndex) => (
               <SortableInstanceRow
-                key={member.instanceId || `${member.nodeId}-${member.displayIndex || 0}`}
+                      key={
+                        member.instanceId ||
+                        `${member.nodeId}-${member.displayIndex || 0}`
+                      }
                 id={getInstanceSortableId(member, memberIndex)}
                 isPopoverOpen={openExpiryInstanceId === member.instanceId}
                 sortableDisabled={!member.instanceId?.trim()}
@@ -531,7 +852,9 @@ function NodeInstanceRows({
                   />
                 </td>
                 <td className="px-1 py-3 text-left font-medium text-foreground">
-                  <span className="block truncate">{getInstanceLabel(member)}</span>
+                        <span className="block truncate">
+                          {getInstanceLabel(member)}
+                        </span>
                 </td>
                 <InstanceIPRegionCell
                   copyToClipboard={copyToClipboard}
@@ -552,7 +875,8 @@ function NodeInstanceRows({
                         className="truncate text-[10px] leading-tight text-warning-600"
                         title={upgradeProgress.message}
                       >
-                        {upgradeProgress.message || `${upgradeProgress.percent}%`}
+                              {upgradeProgress.message ||
+                                `${upgradeProgress.percent}%`}
                       </div>
                     </div>
                   ) : node.version ? (
@@ -561,7 +885,9 @@ function NodeInstanceRows({
                         className="h-4 w-4 shrink-0"
                         distro={parseDistroFromVersion(node.version)}
                         style={{
-                          color: getDistroColor(parseDistroFromVersion(node.version)),
+                                color: getDistroColor(
+                                  parseDistroFromVersion(node.version),
+                                ),
                         }}
                       />
                       <span>{node.version.split(" ")[0]}</span>
@@ -577,7 +903,7 @@ function NodeInstanceRows({
 
                         return realtime
                           ? realtime.tcpConns + realtime.udpConns
-                          : member.onlineCount ?? 0;
+                                : (member.onlineCount ?? 0);
                       })()
                     : "-"}
                 </td>
@@ -586,8 +912,14 @@ function NodeInstanceRows({
                     <span>
                       {(() => {
                         const realtime = getRealtimeMetric(member);
-                        const tx = realtime?.periodTraffic?.tx ?? member.periodTx ?? 0;
-                        const rx = realtime?.periodTraffic?.rx ?? member.periodRx ?? 0;
+                              const tx =
+                                realtime?.periodTraffic?.tx ??
+                                member.periodTx ??
+                                0;
+                              const rx =
+                                realtime?.periodTraffic?.rx ??
+                                member.periodRx ??
+                                0;
 
                         return formatTraffic(tx + rx);
                       })()}
@@ -600,7 +932,11 @@ function NodeInstanceRows({
                         variant="flat"
                         onPress={() => onViewTrafficLogs(node)}
                       >
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                              <svg
+                                className="h-4 w-4"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
                           <path
                             clipRule="evenodd"
                             d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
@@ -626,11 +962,16 @@ function NodeInstanceRows({
                   )}
                 </td>
                 <td className="px-2 py-3 text-center text-default-700">
-                  {(member.trafficLimit ?? 0) > 0 ? `${member.trafficLimit} GB` : "不限"}
+                        {(member.trafficLimit ?? 0) > 0
+                          ? `${member.trafficLimit} GB`
+                          : "不限"}
                 </td>
                 <td className="px-2 py-3 text-center">
-                  {(node as any).mimicStatus === "ok" || (node as any).mimicStatus === "deps_ready" ? (
-                    <span className="text-green-500" title="WGM 就绪">✅</span>
+                        {(node as any).mimicStatus === "ok" ||
+                        (node as any).mimicStatus === "deps_ready" ? (
+                          <span className="text-green-500" title="WGM 就绪">
+                            ✅
+                          </span>
                   ) : (node as any).mimicStatus ? (
                     <button
                       className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
@@ -648,8 +989,8 @@ function NodeInstanceRows({
                   )}
                 </td>
                 <td className="px-2 py-3 text-center text-default-700">
-                  {member.expiryTime && member.renewalCycle ? (
-                    (() => {
+                        {member.expiryTime && member.renewalCycle
+                          ? (() => {
                       const meta = getNodeRenewalSnapshot(
                         member.expiryTime,
                         member.renewalCycle,
@@ -672,7 +1013,11 @@ function NodeInstanceRows({
                               window.dispatchEvent(
                                 new CustomEvent(
                                   "closeOtherInstanceExpiryPopovers",
-                                  { detail: { instanceId: member.instanceId } },
+                                          {
+                                            detail: {
+                                              instanceId: member.instanceId,
+                                            },
+                                          },
                                 ),
                               );
                               setOpenExpiryInstanceId((current) =>
@@ -696,10 +1041,13 @@ function NodeInstanceRows({
                               <path d="m6 9 6 6 6-6" />
                             </svg>
                           </button>
-                          {openExpiryInstanceId === member.instanceId && (
+                                  {openExpiryInstanceId ===
+                                    member.instanceId && (
                             <div
                               className={`absolute right-0 z-[100] w-[160px] rounded-lg border border-divider/80 bg-background/98 p-2 text-left shadow-xl backdrop-blur ${memberIndex === members.length - 1 ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}
-                              onClick={(event) => event.stopPropagation()}
+                                      onClick={(event) =>
+                                        event.stopPropagation()
+                                      }
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <div className="min-w-0">
@@ -707,7 +1055,9 @@ function NodeInstanceRows({
                                     {getInstanceLabel(member)}
                                   </div>
                                   <div className="text-[10px] text-default-500">
-                                    {formatNodeRenewalTime(meta.nextDueTime)}
+                                            {formatNodeRenewalTime(
+                                              meta.nextDueTime,
+                                            )}
                                   </div>
                                 </div>
                                 <button
@@ -730,13 +1080,14 @@ function NodeInstanceRows({
                         </div>
                       );
                     })()
-                  ) : (
-                    "-"
-                  )}
+                          : "-"}
                 </td>
                 <td className="px-2 py-3 text-left align-middle truncate text-default-600 text-xs w-[10em] min-w-[10em] max-w-[10em]">
                   {member.remark?.trim() ? (
-                    <span className="truncate block" title={member.remark.trim()}>
+                          <span
+                            className="truncate block"
+                            title={member.remark.trim()}
+                          >
                       {member.remark.trim()}
                     </span>
                   ) : (
@@ -868,6 +1219,7 @@ function SortableTableRow({
   onDeleteInstance,
   onResetInstanceTraffic,
   onReorderInstances,
+  onUpdateRemoteInstanceTrafficRatio,
   onInstallMimicDeps,
   realtimeInstanceMetrics,
   isLastNode,
@@ -965,7 +1317,9 @@ function SortableTableRow({
   const visualMeta = deriveNodeVisualState(instanceMembers, node.paused);
   const expiryTarget =
     node.expiryInstances?.find(
-      (item: NodeExpiryInstance) => item.expiryTime === node.expiryTime && item.renewalCycle === node.renewalCycle,
+      (item: NodeExpiryInstance) =>
+        item.expiryTime === node.expiryTime &&
+        item.renewalCycle === node.renewalCycle,
     ) ?? node.expiryInstances?.[0];
   const expiryMeta = getNodeRenewalSnapshot(
     expiryTarget?.expiryTime ?? node.expiryTime,
@@ -1006,7 +1360,8 @@ function SortableTableRow({
     return null;
   };
   const expiryChipProps = hasExpiryInfo ? getExpiryChipProps() : null;
-  const remoteExpiryChipProps = node.isRemote === 1
+  const remoteExpiryChipProps =
+    node.isRemote === 1
     ? getRemoteExpiryChipProps(node.remoteExpiryTime)
     : null;
 
@@ -1024,15 +1379,18 @@ function SortableTableRow({
           className="flex items-center justify-center h-full"
           onClick={(e) => e.stopPropagation()}
         >
-          {node.isRemote !== 1 && <Checkbox
+            {node.isRemote !== 1 && (
+              <Checkbox
               isSelected={selectedIds.has(node.id)}
               onValueChange={() => toggleSelect(node.id)}
-            />}
+              />
+            )}
         </div>
       </TableCell>
       <TableCell className={rowBg}>
         <div className="flex items-center justify-center">
-          {isExpandable ? <button
+            {isExpandable ? (
+              <button
             className="inline-flex h-6 w-6 items-center justify-center rounded text-default-500 transition-colors hover:bg-default-200/70 hover:text-foreground"
             title={isActuallyExpanded ? "收起实例" : "展开实例"}
             type="button"
@@ -1053,12 +1411,16 @@ function SortableTableRow({
             >
               <path d="m6 9 6 6 6-6" />
             </svg>
-          </button> : <span className="text-default-300">-</span>}
+              </button>
+            ) : (
+              <span className="text-default-300">-</span>
+            )}
         </div>
       </TableCell>
       <TableCell className={rowBg}>
         <div className="flex items-center justify-center">
-          {node.isRemote !== 1 && <div
+            {node.isRemote !== 1 && (
+              <div
             className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
             {...attributes}
             {...listeners}
@@ -1072,32 +1434,53 @@ function SortableTableRow({
             >
               <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
             </svg>
-          </div>}
+              </div>
+            )}
         </div>
       </TableCell>
       <TableCell className={`px-1 text-center align-middle ${rowBg}`}>
         {node.isRemote === 1 ? (
           <div
             className="flex items-center justify-center gap-0.5"
-            title={remoteVisualMeta
+              title={
+                remoteVisualMeta
               ? `在线${remoteVisualMeta.onlineCount}/禁用${remoteVisualMeta.disabledCount}/全部${remoteVisualMeta.totalCount}`
-              : remoteOnline ? "在线" : "离线"}
+                  : remoteOnline
+                    ? "在线"
+                    : "离线"
+              }
           >
             <StatusDot
-              active={remoteVisualMeta ? remoteVisualMeta.state !== "offline" : remoteOnline}
-              tone={remoteVisualMeta?.color || (remoteOnline ? "success" : "danger")}
+                active={
+                  remoteVisualMeta
+                    ? remoteVisualMeta.state !== "offline"
+                    : remoteOnline
+                }
+                tone={
+                  remoteVisualMeta?.color ||
+                  (remoteOnline ? "success" : "danger")
+                }
             />
             <span className="text-xs font-mono tabular-nums text-default-600">
               {remoteVisualMeta
                 ? `${remoteVisualMeta.onlineCount}/${remoteVisualMeta.disabledCount}/${remoteVisualMeta.totalCount}`
-                : remoteOnline ? "在线" : "离线"}
+                  : remoteOnline
+                    ? "在线"
+                    : "离线"}
             </span>
           </div>
         ) : (
-          <div className="flex items-center justify-center gap-0.5" title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
-            <StatusDot active={visualMeta.state !== "offline"} tone={visualMeta.color} />
+            <div
+              className="flex items-center justify-center gap-0.5"
+              title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}
+            >
+              <StatusDot
+                active={visualMeta.state !== "offline"}
+                tone={visualMeta.color}
+              />
             <span className="text-xs font-mono tabular-nums text-default-600">
-              {visualMeta.onlineCount}/{visualMeta.disabledCount}/{visualMeta.totalCount}
+                {visualMeta.onlineCount}/{visualMeta.disabledCount}/
+                {visualMeta.totalCount}
             </span>
           </div>
         )}
@@ -1154,6 +1537,25 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 align-middle ${rowBg}`}>
         {(() => {
+            if (node.isRemote === 1) {
+              const remoteUrl = node.remoteUrl?.trim();
+
+              return remoteUrl ? (
+                <button
+                  className="inline-block max-w-[180px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
+                  title={remoteUrl}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    copyToClipboard(remoteUrl, "远程地址");
+                  }}
+                >
+                  {remoteUrl}
+                </button>
+              ) : (
+                <span className="text-sm text-default-400">-</span>
+              );
+            }
           const publicIPv4 = node.serverIpV4?.trim() || "";
           const intranetIPv4 = node.intranetIp?.trim() || "";
           const publicIPv6 =
@@ -1164,7 +1566,7 @@ function SortableTableRow({
           const address = publicIPv4 || intranetIPv4 || publicIPv6;
 
           if (!address) {
-            return <span className="text-sm text-default-300">暂无</span>;
+              return <span className="text-sm text-default-300">-</span>;
           }
 
           return (
@@ -1185,7 +1587,9 @@ function SortableTableRow({
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex justify-center">
           <span className="text-sm font-mono text-default-600 tabular-nums">
-            {node.connectionStatus === "online" ? (node.onlineCount ?? 0) : "-"}
+              {node.connectionStatus === "online"
+                ? (node.onlineCount ?? 0)
+                : "-"}
           </span>
         </div>
       </TableCell>
@@ -1195,11 +1599,18 @@ function SortableTableRow({
         <div className="flex w-[104px] items-center justify-end gap-1">
           <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
             {node.isRemote === 1
-              ? formatTraffic(node.remoteCurrentFlow ?? (node.remoteInFlow ?? 0) + (node.remoteOutFlow ?? 0))
+                ? node.remoteCurrentFlow != null
+                  ? formatTraffic(node.remoteCurrentFlow)
+                  : node.remoteInFlow != null || node.remoteOutFlow != null
+                    ? formatTraffic(
+                        (node.remoteInFlow ?? 0) + (node.remoteOutFlow ?? 0),
+                      )
+                    : "-"
               : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   (realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0) +
-                    (realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0),
+                        (realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx ||
+                          0),
                 )
               : "-"}
           </span>
@@ -1211,7 +1622,9 @@ function SortableTableRow({
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-success-700 dark:text-success-300">
             {node.isRemote === 1
-              ? formatTraffic(node.remoteInFlow ?? 0)
+                ? node.remoteInFlow == null
+                  ? "-"
+                  : formatTraffic(node.remoteInFlow)
               : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0,
@@ -1226,7 +1639,9 @@ function SortableTableRow({
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-primary-700 dark:text-primary-300">
             {node.isRemote === 1
-              ? formatTraffic(node.remoteOutFlow ?? 0)
+                ? node.remoteOutFlow == null
+                  ? "-"
+                  : formatTraffic(node.remoteOutFlow)
               : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0,
@@ -1237,7 +1652,9 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 text-right ${rowBg}`}>
         {node.isRemote === 1
-          ? node.remoteMaxBandwidth && node.remoteMaxBandwidth > 0
+            ? node.remoteMaxBandwidth == null
+              ? "-"
+              : node.remoteMaxBandwidth > 0
             ? formatTraffic(node.remoteMaxBandwidth)
             : "不限"
           : node.trafficLimit && node.trafficLimit > 0
@@ -1246,7 +1663,9 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={`whitespace-nowrap text-center ${rowBg}`}>
         {remoteExpiryChipProps ? (
-          <span className={`inline-flex rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium ${remoteExpiryChipProps.className}`}>
+            <span
+              className={`inline-flex rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium ${remoteExpiryChipProps.className}`}
+            >
             {remoteExpiryChipProps.label}
           </span>
         ) : hasExpiryInfo && expiryChipProps ? (
@@ -1268,7 +1687,11 @@ function SortableTableRow({
                 strokeWidth={2}
                 viewBox="0 0 24 24"
               >
-                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                  <path
+                    d="M6 9l6 6 6-6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
               </svg>
             </button>
             {expiryPopoverOpen && (
@@ -1280,15 +1703,35 @@ function SortableTableRow({
                 }}
               >
                 <div className="space-y-1">
-                  {(node.expiryInstances?.length ? node.expiryInstances : expiryTarget ? [expiryTarget] : []).map((item: NodeExpiryInstance) => {
-                    const meta = getNodeRenewalSnapshot(item.expiryTime, item.renewalCycle, 7);
-                    const label = item.displayName?.trim() || (item.displayIndex ? `实例 ${item.displayIndex}` : item.instanceId);
+                    {(node.expiryInstances?.length
+                      ? node.expiryInstances
+                      : expiryTarget
+                        ? [expiryTarget]
+                        : []
+                    ).map((item: NodeExpiryInstance) => {
+                      const meta = getNodeRenewalSnapshot(
+                        item.expiryTime,
+                        item.renewalCycle,
+                        7,
+                      );
+                      const label =
+                        item.displayName?.trim() ||
+                        (item.displayIndex
+                          ? `实例 ${item.displayIndex}`
+                          : item.instanceId);
 
                     return (
-                      <div key={item.instanceId} className="flex items-center justify-between gap-2">
+                        <div
+                          key={item.instanceId}
+                          className="flex items-center justify-between gap-2"
+                        >
                         <div className="min-w-0 text-left">
-                          <div className="truncate text-xs font-medium text-default-700">{label}</div>
-                          <div className="text-[10px] text-default-500">{formatNodeRenewalTime(meta.nextDueTime)}</div>
+                            <div className="truncate text-xs font-medium text-default-700">
+                              {label}
+                            </div>
+                            <div className="text-[10px] text-default-500">
+                              {formatNodeRenewalTime(meta.nextDueTime)}
+                            </div>
                         </div>
                         <button
                           className="inline-flex items-center justify-center rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-100 active:scale-95 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
@@ -1296,7 +1739,10 @@ function SortableTableRow({
                           onClick={(e) => {
                             e.stopPropagation();
                             e.nativeEvent.stopImmediatePropagation();
-                            handleDismissExpiryReminder?.(node.id, item.instanceId);
+                              handleDismissExpiryReminder?.(
+                                node.id,
+                                item.instanceId,
+                              );
                             setExpiryPopoverOpen(false);
                           }}
                         >
@@ -1442,10 +1888,7 @@ function SortableTableRow({
         key={`${node.id}-instances`}
         className="bg-default-50/30 dark:bg-default-100/5"
       >
-        <TableCell
-          className="w-0 max-w-0 overflow-visible p-0"
-          colSpan={16}
-        >
+          <TableCell className="w-0 max-w-0 overflow-visible p-0" colSpan={16}>
           <NodeInstanceRows
             copyToClipboard={copyToClipboard}
             formatTraffic={formatTraffic}
@@ -1464,13 +1907,28 @@ function SortableTableRow({
         </TableCell>
       </TableRow>
     )}
-    {node.isRemote === 1 && isActuallyExpanded && remoteInstances.length > 0 && (
+      {node.isRemote === 1 &&
+        isActuallyExpanded &&
+        remoteInstances.length > 0 && (
       <TableRow
         key={`${node.id}-remote-instances`}
         className="bg-default-50/30 dark:bg-default-100/5"
       >
-        <TableCell className="w-0 max-w-0 overflow-visible p-0" colSpan={16}>
-          <RemoteNodeInstanceRows instances={remoteInstances} />
+            <TableCell
+              className="w-0 max-w-0 overflow-visible p-0"
+              colSpan={16}
+            >
+              <RemoteNodeInstanceRows
+                formatTraffic={formatTraffic}
+                instances={remoteInstances}
+                nodeId={node.id}
+                parentTrafficRatio={
+                  node.trafficRatio && node.trafficRatio > 0
+                    ? node.trafficRatio
+                    : 1
+                }
+                onUpdateTrafficRatio={onUpdateRemoteInstanceTrafficRatio}
+              />
         </TableCell>
       </TableRow>
     )}
@@ -1507,14 +1965,14 @@ export function NodeListView({
   onDeleteInstance,
   onResetInstanceTraffic,
   onReorderInstances,
+  onUpdateRemoteInstanceTrafficRatio,
   onInstallMimicDeps,
   onShareNode,
   onViewRemoteDetail,
   shareCounts,
 }: NodeListViewProps) {
-  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<number>>(
-    readExpandedNodeIds,
-  );
+  const [expandedNodeIds, setExpandedNodeIds] =
+    useState<Set<number>>(readExpandedNodeIds);
   const localDisplayNodes = displayNodes.filter((node) => node.isRemote !== 1);
   const expandableDisplayNodes = displayNodes.filter((node) =>
     node.isRemote === 1
@@ -1819,6 +2277,7 @@ export function NodeListView({
                   onDeleteInstance,
                   onResetInstanceTraffic,
                   onReorderInstances,
+                  onUpdateRemoteInstanceTrafficRatio,
                   onInstallMimicDeps,
                   onShareNode,
                   onViewRemoteDetail,
