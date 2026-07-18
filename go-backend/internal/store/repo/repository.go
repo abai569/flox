@@ -220,6 +220,9 @@ func autoMigrateAll(db *gorm.DB) error {
 	if err := migratePeerShareInstanceScopeColumns(db); err != nil {
 		return fmt.Errorf("migrate peer share instance scope columns: %w", err)
 	}
+	if err := migratePeerShareTrafficRatioColumn(db); err != nil {
+		return fmt.Errorf("migrate peer share traffic ratio column: %w", err)
+	}
 	models := []interface{}{
 		&model.User{},
 		&model.UserQuota{},
@@ -387,6 +390,16 @@ func migratePeerShareInstanceScopeColumns(db *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+func migratePeerShareTrafficRatioColumn(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&model.PeerShare{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&model.PeerShare{}, "TrafficRatio") {
+		return nil
+	}
+	return db.Migrator().AddColumn(&model.PeerShare{}, "TrafficRatio")
 }
 
 func migrateNodeInstanceExpiryFromNode(db *gorm.DB) error {
