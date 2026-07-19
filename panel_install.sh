@@ -8,6 +8,9 @@ export LC_ALL=C
 # 检查并安装必要的下载工具
 install_download_tools() {
   local need_install=0
+  local DISTRO="unknown"
+  local ID="" VERSION="" VERSION_ID="" VERSION_CODENAME="" PRETTY_NAME="" NAME="" ID_LIKE=""
+  local HOME_URL="" SUPPORT_URL="" BUG_REPORT_URL=""
   
   if ! command -v curl &> /dev/null; then
     echo "⚠️  未检测到 curl"
@@ -133,6 +136,28 @@ resolve_latest_release_tag() {
     return 0
   fi
 
+  return 1
+}
+
+is_valid_release_version() {
+  local version="$1"
+  [[ "$version" =~ ^v?[0-9]+(\.[0-9A-Za-z][0-9A-Za-z._+-]*)+$ ]]
+}
+
+resolve_version_value() {
+  local value="$1"
+  local source="$2"
+
+  if [[ -z "$value" ]]; then
+    return 1
+  fi
+
+  if is_valid_release_version "$value"; then
+    echo "$value"
+    return 0
+  fi
+
+  echo "⚠️  忽略无效版本来源 $source=$value" >&2
   return 1
 }
 
@@ -296,25 +321,20 @@ EOF
 }
 
 resolve_version() {
-  if [[ -n "${VERSION:-}" ]]; then
-    echo "$VERSION"
+  if resolve_version_value "${VERSION:-}" "VERSION"; then
     return 0
   fi
-  if [[ -n "$ARG_VERSION" ]]; then
-    echo "$ARG_VERSION"
+  if resolve_version_value "$ARG_VERSION" "ARG_VERSION"; then
     return 0
   fi
-  if [[ -n "${FLOX_VERSION:-}" ]]; then
-    echo "$FLOX_VERSION"
+  if resolve_version_value "${FLOX_VERSION:-}" "FLOX_VERSION"; then
     return 0
   fi
   # 兼容旧环境变量名
-  if [[ -n "${FLUX_VERSION:-}" ]]; then
-    echo "$FLUX_VERSION"
+  if resolve_version_value "${FLUX_VERSION:-}" "FLUX_VERSION"; then
     return 0
   fi
-  if [[ -n "${PINNED_VERSION:-}" ]]; then
-    echo "$PINNED_VERSION"
+  if resolve_version_value "${PINNED_VERSION:-}" "PINNED_VERSION"; then
     return 0
   fi
 
