@@ -2626,6 +2626,42 @@ func (r *Repository) GetActiveForwardPeerShareRuntimeByServiceName(shareID int64
 	return &item, nil
 }
 
+func (r *Repository) GetActivePeerShareRuntimeByChainName(shareID int64, chainName string) (*model.PeerShareRuntime, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	chainName = strings.TrimSpace(chainName)
+	if shareID <= 0 || chainName == "" {
+		return nil, nil
+	}
+	var item model.PeerShareRuntime
+	err := r.db.Where("share_id = ? AND chain_name = ? AND status = 1", shareID, chainName).
+		Order("id ASC").
+		First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) MarkPeerShareRuntimeReleasedByChainName(shareID int64, chainName string, updatedTime int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	chainName = strings.TrimSpace(chainName)
+	if shareID <= 0 || chainName == "" {
+		return nil
+	}
+	return r.db.Model(&model.PeerShareRuntime{}).
+		Where("share_id = ? AND chain_name = ? AND status = 1", shareID, chainName).
+		Updates(map[string]interface{}{
+			"status": 0, "applied": 0, "service_name": "", "updated_time": updatedTime,
+		}).Error
+}
+
 func (r *Repository) ExistsActivePeerShareRuntimeOnNodePort(nodeID int64, port int) (bool, error) {
 	if r == nil || r.db == nil {
 		return false, errors.New("repository not initialized")

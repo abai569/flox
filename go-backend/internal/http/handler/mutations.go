@@ -6006,9 +6006,9 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 			}
 			before := len(nodeItems)
 			for _, endpoint := range target.Endpoints {
-				host := pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference)
-				if host == "" && !strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
-					host = pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+				host := pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+				if host == "" && strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
+					host = pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference)
 				}
 				if host == "" || endpoint.Port <= 0 || endpoint.Weight <= 0 {
 					continue
@@ -6108,9 +6108,9 @@ func resolveFederationTargetEndpoints(target tunnelRuntimeNode, targetNode *node
 		}
 		result := make([]federationTargetEndpoint, 0, len(target.Endpoints))
 		for _, endpoint := range target.Endpoints {
-			host := pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference)
-			if host == "" && !strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
-				host = pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+			host := pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+			if host == "" && strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
+				host = pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference)
 			}
 			if host == "" || endpoint.Port <= 0 || endpoint.Weight <= 0 {
 				continue
