@@ -381,7 +381,6 @@ function RemoteNodeInstanceRows({
   flows,
   parentOnline,
   parentState,
-  parentTrafficRatio,
   runtimeInstances,
   formatTraffic,
 }: {
@@ -389,7 +388,6 @@ function RemoteNodeInstanceRows({
   flows: NonNullable<Node["remoteFlows"]>;
   parentOnline: boolean;
   parentState: RemoteDisplayState;
-  parentTrafficRatio: number;
   runtimeInstances?: PeerShareRuntimeInstanceApiItem[];
   formatTraffic: (bytes: number) => string;
 }) {
@@ -416,7 +414,9 @@ function RemoteNodeInstanceRows({
                 倍率
               </th>
               <th aria-label="节点分组" />
-              <th aria-label="地址" />
+              <th className="px-1 py-2 text-left font-medium">
+                源节点 IP
+              </th>
               <th className="px-1 py-2 text-center font-medium">
                 在线数
               </th>
@@ -534,11 +534,24 @@ function RemoteNodeInstanceRows({
                   </td>
                   <td className="px-1 py-2.5 text-center">
                     <RemoteTrafficRatioCell
-                      value={parentTrafficRatio}
+                      value={1}
                     />
                   </td>
                   <td />
-                  <td />
+                  <td className="px-1 py-2.5 text-left align-middle text-xs text-default-600">
+                    {instance.publicIpV4?.trim() || instance.publicIpV6?.trim() ? (
+                      <div className="space-y-0.5 font-mono leading-5">
+                        {instance.publicIpV4?.trim() ? (
+                          <div>{formatInstanceIPForCell(instance.publicIpV4)}</div>
+                        ) : null}
+                        {instance.publicIpV6?.trim() ? (
+                          <div>{formatInstanceIPForCell(instance.publicIpV6)}</div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-default-300">-</span>
+                    )}
+                  </td>
                   <td className="px-1 py-2.5 text-center font-mono text-default-700">
                     {instance.onlineCount ?? 0}
                   </td>
@@ -1287,8 +1300,10 @@ function SortableTableRow({
       total + flow.inFlow,
     0,
   );
+  const remoteScaledRx = node.remoteOutFlow ?? remotePeriodRx;
+  const remoteScaledTx = node.remoteInFlow ?? remotePeriodTx;
   const remotePeriodFlow =
-    node.remoteCurrentFlow ?? remotePeriodRx + remotePeriodTx;
+    node.remoteCurrentFlow ?? remoteScaledRx + remoteScaledTx;
   const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
   const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
@@ -1603,7 +1618,7 @@ function SortableTableRow({
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-success-700 dark:text-success-300">
             {node.isRemote === 1
-                ? formatTraffic(remotePeriodTx)
+                ? formatTraffic(remoteScaledTx)
               : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0,
@@ -1618,7 +1633,7 @@ function SortableTableRow({
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-primary-700 dark:text-primary-300">
             {node.isRemote === 1
-                ? formatTraffic(remotePeriodRx)
+                ? formatTraffic(remoteScaledRx)
               : realtimeNodeMetrics?.[node.id]
               ? formatTraffic(
                   realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0,
@@ -1901,11 +1916,6 @@ function SortableTableRow({
                  instances={remoteInstances}
                  parentOnline={remoteOnline}
                  parentState={remoteDisplayState}
-                parentTrafficRatio={
-                  node.trafficRatio && node.trafficRatio > 0
-                    ? node.trafficRatio
-                    : 1
-                }
                 runtimeInstances={remoteUsageByNode[node.id]?.runtimeInstances || []}
               />
         </TableCell>

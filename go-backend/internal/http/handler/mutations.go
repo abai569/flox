@@ -6058,7 +6058,10 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 			}
 			before := len(nodeItems)
 			for _, endpoint := range target.Endpoints {
-				host := pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+				host := pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference)
+				if host == "" && !strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
+					host = pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+				}
 				if host == "" || endpoint.Port <= 0 || endpoint.Weight <= 0 {
 					continue
 				}
@@ -6157,7 +6160,10 @@ func resolveFederationTargetEndpoints(target tunnelRuntimeNode, targetNode *node
 		}
 		result := make([]federationTargetEndpoint, 0, len(target.Endpoints))
 		for _, endpoint := range target.Endpoints {
-			host := pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+			host := pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference)
+			if host == "" && !strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
+				host = pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+			}
 			if host == "" || endpoint.Port <= 0 || endpoint.Weight <= 0 {
 				continue
 			}
@@ -6204,11 +6210,11 @@ func pickRuntimeEndpointAddress(endpoint client.RuntimeEndpoint, connectIPType, 
 	if preference == "lan" {
 		return ""
 	}
-	if preference == "v6" || preference == "ipv6" {
-		if v6 != "" {
-			return v6
-		}
+	if preference == "v4" || preference == "ipv4" {
 		return v4
+	}
+	if preference == "v6" || preference == "ipv6" {
+		return v6
 	}
 	if v4 != "" {
 		return v4
@@ -6403,35 +6409,15 @@ func selectTunnelDialHost(fromNode, toNode *nodeRecord, ipPreference string, con
 				return host, "v6", nil
 			}
 		}
-		if fromV4 && toV4 {
-			if host := pickNodeAddressV4(toNode); host != "" {
-				return host, "v4", nil
-			}
-		}
 	case "v4":
 		if fromV4 && toV4 {
 			if host := pickNodeAddressV4(toNode); host != "" {
 				return host, "v4", nil
 			}
 		}
-		if fromV6 && toV6 {
-			if host := pickNodeAddressV6(toNode); host != "" {
-				return host, "v6", nil
-			}
-		}
 	case "lan":
 		if host := pickNodeAddressLan(toNode); host != "" {
 			return host, "lan", nil
-		}
-		if fromV4 && toV4 {
-			if host := pickNodeAddressV4(toNode); host != "" {
-				return host, "v4", nil
-			}
-		}
-		if fromV6 && toV6 {
-			if host := pickNodeAddressV6(toNode); host != "" {
-				return host, "v6", nil
-			}
 		}
 	case "auto":
 		if fromV4 && toV4 {

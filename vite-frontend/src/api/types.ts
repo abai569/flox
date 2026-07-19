@@ -252,6 +252,9 @@ export interface PeerRemoteUsageNodeApiItem {
   maxBandwidth: number;
   trafficRatio?: number;
   currentFlow: number;
+  remoteCurrentFlow?: number;
+  remoteInFlow?: number;
+  remoteOutFlow?: number;
   expiryTime: number;
   usedPorts: number[];
   bindings: PeerRemoteUsageBindingApiItem[];

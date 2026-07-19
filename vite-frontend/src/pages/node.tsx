@@ -1042,6 +1042,14 @@ export default function NodePage() {
           getPeerRemoteUsageList()
             .then((usageRes) => {
               if (usageRes.code !== 0 || !Array.isArray(usageRes.data)) return;
+              const usageByNode = usageRes.data.reduce<Record<number, PeerRemoteUsageNodeApiItem>>(
+                (acc, item) => {
+                  acc[item.nodeId] = item;
+                  return acc;
+                },
+                {},
+              );
+
               setRemoteUsageByNode(
                 usageRes.data.reduce<Record<number, {
                   usedPorts: number[];
@@ -1057,6 +1065,40 @@ export default function NodePage() {
                   };
                   return acc;
                 }, {}),
+              );
+              setNodeList((prev) =>
+                prev.map((node) => {
+                  const usage = usageByNode[node.id];
+                  if (!usage || node.isRemote !== 1) return node;
+
+                  const instances = usage.instances || node.remoteInstances || [];
+                  const healthyInstances = instances.filter(
+                    (instance) =>
+                      instance.inScope &&
+                      instance.status === 1 &&
+                      (instance.weight == null || instance.weight > 0),
+                  ).length;
+                  const nextStatus = usage.syncError
+                    ? 0
+                    : instances.length === 0 || healthyInstances > 0
+                      ? 1
+                      : 0;
+
+                  return {
+                    ...node,
+                    status: nextStatus,
+                    connectionStatus: usage.syncError ? "offline" : nextStatus === 1 ? "online" : "offline",
+                    syncError: usage.syncError || undefined,
+                    trafficRatio: usage.trafficRatio && usage.trafficRatio > 0 ? usage.trafficRatio : node.trafficRatio,
+                    remoteCurrentFlow: usage.remoteCurrentFlow ?? usage.currentFlow ?? node.remoteCurrentFlow,
+                    remoteInFlow: usage.remoteInFlow ?? node.remoteInFlow,
+                    remoteOutFlow: usage.remoteOutFlow ?? node.remoteOutFlow,
+                    remoteMaxBandwidth: usage.maxBandwidth ?? node.remoteMaxBandwidth,
+                    remoteExpiryTime: usage.expiryTime ?? node.remoteExpiryTime,
+                    remoteInstances: instances,
+                    remoteFlows: usage.flows || node.remoteFlows,
+                  };
+                }),
               );
             })
             .catch(() => undefined);
