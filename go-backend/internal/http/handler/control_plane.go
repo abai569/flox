@@ -481,6 +481,9 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 				if err != nil && allowFallbackAdd && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isNotFoundError(err) {
 					_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", fallbackServices, defaultNodeCommandTimeout, true, false)
 				}
+				if err != nil && allowFallbackAdd && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isNotActiveShareForwardError(err) {
+					_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", fallbackServices, defaultNodeCommandTimeout, true, false)
+				}
 				if err != nil && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isAddressAlreadyInUseError(err) {
 					err = h.rebindForwardServiceOnInstanceSelfOccupiedPort(forward, node, instanceID, port, fallbackServices)
 				}
@@ -500,6 +503,9 @@ func (h *Handler) syncForwardServicesOnNodeInstances(forward *forwardRecord, nod
 		enabledCount++
 		_, err := h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, method, services, defaultNodeCommandTimeout, true, false)
 		if err != nil && allowFallbackAdd && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isNotFoundError(err) {
+			_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", services, defaultNodeCommandTimeout, true, false)
+		}
+		if err != nil && allowFallbackAdd && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isNotActiveShareForwardError(err) {
 			_, err = h.sendNodeCommandToInstanceWithTimeout(node.ID, instanceID, "AddService", services, defaultNodeCommandTimeout, true, false)
 		}
 		if err != nil && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isAddressAlreadyInUseError(err) {
@@ -2537,6 +2543,13 @@ func isNotFoundError(err error) bool {
 	}
 	msg := strings.ToLower(strings.TrimSpace(err.Error()))
 	return strings.Contains(msg, "not found") || strings.Contains(msg, "不存在")
+}
+
+func isNotActiveShareForwardError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(strings.TrimSpace(err.Error())), "not an active share forward")
 }
 
 func isAlreadyExistsMessage(message string) bool {

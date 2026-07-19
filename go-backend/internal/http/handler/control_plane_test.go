@@ -29,6 +29,15 @@ func TestBuildForwardControlServiceNamesDelete(t *testing.T) {
 	}
 }
 
+func TestIsNotActiveShareForwardError(t *testing.T) {
+	if !isNotActiveShareForwardError(errors.New(`service "143_1_0" is not an active share forward`)) {
+		t.Fatal("expected active share forward error to be recognized")
+	}
+	if isNotActiveShareForwardError(errors.New("service already exists")) {
+		t.Fatal("did not expect unrelated error to be recognized")
+	}
+}
+
 func TestBuildForwardServiceBaseCandidates(t *testing.T) {
 	got := buildForwardServiceBaseCandidates(12, 34, 56, []int64{56, 78, 90})
 	want := []string{"12_34_56", "12_34_78", "12_34_90", "12_34_0"}
