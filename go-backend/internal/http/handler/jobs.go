@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
+	"go-backend/internal/http/client"
 	"go-backend/internal/middleware"
 	"go-backend/internal/store/repo"
 	"go-backend/internal/telegram"
@@ -25,7 +27,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(16)
+	h.jobsWG.Add(17)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -44,12 +46,143 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runSDWANReconcileLoop(ctx)
 	go h.runDNSFailoverLoop(ctx)
 	go h.runPeerShareExpiryLoop(ctx)
+	go h.runRemoteShareEventManager(ctx)
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier != middleware.TierFree {
 		bot := h.TelegramBot()
 		if bot != nil && bot.Enabled() {
 			bot.SendSystemStartup(h.floxVersion)
+		}
+	}
+}
+
+func (h *Handler) runRemoteShareEventManager(ctx context.Context) {
+	defer h.jobsWG.Done()
+	var workersWG sync.WaitGroup
+	ticker := time.NewTicker(20 * time.Second)
+	defer ticker.Stop()
+	reconcile := func() {
+		nodes, err := h.repo.ListRemoteNodes()
+		if err != nil {
+			log.Printf("list remote share event nodes failed: %v", err)
+			return
+		}
+		active := make(map[int64]struct{}, len(nodes))
+		h.remoteEventMu.Lock()
+		if h.remoteEventWorkers == nil {
+			h.remoteEventWorkers = make(map[int64]remoteEventWorker)
+		}
+		for _, node := range nodes {
+			active[node.ID] = struct{}{}
+			remoteURL := strings.TrimSpace(node.RemoteURL.String)
+			token := strings.TrimSpace(node.RemoteToken.String)
+			fingerprint := remoteURL + "\x00" + token
+			if worker, exists := h.remoteEventWorkers[node.ID]; exists {
+				if worker.fingerprint == fingerprint {
+					continue
+				}
+				worker.cancel()
+				delete(h.remoteEventWorkers, node.ID)
+			}
+			if remoteURL == "" || token == "" {
+				continue
+			}
+			workerCtx, cancel := context.WithCancel(ctx)
+			h.remoteEventWorkers[node.ID] = remoteEventWorker{cancel: cancel, fingerprint: fingerprint}
+			workersWG.Add(1)
+			go func(nodeID int64, workerURL, workerToken string) {
+				defer workersWG.Done()
+				h.runRemoteShareEventWorker(workerCtx, nodeID, workerURL, workerToken)
+			}(node.ID, remoteURL, token)
+		}
+		for nodeID, worker := range h.remoteEventWorkers {
+			if _, exists := active[nodeID]; !exists {
+				worker.cancel()
+				delete(h.remoteEventWorkers, nodeID)
+			}
+		}
+		h.remoteEventMu.Unlock()
+	}
+	reconcile()
+	for {
+		select {
+		case <-ctx.Done():
+			h.remoteEventMu.Lock()
+			for nodeID, worker := range h.remoteEventWorkers {
+				worker.cancel()
+				delete(h.remoteEventWorkers, nodeID)
+			}
+			h.remoteEventMu.Unlock()
+			workersWG.Wait()
+			return
+		case <-ticker.C:
+			reconcile()
+		}
+	}
+}
+
+func (h *Handler) runRemoteShareEventWorker(ctx context.Context, nodeID int64, remoteURL, token string) {
+	federationClient := client.NewFederationClient()
+	backoff := time.Second
+	var debounceMu sync.Mutex
+	var debounceTimer *time.Timer
+	var pendingRevision int64
+	defer func() {
+		debounceMu.Lock()
+		if debounceTimer != nil {
+			debounceTimer.Stop()
+		}
+		debounceMu.Unlock()
+	}()
+	for {
+		err := federationClient.WatchEvents(ctx, remoteURL, token, h.federationLocalDomain(), func(event client.PeerShareEvent) {
+			if event.Type != "flow_changed" {
+				debounceMu.Lock()
+				if debounceTimer != nil {
+					debounceTimer.Stop()
+					debounceTimer = nil
+				}
+				debounceMu.Unlock()
+				h.broadcastRemoteUsageChanged(nodeID, event.Revision)
+				return
+			}
+			debounceMu.Lock()
+			pendingRevision = event.Revision
+			if debounceTimer != nil {
+				debounceTimer.Stop()
+			}
+			debounceTimer = time.AfterFunc(500*time.Millisecond, func() {
+				debounceMu.Lock()
+				revision := pendingRevision
+				debounceTimer = nil
+				debounceMu.Unlock()
+				if ctx.Err() == nil {
+					h.broadcastRemoteUsageChanged(nodeID, revision)
+				}
+			})
+			debounceMu.Unlock()
+		})
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
+			log.Printf("remote share event stream disconnected node=%d: %v", nodeID, err)
+		}
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+		if backoff < 30*time.Second {
+			backoff *= 2
+			if backoff > 30*time.Second {
+				backoff = 30 * time.Second
+			}
 		}
 	}
 }
@@ -81,7 +214,13 @@ func (h *Handler) runPeerShareExpiryLoop(ctx context.Context) {
 				}
 				if err := h.cleanupFederationTunnels(share.ID); err != nil {
 					log.Printf("expired peer share tunnel cleanup failed share=%d: %v", share.ID, err)
+					continue
 				}
+				if err := h.repo.UpdatePeerShareActive(share.ID, 0, nowMs); err != nil {
+					log.Printf("disable expired peer share failed share=%d: %v", share.ID, err)
+					continue
+				}
+				h.publishPeerShareEvent(share.ID, "share_expired")
 			}
 		}
 	}

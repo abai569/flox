@@ -135,8 +135,8 @@ declare global {
     __pendingNodeRefresh?: Set<number>;
   }
 }
-const NODE_FALLBACK_REFRESH_INTERVAL_MS = 15000;
-const REMOTE_NODE_REFRESH_INTERVAL_MS = 15000;
+const NODE_FALLBACK_REFRESH_INTERVAL_MS = 20000;
+const REMOTE_NODE_REFRESH_INTERVAL_MS = 20000;
 const REALTIME_NODE_METRIC_STALE_MS = 90_000;
 
 type NodePeriodTraffic = {
@@ -657,6 +657,7 @@ export default function NodePage() {
   const loadingGenerationRef = useRef(0);
   const remoteUsageGenerationRef = useRef(0);
   const remoteUsageInFlightRef = useRef(false);
+	const remoteUsageEventTimerRef = useRef<number | null>(null);
 	const sharingOpenGenerationRef = useRef(0);
   const pageActiveRef = useRef(true);
   const [localSearchKeyword, setLocalSearchKeyword] = useLocalStorageState(
@@ -916,6 +917,9 @@ export default function NodePage() {
       pageActiveRef.current = false;
       ++loadNodesGenerationRef.current;
       ++remoteUsageGenerationRef.current;
+	  if (remoteUsageEventTimerRef.current !== null) {
+		window.clearTimeout(remoteUsageEventTimerRef.current);
+	  }
     };
   }, []);
 
@@ -1221,6 +1225,22 @@ export default function NodePage() {
     const nodeId = Number(id);
 
     if (Number.isNaN(nodeId)) return;
+	if (type === "remote_usage_changed") {
+		window.dispatchEvent(new CustomEvent("remote_usage_changed", { detail: { nodeId } }));
+		if (remoteUsageEventTimerRef.current !== null) {
+			window.clearTimeout(remoteUsageEventTimerRef.current);
+		}
+		const refresh = () => {
+			if (remoteUsageInFlightRef.current) {
+				remoteUsageEventTimerRef.current = window.setTimeout(refresh, 250);
+				return;
+			}
+			remoteUsageEventTimerRef.current = null;
+			void loadNodes({ silent: true });
+		};
+		remoteUsageEventTimerRef.current = window.setTimeout(refresh, 100);
+		return;
+	}
     if (type === "status") {
       if (messageData === 1) {
         if (window.__pendingNodeRefresh?.has(nodeId)) {

@@ -160,6 +160,7 @@ func (h *Handler) processPeerShareFlow(runtimeID int64, instanceID string, item 
 	if err := h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now()); err != nil {
 		return err
 	}
+	h.publishPeerShareEvent(runtime.ShareID, "flow_changed")
 
 	share, err := h.repo.GetPeerShare(runtime.ShareID)
 	if err != nil || share == nil {
@@ -203,6 +204,7 @@ func (h *Handler) processPeerShareFlowFromForward(forwardID int64, nodeID int64,
 	if err := h.repo.AddPeerShareFlow(shareID, runtimeID, instanceID, item.D, item.U, time.Now()); err != nil {
 		return err
 	}
+	h.publishPeerShareEvent(shareID, "flow_changed")
 
 	share, err := h.repo.GetPeerShare(shareID)
 	if err != nil || share == nil {
@@ -279,6 +281,7 @@ func (h *Handler) processPeerShareFlowByServiceName(nodeID int64, instanceID str
 	if err := h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now()); err != nil {
 		return err
 	}
+	h.publishPeerShareEvent(runtime.ShareID, "flow_changed")
 
 	matchedShare, err := h.repo.GetPeerShare(runtime.ShareID)
 	if err != nil || matchedShare == nil {

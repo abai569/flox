@@ -97,6 +97,8 @@ func shouldSkip(path string) bool {
 		return true
 	case path == "/api/v1/federation/connect":
 		return true
+	case path == "/api/v1/federation/events":
+		return true
 	case path == "/api/v1/federation/tunnel/create":
 		return true
 	case path == "/api/v1/federation/runtime/reserve-port":

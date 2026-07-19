@@ -152,7 +152,7 @@ interface Node {
   remark?: string;
   isRemote?: number;
 }
-const REMOTE_NODE_REFRESH_INTERVAL_MS = 15000;
+const REMOTE_NODE_REFRESH_INTERVAL_MS = 20000;
 interface TunnelForm {
   id?: number;
   name: string;

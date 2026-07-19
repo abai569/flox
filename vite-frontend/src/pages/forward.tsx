@@ -206,7 +206,7 @@ interface Node {
   remark?: string;
   trafficRatio?: number;
 }
-const REMOTE_NODE_REFRESH_INTERVAL_MS = 15000;
+const REMOTE_NODE_REFRESH_INTERVAL_MS = 20000;
 interface ForwardForm {
   id?: number;
   userId?: number;

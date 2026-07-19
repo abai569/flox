@@ -56,6 +56,28 @@ type Handler struct {
 
 	telegramBot      *telegram.Bot
 	nodeTrafficCache sync.Map // map[int64]*nodeTrafficCacheEntry
+
+	peerShareEventMu          sync.Mutex
+	peerShareEventSubscribers map[int64]map[chan peerShareEvent]struct{}
+	peerShareEventRevisions   map[int64]int64
+	remoteEventMu             sync.Mutex
+	remoteEventWorkers        map[int64]remoteEventWorker
+}
+
+type remoteEventWorker struct {
+	cancel      context.CancelFunc
+	fingerprint string
+}
+
+func (h *Handler) broadcastRemoteUsageChanged(nodeID, revision int64) {
+	if h == nil || h.wsServer == nil || nodeID <= 0 {
+		return
+	}
+	payload, _ := json.Marshal(map[string]interface{}{
+		"id": nodeID, "type": "remote_usage_changed",
+		"data": map[string]interface{}{"nodeId": nodeID, "revision": revision},
+	})
+	h.wsServer.BroadcastToAdmins(string(payload))
 }
 
 func (h *Handler) TelegramBot() *telegram.Bot {
@@ -498,6 +520,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/federation/share/update-status", h.federationShareUpdateStatus)
 	mux.HandleFunc("/api/v1/federation/share/remote-usage/list", h.federationRemoteUsageList)
 	mux.HandleFunc("/api/v1/federation/connect", h.authPeer(h.federationConnect))
+	mux.HandleFunc("/api/v1/federation/events", h.authPeer(h.federationEvents))
 	mux.HandleFunc("/api/v1/federation/tunnel/create", h.authPeer(h.federationTunnelCreate))
 	mux.HandleFunc("/api/v1/federation/runtime/reserve-port", h.authPeer(h.federationRuntimeReservePort))
 	mux.HandleFunc("/api/v1/federation/runtime/apply-role", h.authPeer(h.federationRuntimeApplyRole))
