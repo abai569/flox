@@ -3076,6 +3076,7 @@ func (r *Repository) ReplaceFederationTunnelBindingsTx(tx *gorm.DB, tunnelID int
 			RemoteBindingID: b.RemoteBindingID,
 			AllocatedPort:   b.AllocatedPort,
 			Status:          b.Status,
+			ReleasePending:  b.ReleasePending,
 			CreatedTime:     created,
 			UpdatedTime:     updated,
 		})

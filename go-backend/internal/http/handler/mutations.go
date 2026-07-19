@@ -2078,10 +2078,27 @@ func (h *Handler) tunnelToggleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 更新状态
+	if newStatus == 0 {
+		if tunnel, tunnelErr := h.getTunnelRecord(id); tunnelErr == nil && tunnel != nil && tunnel.Type == 2 {
+			h.cleanupTunnelRuntime(id)
+			if cleanupErr := h.cleanupFederationRuntime(id); cleanupErr != nil {
+				response.WriteJSON(w, response.ErrDefault(cleanupErr.Error()))
+				return
+			}
+		}
+	}
+
+	// 更新状态 only after disabling runtime cleanup succeeds.
 	if err := h.repo.UpdateTunnelStatus(id, newStatus); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
+	}
+	if newStatus == 1 {
+		go func() {
+			if err := h.redeployTunnelAndForwards(id); err != nil {
+				log.Printf("enable tunnel %d runtime deployment failed: %v", id, err)
+			}
+		}()
 	}
 
 	// 禁用时级联禁用 UserTunnel + 暂停关联的转发
@@ -2757,7 +2774,10 @@ func (h *Handler) tunnelDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.cleanupTunnelRuntime(id)
-	h.cleanupFederationRuntime(id)
+	if err := h.cleanupFederationRuntime(id); err != nil {
+		response.WriteJSON(w, response.ErrDefault(fmt.Sprintf("远程隧道运行时清理失败: %v", err)))
+		return
+	}
 	if err := h.deleteTunnelByID(id); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -2846,7 +2866,11 @@ func (h *Handler) tunnelBatchDelete(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		h.cleanupTunnelRuntime(id)
-		h.cleanupFederationRuntime(id)
+		if cleanupErr := h.cleanupFederationRuntime(id); cleanupErr != nil {
+			fail++
+			failures = appendBatchFailure(failures, id, tunnelName, cleanupErr)
+			continue
+		}
 		if err := h.deleteTunnelByID(id); err != nil {
 			fail++
 			failures = appendBatchFailure(failures, id, tunnelName, err)
@@ -5675,11 +5699,18 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 }
 
 func (h *Handler) releaseFederationRuntimeRefs(refs []federationRuntimeReleaseRef) {
+	if err := h.releaseFederationRuntimeRefsErr(refs); err != nil {
+		log.Printf("release federation runtime failed: %v", err)
+	}
+}
+
+func (h *Handler) releaseFederationRuntimeRefsErr(refs []federationRuntimeReleaseRef) error {
 	if h == nil || len(refs) == 0 {
-		return
+		return nil
 	}
 	fc := client.NewFederationClient()
 	localDomain := h.federationLocalDomain()
+	var releaseErr error
 	for i := len(refs) - 1; i >= 0; i-- {
 		ref := refs[i]
 		if strings.TrimSpace(ref.RemoteURL) == "" || strings.TrimSpace(ref.RemoteToken) == "" {
@@ -5690,8 +5721,11 @@ func (h *Handler) releaseFederationRuntimeRefs(refs []federationRuntimeReleaseRe
 			ReservationID: ref.ReservationID,
 			ResourceKey:   ref.ResourceKey,
 		}
-		_ = fc.ReleaseRole(ref.RemoteURL, ref.RemoteToken, localDomain, req)
+		if err := fc.ReleaseRole(ref.RemoteURL, ref.RemoteToken, localDomain, req); err != nil && releaseErr == nil {
+			releaseErr = err
+		}
 	}
+	return releaseErr
 }
 
 func federationResourceKeysFromReleaseRefs(refs []federationRuntimeReleaseRef) []string {
@@ -5764,17 +5798,24 @@ func (h *Handler) discardFederationDeployment(tunnelID int64, newRefs []federati
 	h.releaseFederationRuntimeRefs(newRefs)
 }
 
-func (h *Handler) cleanupFederationRuntime(tunnelID int64) {
+func (h *Handler) cleanupFederationRuntime(tunnelID int64) error {
 	if h == nil || tunnelID <= 0 {
-		return
+		return nil
 	}
 	bindings, err := h.repo.ListActiveFederationTunnelBindingsByTunnel(tunnelID)
 	if err != nil || len(bindings) == 0 {
-		return
+		return err
 	}
 
-	h.releaseFederationRuntimeRefs(h.federationReleaseRefsFromBindings(bindings))
-	_ = h.repo.DeleteFederationTunnelBindingsByTunnel(tunnelID)
+	refs := h.federationReleaseRefsFromBindings(bindings)
+	if len(refs) != len(bindings) {
+		return fmt.Errorf("远程隧道绑定缺少节点共享配置，保留本地绑定等待恢复")
+	}
+	if err := h.releaseFederationRuntimeRefsErr(refs); err != nil {
+		_ = h.repo.MarkFederationTunnelBindingsReleasePending(tunnelID)
+		return err
+	}
+	return h.repo.DeleteFederationTunnelBindingsByTunnel(tunnelID)
 }
 
 // resolveTunnelRelayMode 根据 tunnel 下所有 forward 的 mode 推导 relay 内核。
@@ -6357,10 +6398,20 @@ func selectTunnelDialHost(fromNode, toNode *nodeRecord, ipPreference string, con
 				return host, "v6", nil
 			}
 		}
+		if fromV4 && toV4 {
+			if host := pickNodeAddressV4(toNode); host != "" {
+				return host, "v4", nil
+			}
+		}
 	case "v4":
 		if fromV4 && toV4 {
 			if host := pickNodeAddressV4(toNode); host != "" {
 				return host, "v4", nil
+			}
+		}
+		if fromV6 && toV6 {
+			if host := pickNodeAddressV6(toNode); host != "" {
+				return host, "v6", nil
 			}
 		}
 	case "lan":

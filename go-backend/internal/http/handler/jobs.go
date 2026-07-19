@@ -27,7 +27,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(17)
+	h.jobsWG.Add(18)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -47,12 +47,40 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runDNSFailoverLoop(ctx)
 	go h.runPeerShareExpiryLoop(ctx)
 	go h.runRemoteShareEventManager(ctx)
+	go h.runFederationTunnelReleaseRetryLoop(ctx)
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier != middleware.TierFree {
 		bot := h.TelegramBot()
 		if bot != nil && bot.Enabled() {
 			bot.SendSystemStartup(h.floxVersion)
+		}
+	}
+}
+
+func (h *Handler) runFederationTunnelReleaseRetryLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	retry := func() {
+		tunnelIDs, err := h.repo.ListPendingFederationTunnelTunnels()
+		if err != nil {
+			log.Printf("list pending federation tunnel releases failed: %v", err)
+			return
+		}
+		for _, tunnelID := range tunnelIDs {
+			if err := h.cleanupFederationRuntime(tunnelID); err != nil {
+				log.Printf("federation tunnel release retry pending tunnel=%d: %v", tunnelID, err)
+			}
+		}
+	}
+	retry()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			retry()
 		}
 	}
 }

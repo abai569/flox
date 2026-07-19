@@ -999,6 +999,47 @@ func (h *Handler) sendNodeCommandWithTimeout(nodeID int64, commandType string, d
 	return result, err
 }
 
+func (h *Handler) sendRemoteNodeCommandToInstanceWithTimeout(node *nodeRecord, instanceID, commandType string, data interface{}, timeout time.Duration) (ws.CommandResult, error) {
+	if node == nil {
+		return ws.CommandResult{}, errors.New("节点不存在")
+	}
+	remoteURL := strings.TrimSpace(node.RemoteURL)
+	remoteToken := strings.TrimSpace(node.RemoteToken)
+	if remoteURL == "" || remoteToken == "" {
+		return ws.CommandResult{}, errors.New("远程节点缺少共享配置")
+	}
+	fc := client.NewFederationClient()
+	if timeout > 0 {
+		fc = client.NewFederationClientWithTimeout(timeout)
+	}
+	res, err := fc.Command(remoteURL, remoteToken, h.federationLocalDomain(), client.RuntimeNodeCommandRequest{
+		CommandType: commandType,
+		Data:        data,
+		InstanceID:  strings.TrimSpace(instanceID),
+	})
+	if err != nil {
+		return ws.CommandResult{}, err
+	}
+	if res == nil {
+		return ws.CommandResult{}, errors.New("远程节点未返回命令结果")
+	}
+	result := ws.CommandResult{Type: res.Type, Success: res.Success, Message: res.Message, Data: res.Data}
+	if len(res.Instances) > 0 {
+		if result.Data == nil {
+			result.Data = make(map[string]interface{})
+		}
+		result.Data["instances"] = res.Instances
+	}
+	if !result.Success {
+		msg := strings.TrimSpace(result.Message)
+		if msg == "" {
+			msg = "命令执行失败"
+		}
+		return result, errors.New(msg)
+	}
+	return result, nil
+}
+
 func (h *Handler) sendNodeCommandToInstanceWithTimeout(nodeID int64, instanceID string, commandType string, data interface{}, timeout time.Duration, tolerateExists bool, tolerateNotFound bool) (ws.CommandResult, error) {
 	if strings.TrimSpace(instanceID) == "" {
 		return h.sendNodeCommandWithTimeout(nodeID, commandType, data, timeout, tolerateExists, tolerateNotFound)
@@ -1013,7 +1054,7 @@ func (h *Handler) sendNodeCommandToInstanceWithTimeout(nodeID int64, instanceID 
 
 	node, nodeErr := h.getNodeRecord(nodeID)
 	if nodeErr == nil && node != nil && node.IsRemote == 1 {
-		result, err = h.sendRemoteNodeCommandWithTimeout(node, commandType, data, timeout)
+		result, err = h.sendRemoteNodeCommandToInstanceWithTimeout(node, instanceID, commandType, data, timeout)
 	} else {
 		result, err = h.wsServer.SendCommandToInstance(nodeID, instanceID, commandType, data, timeout)
 	}
@@ -1385,7 +1426,7 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 				}
 				} else {
 					for _, outNode := range outNodes {
-						description := fmt.Sprintf("入口[%s]->出口[%s]", formatDiagnosisNodeName(inNode.NodeName), formatDiagnosisNodeName(outNode.NodeName))
+					description := fmt.Sprintf("入口[%s]->出口[%s]", formatDiagnosisNodeName(inNode.NodeName), formatDiagnosisNodeName(outNode.NodeName))
 					workItems = append(workItems, diagnosisWorkItem{
 						fromNodeID:    inNode.NodeID,
 						toNode:        outNode,

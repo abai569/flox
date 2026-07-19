@@ -543,6 +543,7 @@ type FederationTunnelBinding struct {
 	RemoteBindingID string `gorm:"column:remote_binding_id;type:text;not null"`
 	AllocatedPort   int    `gorm:"column:allocated_port;not null"`
 	Status          int    `gorm:"not null;default:1;index:idx_federation_tunnel_binding_tunnel"`
+	ReleasePending  int    `gorm:"column:release_pending;not null;default:0;index:idx_federation_tunnel_binding_release_pending"`
 	CreatedTime     int64  `gorm:"column:created_time;not null"`
 	UpdatedTime     int64  `gorm:"column:updated_time;not null"`
 }
