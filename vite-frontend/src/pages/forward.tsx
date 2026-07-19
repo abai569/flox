@@ -827,14 +827,25 @@ const SortableForwardCard = ({ forward, renderCard }: any) => {
   );
 };
 
-// 地址脱敏：IPv4/域名显示 a.b.*，IPv6 显示 ::后3段
+function extractAddressHost(address: string): string {
+  const value = address.trim();
+
+  if (value.startsWith("[")) {
+    const closingBracket = value.indexOf("]");
+
+    if (closingBracket > 0) return value.slice(1, closingBracket);
+  }
+
+  return value.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+}
+
+// 地址脱敏：IPv4/域名显示 a.b.*，IPv6 保留最后3段
 function maskAddress(addr: string): string {
   if (!addr) return addr;
-  const trimmed = addr.trim();
-  // IPv6: ::后3段
+  const trimmed = extractAddressHost(addr);
   if (trimmed.includes(":")) {
     const parts = trimmed.split(":").filter(Boolean);
-    if (parts.length > 3) return "::" + parts.slice(-3).join(":");
+    if (parts.length > 3) return "*:" + parts.slice(-3).join(":");
     return trimmed;
   }
   // IPv4 和域名统一: a.b.*
@@ -908,9 +919,8 @@ const SortableTableRow = ({
             `${ip.trim().replace(/:\d+$/, "")}:${forward.inPort}`,
         )
         .join(",");
-  const remoteAddrOnly = (forward.remoteAddr.split(",")[0] || "").replace(
-    /:\d+$/,
-    "",
+  const remoteAddrOnly = extractAddressHost(
+    forward.remoteAddr.split(",")[0] || "",
   );
   const remotePortOnly =
     forward.remoteAddr.split(",")[0].match(/:(\d+)$/)?.[1] || "-";
@@ -1236,9 +1246,8 @@ const SortableCompactTableRow = ({
             `${ip.trim().replace(/:\d+$/, "")}:${forward.inPort}`,
         )
         .join(",");
-  const remoteAddrOnly = (forward.remoteAddr.split(",")[0] || "").replace(
-    /:\d+$/,
-    "",
+  const remoteAddrOnly = extractAddressHost(
+    forward.remoteAddr.split(",")[0] || "",
   );
   const remotePortOnly =
     forward.remoteAddr.split(",")[0].match(/:(\d+)$/)?.[1] || "-";
@@ -2033,7 +2042,7 @@ export default function ForwardPage() {
       return (
         <SelectItem
           key={node.id}
-          textValue={node.name || ""}
+          textValue={isRemote ? `${node.name || ""} (Rem)` : node.name || ""}
         >
           <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
             <span className="w-full min-w-0 truncate text-left">
@@ -5082,17 +5091,15 @@ export default function ForwardPage() {
                     </svg>
                     <code
                       className="text-xs font-medium text-foreground font-bold truncate shrink min-w-0 max-w-[130px]"
-                      title={forward.remoteAddr
-                        .split(",")[0]
-                        .replace(/:\d+$/, "")}
+                      title={extractAddressHost(forward.remoteAddr.split(",")[0])}
                       onClick={() =>
                         copyToClipboard(
-                          forward.remoteAddr.split(",")[0].replace(/:\d+$/, ""),
+                          extractAddressHost(forward.remoteAddr.split(",")[0]),
                           "落地地址",
                         )
                       }
                     >
-                      {maskAddress(forward.remoteAddr.split(",")[0].replace(/:\d+$/, ""))}
+                      {maskAddress(extractAddressHost(forward.remoteAddr.split(",")[0]))}
                     </code>
                   </div>
                 </div>
