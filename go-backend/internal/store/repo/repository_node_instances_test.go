@@ -229,3 +229,34 @@ func TestSyncRemoteNodeInstancesReplacesLocalTrafficRatio(t *testing.T) {
 		t.Fatalf("expected local node ratio 2.5 to survive sync, node=%+v err=%v", storedNode, err)
 	}
 }
+
+func TestSyncRemoteNodeInstancesRemovesInstancesOutsideShareScope(t *testing.T) {
+	r, err := Open(filepath.Join(t.TempDir(), "remote-instance-scope.db"))
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+
+	now := time.Now().UnixMilli()
+	node := model.Node{Name: "remote", Secret: "secret", ServerIP: "127.0.0.1", Port: "0", IsRemote: 1, CreatedTime: now, Status: 1, TCPListenAddr: "[::]", UDPListenAddr: "[::]"}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	instances := []model.NodeInstance{
+		{NodeID: node.ID, InstanceID: "kept", Weight: 1, CreatedTime: now, UpdatedTime: now},
+		{NodeID: node.ID, InstanceID: "removed", Weight: 1, CreatedTime: now, UpdatedTime: now},
+	}
+	if err := r.db.Create(&instances).Error; err != nil {
+		t.Fatalf("create instances: %v", err)
+	}
+
+	got, err := r.SyncRemoteNodeInstances(node.ID, []RemoteNodeInstanceSync{{
+		InstanceID: "kept", Status: 1, Weight: 1,
+	}}, now+1)
+	if err != nil {
+		t.Fatalf("sync remote instances: %v", err)
+	}
+	if len(got) != 1 || got[0].InstanceID != "kept" {
+		t.Fatalf("expected only scoped instance to remain, got %+v", got)
+	}
+}

@@ -127,6 +127,7 @@ declare global {
   }
 }
 const NODE_FALLBACK_REFRESH_INTERVAL_MS = 15000;
+const REMOTE_NODE_REFRESH_INTERVAL_MS = 15000;
 const REALTIME_NODE_METRIC_STALE_MS = 90_000;
 
 type NodePeriodTraffic = {
@@ -1372,6 +1373,14 @@ export default function NodePage() {
       window.clearInterval(interval);
     };
   }, [loadNodes, usingPollingFallback]);
+  useEffect(() => {
+    if (usingPollingFallback || !nodeList.some((node) => node.isRemote === 1)) return;
+    const interval = window.setInterval(() => {
+      if (!document.hidden) void loadNodes({ silent: true });
+    }, REMOTE_NODE_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [loadNodes, nodeList, usingPollingFallback]);
   const formatTraffic = (bytes: number): string => {
     if (bytes === 0) return "0 B";
     const k = 1024;
@@ -2924,12 +2933,10 @@ export default function NodePage() {
       : null;
     const remoteShareFlows = (node.remoteFlows || []).filter(
       (flow) =>
+        flow.runtimeId === 0 &&
+        !flow.instanceId &&
         flow.periodType.toLowerCase() === "total" &&
-        (!flow.instanceId ||
-          (node.remoteInstances || []).some(
-            (instance) =>
-              instance.inScope && instance.instanceId === flow.instanceId,
-          )),
+        (node.remoteInstances || []).some((instance) => instance.inScope),
     );
     const remotePeriodRx = remoteShareFlows.reduce(
       (total, flow) => total + flow.outFlow,
@@ -2939,11 +2946,10 @@ export default function NodePage() {
       (total, flow) => total + flow.inFlow,
       0,
     );
-    const remotePeriodFlow = remoteShareFlows.some(
-      (flow) => flow.instanceId,
-    )
-      ? remotePeriodRx + remotePeriodTx
-      : node.remoteCurrentFlow ?? remotePeriodRx + remotePeriodTx;
+    const remotePeriodFlow =
+      remotePeriodRx + remotePeriodTx > 0
+        ? remotePeriodRx + remotePeriodTx
+        : node.remoteCurrentFlow ?? 0;
     const remoteOnline = node.connectionStatus === "online" && !node.syncError;
     const remoteExpiryTime = node.remoteExpiryTime && node.remoteExpiryTime > 0
       ? (node.remoteExpiryTime < 100000000000 ? node.remoteExpiryTime * 1000 : node.remoteExpiryTime)

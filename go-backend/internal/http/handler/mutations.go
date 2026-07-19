@@ -5237,6 +5237,7 @@ type tunnelRuntimeNode struct {
 	ChainType     int
 	Port          int
 	ConnectIPType string
+	Endpoints     []client.RuntimeEndpoint
 }
 
 type tunnelCreateState struct {
@@ -5588,6 +5589,12 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 			state.OutNodes[outIdx].Port = applyRes.AllocatedPort
 			outNode = state.OutNodes[outIdx]
 		}
+		if len(applyRes.Endpoints) == 0 {
+			h.releaseFederationRuntimeRefs(releaseRefs)
+			return nil, nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(node))
+		}
+		state.OutNodes[outIdx].Endpoints = applyRes.Endpoints
+		outNode = state.OutNodes[outIdx]
 
 		bindings = append(bindings, repo.FederationTunnelBinding{
 			TunnelID:        state.TunnelID,
@@ -5655,20 +5662,18 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 					h.releaseFederationRuntimeRefs(releaseRefs)
 					return nil, nil, errors.New("节点不存在")
 				}
-				host, _, hostErr := selectTunnelDialHost(node, targetNode, state.IPPreference, target.ConnectIPType)
-				if hostErr != nil {
+				endpoints, endpointErr := resolveFederationTargetEndpoints(target, targetNode, state.NodeInstances[target.NodeID], state.IPPreference)
+				if endpointErr != nil {
 					h.releaseFederationRuntimeRefs(releaseRefs)
-					return nil, nil, hostErr
+					return nil, nil, endpointErr
 				}
-				if target.Port <= 0 {
-					h.releaseFederationRuntimeRefs(releaseRefs)
-					return nil, nil, errors.New("节点端口不能为空")
+				for _, endpoint := range endpoints {
+					applyTargets = append(applyTargets, client.RuntimeTarget{
+						Host:     endpoint.host,
+						Port:     endpoint.port,
+						Protocol: defaultString(target.Protocol, "tls"),
+					})
 				}
-				applyTargets = append(applyTargets, client.RuntimeTarget{
-					Host:     host,
-					Port:     target.Port,
-					Protocol: defaultString(target.Protocol, "tls"),
-				})
 			}
 
 			applyReq := client.RuntimeApplyRoleRequest{
@@ -5688,6 +5693,12 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 				state.ChainHops[hopIdx][nodeIdx].Port = applyRes.AllocatedPort
 				chainNode = state.ChainHops[hopIdx][nodeIdx]
 			}
+			if len(applyRes.Endpoints) == 0 {
+				h.releaseFederationRuntimeRefs(releaseRefs)
+				return nil, nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(node))
+			}
+			state.ChainHops[hopIdx][nodeIdx].Endpoints = applyRes.Endpoints
+			chainNode = state.ChainHops[hopIdx][nodeIdx]
 
 			bindings = append(bindings, repo.FederationTunnelBinding{
 				TunnelID:        state.TunnelID,
@@ -6041,6 +6052,24 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		if port <= 0 {
 			return nil, errors.New("节点端口不能为空")
 		}
+		if targetNode.IsRemote == 1 {
+			if len(target.Endpoints) == 0 {
+				return nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(targetNode))
+			}
+			before := len(nodeItems)
+			for _, endpoint := range target.Endpoints {
+				host := pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+				if host == "" || endpoint.Port <= 0 || endpoint.Weight <= 0 {
+					continue
+				}
+				itemIndex++
+				nodeItems = append(nodeItems, buildTunnelChainNodeItem(itemIndex, host, endpoint.Port, target.Protocol, endpoint.Weight))
+			}
+			if len(nodeItems) == before {
+				return nil, fmt.Errorf("远程节点 %s 没有匹配地址族的健康运行端点", nodeDisplayName(targetNode))
+			}
+			continue
+		}
 
 		instances := instancesByNode[target.NodeID]
 		hasEnabledInstance := false
@@ -6111,6 +6140,80 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		"name": fmt.Sprintf("chains_%d", tunnelID),
 		"hops": []map[string]interface{}{hop},
 	}, nil
+}
+
+type federationTargetEndpoint struct {
+	host string
+	port int
+}
+
+func resolveFederationTargetEndpoints(target tunnelRuntimeNode, targetNode *nodeRecord, instances []model.NodeInstance, ipPreference string) ([]federationTargetEndpoint, error) {
+	if targetNode == nil {
+		return nil, errors.New("节点不存在")
+	}
+	if targetNode.IsRemote == 1 {
+		if len(target.Endpoints) == 0 {
+			return nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(targetNode))
+		}
+		result := make([]federationTargetEndpoint, 0, len(target.Endpoints))
+		for _, endpoint := range target.Endpoints {
+			host := pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
+			if host == "" || endpoint.Port <= 0 || endpoint.Weight <= 0 {
+				continue
+			}
+			result = append(result, federationTargetEndpoint{host: host, port: endpoint.Port})
+		}
+		if len(result) == 0 {
+			return nil, fmt.Errorf("远程节点 %s 没有匹配地址族的健康运行端点", nodeDisplayName(targetNode))
+		}
+		return result, nil
+	}
+	if target.Port <= 0 {
+		return nil, errors.New("节点端口不能为空")
+	}
+	if strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
+		if host := pickNodeAddressLan(targetNode); host != "" {
+			return []federationTargetEndpoint{{host: host, port: target.Port}}, nil
+		}
+	}
+	result := make([]federationTargetEndpoint, 0, len(instances))
+	for _, instance := range instances {
+		if instance.Status != 1 || instance.Weight <= 0 {
+			continue
+		}
+		if host := pickNodeInstanceAddress(instance, target.ConnectIPType, ipPreference); host != "" {
+			result = append(result, federationTargetEndpoint{host: host, port: target.Port})
+		}
+	}
+	if len(result) == 0 {
+		if host := pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference); host != "" {
+			return []federationTargetEndpoint{{host: host, port: target.Port}}, nil
+		}
+		return nil, fmt.Errorf("节点 %s 没有可用连接地址", nodeDisplayName(targetNode))
+	}
+	return result, nil
+}
+
+func pickRuntimeEndpointAddress(endpoint client.RuntimeEndpoint, connectIPType, ipPreference string) string {
+	preference := strings.ToLower(strings.TrimSpace(connectIPType))
+	if preference == "" || preference == "auto" {
+		preference = strings.ToLower(strings.TrimSpace(ipPreference))
+	}
+	v4 := strings.TrimSpace(endpoint.PublicIPV4)
+	v6 := strings.Trim(strings.TrimSpace(endpoint.PublicIPV6), "[]")
+	if preference == "lan" {
+		return ""
+	}
+	if preference == "v6" || preference == "ipv6" {
+		if v6 != "" {
+			return v6
+		}
+		return v4
+	}
+	if v4 != "" {
+		return v4
+	}
+	return v6
 }
 
 func buildTunnelChainNodeItem(index int, host string, port int, protocol string, weight int) map[string]interface{} {
@@ -6496,6 +6599,13 @@ func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[str
 		}
 		port := asInt(n["port"], 0)
 		if port <= 0 {
+			isRemote, remoteErr := h.repo.IsRemoteNodeTx(tx, nodeID)
+			if remoteErr != nil {
+				return remoteErr
+			}
+			if isRemote {
+				return fmt.Errorf("远程出口节点 %d 缺少运行时分配端口", nodeID)
+			}
 			var pickErr error
 			port, pickErr = h.repo.PickRandomNodePortTx(tx, nodeID, allocated, 0)
 			if pickErr != nil {
@@ -6528,6 +6638,13 @@ func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[str
 			}
 			port := asInt(n["port"], 0)
 			if port <= 0 {
+				isRemote, remoteErr := h.repo.IsRemoteNodeTx(tx, nodeID)
+				if remoteErr != nil {
+					return remoteErr
+				}
+				if isRemote {
+					return fmt.Errorf("远程转发链节点 %d 缺少运行时分配端口", nodeID)
+				}
 				var pickErr error
 				port, pickErr = h.repo.PickRandomNodePortTx(tx, nodeID, allocated, 0)
 				if pickErr != nil {

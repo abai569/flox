@@ -2,8 +2,6 @@ import type {
   BatchOperationFailure,
   ForwardApiItem,
   NodeGroupApiItem,
-  PeerRemoteUsageNodeApiItem,
-  PeerShareApiItem,
   SpeedLimitApiItem,
 } from "@/api/types";
 
@@ -65,8 +63,6 @@ import {
   createForward,
   getForwardList,
   getLicenseInfo,
-  getPeerRemoteUsageList,
-  getPeerShareList,
   getSpeedLimitList,
   updateForward,
   deleteForward,
@@ -96,6 +92,7 @@ import {
   hasMultipleAddresses,
   resolveForwardAddressAction,
 } from "@/pages/forward/address";
+import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import {
   buildForwardDiagnosisFallbackResult,
   getForwardDiagnosisQualityDisplay,
@@ -154,7 +151,6 @@ interface Forward {
   inFlow: number;
   outFlow: number;
   serviceRunning: boolean;
-  federationShareFlow?: number;
   createdTime: string;
   userName?: string;
   userRemark?: string;
@@ -209,6 +205,7 @@ interface Node {
   remark?: string;
   trafficRatio?: number;
 }
+const REMOTE_NODE_REFRESH_INTERVAL_MS = 15000;
 interface ForwardForm {
   id?: number;
   userId?: number;
@@ -1519,93 +1516,7 @@ const SortableCompactTableRow = ({
   );
 };
 const getForwardDisplayFlow = (forward: Forward): number => {
-  const directFlow = (forward.inFlow || 0) + (forward.outFlow || 0);
-
-  return directFlow > 0 ? directFlow : forward.federationShareFlow || 0;
-};
-
-const parseShareIdFromTunnelName = (tunnelName: string): number | null => {
-  const match = /^Share-(\d+)-Port-/.exec(tunnelName.trim());
-  const shareId = match ? Number(match[1]) : 0;
-
-  return shareId > 0 ? shareId : null;
-};
-
-const mergeFederationShareFlow = (
-  forwards: Forward[],
-  remoteUsage: PeerRemoteUsageNodeApiItem[],
-  localShares: PeerShareApiItem[],
-): Forward[] => {
-  const flowByShare = new Map<string, number>();
-  const shareKeysByForward = new Map<number, Set<string>>();
-
-  localShares.forEach((share) => {
-    if (share.id > 0 && share.currentFlow > 0) {
-      flowByShare.set(`local:${share.id}`, share.currentFlow);
-    }
-  });
-  remoteUsage.forEach((item) => {
-    const shareKey = `remote:${item.nodeId}:${item.shareId}`;
-
-    if (item.shareId > 0 && item.currentFlow > 0) {
-      flowByShare.set(shareKey, item.currentFlow);
-    }
-    item.bindings.forEach((binding) => {
-      if (binding.chainType !== 1) return;
-      const match = /^forward:(\d+)$/.exec(binding.resourceKey.trim());
-      const forwardId = match ? Number(match[1]) : 0;
-
-      if (forwardId <= 0) return;
-      const shareKeys = shareKeysByForward.get(forwardId) || new Set<string>();
-
-      shareKeys.add(shareKey);
-      shareKeysByForward.set(forwardId, shareKeys);
-    });
-  });
-
-  const resolvedShareByForwardId = new Map<number, string>();
-
-  forwards.forEach((forward) => {
-    const candidates = shareKeysByForward.get(forward.id) || new Set<string>();
-
-    if (candidates.size === 0) {
-      const nameShareId = parseShareIdFromTunnelName(forward.tunnelName);
-
-      if (nameShareId) candidates.add(`local:${nameShareId}`);
-    }
-    const resolved = Array.from(candidates).sort(
-      (a, b) => (flowByShare.get(b) || 0) - (flowByShare.get(a) || 0),
-    )[0];
-
-    if (resolved && flowByShare.has(resolved)) {
-      resolvedShareByForwardId.set(forward.id, resolved);
-    }
-  });
-  const forwardCountByShare = new Map<string, number>();
-
-  resolvedShareByForwardId.forEach((shareId) => {
-    forwardCountByShare.set(
-      shareId,
-      (forwardCountByShare.get(shareId) || 0) + 1,
-    );
-  });
-
-  return forwards.map((forward) => {
-    const shareId = resolvedShareByForwardId.get(forward.id);
-    const shareFlow = shareId ? flowByShare.get(shareId) || 0 : 0;
-
-    if (!shareId || shareFlow <= 0 || getForwardDisplayFlow(forward) > 0) {
-      return forward;
-    }
-
-    return {
-      ...forward,
-      federationShareFlow: Math.max(
-        1,
-        Math.floor(shareFlow / (forwardCountByShare.get(shareId) || 1)),
-      ),
-    };
-  });
+  return (forward.inFlow || 0) + (forward.outFlow || 0);
 };
 
 export default function ForwardPage() {
@@ -2497,24 +2408,7 @@ export default function ForwardPage() {
   const applyForwardList = useCallback(
     async (items: Forward[]) => {
       const normalized = normalizeForwardItems(items);
-      let displayItems = normalized;
-
-      if (isAdmin && normalized.length > 0) {
-        const [usageRes, shareRes] = await Promise.all([
-          getPeerRemoteUsageList(),
-          getPeerShareList(),
-        ]);
-
-        displayItems = mergeFederationShareFlow(
-          normalized,
-          usageRes.code === 0 && Array.isArray(usageRes.data)
-            ? usageRes.data
-            : [],
-          shareRes.code === 0 && Array.isArray(shareRes.data)
-            ? shareRes.data
-            : [],
-        );
-      }
+      const displayItems = normalized;
       setForwards(displayItems);
       const { order, fromDatabase } = buildForwardOrder(displayItems, null);
 
@@ -2600,6 +2494,47 @@ export default function ForwardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const refreshNodes = useCallback(async () => {
+    if (!canUseManualTunnel || document.hidden) return;
+    try {
+      const nodesRes = await getNodeList();
+
+      if (nodesRes.code === 0) setNodes((nodesRes.data || []) as Node[]);
+    } catch {}
+  }, [canUseManualTunnel]);
+  const handleNodeRealtimeMessage = useCallback(
+    (message: { id?: string | number; type?: string; data?: unknown }) => {
+      const nodeId = Number(message.id);
+
+      if (!Number.isFinite(nodeId)) return;
+      if (message.type === "status") {
+        const status = Number(message.data) === 1 ? 1 : 0;
+
+        setNodes((prev) =>
+          prev.map((node) => (node.id === nodeId ? { ...node, status } : node)),
+        );
+      } else if (message.type === "instance_status") {
+        window.setTimeout(() => void refreshNodes(), 500);
+      }
+    },
+    [refreshNodes],
+  );
+
+  useNodeRealtime({
+    onMessage: handleNodeRealtimeMessage,
+    enabled: canUseManualTunnel,
+  });
+
+  useEffect(() => {
+    if (!canUseManualTunnel || !nodes.some((node) => node.isRemote === 1)) return;
+    const interval = window.setInterval(
+      () => void refreshNodes(),
+      REMOTE_NODE_REFRESH_INTERVAL_MS,
+    );
+
+    return () => window.clearInterval(interval);
+  }, [canUseManualTunnel, nodes, refreshNodes]);
 
   useEffect(() => {
     const handleConfigUpdated = (event: Event) => {

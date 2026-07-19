@@ -406,13 +406,21 @@ function RemoteNodeInstanceRows({
               const online = instance.status === 1;
               const instanceFlows = flows.filter(
                 (flow) =>
+                  flow.runtimeId > 0 &&
                   flow.instanceId === instanceId &&
                   flow.periodType.toLowerCase() === "total",
               );
+              const hasInstanceFlows = flows.some(
+                (flow) =>
+                  flow.runtimeId > 0 &&
+                  Boolean(flow.instanceId) &&
+                  flow.periodType.toLowerCase() === "total",
+              );
               const aggregateFlows =
-                instances.length === 1
+                instances.length === 1 && !hasInstanceFlows
                   ? flows.filter(
                       (flow) =>
+                        flow.runtimeId === 0 &&
                         !flow.instanceId &&
                         flow.periodType.toLowerCase() === "total",
                     )
@@ -1181,11 +1189,10 @@ function SortableTableRow({
   );
   const remoteShareFlows = (node.remoteFlows || []).filter(
     (flow: NonNullable<Node["remoteFlows"]>[number]) =>
+      flow.runtimeId === 0 &&
+      !flow.instanceId &&
       flow.periodType.toLowerCase() === "total" &&
-      (!flow.instanceId ||
-        remoteInstances.some(
-          (instance: RemoteInstance) => instance.instanceId === flow.instanceId,
-        )),
+      remoteInstances.length > 0,
   );
   const remotePeriodRx = remoteShareFlows.reduce(
     (total: number, flow: NonNullable<Node["remoteFlows"]>[number]) =>

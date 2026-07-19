@@ -81,6 +81,7 @@ import {
   validateTunnelForm,
 } from "@/pages/tunnel/form";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import { loadStoredOrder, saveOrder } from "@/utils/order-storage";
 import {
   buildBatchFailureMessage,
@@ -148,7 +149,9 @@ interface Node {
   serverIpV6?: string;
   extraIPs?: string;
   remark?: string;
+  isRemote?: number;
 }
+const REMOTE_NODE_REFRESH_INTERVAL_MS = 15000;
 interface TunnelForm {
   id?: number;
   name: string;
@@ -647,6 +650,34 @@ export default function TunnelPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+  const handleNodeRealtimeMessage = useCallback(
+    (message: { id?: string | number; type?: string; data?: unknown }) => {
+      const nodeId = Number(message.id);
+
+      if (!Number.isFinite(nodeId)) return;
+      if (message.type === "status") {
+        const status = Number(message.data) === 1 ? 1 : 0;
+
+        setNodes((prev) =>
+          prev.map((node) => (node.id === nodeId ? { ...node, status } : node)),
+        );
+      } else if (message.type === "instance_status") {
+        window.setTimeout(() => void refreshNodes(), 500);
+      }
+    },
+    [refreshNodes],
+  );
+
+  useNodeRealtime({ onMessage: handleNodeRealtimeMessage });
+
+  useEffect(() => {
+    if (!nodes.some((node) => node.isRemote === 1)) return;
+    const interval = window.setInterval(() => {
+      if (!document.hidden) void refreshNodes();
+    }, REMOTE_NODE_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [nodes, refreshNodes]);
   usePullToRefresh(loadData);
   const resetDeleteState = useCallback(() => {
     setDeleteLoading(false);
