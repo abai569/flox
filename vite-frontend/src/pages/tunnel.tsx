@@ -601,7 +601,7 @@ export default function TunnelPage() {
           <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
             <span className="w-full min-w-0 truncate text-left">
               {formatRemoteDisplayText(node.name)}
-              {isRemote && <span className="ml-1 text-[11px] text-secondary-600">(Rem)</span>}
+              {isRemote && <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">(Rem)</span>}
               {node.status !== 1 && (
                 <span className="ml-1 text-[11px] text-default-500">离线</span>
               )}

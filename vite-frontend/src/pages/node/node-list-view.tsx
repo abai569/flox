@@ -1,7 +1,4 @@
-import type {
-  MonitorNodeInstanceGroupMemberApiItem,
-  PeerShareRuntimeInstanceApiItem,
-} from "@/api/types";
+import type { MonitorNodeInstanceGroupMemberApiItem } from "@/api/types";
 import type { Node, NodeExpiryInstance } from "./types";
 
 import {
@@ -139,7 +136,6 @@ interface NodeListViewProps {
     usedPorts: number[];
     portRangeStart: number;
     portRangeEnd: number;
-    runtimeInstances?: PeerShareRuntimeInstanceApiItem[];
   }>;
 }
 
@@ -275,7 +271,6 @@ function RemoteNodeTableColGroup() {
       <col className="w-[120px]" />
       <col className="w-[110px]" />
       <col className="w-[110px]" />
-      <col className="w-[110px]" />
       <col className="w-[100px]" />
       <col className="w-[110px]" />
       <col className="w-[160px]" />
@@ -381,20 +376,18 @@ function RemoteNodeInstanceRows({
   flows,
   parentOnline,
   parentState,
-  runtimeInstances,
   formatTraffic,
 }: {
   instances: RemoteInstance[];
   flows: NonNullable<Node["remoteFlows"]>;
   parentOnline: boolean;
   parentState: RemoteDisplayState;
-  runtimeInstances?: PeerShareRuntimeInstanceApiItem[];
   formatTraffic: (bytes: number) => string;
 }) {
   return (
     <div className="my-2 bg-secondary-50/50 shadow-[inset_2px_0_0_rgba(168,85,247,0.7)] dark:bg-secondary-100/10">
       <div className="w-full max-w-full overflow-x-auto pb-2">
-        <table className="w-full min-w-[1764px] table-fixed text-[13px]">
+        <table className="w-full min-w-[1654px] table-fixed text-[13px]">
           <RemoteNodeTableColGroup />
           <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
             <tr>
@@ -410,27 +403,22 @@ function RemoteNodeInstanceRows({
                   ^{instances.length}个
                 </span>
               </th>
-              <th className="px-1 py-2 text-center font-medium">
-                倍率
-              </th>
+              <th aria-label="倍率占位" />
               <th aria-label="节点分组" />
               <th className="px-1 py-2 text-left font-medium">
-                源节点 IP
+                实例地址
               </th>
               <th className="px-1 py-2 text-center font-medium">
                 在线数
               </th>
               <th className="px-1 py-2 text-right font-medium">
-                 周期流量
+                周期流量
               </th>
               <th className="px-1 py-2 text-right font-medium">
                 上行流量
               </th>
               <th className="px-1 py-2 text-right font-medium">
                 下行流量
-              </th>
-              <th className="px-1 py-2 text-center font-medium">
-                Runtime / 部署
               </th>
               <th className="px-1 py-2 text-right font-medium">
                 共享范围
@@ -477,18 +465,6 @@ function RemoteNodeInstanceRows({
                 aggregateFlows.reduce((total, flow) => total + flow.outFlow, 0),
               );
               const periodFlow = upFlow + downFlow;
-              const instanceRuntimeItems = (runtimeInstances || []).filter(
-                (runtime) => runtime.instanceId === instanceId,
-              );
-              const runtimeCount = instanceRuntimeItems.length;
-              const deployedRuntimeCount = instanceRuntimeItems.filter(
-                (runtime) => runtime.applied === 1,
-              ).length;
-              const deployError = instanceRuntimeItems
-                .map((runtime) => runtime.lastError)
-                .filter(Boolean)
-                .join("; ");
-
               return (
                 <tr
                   key={
@@ -532,11 +508,7 @@ function RemoteNodeInstanceRows({
                       {label}
                     </span>
                   </td>
-                  <td className="px-1 py-2.5 text-center">
-                    <RemoteTrafficRatioCell
-                      value={1}
-                    />
-                  </td>
+                  <td />
                   <td />
                   <td className="px-1 py-2.5 text-left align-middle text-xs text-default-600">
                     {instance.publicIpV4?.trim() || instance.publicIpV6?.trim() ? (
@@ -564,16 +536,6 @@ function RemoteNodeInstanceRows({
                   <td className="px-1 py-2.5 text-right text-primary-700 dark:text-primary-300">
                     {formatTraffic(downFlow)}
                   </td>
-                  <td className="px-1 py-2.5 text-center font-mono text-default-700">
-                    <span title={deployError || undefined}>
-                      {runtimeCount} / {deployedRuntimeCount}
-                    </span>
-                    {deployError ? (
-                      <span className="ml-1 text-xs font-medium text-danger">
-                        异常
-                      </span>
-                    ) : null}
-                  </td>
                   <td className="px-1 py-2.5 text-right text-default-700">
                     {instance.selected
                       ? "指定共享"
@@ -591,18 +553,6 @@ function RemoteNodeInstanceRows({
         </table>
       </div>
     </div>
-  );
-}
-
-function RemoteTrafficRatioCell({
-  value,
-}: {
-  value: number;
-}) {
-  return (
-    <span className="text-default-700">
-      {value.toFixed(2).replace(/\.00$/, "")}x
-    </span>
   );
 }
 
@@ -1480,6 +1430,9 @@ function SortableTableRow({
             }}
           >
             {node.name}
+            {node.isRemote === 1 && (
+              <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">(Rem)</span>
+            )}
           </span>
         </div>
       </TableCell>
@@ -1522,8 +1475,17 @@ function SortableTableRow({
       <TableCell className={`whitespace-nowrap px-1 align-middle ${rowBg}`}>
         {(() => {
             if (node.isRemote === 1) {
-              const remoteUrl = node.remoteUrl?.trim();
-              const displayAddress = remoteUrl?.replace(/^https?:\/\//i, "") || "";
+              const sourceInstance = (node.remoteInstances || []).find(
+                (instance) => instance.inScope,
+              );
+              const configuredAddress = node.serverIp?.trim() || "";
+              const address =
+                (configuredAddress.toLowerCase() === "auto"
+                  ? ""
+                  : configuredAddress) ||
+                sourceInstance?.publicIpV4?.trim() ||
+                sourceInstance?.publicIpV6?.trim() ||
+                "";
               const remoteUsage = remoteUsageByNode[node.id];
               const portRangeStart = remoteUsage?.portRangeStart || 0;
               const portRangeEnd = remoteUsage?.portRangeEnd || 0;
@@ -1533,27 +1495,21 @@ function SortableTableRow({
                   ? portRangeEnd - portRangeStart + 1
                   : 0;
 
-              return remoteUrl ? (
+              return (
                 <div className="min-w-0 px-1 text-xs font-medium text-default-700">
-                  <button
-                    className="block max-w-[150px] truncate rounded text-left transition-colors hover:bg-default-200/50 hover:text-primary"
-                    title={displayAddress}
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      copyToClipboard(displayAddress, "远程地址");
-                    }}
-                  >
-                    {formatInstanceIPForCell(remoteUrl)}
-                  </button>
+                  {address ? (
+                    <span className="block max-w-[150px] truncate">
+                      {formatInstanceIPForCell(address)}
+                    </span>
+                  ) : (
+                    <span className="block text-default-400">-</span>
+                  )}
                   <span className="block text-[11px] font-mono text-default-500">
                     {totalPorts > 0
                       ? `${usedPorts}/${totalPorts} & ${portRangeStart}-${portRangeEnd}`
                       : "-"}
                   </span>
                 </div>
-              ) : (
-                <span className="text-sm text-default-400">-</span>
               );
             }
           const publicIPv4 = node.serverIpV4?.trim() || "";
@@ -1916,7 +1872,6 @@ function SortableTableRow({
                  instances={remoteInstances}
                  parentOnline={remoteOnline}
                  parentState={remoteDisplayState}
-                runtimeInstances={remoteUsageByNode[node.id]?.runtimeInstances || []}
               />
         </TableCell>
       </TableRow>
@@ -2152,7 +2107,7 @@ export function NodeListView({
             </Select>
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
-            地址
+            节点地址
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             在线数
