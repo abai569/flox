@@ -13,7 +13,6 @@ import SDWANPage from "@/pages/sdwan";
 import UserPage from "@/pages/user";
 import GroupPage from "@/pages/group";
 import ProfilePage from "@/pages/profile";
-import LimitPage from "@/pages/limit";
 import ConfigPage from "@/pages/config";
 import ShopPage from "@/pages/shop";
 import MyHomePage from "@/pages/myhome";
@@ -211,10 +210,10 @@ function App() {
       <Route
         element={
           <ProtectedRoute>
-            <LimitPage />
+            <ProfilePage />
           </ProtectedRoute>
         }
-        path="/limit"
+        path="/profile"
       />
       <Route
         element={

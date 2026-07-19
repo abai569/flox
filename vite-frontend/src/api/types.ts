@@ -608,7 +608,8 @@ export interface UserTunnelAssignPayload {
   flowResetTime?: number;
   status?: number;
   speedId?: number | null;
-  tunnels?: Array<{ tunnelId: number; speedId?: number | null }>;
+  forwardSpeedLimit?: number | null;
+  tunnels?: Array<{ tunnelId: number; speedId?: number | null; forwardSpeedLimit?: number | null }>;
 }
 
 export interface UserTunnelListQuery {

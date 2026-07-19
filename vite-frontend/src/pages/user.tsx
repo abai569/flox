@@ -218,6 +218,7 @@ const normalizeUserTunnelItem = (item: Partial<UserTunnel>): UserTunnel => {
     flowResetTime: Number(item.flowResetTime ?? 0),
     speedId: item.speedId ?? null,
     speedLimitName: item.speedLimitName,
+    forwardSpeedLimit: item.forwardSpeedLimit ?? null,
     inFlow: Number(item.inFlow ?? 0),
     outFlow: Number(item.outFlow ?? 0),
     tunnelFlow: item.tunnelFlow,
@@ -1396,6 +1397,7 @@ export default function UserPage() {
         expTime: editTunnelForm.expTime,
         flowResetTime: editTunnelForm.flowResetTime,
         speedId: normalizeSpeedId(editTunnelForm.speedId),
+        forwardSpeedLimit: editTunnelForm.forwardSpeedLimit ?? null,
         status: editTunnelForm.status,
       });
 
@@ -1412,6 +1414,7 @@ export default function UserPage() {
           const nextTunnel = normalizeUserTunnelItem({
             ...editTunnelForm,
             speedId: normalizeSpeedId(editTunnelForm.speedId),
+            forwardSpeedLimit: editTunnelForm.forwardSpeedLimit ?? null,
             speedLimitName:
               normalizeSpeedId(editTunnelForm.speedId) !== null
                 ? speedLimits.find(
@@ -1463,6 +1466,7 @@ export default function UserPage() {
             expTime: batchEditTunnelForm.expTime,
             flowResetTime: batchEditTunnelForm.flowResetTime,
             speedId,
+            forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
             status: batchEditTunnelForm.status,
           }),
         ),
@@ -1484,16 +1488,17 @@ export default function UserPage() {
       setUserTunnels((prev) =>
         prev.map((tunnel) =>
           selectedUserTunnelIds.has(tunnel.id)
-            ? normalizeUserTunnelItem({
-                ...tunnel,
-                flow: batchEditTunnelForm.flow,
-                num: batchEditTunnelForm.num,
-                expTime: batchEditTunnelForm.expTime,
-                flowResetTime: batchEditTunnelForm.flowResetTime,
-                speedId,
-                status: batchEditTunnelForm.status,
-                speedLimitName,
-              })
+              ? normalizeUserTunnelItem({
+                  ...tunnel,
+                  flow: batchEditTunnelForm.flow,
+                  num: batchEditTunnelForm.num,
+                  expTime: batchEditTunnelForm.expTime,
+                  flowResetTime: batchEditTunnelForm.flowResetTime,
+                  speedId,
+                  forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
+                  status: batchEditTunnelForm.status,
+                  speedLimitName,
+                })
             : tunnel,
         ),
       );
@@ -3944,14 +3949,21 @@ export default function UserPage() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              <span className="text-xs sm:text-sm text-default-600 bg-default-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
-                                {userTunnel.speedLimitName
-                                  ? userTunnel.speedLimitName.replace(
-                                      /^限速\s*/,
-                                      "",
-                                    )
-                                  : "不限速"}
-                              </span>
+                              <div className="flex flex-col gap-0.5 text-xs sm:text-sm">
+                                <span className="text-default-600 bg-default-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
+                                  {userTunnel.speedLimitName
+                                    ? userTunnel.speedLimitName.replace(
+                                        /^限速\s*/,
+                                        "",
+                                      )
+                                    : "不限速"}
+                                </span>
+                                {userTunnel.forwardSpeedLimit != null && (
+                                  <span className="text-primary-600 bg-primary-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
+                                    规则 {userTunnel.forwardSpeedLimit}M
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div
@@ -4242,6 +4254,32 @@ export default function UserPage() {
                     </SelectItem>
                   ))}
                 </Select>
+                <Input
+                  label="规则限速 (Mbps)"
+                  placeholder="留空允许用户自定义"
+                  type="number"
+                  value={
+                    batchEditTunnelForm.forwardSpeedLimit != null
+                      ? String(batchEditTunnelForm.forwardSpeedLimit)
+                      : ""
+                  }
+                  variant="bordered"
+                  description="管理员强制规则限速"
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setBatchEditTunnelForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            forwardSpeedLimit:
+                              raw === "" || Number(raw) <= 0
+                                ? null
+                                : Number(raw),
+                          }
+                        : null,
+                    );
+                  }}
+                />
                 <RadioGroup
                   label="状态"
                   orientation="horizontal"
@@ -4393,6 +4431,32 @@ export default function UserPage() {
                     </SelectItem>
                   ))}
                 </Select>
+                <Input
+                  label="规则限速 (Mbps)"
+                  placeholder="留空允许用户自定义"
+                  type="number"
+                  value={
+                    editTunnelForm.forwardSpeedLimit != null
+                      ? String(editTunnelForm.forwardSpeedLimit)
+                      : ""
+                  }
+                  variant="bordered"
+                  description="管理员强制规则限速；留空则用户可自行设置"
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setEditTunnelForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            forwardSpeedLimit:
+                              raw === "" || Number(raw) <= 0
+                                ? null
+                                : Number(raw),
+                          }
+                        : null,
+                    );
+                  }}
+                />
                 <RadioGroup
                   label="状态"
                   orientation="horizontal"

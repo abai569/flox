@@ -1248,27 +1248,31 @@ func (h *Handler) userTunnelList(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]interface{}, 0, len(tunnels))
 	for _, t := range tunnels {
 		item := map[string]interface{}{
-			"id":             t.ID,
-			"userId":         t.UserID,
-			"tunnelId":       t.TunnelID,
-			"tunnelName":     t.TunnelName,
-			"status":         t.Status,
-			"flow":           t.Flow,
-			"num":            t.Num,
-			"expTime":        t.ExpTime,
-			"flowResetTime":  t.FlowResetTime,
-			"inFlow":         t.InFlow,
-			"outFlow":        t.OutFlow,
-			"tunnelFlow":     t.TunnelFlow,
-			"trafficRatio":   t.TunnelTrafficRatio,
-			"speedId":        nil,
-			"speedLimitName": nil,
+			"id":                t.ID,
+			"userId":            t.UserID,
+			"tunnelId":          t.TunnelID,
+			"tunnelName":        t.TunnelName,
+			"status":            t.Status,
+			"flow":              t.Flow,
+			"num":               t.Num,
+			"expTime":           t.ExpTime,
+			"flowResetTime":     t.FlowResetTime,
+			"inFlow":            t.InFlow,
+			"outFlow":           t.OutFlow,
+			"tunnelFlow":        t.TunnelFlow,
+			"trafficRatio":      t.TunnelTrafficRatio,
+			"speedId":           nil,
+			"speedLimitName":    nil,
+			"forwardSpeedLimit": nil,
 		}
 		if t.SpeedID.Valid {
 			item["speedId"] = t.SpeedID.Int64
 		}
 		if t.SpeedLimit.Valid {
 			item["speedLimitName"] = t.SpeedLimit.String
+		}
+		if t.ForwardSpeedLimit.Valid {
+			item["forwardSpeedLimit"] = t.ForwardSpeedLimit.Int64
 		}
 		out = append(out, item)
 	}
@@ -1587,20 +1591,21 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 	tunnelOut := make([]map[string]interface{}, 0, len(tunnels))
 	for _, t := range tunnels {
 		item := map[string]interface{}{
-			"id":             t.ID,
-			"userId":         t.UserID,
-			"tunnelId":       t.TunnelID,
-			"tunnelName":     t.TunnelName,
-			"tunnelFlow":     t.TunnelFlow,
-			"flow":           t.Flow,
-			"inFlow":         t.InFlow,
-			"outFlow":        t.OutFlow,
-			"num":            t.Num,
-			"flowResetTime":  t.FlowResetTime,
-			"expTime":        t.ExpTime,
-			"speedId":        nil,
-			"speedLimitName": nil,
-			"speed":          nil,
+			"id":                t.ID,
+			"userId":            t.UserID,
+			"tunnelId":          t.TunnelID,
+			"tunnelName":        t.TunnelName,
+			"tunnelFlow":        t.TunnelFlow,
+			"flow":              t.Flow,
+			"inFlow":            t.InFlow,
+			"outFlow":           t.OutFlow,
+			"num":               t.Num,
+			"flowResetTime":     t.FlowResetTime,
+			"expTime":           t.ExpTime,
+			"speedId":           nil,
+			"speedLimitName":    nil,
+			"speed":             nil,
+			"forwardSpeedLimit": nil,
 		}
 		if t.SpeedID.Valid {
 			item["speedId"] = t.SpeedID.Int64
@@ -1610,6 +1615,9 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 		}
 		if t.Speed.Valid {
 			item["speed"] = t.Speed.Int64
+		}
+		if t.ForwardSpeedLimit.Valid {
+			item["forwardSpeedLimit"] = t.ForwardSpeedLimit.Int64
 		}
 		tunnelOut = append(tunnelOut, item)
 	}

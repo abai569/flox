@@ -308,17 +308,18 @@ type ChainTunnel struct {
 func (ChainTunnel) TableName() string { return "chain_tunnel" }
 
 type UserTunnel struct {
-	ID            int64         `gorm:"primaryKey;autoIncrement"`
-	UserID        int64         `gorm:"column:user_id;not null;uniqueIndex:idx_user_tunnel_unique"`
-	TunnelID      int64         `gorm:"column:tunnel_id;not null;uniqueIndex:idx_user_tunnel_unique"`
-	SpeedID       sql.NullInt64 `gorm:"column:speed_id"`
-	Num           int           `gorm:"not null"`
-	Flow          int64         `gorm:"not null"`
-	InFlow        int64         `gorm:"column:in_flow;not null;default:0"`
-	OutFlow       int64         `gorm:"column:out_flow;not null;default:0"`
-	FlowResetTime int64         `gorm:"column:flow_reset_time;not null"`
-	ExpTime       int64         `gorm:"column:exp_time;not null"`
-	Status        int           `gorm:"not null"`
+	ID                 int64         `gorm:"primaryKey;autoIncrement"`
+	UserID             int64         `gorm:"column:user_id;not null;uniqueIndex:idx_user_tunnel_unique"`
+	TunnelID           int64         `gorm:"column:tunnel_id;not null;uniqueIndex:idx_user_tunnel_unique"`
+	SpeedID            sql.NullInt64 `gorm:"column:speed_id"`
+	ForwardSpeedLimit  sql.NullInt64 `gorm:"column:forward_speed_limit"`
+	Num                int           `gorm:"not null"`
+	Flow               int64         `gorm:"not null"`
+	InFlow             int64         `gorm:"column:in_flow;not null;default:0"`
+	OutFlow            int64         `gorm:"column:out_flow;not null;default:0"`
+	FlowResetTime      int64         `gorm:"column:flow_reset_time;not null"`
+	ExpTime            int64         `gorm:"column:exp_time;not null"`
+	Status             int           `gorm:"not null"`
 }
 
 func (UserTunnel) TableName() string { return "user_tunnel" }
@@ -673,17 +674,18 @@ type ForwardPortBackup struct {
 }
 
 type UserTunnelBackup struct {
-	ID            int64 `json:"id"`
-	UserID        int64 `json:"userId"`
-	TunnelID      int64 `json:"tunnelId"`
-	SpeedID       int64 `json:"speedId,omitempty"`
-	Num           int   `json:"num"`
-	Flow          int64 `json:"flow"`
-	InFlow        int64 `json:"inFlow"`
-	OutFlow       int64 `json:"outFlow"`
-	FlowResetTime int64 `json:"flowResetTime"`
-	ExpTime       int64 `json:"expTime"`
-	Status        int   `json:"status"`
+	ID                int64  `json:"id"`
+	UserID            int64  `json:"userId"`
+	TunnelID          int64  `json:"tunnelId"`
+	SpeedID           int64  `json:"speedId,omitempty"`
+	ForwardSpeedLimit *int64 `json:"forwardSpeedLimit,omitempty"`
+	Num               int    `json:"num"`
+	Flow              int64  `json:"flow"`
+	InFlow            int64  `json:"inFlow"`
+	OutFlow           int64  `json:"outFlow"`
+	FlowResetTime     int64  `json:"flowResetTime"`
+	ExpTime           int64  `json:"expTime"`
+	Status            int    `json:"status"`
 }
 
 type SpeedLimitBackup struct {
@@ -876,6 +878,7 @@ type UserTunnelDetail struct {
 	SpeedID            sql.NullInt64
 	SpeedLimit         sql.NullString
 	Speed              sql.NullInt64
+	ForwardSpeedLimit  sql.NullInt64
 }
 
 // UserForwardDetail is a joined view of forward + tunnel.
