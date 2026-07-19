@@ -1467,7 +1467,7 @@ func (r *Repository) BatchUpdateForwardSpeedLimit(userID, tunnelID int64, speedL
 		}).Error
 }
 
-func (r *Repository) UpdateUserTunnel(id int64, flow int64, num int, expTime, flowResetTime int64, speedID interface{}, forwardSpeedLimit interface{}, status int) error {
+func (r *Repository) UpdateUserTunnel(id int64, flow int64, num int, expTime, flowResetTime int64, speedID interface{}, ceilingSpeed interface{}, forwardSpeedLimit interface{}, status int) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -1479,6 +1479,7 @@ func (r *Repository) UpdateUserTunnel(id int64, flow int64, num int, expTime, fl
 			"exp_time":            expTime,
 			"flow_reset_time":     flowResetTime,
 			"speed_id":            nullInt64FromInterface(speedID),
+			"ceiling_speed":       nullInt64FromInterface(ceilingSpeed),
 			"forward_speed_limit": nullInt64FromInterface(forwardSpeedLimit),
 			"status":              status,
 		}).Error
@@ -1496,21 +1497,21 @@ func (r *Repository) GetUserTunnelUserAndTunnel(id int64) (userID, tunnelID int6
 	return ut.UserID, ut.TunnelID, nil
 }
 
-func (r *Repository) GetExistingUserTunnel(userID, tunnelID int64) (id int64, flow, num, expTime, flowReset int64, speedID sql.NullInt64, forwardSpeedLimit sql.NullInt64, status int, err error) {
+func (r *Repository) GetExistingUserTunnel(userID, tunnelID int64) (id int64, flow, num, expTime, flowReset int64, speedID sql.NullInt64, ceilingSpeed sql.NullInt64, forwardSpeedLimit sql.NullInt64, status int, err error) {
 	if r == nil || r.db == nil {
-		return 0, 0, 0, 0, 0, sql.NullInt64{}, sql.NullInt64{}, 0, errors.New("repository not initialized")
+		return 0, 0, 0, 0, 0, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, 0, errors.New("repository not initialized")
 	}
 	var ut model.UserTunnel
-	err = r.db.Select("id", "flow", "num", "exp_time", "flow_reset_time", "speed_id", "forward_speed_limit", "status").
+	err = r.db.Select("id", "flow", "num", "exp_time", "flow_reset_time", "speed_id", "ceiling_speed", "forward_speed_limit", "status").
 		Where("user_id = ? AND tunnel_id = ?", userID, tunnelID).
 		First(&ut).Error
 	if err != nil {
-		return 0, 0, 0, 0, 0, sql.NullInt64{}, sql.NullInt64{}, 0, normalizeNotFoundErr(err)
+		return 0, 0, 0, 0, 0, sql.NullInt64{}, sql.NullInt64{}, sql.NullInt64{}, 0, normalizeNotFoundErr(err)
 	}
-	return ut.ID, ut.Flow, int64(ut.Num), ut.ExpTime, ut.FlowResetTime, ut.SpeedID, ut.ForwardSpeedLimit, ut.Status, nil
+	return ut.ID, ut.Flow, int64(ut.Num), ut.ExpTime, ut.FlowResetTime, ut.SpeedID, ut.CeilingSpeed, ut.ForwardSpeedLimit, ut.Status, nil
 }
 
-func (r *Repository) InsertUserTunnel(userID, tunnelID int64, speedID, forwardSpeedLimit interface{}, num int, flow, flowResetTime, expTime int64, status int) error {
+func (r *Repository) InsertUserTunnel(userID, tunnelID int64, speedID, ceilingSpeed, forwardSpeedLimit interface{}, num int, flow, flowResetTime, expTime int64, status int) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -1518,6 +1519,7 @@ func (r *Repository) InsertUserTunnel(userID, tunnelID int64, speedID, forwardSp
 		UserID:            userID,
 		TunnelID:          tunnelID,
 		SpeedID:           nullInt64FromInterface(speedID),
+		CeilingSpeed:      nullInt64FromInterface(ceilingSpeed),
 		ForwardSpeedLimit: nullInt64FromInterface(forwardSpeedLimit),
 		Num:               num,
 		Flow:              flow,
@@ -1530,7 +1532,7 @@ func (r *Repository) InsertUserTunnel(userID, tunnelID int64, speedID, forwardSp
 	return r.db.Create(&ut).Error
 }
 
-func (r *Repository) UpdateUserTunnelFields(id int64, speedID interface{}, forwardSpeedLimit interface{}, flow int64, num int, expTime, flowResetTime int64, status int) error {
+func (r *Repository) UpdateUserTunnelFields(id int64, speedID interface{}, ceilingSpeed interface{}, forwardSpeedLimit interface{}, flow int64, num int, expTime, flowResetTime int64, status int) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -1538,6 +1540,7 @@ func (r *Repository) UpdateUserTunnelFields(id int64, speedID interface{}, forwa
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"speed_id":            nullInt64FromInterface(speedID),
+			"ceiling_speed":       nullInt64FromInterface(ceilingSpeed),
 			"forward_speed_limit": nullInt64FromInterface(forwardSpeedLimit),
 			"flow":                flow,
 			"num":                 num,

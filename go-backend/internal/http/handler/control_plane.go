@@ -249,7 +249,7 @@ func (h *Handler) getNodeRecord(nodeID int64) (*nodeRecord, error) {
 }
 
 func (h *Handler) resolveUserTunnelAndLimiter(userID, tunnelID int64) (int64, *int64, *int, error) {
-	info, err := h.repo.ResolveUserTunnelAndLimiter(userID, tunnelID)
+	info, err := h.repo.ResolveUserTunnelCeiling(userID, tunnelID)
 	if err != nil {
 		return 0, nil, nil, err
 	}

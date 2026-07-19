@@ -65,17 +65,18 @@ export interface UserTunnel {
   userId: number;
   tunnelId: number;
   tunnelName: string;
-  status: number; // 1-正常, 0-禁用
-  flow: number; // 流量限制(GB)
-  num: number; // 转发数量
-  expTime: number; // 过期时间戳
-  flowResetTime: number; // 流量归零日期
-  speedId?: number | null; // 限速规则ID
-  speedLimitName?: string; // 限速规则名称
-  forwardSpeedLimit?: number | null; // 规则限速(Mbps), null=允许用户自定义
-  inFlow?: number; // 下载流量(字节)
-  outFlow?: number; // 上传流量(字节)
-  tunnelFlow?: number; // 隧道流量计算类型(1-单向, 2-双向)
+  status: number;
+  flow: number;
+  num: number;
+  expTime: number;
+  flowResetTime: number;
+  speedId?: number | null;
+  speedLimitName?: string;
+  ceilingSpeed?: number | null;
+  forwardSpeedLimit?: number | null;
+  inFlow?: number;
+  outFlow?: number;
+  tunnelFlow?: number;
 }
 
 export interface UserTunnelForm {
@@ -85,12 +86,14 @@ export interface UserTunnelForm {
   expTime: Date | null;
   flowResetTime: number;
   speedId: number | null;
+  ceilingSpeed: number | null;
   forwardSpeedLimit: number | null;
 }
 
 export interface TunnelAssignItem {
   tunnelId: number;
   speedId: number | null;
+  ceilingSpeed?: number | null;
   forwardSpeedLimit?: number | null;
 }
 

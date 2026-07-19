@@ -883,7 +883,7 @@ func (r *Repository) GetUserPackageTunnels(userID int64) ([]model.UserTunnelDeta
 	}
 	var items []model.UserTunnelDetail
 	err := r.db.Model(&model.UserTunnel{}).
-		Select("user_tunnel.id, user_tunnel.user_id, user_tunnel.tunnel_id, tunnel.name AS tunnel_name, tunnel.traffic_ratio AS tunnel_traffic_ratio, user_tunnel.status, tunnel.flow AS tunnel_flow, user_tunnel.flow, user_tunnel.in_flow, user_tunnel.out_flow, user_tunnel.num, user_tunnel.flow_reset_time, user_tunnel.exp_time, user_tunnel.speed_id, speed_limit.name AS speed_limit, speed_limit.speed, user_tunnel.forward_speed_limit").
+		Select("user_tunnel.id, user_tunnel.user_id, user_tunnel.tunnel_id, tunnel.name AS tunnel_name, tunnel.traffic_ratio AS tunnel_traffic_ratio, user_tunnel.status, tunnel.flow AS tunnel_flow, user_tunnel.flow, user_tunnel.in_flow, user_tunnel.out_flow, user_tunnel.num, user_tunnel.flow_reset_time, user_tunnel.exp_time, user_tunnel.speed_id, speed_limit.name AS speed_limit, speed_limit.speed, user_tunnel.ceiling_speed, user_tunnel.forward_speed_limit").
 		Joins("LEFT JOIN tunnel ON tunnel.id = user_tunnel.tunnel_id").
 		Joins("LEFT JOIN speed_limit ON speed_limit.id = user_tunnel.speed_id").
 		Where("user_tunnel.user_id = ? AND tunnel.status = 1", userID).
@@ -3259,6 +3259,10 @@ func (r *Repository) exportUserTunnels() ([]model.UserTunnelBackup, error) {
 		if ut.SpeedID.Valid {
 			b.SpeedID = ut.SpeedID.Int64
 		}
+		if ut.CeilingSpeed.Valid {
+			v := ut.CeilingSpeed.Int64
+			b.CeilingSpeed = &v
+		}
 		if ut.ForwardSpeedLimit.Valid {
 			v := ut.ForwardSpeedLimit.Int64
 			b.ForwardSpeedLimit = &v
@@ -3661,6 +3665,10 @@ func importForwards(tx *gorm.DB, forwards []model.ForwardBackup, now int64) (int
 func importUserTunnels(tx *gorm.DB, userTunnels []model.UserTunnelBackup, _ int64) (int, error) {
 	count := 0
 	for _, ut := range userTunnels {
+		ceilingSpeed := sql.NullInt64{Valid: false}
+		if ut.CeilingSpeed != nil && *ut.CeilingSpeed > 0 {
+			ceilingSpeed = sql.NullInt64{Int64: *ut.CeilingSpeed, Valid: true}
+		}
 		forwardSpeedLimit := sql.NullInt64{Valid: false}
 		if ut.ForwardSpeedLimit != nil && *ut.ForwardSpeedLimit > 0 {
 			forwardSpeedLimit = sql.NullInt64{Int64: *ut.ForwardSpeedLimit, Valid: true}
@@ -3670,6 +3678,7 @@ func importUserTunnels(tx *gorm.DB, userTunnels []model.UserTunnelBackup, _ int6
 			UserID:            ut.UserID,
 			TunnelID:          ut.TunnelID,
 			SpeedID:           sql.NullInt64{Int64: ut.SpeedID, Valid: ut.SpeedID > 0},
+			CeilingSpeed:      ceilingSpeed,
 			ForwardSpeedLimit: forwardSpeedLimit,
 			Num:               ut.Num,
 			Flow:              ut.Flow,
@@ -3682,7 +3691,7 @@ func importUserTunnels(tx *gorm.DB, userTunnels []model.UserTunnelBackup, _ int6
 		err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"user_id", "tunnel_id", "speed_id", "forward_speed_limit", "num", "flow", "in_flow", "out_flow",
+				"user_id", "tunnel_id", "speed_id", "ceiling_speed", "forward_speed_limit", "num", "flow", "in_flow", "out_flow",
 				"flow_reset_time", "exp_time", "status",
 			}),
 		}).Create(&item).Error

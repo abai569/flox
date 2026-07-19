@@ -324,6 +324,32 @@ func (r *Repository) ResolveUserTunnelAndLimiter(userID, tunnelID int64) (*model
 	return info, nil
 }
 
+func (r *Repository) ResolveUserTunnelCeiling(userID, tunnelID int64) (*model.UserTunnelLimiterInfo, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var ut model.UserTunnel
+	err := r.db.Select("id", "ceiling_speed").
+		Where("user_id = ? AND tunnel_id = ?", userID, tunnelID).
+		Order("id ASC").
+		Limit(1).
+		First(&ut).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &model.UserTunnelLimiterInfo{}, nil
+		}
+		return nil, err
+	}
+	info := &model.UserTunnelLimiterInfo{UserTunnelID: ut.ID}
+	if ut.CeilingSpeed.Valid && ut.CeilingSpeed.Int64 > 0 {
+		v := ut.CeilingSpeed.Int64
+		info.LimiterID = &v
+		s := int(ut.CeilingSpeed.Int64)
+		info.Speed = &s
+	}
+	return info, nil
+}
+
 func (r *Repository) ListUserTunnelIDs(userID, tunnelID int64) ([]int64, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")

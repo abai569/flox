@@ -312,6 +312,7 @@ type UserTunnel struct {
 	UserID             int64         `gorm:"column:user_id;not null;uniqueIndex:idx_user_tunnel_unique"`
 	TunnelID           int64         `gorm:"column:tunnel_id;not null;uniqueIndex:idx_user_tunnel_unique"`
 	SpeedID            sql.NullInt64 `gorm:"column:speed_id"`
+	CeilingSpeed       sql.NullInt64 `gorm:"column:ceiling_speed"`
 	ForwardSpeedLimit  sql.NullInt64 `gorm:"column:forward_speed_limit"`
 	Num                int           `gorm:"not null"`
 	Flow               int64         `gorm:"not null"`
@@ -678,6 +679,7 @@ type UserTunnelBackup struct {
 	UserID            int64  `json:"userId"`
 	TunnelID          int64  `json:"tunnelId"`
 	SpeedID           int64  `json:"speedId,omitempty"`
+	CeilingSpeed      *int64 `json:"ceilingSpeed,omitempty"`
 	ForwardSpeedLimit *int64 `json:"forwardSpeedLimit,omitempty"`
 	Num               int    `json:"num"`
 	Flow              int64  `json:"flow"`
@@ -878,6 +880,7 @@ type UserTunnelDetail struct {
 	SpeedID            sql.NullInt64
 	SpeedLimit         sql.NullString
 	Speed              sql.NullInt64
+	CeilingSpeed       sql.NullInt64
 	ForwardSpeedLimit  sql.NullInt64
 }
 

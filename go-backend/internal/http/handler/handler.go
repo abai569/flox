@@ -1263,6 +1263,7 @@ func (h *Handler) userTunnelList(w http.ResponseWriter, r *http.Request) {
 			"trafficRatio":      t.TunnelTrafficRatio,
 			"speedId":           nil,
 			"speedLimitName":    nil,
+			"ceilingSpeed":      nil,
 			"forwardSpeedLimit": nil,
 		}
 		if t.SpeedID.Valid {
@@ -1270,6 +1271,9 @@ func (h *Handler) userTunnelList(w http.ResponseWriter, r *http.Request) {
 		}
 		if t.SpeedLimit.Valid {
 			item["speedLimitName"] = t.SpeedLimit.String
+		}
+		if t.CeilingSpeed.Valid {
+			item["ceilingSpeed"] = t.CeilingSpeed.Int64
 		}
 		if t.ForwardSpeedLimit.Valid {
 			item["forwardSpeedLimit"] = t.ForwardSpeedLimit.Int64
@@ -1605,6 +1609,7 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 			"speedId":           nil,
 			"speedLimitName":    nil,
 			"speed":             nil,
+			"ceilingSpeed":      nil,
 			"forwardSpeedLimit": nil,
 		}
 		if t.SpeedID.Valid {
@@ -1615,6 +1620,9 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 		}
 		if t.Speed.Valid {
 			item["speed"] = t.Speed.Int64
+		}
+		if t.CeilingSpeed.Valid {
+			item["ceilingSpeed"] = t.CeilingSpeed.Int64
 		}
 		if t.ForwardSpeedLimit.Valid {
 			item["forwardSpeedLimit"] = t.ForwardSpeedLimit.Int64

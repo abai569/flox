@@ -218,6 +218,7 @@ const normalizeUserTunnelItem = (item: Partial<UserTunnel>): UserTunnel => {
     flowResetTime: Number(item.flowResetTime ?? 0),
     speedId: item.speedId ?? null,
     speedLimitName: item.speedLimitName,
+    ceilingSpeed: item.ceilingSpeed ?? null,
     forwardSpeedLimit: item.forwardSpeedLimit ?? null,
     inFlow: Number(item.inFlow ?? 0),
     outFlow: Number(item.outFlow ?? 0),
@@ -1397,6 +1398,7 @@ export default function UserPage() {
         expTime: editTunnelForm.expTime,
         flowResetTime: editTunnelForm.flowResetTime,
         speedId: normalizeSpeedId(editTunnelForm.speedId),
+        ceilingSpeed: editTunnelForm.ceilingSpeed ?? null,
         forwardSpeedLimit: editTunnelForm.forwardSpeedLimit ?? null,
         status: editTunnelForm.status,
       });
@@ -1414,6 +1416,7 @@ export default function UserPage() {
           const nextTunnel = normalizeUserTunnelItem({
             ...editTunnelForm,
             speedId: normalizeSpeedId(editTunnelForm.speedId),
+            ceilingSpeed: editTunnelForm.ceilingSpeed ?? null,
             forwardSpeedLimit: editTunnelForm.forwardSpeedLimit ?? null,
             speedLimitName:
               normalizeSpeedId(editTunnelForm.speedId) !== null
@@ -1466,6 +1469,7 @@ export default function UserPage() {
             expTime: batchEditTunnelForm.expTime,
             flowResetTime: batchEditTunnelForm.flowResetTime,
             speedId,
+            ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
             forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
             status: batchEditTunnelForm.status,
           }),
@@ -1495,6 +1499,7 @@ export default function UserPage() {
                   expTime: batchEditTunnelForm.expTime,
                   flowResetTime: batchEditTunnelForm.flowResetTime,
                   speedId,
+                  ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
                   forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
                   status: batchEditTunnelForm.status,
                   speedLimitName,
@@ -3951,11 +3956,8 @@ export default function UserPage() {
                             <TableCell>
                               <div className="flex flex-col gap-0.5 text-xs sm:text-sm">
                                 <span className="text-default-600 bg-default-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
-                                  {userTunnel.speedLimitName
-                                    ? userTunnel.speedLimitName.replace(
-                                        /^限速\s*/,
-                                        "",
-                                      )
+                                  {userTunnel.ceilingSpeed != null
+                                    ? `${userTunnel.ceilingSpeed}M`
                                     : "不限速"}
                                 </span>
                                 {userTunnel.forwardSpeedLimit != null && (
@@ -4222,38 +4224,32 @@ export default function UserPage() {
                     )
                   }
                 />
-                <Select
-                  label="限速规则"
+                <Input
+                  label="隧道限速阈值 (Mbps)"
                   placeholder="不限速"
-                  selectedKeys={
-                    batchEditTunnelSelectedSpeedId !== null
-                      ? [batchEditTunnelSelectedSpeedId.toString()]
-                      : []
+                  type="number"
+                  value={
+                    batchEditTunnelForm.ceilingSpeed != null
+                      ? String(batchEditTunnelForm.ceilingSpeed)
+                      : ""
                   }
-                  onSelectionChange={(keys) => {
-                    const selectedKey = Array.from(keys)[0] as
-                      | string
-                      | undefined;
-
+                  variant="bordered"
+                  description="限制总带宽，留空不限速"
+                  onChange={(e) => {
+                    const raw = e.target.value;
                     setBatchEditTunnelForm((prev) =>
                       prev
                         ? {
                             ...prev,
-                            speedId: selectedKey ? Number(selectedKey) : null,
+                            ceilingSpeed:
+                              raw === "" || Number(raw) <= 0
+                                ? null
+                                : Number(raw),
                           }
                         : null,
                     );
                   }}
-                >
-                  {editAvailableSpeedLimits.map((speedLimit) => (
-                    <SelectItem
-                      key={speedLimit.id.toString()}
-                      textValue={speedLimit.name}
-                    >
-                      {speedLimit.name}
-                    </SelectItem>
-                  ))}
-                </Select>
+                />
                 <Input
                   label="规则限速 (Mbps)"
                   placeholder="留空允许用户自定义"
@@ -4399,38 +4395,32 @@ export default function UserPage() {
                     )
                   }
                 />
-                <Select
-                  label="限速规则"
+                <Input
+                  label="隧道限速阈值 (Mbps)"
                   placeholder="不限速"
-                  selectedKeys={
-                    editTunnelSelectedSpeedId !== null
-                      ? [editTunnelSelectedSpeedId.toString()]
-                      : []
+                  type="number"
+                  value={
+                    editTunnelForm.ceilingSpeed != null
+                      ? String(editTunnelForm.ceilingSpeed)
+                      : ""
                   }
-                  onSelectionChange={(keys) => {
-                    const selectedKey = Array.from(keys)[0] as
-                      | string
-                      | undefined;
-
+                  variant="bordered"
+                  description="限制该用户在当前隧道的总带宽，留空不限速"
+                  onChange={(e) => {
+                    const raw = e.target.value;
                     setEditTunnelForm((prev) =>
                       prev
                         ? {
                             ...prev,
-                            speedId: selectedKey ? Number(selectedKey) : null,
+                            ceilingSpeed:
+                              raw === "" || Number(raw) <= 0
+                                ? null
+                                : Number(raw),
                           }
                         : null,
                     );
                   }}
-                >
-                  {editAvailableSpeedLimits.map((speedLimit) => (
-                    <SelectItem
-                      key={speedLimit.id.toString()}
-                      textValue={speedLimit.name}
-                    >
-                      {speedLimit.name}
-                    </SelectItem>
-                  ))}
-                </Select>
+                />
                 <Input
                   label="规则限速 (Mbps)"
                   placeholder="留空允许用户自定义"
