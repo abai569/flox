@@ -5448,31 +5448,74 @@ func applyTunnelPortsToRequest(req map[string]interface{}, state *tunnelCreateSt
 	if req == nil || state == nil {
 		return
 	}
-	outPorts := make(map[int64]int)
+	outNodes := make(map[int64]tunnelRuntimeNode)
 	for _, n := range state.OutNodes {
-		outPorts[n.NodeID] = n.Port
+		outNodes[n.NodeID] = n
 	}
 	for _, item := range asMapSlice(req["outNodeId"]) {
 		nodeID := asInt64(item["nodeId"], 0)
-		if port, ok := outPorts[nodeID]; ok && port > 0 {
-			item["port"] = port
+		if node, ok := outNodes[nodeID]; ok {
+			if node.Port > 0 {
+				item["port"] = node.Port
+			}
+			if node.ConnectIPType != "" {
+				item["connectIpType"] = node.ConnectIPType
+				item["connect_ip_type"] = node.ConnectIPType
+			}
 		}
 	}
 
-	chainPorts := make(map[int64]int)
+	chainNodes := make(map[int64]tunnelRuntimeNode)
 	for _, hop := range state.ChainHops {
 		for _, n := range hop {
-			chainPorts[n.NodeID] = n.Port
+			chainNodes[n.NodeID] = n
 		}
 	}
 	for _, hopRaw := range asAnySlice(req["chainNodes"]) {
 		for _, item := range asMapSlice(hopRaw) {
 			nodeID := asInt64(item["nodeId"], 0)
-			if port, ok := chainPorts[nodeID]; ok && port > 0 {
-				item["port"] = port
+			if node, ok := chainNodes[nodeID]; ok {
+				if node.Port > 0 {
+					item["port"] = node.Port
+				}
+				if node.ConnectIPType != "" {
+					item["connectIpType"] = node.ConnectIPType
+					item["connect_ip_type"] = node.ConnectIPType
+				}
 			}
 		}
 	}
+}
+
+func resolveRuntimeEndpointIPType(endpoints []client.RuntimeEndpoint, requested, preference string) string {
+	requested = strings.ToLower(strings.TrimSpace(requested))
+	switch requested {
+	case "ipv4":
+		return "v4"
+	case "ipv6":
+		return "v6"
+	case "v4", "v6", "lan":
+		return requested
+	}
+	hasV4, hasV6 := false, false
+	for _, endpoint := range endpoints {
+		hasV4 = hasV4 || strings.TrimSpace(endpoint.PublicIPV4) != ""
+		hasV6 = hasV6 || strings.Trim(strings.TrimSpace(endpoint.PublicIPV6), "[]") != ""
+	}
+	preference = strings.ToLower(strings.TrimSpace(preference))
+	if preference == "v6" && hasV6 {
+		return "v6"
+	}
+	if preference == "v4" && hasV4 {
+		return "v4"
+	}
+	if hasV4 {
+		return "v4"
+	}
+	if hasV6 {
+		return "v6"
+	}
+	return ""
 }
 
 type federationRuntimeReleaseRef struct {
@@ -5574,6 +5617,7 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 			return nil, nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(node))
 		}
 		state.OutNodes[outIdx].Endpoints = applyRes.Endpoints
+		state.OutNodes[outIdx].ConnectIPType = resolveRuntimeEndpointIPType(applyRes.Endpoints, outNode.ConnectIPType, state.IPPreference)
 		outNode = state.OutNodes[outIdx]
 
 		bindings = append(bindings, repo.FederationTunnelBinding{
@@ -5676,6 +5720,7 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 				return nil, nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(node))
 			}
 			state.ChainHops[hopIdx][nodeIdx].Endpoints = applyRes.Endpoints
+			state.ChainHops[hopIdx][nodeIdx].ConnectIPType = resolveRuntimeEndpointIPType(applyRes.Endpoints, chainNode.ConnectIPType, state.IPPreference)
 			chainNode = state.ChainHops[hopIdx][nodeIdx]
 
 			bindings = append(bindings, repo.FederationTunnelBinding{

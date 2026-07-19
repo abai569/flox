@@ -192,6 +192,34 @@ interface ChainTunnel {
   port?: number;
   connectIpType?: string;
 }
+
+const mapForwardChainNodes = (items?: any[]): ChainTunnel[] =>
+  (items || []).map((item) => ({
+    ...item,
+    connectIpType:
+      item.connectIpType ||
+      item.connect_ip_type ||
+      item.allocatedIpType ||
+      item.allocated_ip_type ||
+      item.allocatedConnectIpType ||
+      item.allocated_connect_ip_type ||
+      item.ipType ||
+      item.ip_type ||
+      item.connectIp ||
+      item.connect_ip ||
+      "",
+    port: item.port || item.allocatedPort || item.allocated_port || undefined,
+  }));
+
+const mapForwardTunnel = (tunnel: any): Tunnel => ({
+  ...tunnel,
+  inNodeId: mapForwardChainNodes(tunnel?.inNodeId || tunnel?.in_node_id),
+  outNodeId: mapForwardChainNodes(tunnel?.outNodeId || tunnel?.out_node_id),
+  chainNodes: (tunnel?.chainNodes || tunnel?.chain_nodes || []).map(
+    (group: any[]) => mapForwardChainNodes(group),
+  ),
+  inIp: tunnel?.inIp || tunnel?.in_ip || "",
+});
 interface Node {
   id: number;
   name?: string;
@@ -2467,7 +2495,7 @@ export default function ForwardPage() {
           ]);
 
         if (tunnelsRes.code === 0) {
-          const visibleTunnels = ((tunnelsRes.data || []) as Tunnel[]).filter(
+          const visibleTunnels = (tunnelsRes.data || []).map(mapForwardTunnel).filter(
             (tunnel) => !isManualTunnel(tunnel),
           );
 
@@ -2768,7 +2796,7 @@ export default function ForwardPage() {
         const tunnelRes = await getTunnelById(forward.tunnelId);
 
         if (tunnelRes.code === 0 && tunnelRes.data) {
-          targetTunnel = tunnelRes.data as Tunnel;
+          targetTunnel = mapForwardTunnel(tunnelRes.data);
         }
       } catch { }
     }

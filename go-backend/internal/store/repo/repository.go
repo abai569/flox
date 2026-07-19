@@ -1841,10 +1841,30 @@ func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, 
 
 	// Build node IP map
 	nodeIPMap := map[int64]string{}
+	type nodeAddressTypes struct{ v4, v6 bool }
+	nodeAddressTypeMap := map[int64]nodeAddressTypes{}
 	var nodeList []model.Node
-	if err := r.db.Select("id, server_ip").Find(&nodeList).Error; err == nil {
+	if err := r.db.Select("id, server_ip, server_ip_v4, server_ip_v6, is_remote").Find(&nodeList).Error; err == nil {
 		for _, n := range nodeList {
 			nodeIPMap[n.ID] = n.ServerIP
+			if n.IsRemote == 1 {
+				nodeAddressTypeMap[n.ID] = nodeAddressTypes{
+					v4: n.ServerIPV4.Valid && strings.TrimSpace(n.ServerIPV4.String) != "",
+					v6: n.ServerIPV6.Valid && strings.Trim(strings.TrimSpace(n.ServerIPV6.String), "[]") != "",
+				}
+			}
+		}
+	}
+	var nodeInstances []model.NodeInstance
+	if err := r.db.Select("node_id, public_ip_v4, public_ip_v6").Find(&nodeInstances).Error; err == nil {
+		for _, instance := range nodeInstances {
+			types, ok := nodeAddressTypeMap[instance.NodeID]
+			if !ok {
+				continue
+			}
+			types.v4 = types.v4 || strings.TrimSpace(instance.PublicIPV4) != ""
+			types.v6 = types.v6 || strings.Trim(strings.TrimSpace(instance.PublicIPV6), "[]") != ""
+			nodeAddressTypeMap[instance.NodeID] = types
 		}
 	}
 
@@ -1887,6 +1907,17 @@ func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, 
 		}
 		if c.ConnectIPType.Valid {
 			nodeObj["connectIpType"] = c.ConnectIPType.String
+		} else if types, ok := nodeAddressTypeMap[c.NodeID]; ok {
+			preference, _ := t["ipPreference"].(string)
+			if strings.EqualFold(strings.TrimSpace(preference), "v6") && types.v6 {
+				nodeObj["connectIpType"] = "v6"
+			} else if types.v4 {
+				nodeObj["connectIpType"] = "v4"
+			} else if types.v6 {
+				nodeObj["connectIpType"] = "v6"
+			} else {
+				nodeObj["connectIpType"] = ""
+			}
 		} else {
 			nodeObj["connectIpType"] = ""
 		}
