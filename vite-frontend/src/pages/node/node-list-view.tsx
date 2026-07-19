@@ -1476,7 +1476,7 @@ function SortableTableRow({
         {(() => {
             if (node.isRemote === 1) {
               const sourceInstance = (node.remoteInstances || []).find(
-                (instance) => instance.inScope,
+                (instance: RemoteInstance) => instance.inScope,
               );
               const configuredAddress = node.serverIp?.trim() || "";
               const address =
