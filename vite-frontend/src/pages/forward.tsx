@@ -93,6 +93,7 @@ import {
   resolveForwardAddressAction,
 } from "@/pages/forward/address";
 import { useNodeRealtime } from "@/pages/node/use-node-realtime";
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 import {
   buildForwardDiagnosisFallbackResult,
   getForwardDiagnosisQualityDisplay,
@@ -303,7 +304,7 @@ const compareForwardUserNameAsc = (a: string, b: string): number => {
   });
 };
 const normalizeForwardTunnelName = (tunnelName?: string): string => {
-  const normalized = (tunnelName || "").trim().replace(/\(Remote\)/g, "(Rem)");
+  const normalized = formatRemoteDisplayText(tunnelName).trim();
 
   return normalized || UNCATEGORIZED_FORWARD_TUNNEL_NAME;
 };
@@ -763,7 +764,7 @@ const SortableTunnelGroupContainer = ({
             </svg>
           </Button>
           {tunnel.isManualTunnel && <ManualTunnelChip />}
-          <span className={titleClassName}>{tunnel.tunnelName}</span>
+          <span className={titleClassName}>{formatRemoteDisplayText(tunnel.tunnelName)}</span>
           {/* 隧道倍率标识 - 统一 10px 字体 */}
           <span className="text-primary-600 font-bold text-[10px] mr-1.5">
             ^{formatTunnelTrafficRatio(tunnel.tunnelTrafficRatio)}
@@ -1291,7 +1292,7 @@ const SortableCompactTableRow = ({
         <div className="flex items-center">
           {forward.isManualTunnel && <ManualTunnelChip className="mr-1.5" />}
           <span className="font-medium text-foreground text-sm">
-            {forward.tunnelName}
+            {formatRemoteDisplayText(forward.tunnelName)}
           </span>
           {/* 隧道倍率标识 - 统一 10px 字体 */}
           <span className="text-primary-600 font-bold text-[10px] ml-1.5">
@@ -2954,9 +2955,8 @@ export default function ForwardPage() {
     const nodeName = (nodeId: number) => {
       const node = nodes.find((item) => item.id === nodeId);
 
-      return (node?.name || `node${nodeId}`)
+      return formatRemoteDisplayText(node?.name || `node${nodeId}`)
         .trim()
-        .replace(/\(Remote\)/g, "(Rem)")
         .replace(/[\\/|:*?"<>\s]+/g, "-");
     };
     const ids = [
@@ -5500,13 +5500,13 @@ export default function ForwardPage() {
                                 key={tunnel.id.toString()}
                                 textValue={
                                   tunnel.remark
-                                    ? `${tunnel.name} (${tunnel.remark})`
-                                    : tunnel.name
+                                    ? `${formatRemoteDisplayText(tunnel.name)} (${tunnel.remark})`
+                                    : formatRemoteDisplayText(tunnel.name)
                                 }
                               >
                                 <div className="flex items-center gap-2">
                                   <span className="font-medium text-foreground">
-                                    {tunnel.name}
+                                    {formatRemoteDisplayText(tunnel.name)}
                                   </span>
                                   {tunnel.remark && (
                                     <span className="text-default-400 text-xs">
@@ -5752,7 +5752,7 @@ export default function ForwardPage() {
 
                                   return (
                                     <Table
-                                      aria-label={`${group.userName}-${tunnel.tunnelName}规则列表`}
+                                      aria-label={`${group.userName}-${formatRemoteDisplayText(tunnel.tunnelName)}规则列表`}
                                       className={
                                         FORWARD_GROUPED_TABLE_MIN_WIDTH_CLASS
                                       }
@@ -6097,13 +6097,13 @@ export default function ForwardPage() {
                             key={tunnel.id.toString()}
                             textValue={
                               tunnel.remark
-                                ? `${tunnel.name} ^${formattedRatio} (${tunnel.remark})`
-                                : `${tunnel.name} ^${formattedRatio}`
+                                ? `${formatRemoteDisplayText(tunnel.name)} ^${formattedRatio} (${tunnel.remark})`
+                                : `${formatRemoteDisplayText(tunnel.name)} ^${formattedRatio}`
                             }
                           >
                             <div className="flex items-center gap-1">
                               <span className="font-medium text-foreground">
-                                {tunnel.name}
+                                {formatRemoteDisplayText(tunnel.name)}
                               </span>
                               {/* 倍率标识紧跟在隧道名后面 */}
                               <span className="text-primary-600 font-bold text-[10px]">
@@ -6972,12 +6972,12 @@ export default function ForwardPage() {
                       key={tunnel.id.toString()}
                       textValue={
                         tunnel.remark
-                          ? `${tunnel.name} (${tunnel.remark})`
-                          : tunnel.name
+                          ? `${formatRemoteDisplayText(tunnel.name)} (${tunnel.remark})`
+                          : formatRemoteDisplayText(tunnel.name)
                       }
                     >
                       <span>
-                        {tunnel.name}
+                        {formatRemoteDisplayText(tunnel.name)}
                         {tunnel.remark && (
                           <span className="text-xs text-default-400 ml-1">
                             ({tunnel.remark})
@@ -7172,12 +7172,12 @@ export default function ForwardPage() {
                     key={tunnel.id.toString()}
                     textValue={
                       tunnel.remark
-                        ? `${tunnel.name} (${tunnel.remark})`
-                        : tunnel.name
+                        ? `${formatRemoteDisplayText(tunnel.name)} (${tunnel.remark})`
+                        : formatRemoteDisplayText(tunnel.name)
                     }
                   >
                     <span>
-                      {tunnel.name}
+                      {formatRemoteDisplayText(tunnel.name)}
                       {tunnel.remark && (
                         <span className="text-xs text-default-400 ml-1">
                           ({tunnel.remark})
@@ -7507,7 +7507,7 @@ export default function ForwardPage() {
                                             )}
                                             <div className="flex-1 min-w-0">
                                               <div className="font-medium text-foreground truncate">
-                                                 {result.description.replace(/\(Remote\)/g, "(Rem)")}
+                                                  {formatRemoteDisplayText(result.description)}
                                               </div>
                                               {instanceLine && (
                                                 <div className="text-[11px] text-primary truncate">
@@ -7767,7 +7767,7 @@ export default function ForwardPage() {
                                       )}
                                       <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-sm text-foreground break-words">
-                                           {result.description.replace(/\(Remote\)/g, "(Rem)")}
+                                            {formatRemoteDisplayText(result.description)}
                                         </div>
                                         {instanceLine && (
                                           <div className="text-[11px] text-primary mt-0.5 break-words">
@@ -8292,12 +8292,12 @@ export default function ForwardPage() {
                       key={tunnel.id.toString()}
                       textValue={
                         tunnel.remark
-                          ? `${tunnel.name} (${tunnel.remark})`
-                          : tunnel.name
+                          ? `${formatRemoteDisplayText(tunnel.name)} (${tunnel.remark})`
+                          : formatRemoteDisplayText(tunnel.name)
                       }
                     >
                       <span>
-                        {tunnel.name}
+                        {formatRemoteDisplayText(tunnel.name)}
                         {tunnel.remark && (
                           <span className="text-xs text-default-400 ml-1">
                             ({tunnel.remark})

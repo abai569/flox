@@ -30,6 +30,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Play, StopCircle } from "lucide-react";
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 
 import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
 import { SearchBar } from "@/components/search-bar";
@@ -1699,7 +1700,7 @@ export default function UserPage() {
 
       if (response.code === 0) {
         toast.success(
-          `已${status === 1 ? "启用" : "禁用"}隧道 "${userTunnel.tunnelName}"`,
+          `已${status === 1 ? "启用" : "禁用"}隧道 "${formatRemoteDisplayText(userTunnel.tunnelName)}"`,
         );
         setUserTunnels((prev) =>
           prev.map((t) => (t.id === userTunnel.id ? { ...t, status } : t)),
@@ -3748,7 +3749,7 @@ export default function UserPage() {
                                     <span
                                       className={`text-xs sm:text-sm font-medium ${isSelected ? "text-primary-700 dark:text-primary-400" : "text-default-700"}`}
                                     >
-                                      {tunnel.name}
+                                      {formatRemoteDisplayText(tunnel.name)}
                                     </span>
                                   </TableCell>
                                   <TableCell>
@@ -3928,7 +3929,7 @@ export default function UserPage() {
                             </TableCell>
                             <TableCell>
                               <span className="font-semibold text-xs sm:text-sm text-default-800">
-                                {userTunnel.tunnelName}
+                                {formatRemoteDisplayText(userTunnel.tunnelName)}
                               </span>
                             </TableCell>
                             <TableCell>
@@ -4283,7 +4284,7 @@ export default function UserPage() {
         onClose={onEditTunnelModalClose}
       >
         <ModalContent>
-          <ModalHeader>编辑隧道权限 - {editTunnelForm?.tunnelName}</ModalHeader>
+          <ModalHeader>编辑隧道权限 - {formatRemoteDisplayText(editTunnelForm?.tunnelName)}</ModalHeader>
           <ModalBody>
             {editTunnelForm && (
               <>

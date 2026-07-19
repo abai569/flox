@@ -1,4 +1,9 @@
-import type { MonitorNodeInstanceGroupMemberApiItem, NodeGroupApiItem, OfflineDeployPayload } from "@/api/types";
+import type {
+  MonitorNodeInstanceGroupMemberApiItem,
+  NodeGroupApiItem,
+  OfflineDeployPayload,
+  PeerRemoteUsageNodeApiItem,
+} from "@/api/types";
 import type { Node } from "./node/types";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -107,7 +112,11 @@ import {
 import { compareVersions } from "@/utils/version-update";
 import Network from "@/api/network";
 import { PageLoadingState } from "@/components/page-state";
-import { deriveNodeVisualState } from "@/pages/node/display";
+import {
+  deriveNodeVisualState,
+  getRemoteDisplayMeta,
+  getRemoteDisplayState,
+} from "@/pages/node/display";
 import {
   getNodeRenewalSnapshot,
   formatNodeRenewalTime,
@@ -672,6 +681,7 @@ export default function NodePage() {
     usedPorts: number[];
     portRangeStart: number;
     portRangeEnd: number;
+    runtimeInstances?: PeerRemoteUsageNodeApiItem["runtimeInstances"];
   }>>({});
   const [sharingNode, setSharingNode] = useState<Node | null>(null);
   const [importNodeOpen, setImportNodeOpen] = useState(false);
@@ -1037,11 +1047,13 @@ export default function NodePage() {
                   usedPorts: number[];
                   portRangeStart: number;
                   portRangeEnd: number;
+                  runtimeInstances?: PeerRemoteUsageNodeApiItem["runtimeInstances"];
                 }>>((acc, item) => {
                   acc[item.nodeId] = {
                     usedPorts: item.usedPorts || [],
                     portRangeStart: item.portRangeStart || 0,
                     portRangeEnd: item.portRangeEnd || 0,
+                    runtimeInstances: item.runtimeInstances || [],
                   };
                   return acc;
                 }, {}),
@@ -2947,10 +2959,11 @@ export default function NodePage() {
       0,
     );
     const remotePeriodFlow =
-      remotePeriodRx + remotePeriodTx > 0
-        ? remotePeriodRx + remotePeriodTx
-        : node.remoteCurrentFlow ?? 0;
+      node.remoteCurrentFlow ?? remotePeriodRx + remotePeriodTx;
     const remoteOnline = node.connectionStatus === "online" && !node.syncError;
+    const remoteDisplayMeta = remoteOnline ? remoteVisualMeta : null;
+    const remoteDisplayState = getRemoteDisplayState(node, remoteVisualMeta);
+    const remoteStatusMeta = getRemoteDisplayMeta(remoteDisplayState);
     const remoteExpiryTime = node.remoteExpiryTime && node.remoteExpiryTime > 0
       ? (node.remoteExpiryTime < 100000000000 ? node.remoteExpiryTime * 1000 : node.remoteExpiryTime)
       : 0;
@@ -3125,18 +3138,18 @@ export default function NodePage() {
               {node.isRemote === 1 ? (
                 <div
                   className="flex items-center gap-0.5"
-                  title={remoteVisualMeta
-                    ? `在线${remoteVisualMeta.onlineCount}/禁用${remoteVisualMeta.disabledCount}/全部${remoteVisualMeta.totalCount}`
-                    : remoteOnline ? "在线" : "离线"}
+                  title={remoteDisplayState === "online" && remoteDisplayMeta
+                    ? `在线${remoteDisplayMeta.onlineCount}/禁用${remoteDisplayMeta.disabledCount}/全部${remoteDisplayMeta.totalCount}`
+                    : remoteStatusMeta.label}
                 >
                   <StatusDot
-                    active={remoteVisualMeta ? remoteVisualMeta.state !== "offline" : remoteOnline}
-                    tone={remoteVisualMeta?.color || (remoteOnline ? "success" : "danger")}
+                    active={remoteDisplayState === "online"}
+                    tone={remoteStatusMeta.tone}
                   />
                   <span className="text-xs font-mono tabular-nums text-default-500">
-                    {remoteVisualMeta
-                      ? `${remoteVisualMeta.onlineCount}/${remoteVisualMeta.disabledCount}/${remoteVisualMeta.totalCount}`
-                      : remoteOnline ? "在线" : "离线"}
+                    {remoteDisplayState === "online" && remoteDisplayMeta
+                      ? `${remoteDisplayMeta.onlineCount}/${remoteDisplayMeta.disabledCount}/${remoteDisplayMeta.totalCount}`
+                      : remoteStatusMeta.label}
                   </span>
                 </div>
               ) : (

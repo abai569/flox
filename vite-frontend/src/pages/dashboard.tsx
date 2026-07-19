@@ -21,6 +21,7 @@ import { StatusDot } from "@/components/status-dot";
 import { AnnouncementBanner } from "@/pages/dashboard/components/announcement-banner";
 import { FlowChartCard } from "@/pages/dashboard/components/flow-chart-card";
 import { MetricCard } from "@/pages/dashboard/components/metric-card";
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 import {
   formatNodeRenewalTime,
   getNodeRenewalCycleLabel,
@@ -1053,7 +1054,7 @@ export default function DashboardPage() {
                       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
                         <div>
                           <h3 className="font-semibold text-foreground">
-                            {tunnel.tunnelName} {/* 注释隧道 ID: {tunnel.id} */}
+                            {formatRemoteDisplayText(tunnel.tunnelName)} {/* 注释隧道 ID: {tunnel.id} */}
                           </h3>
                           <div className="flex flex-wrap items-center gap-2 mt-1">
                             <span

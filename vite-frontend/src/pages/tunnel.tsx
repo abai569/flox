@@ -83,6 +83,7 @@ import {
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import { loadStoredOrder, saveOrder } from "@/utils/order-storage";
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 import {
   buildBatchFailureMessage,
   extractBatchFailures,
@@ -887,7 +888,7 @@ export default function TunnelPage() {
       toggleTunnelStatus({ id: tunnel.id, status: 1 })
         .then((res: any) => {
           if (res.code === 0) {
-            toast.success(`已启用隧道 "${tunnel.name}"`);
+            toast.success(`已启用隧道 "${formatRemoteDisplayText(tunnel.name)}"`);
             refreshTunnelList(false);
           } else {
             toast.error(res.msg || "启用失败");
@@ -2570,7 +2571,7 @@ export default function TunnelPage() {
                                     />
                                     <button
                                       className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors bg-transparent text-left"
-                                      title={tunnel.name}
+                                      title={formatRemoteDisplayText(tunnel.name)}
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -2580,7 +2581,7 @@ export default function TunnelPage() {
                                         );
                                       }}
                                     >
-                                      {tunnel.name}
+                                      {formatRemoteDisplayText(tunnel.name)}
                                     </button>
                                   </div>
                                 </td>
@@ -2813,7 +2814,7 @@ export default function TunnelPage() {
                                       />
                                       <button
                                         className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors bg-transparent text-left"
-                                        title={tunnel.name}
+                                        title={formatRemoteDisplayText(tunnel.name)}
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2823,7 +2824,7 @@ export default function TunnelPage() {
                                           );
                                         }}
                                       >
-                                        {tunnel.name}
+                                        {formatRemoteDisplayText(tunnel.name)}
                                       </button>
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-1">
@@ -4183,7 +4184,7 @@ export default function TunnelPage() {
                 <h2 className="text-lg font-bold sm:text-xl">删除隧道</h2>
                 <p className="text-xs font-normal leading-5 text-default-500 sm:text-sm">
                   {tunnelDeletePreview?.tunnelName || tunnelToDelete?.name
-                    ? `即将删除“${tunnelDeletePreview?.tunnelName || tunnelToDelete?.name}”，删除前会先检查是否有关联规则。`
+                    ? `即将删除“${formatRemoteDisplayText(tunnelDeletePreview?.tunnelName || tunnelToDelete?.name)}”，删除前会先检查是否有关联规则。`
                     : "删除前会先检查是否有关联规则。"}
                 </p>
               </ModalHeader>
@@ -4197,7 +4198,7 @@ export default function TunnelPage() {
                   <>
                     <Alert
                       color="warning"
-                      description={`隧道 \"${tunnelDeletePreview?.tunnelName || tunnelToDelete?.name || ""}\" 当前被 ${deletePreviewForwardCount} 条规则使用。删除前需要先处理这些规则。`}
+                      description={`隧道 \"${formatRemoteDisplayText(tunnelDeletePreview?.tunnelName || tunnelToDelete?.name)}\" 当前被 ${deletePreviewForwardCount} 条规则使用。删除前需要先处理这些规则。`}
                       title="发现关联规则"
                       variant="flat"
                     />
@@ -4303,7 +4304,7 @@ export default function TunnelPage() {
                         >
                           {deleteReplacementTunnels.map((tunnel) => (
                             <SelectItem key={String(tunnel.id)}>
-                              {tunnel.name}
+                              {formatRemoteDisplayText(tunnel.name)}
                             </SelectItem>
                           ))}
                         </Select>
@@ -4316,7 +4317,7 @@ export default function TunnelPage() {
                 ) : (
                   <Alert
                     color="warning"
-                    description={`当前未发现关联规则。确认后将直接删除“${tunnelToDelete?.name || "该隧道"}”，此操作不可撤销。`}
+                    description={`当前未发现关联规则。确认后将直接删除“${formatRemoteDisplayText(tunnelToDelete?.name) || "该隧道"}”，此操作不可撤销。`}
                     title="可以直接删除"
                     variant="flat"
                   />
@@ -4556,7 +4557,7 @@ export default function TunnelPage() {
                                             )}
                                             <div className="flex-1 min-w-0">
                                               <div className="font-medium text-foreground truncate">
-                                                 {result.description.replace(/\(Remote\)/g, "(Rem)")}
+                                                  {formatRemoteDisplayText(result.description)}
                                               </div>
                                               {instanceLine && (
                                                 <div className="text-[11px] text-primary truncate">
@@ -4756,7 +4757,7 @@ export default function TunnelPage() {
                                       )}
                                       <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-sm text-foreground break-words">
-                                           {result.description.replace(/\(Remote\)/g, "(Rem)")}
+                                            {formatRemoteDisplayText(result.description)}
                                         </div>
                                         {instanceLine && (
                                           <div className="text-[11px] text-primary mt-0.5 break-words">
@@ -5040,7 +5041,7 @@ export default function TunnelPage() {
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <p className="truncate text-sm font-medium text-foreground">
-                                {item.tunnelName}
+                                {formatRemoteDisplayText(item.tunnelName)}
                               </p>
                               <p className="mt-1 text-xs text-default-500">
                                 {item.forwardCount} 条规则依赖
@@ -5141,7 +5142,7 @@ export default function TunnelPage() {
                         >
                           {batchDeleteReplacementTunnels.map((tunnel) => (
                             <SelectItem key={String(tunnel.id)}>
-                              {tunnel.name}
+                              {formatRemoteDisplayText(tunnel.name)}
                             </SelectItem>
                           ))}
                         </Select>

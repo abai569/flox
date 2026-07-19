@@ -32,6 +32,7 @@ import {
   Eye,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 
 import {
   getMonitorTunnels,
@@ -1091,7 +1092,7 @@ export function TunnelMonitorView({
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">
                               <h3 className="font-semibold text-foreground text-sm truncate">
-                                {tunnel.name}
+                                {formatRemoteDisplayText(tunnel.name)}
                               </h3>
                               <div className="flex items-center gap-1.5 mt-1">
                                 <span
@@ -1251,7 +1252,7 @@ export function TunnelMonitorView({
                     </TableCell>
                     <TableCell>
                       <span className="font-semibold text-sm whitespace-nowrap">
-                        {tunnel.name}
+                        {formatRemoteDisplayText(tunnel.name)}
                       </span>
                     </TableCell>
                     <TableCell>

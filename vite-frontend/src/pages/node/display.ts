@@ -22,6 +22,44 @@ export interface NodeVisualMeta {
   enabledCount: number;
 }
 
+export type RemoteDisplayState = "online" | "paused" | "expired" | "abnormal" | "offline";
+export type RemoteDisplayTone = "success" | "warning" | "danger" | "default";
+
+export const getRemoteDisplayState = (
+  node: { status: number; syncError?: string },
+  visualMeta: NodeVisualMeta | null,
+): RemoteDisplayState => {
+  switch (node.syncError) {
+    case "provider_share_disabled":
+      return "paused";
+    case "provider_share_expired":
+      return "expired";
+    case "provider_share_deleted":
+      return "offline";
+  }
+  if (node.syncError) return "offline";
+  if (node.status !== 1) return visualMeta?.totalCount ? "abnormal" : "offline";
+  if (visualMeta?.state === "partial") return "abnormal";
+  return "online";
+};
+
+export const getRemoteDisplayMeta = (
+  state: RemoteDisplayState,
+): { label: string; tone: RemoteDisplayTone } => {
+  switch (state) {
+    case "online":
+      return { label: "在线", tone: "success" };
+    case "paused":
+      return { label: "暂停", tone: "default" };
+    case "expired":
+      return { label: "过期", tone: "danger" };
+    case "abnormal":
+      return { label: "异常", tone: "warning" };
+    default:
+      return { label: "离线", tone: "danger" };
+  }
+};
+
 export const deriveNodeVisualState = (
   members?: { status: number; weight?: number }[],
   paused?: number,

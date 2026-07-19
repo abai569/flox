@@ -1,4 +1,7 @@
-import type { MonitorNodeInstanceGroupMemberApiItem } from "@/api/types";
+import type {
+  MonitorNodeInstanceGroupMemberApiItem,
+  PeerShareRuntimeInstanceApiItem,
+} from "@/api/types";
 import type { Node, NodeExpiryInstance } from "./types";
 
 import {
@@ -21,7 +24,12 @@ import { CSS } from "@dnd-kit/utilities";
 import { useState, useRef, useEffect } from "react";
 import { GripVertical } from "lucide-react";
 
-import { deriveNodeVisualState } from "./display";
+import {
+  deriveNodeVisualState,
+  getRemoteDisplayMeta,
+  getRemoteDisplayState,
+  type RemoteDisplayState,
+} from "./display";
 import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
 
 import { Checkbox } from "@/shadcn-bridge/heroui/checkbox";
@@ -131,6 +139,7 @@ interface NodeListViewProps {
     usedPorts: number[];
     portRangeStart: number;
     portRangeEnd: number;
+    runtimeInstances?: PeerShareRuntimeInstanceApiItem[];
   }>;
 }
 
@@ -251,6 +260,30 @@ function NodeTableColGroup() {
   );
 }
 
+function RemoteNodeTableColGroup() {
+  return (
+    <colgroup>
+      <col className="w-[50px]" />
+      <col className="w-[50px]" />
+      <col className="w-[64px]" />
+      <col className="w-[70px]" />
+      <col className="w-[90px]" />
+      <col className="w-[50px]" />
+      <col className="w-[100px]" />
+      <col className="w-[130px]" />
+      <col className="w-[70px]" />
+      <col className="w-[120px]" />
+      <col className="w-[110px]" />
+      <col className="w-[110px]" />
+      <col className="w-[110px]" />
+      <col className="w-[100px]" />
+      <col className="w-[110px]" />
+      <col className="w-[160px]" />
+      <col className="w-[270px]" />
+    </colgroup>
+  );
+}
+
 const getRemoteInstanceLabel = (instance: RemoteInstance) => {
   const displayName = instance.displayName?.trim();
 
@@ -346,19 +379,25 @@ function InstanceIPRegionCell({
 function RemoteNodeInstanceRows({
   instances,
   flows,
+  parentOnline,
+  parentState,
   parentTrafficRatio,
+  runtimeInstances,
   formatTraffic,
 }: {
   instances: RemoteInstance[];
   flows: NonNullable<Node["remoteFlows"]>;
+  parentOnline: boolean;
+  parentState: RemoteDisplayState;
   parentTrafficRatio: number;
+  runtimeInstances?: PeerShareRuntimeInstanceApiItem[];
   formatTraffic: (bytes: number) => string;
 }) {
   return (
     <div className="my-2 bg-secondary-50/50 shadow-[inset_2px_0_0_rgba(168,85,247,0.7)] dark:bg-secondary-100/10">
       <div className="w-full max-w-full overflow-x-auto pb-2">
-        <table className="w-full min-w-[1654px] table-fixed text-[13px]">
-          <NodeTableColGroup />
+        <table className="w-full min-w-[1764px] table-fixed text-[13px]">
+          <RemoteNodeTableColGroup />
           <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
             <tr>
               <th aria-label="选择" />
@@ -390,6 +429,9 @@ function RemoteNodeInstanceRows({
               <th className="px-1 py-2 text-right font-medium">
                 下行流量
               </th>
+              <th className="px-1 py-2 text-center font-medium">
+                Runtime / 部署
+              </th>
               <th className="px-1 py-2 text-right font-medium">
                 共享范围
               </th>
@@ -403,7 +445,8 @@ function RemoteNodeInstanceRows({
               const label = getRemoteInstanceLabel(instance);
               const instanceId = instance.instanceId?.trim();
               const disabled = instance.weight != null && instance.weight <= 0;
-              const online = instance.status === 1;
+              const online = parentOnline && instance.status === 1;
+              const parentMeta = getRemoteDisplayMeta(parentState);
               const instanceFlows = flows.filter(
                 (flow) =>
                   flow.runtimeId > 0 &&
@@ -434,6 +477,17 @@ function RemoteNodeInstanceRows({
                 aggregateFlows.reduce((total, flow) => total + flow.outFlow, 0),
               );
               const periodFlow = upFlow + downFlow;
+              const instanceRuntimeItems = (runtimeInstances || []).filter(
+                (runtime) => runtime.instanceId === instanceId,
+              );
+              const runtimeCount = instanceRuntimeItems.length;
+              const deployedRuntimeCount = instanceRuntimeItems.filter(
+                (runtime) => runtime.applied === 1,
+              ).length;
+              const deployError = instanceRuntimeItems
+                .map((runtime) => runtime.lastError)
+                .filter(Boolean)
+                .join("; ");
 
               return (
                 <tr
@@ -451,9 +505,25 @@ function RemoteNodeInstanceRows({
                       <span className="text-default-400">-</span>
                     ) : (
                       <StatusDot
-                        active={!disabled && online}
-                        tone={disabled ? "default" : online ? "success" : "danger"}
-                        title={disabled ? "已禁用" : online ? "在线" : "离线"}
+                        active={!disabled && parentState === "online" && online}
+                        tone={
+                          !parentOnline
+                            ? parentMeta.tone
+                            : disabled
+                              ? "default"
+                              : online
+                                ? "success"
+                                : "danger"
+                        }
+                        title={
+                          !parentOnline
+                            ? parentMeta.label
+                            : disabled
+                              ? "已禁用"
+                              : online
+                                ? "在线"
+                                : "离线"
+                        }
                       />
                     )}
                   </td>
@@ -480,6 +550,16 @@ function RemoteNodeInstanceRows({
                   </td>
                   <td className="px-1 py-2.5 text-right text-primary-700 dark:text-primary-300">
                     {formatTraffic(downFlow)}
+                  </td>
+                  <td className="px-1 py-2.5 text-center font-mono text-default-700">
+                    <span title={deployError || undefined}>
+                      {runtimeCount} / {deployedRuntimeCount}
+                    </span>
+                    {deployError ? (
+                      <span className="ml-1 text-xs font-medium text-danger">
+                        异常
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-1 py-2.5 text-right text-default-700">
                     {instance.selected
@@ -1179,6 +1259,9 @@ function SortableTableRow({
     ? deriveNodeVisualState(remoteVisualMembers)
     : null;
   const remoteOnline = node.connectionStatus === "online" && !node.syncError;
+  const remoteDisplayMeta = remoteOnline ? remoteVisualMeta : null;
+  const remoteDisplayState = getRemoteDisplayState(node, remoteVisualMeta);
+  const remoteStatusMeta = getRemoteDisplayMeta(remoteDisplayState);
   const remoteInstances = (node.remoteInstances || []).filter(
     (instance: RemoteInstance) => instance.inScope,
   );
@@ -1205,9 +1288,7 @@ function SortableTableRow({
     0,
   );
   const remotePeriodFlow =
-    remotePeriodRx + remotePeriodTx > 0
-      ? remotePeriodRx + remotePeriodTx
-      : node.remoteCurrentFlow ?? 0;
+    node.remoteCurrentFlow ?? remotePeriodRx + remotePeriodTx;
   const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
   const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
@@ -1339,33 +1420,22 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={`px-1 text-center align-middle ${rowBg}`}>
         {node.isRemote === 1 ? (
-          <div
-            className="flex items-center justify-center gap-0.5"
-              title={
-                remoteVisualMeta
-              ? `在线${remoteVisualMeta.onlineCount}/禁用${remoteVisualMeta.disabledCount}/全部${remoteVisualMeta.totalCount}`
-                  : remoteOnline
-                    ? "在线"
-                    : "离线"
-              }
-          >
-            <StatusDot
-                active={
-                  remoteVisualMeta
-                    ? remoteVisualMeta.state !== "offline"
-                    : remoteOnline
-                }
-                tone={
-                  remoteVisualMeta?.color ||
-                  (remoteOnline ? "success" : "danger")
-                }
-            />
-            <span className="text-xs font-mono tabular-nums text-default-600">
-              {remoteVisualMeta
-                ? `${remoteVisualMeta.onlineCount}/${remoteVisualMeta.disabledCount}/${remoteVisualMeta.totalCount}`
-                  : remoteOnline
-                    ? "在线"
-                    : "离线"}
+           <div
+               className="flex items-center justify-center gap-0.5"
+               title={
+                 remoteDisplayState === "online" && remoteDisplayMeta
+                   ? `在线${remoteDisplayMeta.onlineCount}/禁用${remoteDisplayMeta.disabledCount}/全部${remoteDisplayMeta.totalCount}`
+                   : remoteStatusMeta.label
+               }
+           >
+             <StatusDot
+                 active={remoteDisplayState === "online"}
+                 tone={remoteStatusMeta.tone}
+               />
+               <span className="text-xs font-mono tabular-nums text-default-600">
+               {remoteDisplayState === "online" && remoteDisplayMeta
+                 ? `${remoteDisplayMeta.onlineCount}/${remoteDisplayMeta.disabledCount}/${remoteDisplayMeta.totalCount}`
+                 : remoteStatusMeta.label}
             </span>
           </div>
         ) : (
@@ -1828,12 +1898,15 @@ function SortableTableRow({
               <RemoteNodeInstanceRows
                 flows={node.remoteFlows || []}
                 formatTraffic={formatTraffic}
-                instances={remoteInstances}
+                 instances={remoteInstances}
+                 parentOnline={remoteOnline}
+                 parentState={remoteDisplayState}
                 parentTrafficRatio={
                   node.trafficRatio && node.trafficRatio > 0
                     ? node.trafficRatio
                     : 1
                 }
+                runtimeInstances={remoteUsageByNode[node.id]?.runtimeInstances || []}
               />
         </TableCell>
       </TableRow>
