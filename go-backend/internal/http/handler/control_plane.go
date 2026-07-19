@@ -1168,7 +1168,31 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 	ipPreference := h.repo.GetTunnelIPPreference(forward.TunnelID)
 
 	inNodes, chainHops, outNodes := splitChainNodeGroups(chainRows)
-	workItems := make([]diagnosisWorkItem, 0, len(chainRows)*2+len(targets))
+	workItems := make([]diagnosisWorkItem, 0, len(chainRows)*2+len(targets)+len(inNodes))
+
+	// 入口规则端口服务状态检查（在链诊断之前）
+	forwardPorts, _ := h.listForwardPorts(forward.ID)
+	inPortByNode := make(map[int64]int)
+	for _, fp := range forwardPorts {
+		if fp.ChainType == 1 && fp.Port > 0 {
+			inPortByNode[fp.NodeID] = fp.Port
+		}
+	}
+	for _, inNode := range inNodes {
+		if port, ok := inPortByNode[inNode.NodeID]; ok {
+			workItems = append(workItems, diagnosisWorkItem{
+				fromNodeID:  inNode.NodeID,
+				targetPort:  port,
+				description: fmt.Sprintf("入口规则端口[%s:%d]", formatDiagnosisNodeName(inNode.NodeName), port),
+				metadata: map[string]interface{}{
+					"serviceCheck":  true,
+					"servicePort":   port,
+					"serviceNodeId": inNode.NodeID,
+					"fromChainType": 1,
+				},
+			})
+		}
+	}
 
 	switch tunnel.Type {
 	case 1:
@@ -1282,47 +1306,47 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 
 		if forward.Mode == "sdwan" {
 			seenNodes := map[int64]bool{}
-				for _, inNode := range inNodes {
-					if !seenNodes[inNode.NodeID] {
-						seenNodes[inNode.NodeID] = true
+			for _, inNode := range inNodes {
+				if !seenNodes[inNode.NodeID] {
+					seenNodes[inNode.NodeID] = true
+					workItems = append(workItems, diagnosisWorkItem{
+						fromNodeID:  inNode.NodeID,
+						description: fmt.Sprintf("SDWAN状态[%s]", formatDiagnosisNodeName(inNode.NodeName)),
+						metadata: map[string]interface{}{
+							"sdwanCheck": true,
+							"nodeName":   formatDiagnosisNodeName(inNode.NodeName),
+						},
+					})
+				}
+			}
+			for _, hop := range chainHops {
+				for _, cn := range hop {
+					if !seenNodes[cn.NodeID] {
+						seenNodes[cn.NodeID] = true
 						workItems = append(workItems, diagnosisWorkItem{
-							fromNodeID:  inNode.NodeID,
-							description: fmt.Sprintf("SDWAN状态[%s]", formatDiagnosisNodeName(inNode.NodeName)),
+							fromNodeID:  cn.NodeID,
+							description: fmt.Sprintf("SDWAN状态[%s]", formatDiagnosisNodeName(cn.NodeName)),
 							metadata: map[string]interface{}{
 								"sdwanCheck": true,
-								"nodeName":   formatDiagnosisNodeName(inNode.NodeName),
+								"nodeName":   formatDiagnosisNodeName(cn.NodeName),
 							},
 						})
 					}
 				}
-				for _, hop := range chainHops {
-					for _, cn := range hop {
-						if !seenNodes[cn.NodeID] {
-							seenNodes[cn.NodeID] = true
-							workItems = append(workItems, diagnosisWorkItem{
-								fromNodeID:  cn.NodeID,
-								description: fmt.Sprintf("SDWAN状态[%s]", formatDiagnosisNodeName(cn.NodeName)),
-								metadata: map[string]interface{}{
-									"sdwanCheck": true,
-									"nodeName":   formatDiagnosisNodeName(cn.NodeName),
-								},
-							})
-						}
-					}
+			}
+			for _, outNode := range outNodes {
+				if !seenNodes[outNode.NodeID] {
+					seenNodes[outNode.NodeID] = true
+					workItems = append(workItems, diagnosisWorkItem{
+						fromNodeID:  outNode.NodeID,
+						description: fmt.Sprintf("SDWAN状态[%s]", formatDiagnosisNodeName(outNode.NodeName)),
+						metadata: map[string]interface{}{
+							"sdwanCheck": true,
+							"nodeName":   formatDiagnosisNodeName(outNode.NodeName),
+						},
+					})
 				}
-				for _, outNode := range outNodes {
-					if !seenNodes[outNode.NodeID] {
-						seenNodes[outNode.NodeID] = true
-						workItems = append(workItems, diagnosisWorkItem{
-							fromNodeID:  outNode.NodeID,
-							description: fmt.Sprintf("SDWAN状态[%s]", formatDiagnosisNodeName(outNode.NodeName)),
-							metadata: map[string]interface{}{
-								"sdwanCheck": true,
-								"nodeName":   formatDiagnosisNodeName(outNode.NodeName),
-							},
-						})
-					}
-				}
+			}
 		}
 	default:
 		for _, inNode := range inNodes {
@@ -1424,8 +1448,8 @@ func (h *Handler) prepareTunnelDiagnosis(tunnelID int64) (string, string, []diag
 						},
 					})
 				}
-				} else {
-					for _, outNode := range outNodes {
+			} else {
+				for _, outNode := range outNodes {
 					description := fmt.Sprintf("入口[%s]->出口[%s]", formatDiagnosisNodeName(inNode.NodeName), formatDiagnosisNodeName(outNode.NodeName))
 					workItems = append(workItems, diagnosisWorkItem{
 						fromNodeID:    inNode.NodeID,
@@ -1826,6 +1850,8 @@ func (h *Handler) executeDiagnosisWorkItem(workItem diagnosisWorkItem, options d
 		exitOptions.pingTimeoutMS = int(exitTestCommandTimeout / time.Millisecond)
 		exitOptions.pingCount = exitTestPingCount
 		h.appendExitTestRotation(&single, workItem.fromNodeID, workItem.description, workItem.metadata, exitOptions)
+	} else if workItem.metadata["serviceCheck"] == true {
+		h.appendServiceCheckDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.targetPort, workItem.description, workItem.metadata, options)
 	} else {
 		h.appendPathDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.targetIP, workItem.targetPort, workItem.description, workItem.metadata, options)
 	}
@@ -2009,6 +2035,29 @@ func (h *Handler) appendPathDiagnosis(results *[]map[string]interface{}, nodeCac
 	*results = append(*results, item)
 }
 
+func (h *Handler) appendServiceCheckDiagnosis(results *[]map[string]interface{}, nodeCache map[int64]*nodeRecord, nodeID int64, port int, description string, metadata map[string]interface{}, options diagnosisExecOptions) {
+	item := newDiagnosisResultItem(nodeID, "", port, description, metadata)
+	fromNode, err := h.cachedNode(nodeCache, nodeID)
+	if err != nil {
+		item["success"] = false
+		item["message"] = err.Error()
+		*results = append(*results, item)
+		return
+	}
+	item["nodeName"] = fromNode.Name
+
+	svcState, svcErr := h.checkServiceStatusViaNode(nodeID, asString(metadata["fromInstanceId"]), port, options)
+	if svcErr != nil {
+		item["success"] = false
+		item["message"] = fmt.Sprintf("入口端口 %d 服务检查失败: %v", port, svcErr)
+	} else {
+		item["success"] = true
+		item["serviceState"] = svcState
+		item["message"] = fmt.Sprintf("入口端口 %d 服务正常(%s)", port, svcState)
+	}
+	*results = append(*results, item)
+}
+
 func (h *Handler) appendSdwanDiagnosis(results *[]map[string]interface{}, nodeCache map[int64]*nodeRecord, nodeID int64, description string, metadata map[string]interface{}, options diagnosisExecOptions) {
 	node, _ := h.cachedNode(nodeCache, nodeID)
 	item := newDiagnosisResultItem(nodeID, "", 0, description, metadata)
@@ -2109,7 +2158,7 @@ func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nod
 			msg = "TCP连接成功"
 		}
 		// TCP ping 通过后，尝试检查目标节点的服务状态（仅辅助信息，不覆盖 TCP ping 结果）
-		if targetNode != nil && targetNode.IsRemote != 1 {
+		if targetNode != nil {
 			svcState, svcErr := h.checkServiceStatusViaNode(toNode.NodeID, asString(metadata["toInstanceId"]), targetPort, options)
 			if svcErr == nil {
 				item["serviceState"] = svcState

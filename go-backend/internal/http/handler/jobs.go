@@ -173,6 +173,7 @@ func (h *Handler) runRemoteShareEventWorker(ctx context.Context, nodeID int64, r
 				}
 				debounceMu.Unlock()
 				h.broadcastRemoteUsageChanged(nodeID, event.Revision)
+				go h.redeployNodeTargetRuntime(nodeID)
 				return
 			}
 			debounceMu.Lock()
