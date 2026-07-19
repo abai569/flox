@@ -36,10 +36,10 @@ type namedConfigItem struct {
 	Name string `json:"name"`
 }
 
-func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem) {
+func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem) error {
 	serviceName := strings.TrimSpace(item.N)
 	if serviceName == "" || serviceName == "web_api" {
-		return
+		return nil
 	}
 
 	forwardID, userID, userTunnelID, ok := parseFlowServiceIDs(serviceName)
@@ -51,7 +51,9 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		if quota, quotaErr := h.repo.AddUserQuotaUsage(userID, inFlow+outFlow, time.Now()); quotaErr == nil {
 			h.enforceUserQuotaIfNeeded(userID, quota)
 		}
-		h.processPeerShareFlowFromForward(forwardID, nodeID, instanceID, serviceName, item)
+		if err := h.processPeerShareFlowFromForward(forwardID, nodeID, instanceID, serviceName, item); err != nil {
+			return err
+		}
 
 		// ✅ 新增：检查 Forward 流量限制
 		h.enforceForwardTrafficLimit(forwardID, inFlow, outFlow)
@@ -59,14 +61,14 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		if userTunnelID > 0 {
 			h.enforceFlowPolicies(userID, userTunnelID)
 		}
-		return
+		return nil
 	}
 
 	runtimeID, ok := parsePeerShareRuntimeServiceID(serviceName)
 	if !ok {
-		return
+		return nil
 	}
-	h.processPeerShareFlow(runtimeID, instanceID, item)
+	return h.processPeerShareFlow(runtimeID, instanceID, item)
 }
 
 func parseFlowServiceIDs(serviceName string) (int64, int64, int64, bool) {
@@ -141,75 +143,76 @@ func parsePeerShareIDFromFederationTunnelName(tunnelName string) (int64, bool) {
 	return shareID, true
 }
 
-func (h *Handler) processPeerShareFlow(runtimeID int64, instanceID string, item flowItem) {
+func (h *Handler) processPeerShareFlow(runtimeID int64, instanceID string, item flowItem) error {
 	if h == nil || h.repo == nil || runtimeID <= 0 {
-		return
+		return nil
 	}
 	runtime, err := h.repo.GetPeerShareRuntimeByID(runtimeID)
 	if err != nil || runtime == nil || runtime.ShareID <= 0 || runtime.Status != 1 {
-		return
+		return nil
 	}
 
 	delta := item.D + item.U
 	if delta <= 0 {
-		return
+		return nil
 	}
 
-	_ = h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now())
+	if err := h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now()); err != nil {
+		return err
+	}
 
 	share, err := h.repo.GetPeerShare(runtime.ShareID)
 	if err != nil || share == nil {
-		return
+		return err
 	}
 	if !isPeerShareFlowExceeded(share) {
-		return
+		return nil
 	}
 	h.enforcePeerShareFlowLimit(share.ID)
+	return nil
 }
 
-func (h *Handler) processPeerShareFlowFromForward(forwardID int64, nodeID int64, instanceID string, serviceName string, item flowItem) {
+func (h *Handler) processPeerShareFlowFromForward(forwardID int64, nodeID int64, instanceID string, serviceName string, item flowItem) error {
 	if h == nil || h.repo == nil || forwardID <= 0 {
-		return
+		return nil
 	}
 
 	delta := item.D + item.U
 	if delta <= 0 {
-		return
+		return nil
 	}
 
 	forward, err := h.getForwardRecord(forwardID)
 	if err != nil || forward == nil {
 		// Forward not found in local database - might be a federation port-forward
 		// Try to find by service name in peer_share_runtime
-		h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
-		return
+		return h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
 	}
 	tunnelName, err := h.repo.GetTunnelName(forward.TunnelID)
 	if err != nil {
-		h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
-		return
+		return h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
 	}
 	shareID, port, ok := parsePeerShareInfoFromFederationTunnelName(tunnelName)
 	if !ok {
-		h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
-		return
+		return h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
 	}
 	runtimeID := int64(0)
 	if runtime, runtimeErr := h.repo.GetActiveForwardPeerShareRuntimeByPort(shareID, port); runtimeErr == nil && runtime != nil {
 		runtimeID = runtime.ID
 	}
 	if err := h.repo.AddPeerShareFlow(shareID, runtimeID, instanceID, item.D, item.U, time.Now()); err != nil {
-		return
+		return err
 	}
 
 	share, err := h.repo.GetPeerShare(shareID)
 	if err != nil || share == nil {
-		return
+		return err
 	}
 	if !isPeerShareFlowExceeded(share) {
-		return
+		return nil
 	}
 	h.enforcePeerShareFlowLimit(share.ID)
+	return nil
 }
 
 func normalizeForwardRuntimeServiceName(serviceName string) string {
@@ -223,14 +226,14 @@ func normalizeForwardRuntimeServiceName(serviceName string) string {
 	return name
 }
 
-func (h *Handler) processPeerShareFlowByServiceName(nodeID int64, instanceID string, serviceName string, item flowItem) {
+func (h *Handler) processPeerShareFlowByServiceName(nodeID int64, instanceID string, serviceName string, item flowItem) error {
 	if h == nil || h.repo == nil || strings.TrimSpace(serviceName) == "" {
-		return
+		return nil
 	}
 
 	delta := item.D + item.U
 	if delta <= 0 {
-		return
+		return nil
 	}
 
 	normalized := normalizeForwardRuntimeServiceName(serviceName)
@@ -241,26 +244,26 @@ func (h *Handler) processPeerShareFlowByServiceName(nodeID int64, instanceID str
 	if nodeID > 0 {
 		runtimes, err = h.repo.ListActiveForwardPeerShareRuntimesByNodeAndServiceName(nodeID, normalized)
 		if err != nil {
-			return
+			return err
 		}
 		if len(runtimes) == 0 && normalized != serviceName {
 			runtimes, err = h.repo.ListActiveForwardPeerShareRuntimesByNodeAndServiceName(nodeID, serviceName)
 			if err != nil {
-				return
+				return err
 			}
 		}
 	}
 
-	// Fallback to global query if node-scoped query returned nothing or nodeID is invalid
-	if len(runtimes) == 0 {
+	// Legacy uploads without a node ID can only be matched globally.
+	if len(runtimes) == 0 && nodeID <= 0 {
 		runtimes, err = h.repo.ListActiveForwardPeerShareRuntimesByServiceName(normalized)
 		if err != nil {
-			return
+			return err
 		}
 		if len(runtimes) == 0 && normalized != serviceName {
 			runtimes, err = h.repo.ListActiveForwardPeerShareRuntimesByServiceName(serviceName)
 			if err != nil {
-				return
+				return err
 			}
 		}
 	}
@@ -269,41 +272,30 @@ func (h *Handler) processPeerShareFlowByServiceName(nodeID int64, instanceID str
 		if len(runtimes) > 1 {
 			log.Printf("WARN: ambiguous peer share runtime match for service=%s nodeID=%d count=%d", serviceName, nodeID, len(runtimes))
 		}
-		return
+		return nil
 	}
 	runtime := runtimes[0]
 
-	_ = h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now())
+	if err := h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now()); err != nil {
+		return err
+	}
 
 	matchedShare, err := h.repo.GetPeerShare(runtime.ShareID)
 	if err != nil || matchedShare == nil {
-		return
+		return err
 	}
 	if isPeerShareFlowExceeded(matchedShare) {
 		h.enforcePeerShareFlowLimit(matchedShare.ID)
 	}
+	return nil
 }
 
 func (h *Handler) enforcePeerShareFlowLimit(shareID int64) {
 	if h == nil || h.repo == nil || shareID <= 0 {
 		return
 	}
-	runtimes, err := h.repo.ListActivePeerShareRuntimesByShareID(shareID)
-	if err != nil || len(runtimes) == 0 {
-		return
-	}
-
-	now := time.Now().UnixMilli()
-	for _, runtime := range runtimes {
-		if h.wsServer != nil && runtime.Applied == 1 {
-			if strings.TrimSpace(runtime.ServiceName) != "" {
-				_, _ = h.sendNodeCommand(runtime.NodeID, "DeleteService", map[string]interface{}{"services": []string{runtime.ServiceName}}, false, true)
-			}
-			if strings.TrimSpace(runtime.Role) == "middle" && strings.TrimSpace(runtime.ChainName) != "" {
-				_, _ = h.sendNodeCommand(runtime.NodeID, "DeleteChains", map[string]interface{}{"chain": runtime.ChainName}, false, true)
-			}
-		}
-		_ = h.repo.MarkPeerShareRuntimeReleased(runtime.ID, now)
+	if err := h.cleanupPeerShareRuntimes(shareID); err != nil {
+		log.Printf("[flow] cleanup over-limit peer share failed share=%d: %v", shareID, err)
 	}
 }
 

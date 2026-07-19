@@ -1395,7 +1395,11 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 				instanceID = strings.TrimSpace(r.URL.Query().Get("instanceId"))
 			}
 			for _, item := range items {
-				h.processFlowItem(node.ID, instanceID, item)
+				if err := h.processFlowItem(node.ID, instanceID, item); err != nil {
+					log.Printf("[flowUpload] persist peer share flow failed node=%d: %v", node.ID, err)
+					http.Error(w, "flow persistence failed", http.StatusServiceUnavailable)
+					return
+				}
 			}
 		}
 	}

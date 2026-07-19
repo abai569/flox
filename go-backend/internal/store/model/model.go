@@ -126,6 +126,7 @@ type Node struct {
 	RemoteURL                    sql.NullString `gorm:"column:remote_url;type:text"`
 	RemoteToken                  sql.NullString `gorm:"column:remote_token;type:text"`
 	RemoteConfig                 sql.NullString `gorm:"column:remote_config;type:text"`
+	RemoteInstancesUpdatedTime   int64          `gorm:"column:remote_instances_updated_time;not null;default:0"`
 	ExpiryReminderDismissed      int            `gorm:"column:expiry_reminder_dismissed;not null;default:0"`
 	ExpiryReminderDismissedUntil sql.NullInt64  `gorm:"column:expiry_reminder_dismissed_until"`
 	GroupID                      sql.NullInt64  `gorm:"column:group_id;index:idx_node_group_id"`
@@ -490,6 +491,7 @@ type PeerShareRuntime struct {
 	Port          int    `gorm:"not null;default:0"`
 	Target        string `gorm:"type:text;not null;default:''"`
 	Applied       int    `gorm:"not null;default:0"`
+	ApplyClaim    string `gorm:"column:apply_claim;type:varchar(100);not null;default:''"`
 	Status        int    `gorm:"not null;default:1;index:idx_peer_share_runtime_share_node_status"`
 	CreatedTime   int64  `gorm:"column:created_time;not null"`
 	UpdatedTime   int64  `gorm:"column:updated_time;not null"`

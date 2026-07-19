@@ -25,7 +25,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(15)
+	h.jobsWG.Add(16)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -43,12 +43,46 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runTelegramBotLoop(ctx)
 	go h.runSDWANReconcileLoop(ctx)
 	go h.runDNSFailoverLoop(ctx)
+	go h.runPeerShareExpiryLoop(ctx)
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier != middleware.TierFree {
 		bot := h.TelegramBot()
 		if bot != nil && bot.Enabled() {
 			bot.SendSystemStartup(h.floxVersion)
+		}
+	}
+}
+
+func (h *Handler) runPeerShareExpiryLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			shares, err := h.repo.ListPeerShares()
+			if err != nil {
+				log.Printf("peer share expiry scan failed: %v", err)
+				continue
+			}
+			nowMs := now.UnixMilli()
+			for i := range shares {
+				share := &shares[i]
+				if share.IsActive != 1 || share.ExpiryTime <= 0 || share.ExpiryTime > nowMs {
+					continue
+				}
+				if err := h.cleanupPeerShareRuntimes(share.ID); err != nil {
+					log.Printf("expired peer share cleanup failed share=%d: %v", share.ID, err)
+					continue
+				}
+				if err := h.cleanupFederationTunnels(share.ID); err != nil {
+					log.Printf("expired peer share tunnel cleanup failed share=%d: %v", share.ID, err)
+				}
+			}
 		}
 	}
 }

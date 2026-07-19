@@ -653,6 +653,12 @@ export default function NodePage() {
   >({});
   const realtimeNodeMetricsRef = useRef(realtimeNodeMetrics);
   const realtimeNodeInstanceMetricsRef = useRef(realtimeNodeInstanceMetrics);
+  const loadNodesGenerationRef = useRef(0);
+  const loadingGenerationRef = useRef(0);
+  const remoteUsageGenerationRef = useRef(0);
+  const remoteUsageInFlightRef = useRef(false);
+	const sharingOpenGenerationRef = useRef(0);
+  const pageActiveRef = useRef(true);
   const [localSearchKeyword, setLocalSearchKeyword] = useLocalStorageState(
     "node-search-keyword-local",
     "",
@@ -904,6 +910,16 @@ export default function NodePage() {
   }, [logToDelete]);
 
   useEffect(() => {
+    pageActiveRef.current = true;
+
+    return () => {
+      pageActiveRef.current = false;
+      ++loadNodesGenerationRef.current;
+      ++remoteUsageGenerationRef.current;
+    };
+  }, []);
+
+  useEffect(() => {
     realtimeNodeMetricsRef.current = realtimeNodeMetrics;
   }, [realtimeNodeMetrics]);
 
@@ -977,6 +993,8 @@ export default function NodePage() {
   }, []);
   const loadNodes = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
+    const generation = ++loadNodesGenerationRef.current;
+    const loadingGeneration = silent ? 0 : ++loadingGenerationRef.current;
 
     if (!silent) {
       setLoading(true);
@@ -984,6 +1002,7 @@ export default function NodePage() {
     try {
       const res: any = await getNodeList();
 
+      if (!pageActiveRef.current || loadNodesGenerationRef.current !== generation) return;
       if (res.code === 0 || res.code === 200 || !res.code) {
         const data = res.data !== undefined ? res.data : res;
         const nodesArray = Array.isArray(data)
@@ -1038,9 +1057,12 @@ export default function NodePage() {
             mergeNodeRealtimeState(node, previousById.get(node.id)),
           );
         });
-        if (nodesData.some((node) => node.isRemote === 1)) {
+        if (nodesData.some((node) => node.isRemote === 1) && !remoteUsageInFlightRef.current) {
+          const usageGeneration = ++remoteUsageGenerationRef.current;
+          remoteUsageInFlightRef.current = true;
           getPeerRemoteUsageList()
             .then((usageRes) => {
+              if (!pageActiveRef.current || remoteUsageGenerationRef.current !== usageGeneration) return;
               if (usageRes.code !== 0 || !Array.isArray(usageRes.data)) return;
               const usageByNode = usageRes.data.reduce<Record<number, PeerRemoteUsageNodeApiItem>>(
                 (acc, item) => {
@@ -1101,7 +1123,13 @@ export default function NodePage() {
                 }),
               );
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => {
+              remoteUsageInFlightRef.current = false;
+            });
+        } else if (!nodesData.some((node) => node.isRemote === 1)) {
+          ++remoteUsageGenerationRef.current;
+          setRemoteUsageByNode({});
         }
         const hasDbOrdering = nodesData.some(
           (n) => n.inx !== undefined && n.inx !== 0,
@@ -1127,28 +1155,41 @@ export default function NodePage() {
         }
       }
     } catch {
-      if (!silent) {
+      if (!silent && pageActiveRef.current && loadNodesGenerationRef.current === generation) {
         toast.error("网络错误，请重试");
       }
     } finally {
-      if (!silent) {
+      if (!silent && pageActiveRef.current && loadingGenerationRef.current === loadingGeneration) {
         setLoading(false);
       }
     }
   }, []);
-  const loadNodeInstances = useCallback(async () => {
+  const loadNodeInstances = useCallback(async (): Promise<boolean> => {
     try {
       const res = await getMonitorNodeInstanceGroups();
-      if (res.code !== 0) return;
+      if (res.code !== 0) return false;
       const next: Record<number, MonitorNodeInstanceGroupMemberApiItem[]> = {};
       for (const group of res.data || []) {
         next[Number(group.id)] = group.members || [];
       }
       setNodeInstanceMembers(next);
+	  return true;
     } catch {
       // 实例配置是辅助信息，失败时不阻塞节点列表。
+	  return false;
     }
   }, []);
+	const openNodeSharing = useCallback(async (node: Node) => {
+		const generation = ++sharingOpenGenerationRef.current;
+		const loaded = await loadNodeInstances();
+		if (!loaded) {
+			toast.error("刷新节点实例失败，请重试");
+			return;
+		}
+		if (sharingOpenGenerationRef.current === generation) {
+			setSharingNode(node);
+		}
+	}, [loadNodeInstances]);
   useEffect(() => {
     void loadNodeInstances();
   }, [loadNodeInstances]);
@@ -1414,6 +1455,7 @@ export default function NodePage() {
   usePullToRefresh(async () => {
     await Promise.all([loadNodes(), loadShareCounts()]);
   });
+	const hasRemoteNodes = nodeList.some((node) => node.isRemote === 1);
   useEffect(() => {
     if (!usingPollingFallback) {
       return;
@@ -1428,13 +1470,13 @@ export default function NodePage() {
     };
   }, [loadNodes, usingPollingFallback]);
   useEffect(() => {
-    if (usingPollingFallback || !nodeList.some((node) => node.isRemote === 1)) return;
+    if (usingPollingFallback || !hasRemoteNodes) return;
     const interval = window.setInterval(() => {
       if (!document.hidden) void loadNodes({ silent: true });
     }, REMOTE_NODE_REFRESH_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
-  }, [loadNodes, nodeList, usingPollingFallback]);
+  }, [hasRemoteNodes, loadNodes, usingPollingFallback]);
   const formatTraffic = (bytes: number): string => {
     if (bytes === 0) return "0 B";
     const k = 1024;
@@ -3000,8 +3042,10 @@ export default function NodePage() {
       (total, flow) => total + flow.inFlow,
       0,
     );
+    const remoteScaledRx = node.remoteOutFlow ?? remotePeriodRx;
+    const remoteScaledTx = node.remoteInFlow ?? remotePeriodTx;
     const remotePeriodFlow =
-      node.remoteCurrentFlow ?? remotePeriodRx + remotePeriodTx;
+      node.remoteCurrentFlow ?? remoteScaledRx + remoteScaledTx;
     const remoteOnline = node.connectionStatus === "online" && !node.syncError;
     const remoteDisplayMeta = remoteOnline ? remoteVisualMeta : null;
     const remoteDisplayState = getRemoteDisplayState(node, remoteVisualMeta);
@@ -3295,13 +3339,13 @@ export default function NodePage() {
                 <div className="flex justify-between items-center">
                   <span>↑ 上行</span>
                   <span className="font-medium text-success-600 dark:text-success-400">
-                    {formatTraffic(remotePeriodTx)}
+                    {formatTraffic(remoteScaledTx)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span>↓ 下行</span>
                   <span className="font-medium text-primary-600 dark:text-primary-400">
-                    {formatTraffic(remotePeriodRx)}
+                    {formatTraffic(remoteScaledRx)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -3476,7 +3520,7 @@ export default function NodePage() {
                 color={shareCounts[node.id] ? "success" : "primary"}
                 size="sm"
                 variant="flat"
-                onPress={() => setSharingNode(node)}
+				onPress={() => void openNodeSharing(node)}
               >
                 分享
               </Button>
@@ -3991,7 +4035,7 @@ export default function NodePage() {
                                         onInstallMimicDeps={(node) =>
                                           requestMimicDepsInstall([node])
                                         }
-                                        onShareNode={setSharingNode}
+										onShareNode={(node) => void openNodeSharing(node)}
                                         onViewRemoteDetail={setRemoteDetailNode}
                                         openInstallSelector={openInstallSelector}
                                         openUpgradeModal={openUpgradeModal}
@@ -4080,7 +4124,7 @@ export default function NodePage() {
                     onResetInstanceTraffic={resetInstanceTraffic}
                     onReorderInstances={reorderNodeInstances}
                     onInstallMimicDeps={(node) => requestMimicDepsInstall([node])}
-                    onShareNode={setSharingNode}
+					onShareNode={(node) => void openNodeSharing(node)}
                     onViewRemoteDetail={setRemoteDetailNode}
                     openInstallSelector={openInstallSelector}
                     openUpgradeModal={openUpgradeModal}

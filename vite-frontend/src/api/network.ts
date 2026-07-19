@@ -42,6 +42,9 @@ export const reinitializeBaseURL = () => {
 
 reinitializeBaseURL();
 
+export const getAPIOrigin = (): string =>
+  new URL(baseURL || "/api/v1/", window.location.origin).origin;
+
 interface ApiResponse<T = unknown> {
   code: number;
   msg: string;

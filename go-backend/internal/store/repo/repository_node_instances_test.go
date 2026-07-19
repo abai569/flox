@@ -260,3 +260,53 @@ func TestSyncRemoteNodeInstancesRemovesInstancesOutsideShareScope(t *testing.T) 
 		t.Fatalf("expected only scoped instance to remain, got %+v", got)
 	}
 }
+
+func TestSyncRemoteNodeInstancesIgnoresOlderSnapshot(t *testing.T) {
+	r, err := Open(filepath.Join(t.TempDir(), "remote-instance-generation.db"))
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+
+	now := time.Now().UnixMilli()
+	node := model.Node{Name: "remote", Secret: "secret", ServerIP: "127.0.0.1", Port: "0", IsRemote: 1, CreatedTime: now, Status: 1, TCPListenAddr: "[::]", UDPListenAddr: "[::]"}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	newGeneration := now + 20
+	if _, err := r.SyncRemoteNodeInstances(node.ID, []RemoteNodeInstanceSync{{InstanceID: "new", DisplayName: "new snapshot", Status: 1}}, newGeneration); err != nil {
+		t.Fatalf("sync new snapshot: %v", err)
+	}
+	got, err := r.SyncRemoteNodeInstances(node.ID, []RemoteNodeInstanceSync{{InstanceID: "old", DisplayName: "old snapshot", Status: 1}}, now+10)
+	if err != nil {
+		t.Fatalf("sync old snapshot: %v", err)
+	}
+	if len(got) != 1 || got[0].InstanceID != "new" || got[0].UpdatedTime != newGeneration {
+		t.Fatalf("expected newer snapshot preserved, got %+v", got)
+	}
+}
+
+func TestSyncRemoteNodeInstancesAcceptsSameGeneration(t *testing.T) {
+	r, err := Open(filepath.Join(t.TempDir(), "remote-instance-same-generation.db"))
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+
+	now := time.Now().UnixMilli()
+	node := model.Node{Name: "remote", Secret: "secret", ServerIP: "127.0.0.1", Port: "0", IsRemote: 1, CreatedTime: now, Status: 1, TCPListenAddr: "[::]", UDPListenAddr: "[::]"}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	generation := now + 1
+	if _, err := r.SyncRemoteNodeInstances(node.ID, []RemoteNodeInstanceSync{{InstanceID: "first", Status: 1}}, generation); err != nil {
+		t.Fatalf("sync first snapshot: %v", err)
+	}
+	got, err := r.SyncRemoteNodeInstances(node.ID, []RemoteNodeInstanceSync{{InstanceID: "second", Status: 1}}, generation)
+	if err != nil {
+		t.Fatalf("sync same-generation snapshot: %v", err)
+	}
+	if len(got) != 1 || got[0].InstanceID != "second" {
+		t.Fatalf("expected same generation to remain usable, got %+v", got)
+	}
+}

@@ -359,7 +359,7 @@ func autoMigrateAll(db *gorm.DB) error {
 	_ = db.Model(&model.PeerShare{}).Where("scope_type IS NULL OR TRIM(scope_type) = ''").Updates(map[string]interface{}{
 		"scope_type": "all_enabled", "auto_include_new_instances": 1, "min_healthy_instances": 1,
 	})
-	_ = db.Model(&model.PeerShare{}).Where("min_healthy_instances <> 1").Update("min_healthy_instances", 1)
+	_ = db.Model(&model.PeerShare{}).Where("min_healthy_instances <= 0").Update("min_healthy_instances", 1)
 	if hadPeerShare && !db.Migrator().HasIndex(&model.PeerShare{}, "idx_peer_share_node") {
 		_ = db.Migrator().CreateIndex(&model.PeerShare{}, "idx_peer_share_node")
 	}
@@ -2093,6 +2093,59 @@ func (r *Repository) CreatePeerShare(share *model.PeerShare) error {
 	return r.db.Create(share).Error
 }
 
+func (r *Repository) CreatePeerShareWithInstances(share *model.PeerShare, instanceIDs []string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if share == nil || share.NodeID <= 0 {
+		return errors.New("share is invalid")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", share.NodeID).First(&node).Error; err != nil {
+			return err
+		}
+		if node.IsRemote == 1 {
+			return errors.New("only local nodes can be shared")
+		}
+		if len(instanceIDs) > 0 {
+			var instances []model.NodeInstance
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("node_id = ? AND instance_id IN ?", share.NodeID, instanceIDs).
+				Find(&instances).Error; err != nil {
+				return err
+			}
+			if len(instances) != len(instanceIDs) {
+				return errors.New("one or more share instances no longer exist")
+			}
+			healthy := 0
+			for i := range instances {
+				instance := &instances[i]
+				if instance.Status == 1 && instance.Weight > 0 && (!instance.ExpiryTime.Valid || instance.ExpiryTime.Int64 <= 0 || instance.ExpiryTime.Int64 > share.CreatedTime) {
+					healthy++
+				}
+			}
+			if healthy < share.MinHealthyInstances {
+				return errors.New("healthy instance count is below minHealthyInstances")
+			}
+		}
+		if err := tx.Create(share).Error; err != nil {
+			return err
+		}
+		if len(instanceIDs) == 0 {
+			return nil
+		}
+		items := make([]model.PeerShareInstance, 0, len(instanceIDs))
+		for _, instanceID := range instanceIDs {
+			items = append(items, model.PeerShareInstance{
+				ShareID: share.ID, NodeID: share.NodeID, InstanceID: instanceID,
+				CreatedTime: share.CreatedTime, UpdatedTime: share.UpdatedTime,
+			})
+		}
+		return tx.Create(&items).Error
+	})
+}
+
 func (r *Repository) UpdatePeerShare(share *model.PeerShare) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
@@ -2120,6 +2173,17 @@ func (r *Repository) UpdatePeerShareActive(id int64, isActive int, now int64) er
 }
 
 func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instanceIDs []string) error {
+	return r.updatePeerShareWithInstances(share, instanceIDs, nil)
+}
+
+// UpdatePeerShareWithInstancesAndCurrentFlow explicitly replaces current_flow.
+// Ordinary configuration updates use UpdatePeerShareWithInstances so concurrent
+// flow increments are preserved by the database update.
+func (r *Repository) UpdatePeerShareWithInstancesAndCurrentFlow(share *model.PeerShare, instanceIDs []string, currentFlow int64) error {
+	return r.updatePeerShareWithInstances(share, instanceIDs, &currentFlow)
+}
+
+func (r *Repository) updatePeerShareWithInstances(share *model.PeerShare, instanceIDs []string, currentFlow *int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -2143,17 +2207,20 @@ func (r *Repository) UpdatePeerShareWithInstances(share *model.PeerShare, instan
 		})
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&model.PeerShare{}).Where("id = ?", share.ID).Updates(map[string]interface{}{
+		updates := map[string]interface{}{
 			"name": share.Name, "max_bandwidth": share.MaxBandwidth,
-			"current_flow": share.CurrentFlow,
-			"expiry_time":  share.ExpiryTime, "port_range_start": share.PortRangeStart,
+			"expiry_time": share.ExpiryTime, "port_range_start": share.PortRangeStart,
 			"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
 			"updated_time": share.UpdatedTime, "allowed_domains": share.AllowedDomains,
 			"allowed_ips": share.AllowedIPs, "scope_type": share.ScopeType,
 			"traffic_ratio":              share.TrafficRatio,
 			"auto_include_new_instances": share.AutoIncludeNewInstances,
 			"min_healthy_instances":      share.MinHealthyInstances,
-		}).Error; err != nil {
+		}
+		if currentFlow != nil {
+			updates["current_flow"] = *currentFlow
+		}
+		if err := tx.Model(&model.PeerShare{}).Where("id = ?", share.ID).Updates(updates).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("share_id = ?", share.ID).Delete(&model.PeerShareInstance{}).Error; err != nil {
@@ -2294,13 +2361,65 @@ func (r *Repository) UpdatePeerShareRuntime(item *model.PeerShareRuntime) error 
 	}).Error
 }
 
+// ClaimPeerShareRuntimeApply grants one caller exclusive ownership of a
+// pending runtime deployment. claimID must be unique per apply attempt.
+func (r *Repository) ClaimPeerShareRuntimeApply(shareID, runtimeID int64, claimID string, updatedTime int64) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	claimID = strings.TrimSpace(claimID)
+	if shareID <= 0 || runtimeID <= 0 || claimID == "" {
+		return false, errors.New("runtime apply claim is invalid")
+	}
+	if updatedTime <= 0 {
+		updatedTime = unixMilliNow()
+	}
+	claimExpiresBefore := updatedTime - int64((2*time.Minute)/time.Millisecond)
+	result := r.db.Model(&model.PeerShareRuntime{}).
+		Where("id = ? AND share_id = ? AND status = 1 AND applied = 0 AND (apply_claim = '' OR updated_time < ?)", runtimeID, shareID, claimExpiresBefore).
+		Updates(map[string]interface{}{"apply_claim": claimID, "updated_time": updatedTime})
+	return result.RowsAffected == 1, result.Error
+}
+
+// FinalizePeerShareRuntimeApply commits or releases a deployment only for the
+// caller that owns claimID.
+func (r *Repository) FinalizePeerShareRuntimeApply(item *model.PeerShareRuntime, claimID string, succeeded bool) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	claimID = strings.TrimSpace(claimID)
+	if item == nil || item.ID <= 0 || item.ShareID <= 0 || claimID == "" {
+		return false, errors.New("runtime apply finalization is invalid")
+	}
+	if item.UpdatedTime <= 0 {
+		item.UpdatedTime = unixMilliNow()
+	}
+	updates := map[string]interface{}{"apply_claim": "", "updated_time": item.UpdatedTime}
+	if succeeded {
+		updates["binding_id"] = item.BindingID
+		updates["role"] = item.Role
+		updates["chain_name"] = item.ChainName
+		updates["service_name"] = item.ServiceName
+		updates["protocol"] = item.Protocol
+		updates["strategy"] = item.Strategy
+		updates["port"] = item.Port
+		updates["target"] = item.Target
+		updates["applied"] = 1
+		updates["status"] = item.Status
+	}
+	result := r.db.Model(&model.PeerShareRuntime{}).
+		Where("id = ? AND share_id = ? AND apply_claim = ?", item.ID, item.ShareID, claimID).
+		Updates(updates)
+	return result.RowsAffected == 1, result.Error
+}
+
 func (r *Repository) MarkPeerShareRuntimeReleased(id int64, updatedTime int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&model.PeerShareRuntime{}).Where("id = ?", id).Updates(map[string]interface{}{
-			"status": 0, "applied": 0, "updated_time": updatedTime,
+			"status": 0, "applied": 0, "apply_claim": "", "updated_time": updatedTime,
 		}).Error; err != nil {
 			return err
 		}

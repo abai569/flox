@@ -1783,54 +1783,6 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		inIP = buildTunnelInIP(runtimeState.InNodes, runtimeState.Nodes, ipPreference)
 	}
 
-	if len(runtimeState.InNodes) > 0 {
-		firstNodeID := runtimeState.InNodes[0].NodeID
-		isRemote, rUrl, rToken, _ := h.repo.GetNodeRemoteFieldsTx(tx, firstNodeID)
-		if isRemote == 1 {
-			fc := client.NewFederationClient()
-
-			targetProto := "tcp"
-			targetPort := 0
-			targetAddr := ""
-
-			if typeVal == 1 {
-				if len(runtimeState.OutNodes) > 0 {
-					outNode := runtimeState.OutNodes[0]
-					outNodeRec := runtimeState.Nodes[outNode.NodeID]
-					targetAddr = processServerAddress(outNodeRec.ServerIP)
-					if outNode.Port > 0 {
-						targetAddr = fmt.Sprintf("%s:%d", targetAddr, outNode.Port)
-					}
-				}
-				if len(runtimeState.InNodes) > 0 {
-					inNodesRaw := asMapSlice(req["inNodeId"])
-					if len(inNodesRaw) > 0 {
-						targetPort = asInt(inNodesRaw[0]["port"], 0)
-						targetProto = defaultString(asString(inNodesRaw[0]["protocol"]), "tcp")
-					}
-				}
-
-				if targetPort > 0 && targetAddr != "" {
-					inNodeRec := runtimeState.Nodes[firstNodeID]
-					if err := validateRemoteNodePort(inNodeRec, targetPort); err != nil {
-						response.WriteJSON(w, response.ErrDefault(err.Error()))
-						return
-					}
-					domainCfg, _ := h.repo.GetConfigByName("panel_domain")
-					localDomain := ""
-					if domainCfg != nil {
-						localDomain = domainCfg.Value
-					}
-					_, err := fc.CreateTunnel(rUrl.String, rToken.String, localDomain, targetProto, targetPort, targetAddr)
-					if err != nil {
-						response.WriteJSON(w, response.ErrDefault("Remote tunnel creation failed: "+err.Error()))
-						return
-					}
-				}
-			}
-		}
-	}
-
 	var tunnelInIP sql.NullString
 	if trimmed := strings.TrimSpace(inIP); trimmed != "" {
 		tunnelInIP = sql.NullString{String: trimmed, Valid: true}
@@ -5569,6 +5521,10 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 			h.releaseFederationRuntimeRefs(releaseRefs)
 			return nil, nil, fmt.Errorf("远程节点 %s 端口分配失败: %w", nodeDisplayName(node), err)
 		}
+		releaseRefs = append(releaseRefs, federationRuntimeReleaseRef{
+			RemoteURL: remoteURL, RemoteToken: remoteToken,
+			ReservationID: reserveRes.ReservationID, ResourceKey: resourceKey,
+		})
 
 		state.OutNodes[outIdx].Port = reserveRes.AllocatedPort
 		outNode = state.OutNodes[outIdx]
@@ -5609,13 +5565,7 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 			CreatedTime:     now,
 			UpdatedTime:     now,
 		})
-		releaseRefs = append(releaseRefs, federationRuntimeReleaseRef{
-			RemoteURL:     remoteURL,
-			RemoteToken:   remoteToken,
-			BindingID:     applyRes.BindingID,
-			ReservationID: reserveRes.ReservationID,
-			ResourceKey:   resourceKey,
-		})
+		releaseRefs[len(releaseRefs)-1].BindingID = applyRes.BindingID
 	}
 
 	for hopIdx := len(state.ChainHops) - 1; hopIdx >= 0; hopIdx-- {
@@ -5647,6 +5597,10 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 				h.releaseFederationRuntimeRefs(releaseRefs)
 				return nil, nil, fmt.Errorf("远程节点 %s 端口分配失败: %w", nodeDisplayName(node), err)
 			}
+			releaseRefs = append(releaseRefs, federationRuntimeReleaseRef{
+				RemoteURL: remoteURL, RemoteToken: remoteToken,
+				ReservationID: reserveRes.ReservationID, ResourceKey: resourceKey,
+			})
 
 			state.ChainHops[hopIdx][nodeIdx].Port = reserveRes.AllocatedPort
 			chainNode = state.ChainHops[hopIdx][nodeIdx]
@@ -5713,13 +5667,7 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 				CreatedTime:     now,
 				UpdatedTime:     now,
 			})
-			releaseRefs = append(releaseRefs, federationRuntimeReleaseRef{
-				RemoteURL:     remoteURL,
-				RemoteToken:   remoteToken,
-				BindingID:     applyRes.BindingID,
-				ReservationID: reserveRes.ReservationID,
-				ResourceKey:   resourceKey,
-			})
+			releaseRefs[len(releaseRefs)-1].BindingID = applyRes.BindingID
 		}
 	}
 
@@ -6675,7 +6623,9 @@ func (h *Handler) deleteNodeByID(id int64) error {
 		shares, err := h.repo.ListPeerSharesByNodeID(id)
 		if err == nil {
 			for _, share := range shares {
-				h.cleanupPeerShareRuntimes(share.ID)
+				if cleanupErr := h.cleanupPeerShareRuntimes(share.ID); cleanupErr != nil {
+					return cleanupErr
+				}
 			}
 		}
 	}

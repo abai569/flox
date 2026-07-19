@@ -326,49 +326,78 @@ func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeIns
 		now = unixMilliNow()
 	}
 	instanceIDs := make([]string, 0, len(items))
-	for _, item := range items {
-		instanceID := normalizeNodeInstanceID(item.InstanceID)
-		if instanceID == "" {
-			continue
+	instances := make([]model.NodeInstance, 0)
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "remote_instances_updated_time").Where("id = ? AND is_remote = 1", nodeID).First(&node).Error; err != nil {
+			return err
 		}
-		instanceIDs = append(instanceIDs, instanceID)
-		values := map[string]interface{}{
-			"node_id": nodeID, "instance_id": instanceID, "display_name": strings.TrimSpace(item.DisplayName),
-			"display_index": item.DisplayIndex, "hostname": strings.TrimSpace(item.Hostname),
-			"public_ip_v4": strings.TrimSpace(item.PublicIPV4), "public_ip_v6": strings.TrimSpace(item.PublicIPV6),
-			"version": item.Version,
-			"status":  item.Status, "weight": item.Weight, "traffic_ratio": item.TrafficRatio,
-			"flow_reset_time": item.FlowResetTime, "traffic_limit": item.TrafficLimit,
-			"total_in_flow": item.TotalInFlow, "total_out_flow": item.TotalOutFlow, "period_rx": item.PeriodRx, "period_tx": item.PeriodTx,
-			"net_in_speed": item.NetInSpeed, "net_out_speed": item.NetOutSpeed, "net_in_bytes": item.NetInBytes, "net_out_bytes": item.NetOutBytes,
-			"tcp_conns": item.TCPConns, "udp_conns": item.UDPConns, "uptime": item.Uptime, "cpu_usage": item.CPUUsage,
-			"mem_usage": item.MemUsage, "disk_usage": item.DiskUsage, "last_seen_at": now, "created_time": now, "updated_time": now,
+		if node.RemoteInstancesUpdatedTime > now {
+			return tx.Where("node_id = ?", nodeID).Order("display_index ASC, id ASC").Find(&instances).Error
 		}
-		if item.ExpiryTime > 0 {
-			values["expiry_time"] = item.ExpiryTime
-		} else {
-			values["expiry_time"] = nil
+		result := tx.Model(&model.Node{}).
+			Where("id = ? AND remote_instances_updated_time <= ?", nodeID, now).
+			Update("remote_instances_updated_time", now)
+		if result.Error != nil {
+			return result.Error
 		}
-		if item.RenewalCycle != "" {
-			values["renewal_cycle"] = item.RenewalCycle
-		} else {
-			values["renewal_cycle"] = nil
+		if result.RowsAffected == 0 {
+			return tx.Where("node_id = ?", nodeID).Order("display_index ASC, id ASC").Find(&instances).Error
 		}
-		if err := r.db.Model(&model.NodeInstance{}).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "node_id"}, {Name: "instance_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "public_ip_v4", "public_ip_v6", "version", "status", "weight", "traffic_ratio", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "total_in_flow", "total_out_flow", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
-		}).Create(values).Error; err != nil {
-			return nil, err
+
+		seen := make(map[string]struct{}, len(items))
+		for _, item := range items {
+			instanceID := normalizeNodeInstanceID(item.InstanceID)
+			if instanceID == "" {
+				continue
+			}
+			if _, ok := seen[instanceID]; ok {
+				continue
+			}
+			seen[instanceID] = struct{}{}
+			instanceIDs = append(instanceIDs, instanceID)
+			values := map[string]interface{}{
+				"node_id": nodeID, "instance_id": instanceID, "display_name": strings.TrimSpace(item.DisplayName),
+				"display_index": item.DisplayIndex, "hostname": strings.TrimSpace(item.Hostname),
+				"public_ip_v4": strings.TrimSpace(item.PublicIPV4), "public_ip_v6": strings.TrimSpace(item.PublicIPV6),
+				"version": item.Version,
+				"status":  item.Status, "weight": item.Weight, "traffic_ratio": item.TrafficRatio,
+				"flow_reset_time": item.FlowResetTime, "traffic_limit": item.TrafficLimit,
+				"total_in_flow": item.TotalInFlow, "total_out_flow": item.TotalOutFlow, "period_rx": item.PeriodRx, "period_tx": item.PeriodTx,
+				"net_in_speed": item.NetInSpeed, "net_out_speed": item.NetOutSpeed, "net_in_bytes": item.NetInBytes, "net_out_bytes": item.NetOutBytes,
+				"tcp_conns": item.TCPConns, "udp_conns": item.UDPConns, "uptime": item.Uptime, "cpu_usage": item.CPUUsage,
+				"mem_usage": item.MemUsage, "disk_usage": item.DiskUsage, "last_seen_at": now, "created_time": now, "updated_time": now,
+			}
+			if item.ExpiryTime > 0 {
+				values["expiry_time"] = item.ExpiryTime
+			} else {
+				values["expiry_time"] = nil
+			}
+			if item.RenewalCycle != "" {
+				values["renewal_cycle"] = item.RenewalCycle
+			} else {
+				values["renewal_cycle"] = nil
+			}
+			if err := tx.Model(&model.NodeInstance{}).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "node_id"}, {Name: "instance_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "public_ip_v4", "public_ip_v6", "version", "status", "weight", "traffic_ratio", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "total_in_flow", "total_out_flow", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
+			}).Create(values).Error; err != nil {
+				return err
+			}
 		}
+		staleQuery := tx.Where("node_id = ? AND updated_time <= ?", nodeID, now)
+		if len(instanceIDs) > 0 {
+			staleQuery = staleQuery.Where("instance_id NOT IN ?", instanceIDs)
+		}
+		if err := staleQuery.Delete(&model.NodeInstance{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("node_id = ?", nodeID).Order("display_index ASC, id ASC").Find(&instances).Error
+	})
+	if instances == nil {
+		instances = make([]model.NodeInstance, 0)
 	}
-	staleQuery := r.db.Where("node_id = ?", nodeID)
-	if len(instanceIDs) > 0 {
-		staleQuery = staleQuery.Where("instance_id NOT IN ?", instanceIDs)
-	}
-	if err := staleQuery.Delete(&model.NodeInstance{}).Error; err != nil {
-		return nil, err
-	}
-	return r.ListNodeInstances(nodeID)
+	return instances, err
 }
 
 func (r *Repository) RefreshNodeInstanceExpiryReminder(nodeID int64, instanceID string) error {
@@ -806,8 +835,16 @@ func (r *Repository) DeleteNodeInstance(nodeID int64, instanceID string) error {
 		if err := r.markNodeInstanceDeletedTx(tx, nodeID, instanceID, unixMilliNow()); err != nil {
 			return err
 		}
-		return tx.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
-			Delete(&model.NodeInstance{}).Error
+		if err := tx.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+			Delete(&model.PeerShareInstance{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.PeerShareRuntimeInstance{}).
+			Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+			Updates(map[string]interface{}{"status": 0, "applied": 0, "healthy": 0, "updated_time": unixMilliNow()}).Error; err != nil {
+			return err
+		}
+		return tx.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).Delete(&model.NodeInstance{}).Error
 	})
 }
 
