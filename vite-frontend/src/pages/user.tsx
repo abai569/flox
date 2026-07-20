@@ -994,6 +994,11 @@ export default function UserPage() {
   } = useDisclosure();
   const [historyModalUser, setHistoryModalUser] =
     useState<UserWithHistory | null>(null);
+  const historyRequestRef = useRef(0);
+  const closeHistoryModal = useCallback(() => {
+    historyRequestRef.current++;
+    onHistoryModalClose();
+  }, [onHistoryModalClose]);
 
   // 删除历史记录确认弹窗状态
   const {
@@ -1002,6 +1007,7 @@ export default function UserPage() {
     onClose: onDeleteConfirmClose,
   } = useDisclosure();
   const [historyToDelete, setHistoryToDelete] = useState<number | null>(null);
+  const logRequestRef = useRef(0);
 
   const handleDeleteHistory = useCallback(async () => {
     if (!historyToDelete || !historyModalUser) return;
@@ -1010,24 +1016,29 @@ export default function UserPage() {
 
       if (res.code === 0) {
         toast.success("删除成功");
-        // 重新获取最新列表
-        const refreshRes = await getUserQuotaHistory(historyModalUser.id, 50);
-
-        if (refreshRes.code === 0) {
-          const updatedHistory = refreshRes.data || [];
-
-          setUsers((prev) =>
-            prev.map((u) =>
-              u.id === historyModalUser.id
-                ? { ...u, quotaHistory: updatedHistory }
-                : u,
-            ),
-          );
-          setHistoryModalUser({
-            ...historyModalUser,
-            quotaHistory: updatedHistory,
-          });
-        }
+        historyRequestRef.current++;
+        setUsers((prev) =>
+          prev.map((user) =>
+            user.id === historyModalUser.id
+              ? {
+                  ...user,
+                  quotaHistory: user.quotaHistory?.filter(
+                    (item) => item.id !== historyToDelete,
+                  ),
+                }
+              : user,
+          ),
+        );
+        setHistoryModalUser((current) =>
+          current?.id === historyModalUser.id
+            ? {
+                ...current,
+                quotaHistory: current.quotaHistory?.filter(
+                  (item) => item.id !== historyToDelete,
+                ),
+              }
+            : current,
+        );
         onDeleteConfirmClose();
         setHistoryToDelete(null);
       } else {
@@ -1040,26 +1051,30 @@ export default function UserPage() {
 
   const openHistoryModal = useCallback(
     async (user: UserWithHistory) => {
-      // 如果没有历史数据，先加载
-      if (!user.quotaHistory || user.quotaHistory.length === 0) {
-        try {
-          const res = await getUserQuotaHistory(user.id, 50);
+      const requestID = ++historyRequestRef.current;
+      setHistoryModalUser(user);
+      onHistoryModalOpen();
+      try {
+        const res = await getUserQuotaHistory(user.id, 50);
+        if (requestID !== historyRequestRef.current) return;
 
-          if (res.code === 0) {
-            setUsers((prev) =>
-              prev.map((u) =>
-                u.id === user.id ? { ...u, quotaHistory: res.data } : u,
-              ),
-            );
-            setHistoryModalUser({ ...user, quotaHistory: res.data });
-            onHistoryModalOpen();
-          }
-        } catch (error) {
+        if (res.code !== 0) {
+          toast.error(res.msg || "加载流量历史失败");
+          return;
+        }
+        const quotaHistory = res.data || [];
+        setUsers((prev) =>
+          prev.map((item) =>
+            item.id === user.id ? { ...item, quotaHistory } : item,
+          ),
+        );
+        setHistoryModalUser((current) =>
+          current?.id === user.id ? { ...current, quotaHistory } : current,
+        );
+      } catch {
+        if (requestID === historyRequestRef.current) {
           toast.error("加载流量历史失败");
         }
-      } else {
-        setHistoryModalUser(user);
-        onHistoryModalOpen();
       }
     },
     [onHistoryModalOpen],
@@ -1256,6 +1271,7 @@ export default function UserPage() {
     onMonitorModalClose,
   ]);
   const handleOpenRenewalLogModal = async (user: User) => {
+    const requestID = ++logRequestRef.current;
     setSelectedRenewalLogUser(user);
     setIsRenewalLogModalOpen(true);
     setLogModalTab("renewal");
@@ -1265,23 +1281,35 @@ export default function UserPage() {
     setTrafficBuyLogs([]);
 
     try {
-      const [renewalRes, trafficRes] = await Promise.all([
+      const [renewalResult, trafficResult] = await Promise.allSettled([
         getUserRenewalLogs(user.id, 50),
         getUserTrafficBuyLogs(user.id, 50),
       ]);
+      if (requestID !== logRequestRef.current) return;
 
-      if (renewalRes.code === 0) {
-        setRenewalLogs(renewalRes.data || []);
+      if (renewalResult.status === "fulfilled") {
+        if (renewalResult.value.code === 0) {
+          setRenewalLogs(renewalResult.value.data || []);
+        } else {
+          toast.error(renewalResult.value.msg || "获取续费记录失败");
+        }
+      } else {
+        toast.error("获取续费记录失败");
       }
-      if (trafficRes.code === 0) {
-        setTrafficBuyLogs(trafficRes.data || []);
+      if (trafficResult.status === "fulfilled") {
+        if (trafficResult.value.code === 0) {
+          setTrafficBuyLogs(trafficResult.value.data || []);
+        } else {
+          toast.error(trafficResult.value.msg || "获取购流记录失败");
+        }
+      } else {
+        toast.error("获取购流记录失败");
       }
-    } catch (error) {
-      console.error("获取日志失败:", error);
-      toast.error("获取日志失败");
     } finally {
-      setRenewalLogLoading(false);
-      setTrafficBuyLogLoading(false);
+      if (requestID === logRequestRef.current) {
+        setRenewalLogLoading(false);
+        setTrafficBuyLogLoading(false);
+      }
     }
   };
 
@@ -1291,18 +1319,7 @@ export default function UserPage() {
 
       if (res.code === 0) {
         toast.success("删除成功");
-        if (selectedRenewalLogUser) {
-          try {
-            const refreshRes = await getUserRenewalLogs(
-              selectedRenewalLogUser.id,
-              50,
-            );
-
-            if (refreshRes.code === 0) {
-              setRenewalLogs(refreshRes.data || []);
-            }
-          } catch { }
-        }
+        setRenewalLogs((current) => current.filter((log) => log.id !== id));
       } else {
         toast.error(res.msg || "删除失败");
       }
@@ -1317,18 +1334,7 @@ export default function UserPage() {
 
       if (res.code === 0) {
         toast.success("删除成功");
-        if (selectedRenewalLogUser) {
-          try {
-            const refreshRes = await getUserTrafficBuyLogs(
-              selectedRenewalLogUser.id,
-              50,
-            );
-
-            if (refreshRes.code === 0) {
-              setTrafficBuyLogs(refreshRes.data || []);
-            }
-          } catch { }
-        }
+        setTrafficBuyLogs((current) => current.filter((log) => log.id !== id));
       } else {
         toast.error(res.msg || "删除失败");
       }
@@ -3276,7 +3282,10 @@ export default function UserPage() {
         placement="center"
         scrollBehavior="inside"
         size="lg"
-        onClose={() => setIsRenewalLogModalOpen(false)}
+        onClose={() => {
+          logRequestRef.current++;
+          setIsRenewalLogModalOpen(false);
+        }}
       >
         <ModalContent>
           <ModalHeader>
@@ -3532,7 +3541,12 @@ export default function UserPage() {
             )}
           </ModalBody>
           <ModalFooter>
-            <Button onPress={() => setIsRenewalLogModalOpen(false)}>
+            <Button
+              onPress={() => {
+                logRequestRef.current++;
+                setIsRenewalLogModalOpen(false);
+              }}
+            >
               关闭
             </Button>
           </ModalFooter>
@@ -4923,7 +4937,7 @@ export default function UserPage() {
         }}
         isOpen={isHistoryModalOpen}
         placement="center"
-        onClose={onHistoryModalClose}
+        onClose={closeHistoryModal}
       >
         <ModalContent>
           <ModalHeader className="flex items-center justify-between">
@@ -4935,7 +4949,7 @@ export default function UserPage() {
               className="w-8 h-8 min-w-8"
               size="sm"
               variant="flat"
-              onPress={onHistoryModalClose}
+              onPress={closeHistoryModal}
             >
               <svg
                 aria-hidden="true"
@@ -4966,7 +4980,7 @@ export default function UserPage() {
                     <div className="flex items-center justify-between w-full mb-2">
                       <span className="text-sm font-medium text-default-600">
                         {item.resetReason === "管理员手动归零"
-                          ? "admin"
+                          ? "管理员手动"
                           : "系统自动"}
                       </span>
                       <div className="flex flex-wrap items-center gap-2">
@@ -5035,7 +5049,7 @@ export default function UserPage() {
             )}
           </ModalBody>
           <ModalFooter>
-            <Button onPress={onHistoryModalClose}>关闭</Button>
+            <Button onPress={closeHistoryModal}>关闭</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

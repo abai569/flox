@@ -218,102 +218,97 @@ func (r *Repository) DeleteUserCascade(userID int64) error {
 	})
 }
 
-func (r *Repository) ResetUserFlowByUser(userID int64, now int64) {
+func (r *Repository) ResetUserFlowByUser(userID int64, now int64) error {
 	if r == nil || r.db == nil {
-		return
+		return errors.New("repository not initialized")
 	}
 
-	var user model.User
-	var quota model.UserQuota
-
-	if err := r.db.Where("id = ?", userID).First(&user).Error; err != nil {
-		return
-	}
-
-	_ = r.db.Where("user_id = ?", userID).First(&quota).Error
-
-	inFlowBefore := user.InFlow
-	outFlowBefore := user.OutFlow
-	totalBytes := inFlowBefore + outFlowBefore
-
-	tx := r.db.Begin()
-	defer func() { tx.Rollback() }()
-
-	_ = tx.Model(&model.User{}).
-		Where("id = ?", userID).
-		Updates(map[string]interface{}{
-			"in_flow":      0,
-			"out_flow":     0,
-			"updated_time": sql.NullInt64{Int64: now, Valid: true},
-		}).Error
-
-	_ = tx.Model(&model.UserQuota{}).
-		Where("user_id = ?", userID).
-		Updates(map[string]interface{}{
-			"monthly_used_bytes": 0,
-			"updated_time":       now,
-		}).Error
-
-	history := &model.UserQuotaHistory{
-		UserID:        userID,
-		PeriodType:    "monthly",
-		PeriodKey:     quota.MonthKey,
-		InFlowBefore:  inFlowBefore,
-		OutFlowBefore: outFlowBefore,
-		UsedBytes:     totalBytes,
-		ResetTime:     now,
-		CreatedTime:   now,
-		ResetReason:   "管理员手动归零",
-	}
-	_ = tx.Create(history).Error
-
-	_ = tx.Model(&model.UserTunnel{}).
-		Where("user_id = ?", userID).
-		Updates(map[string]interface{}{"in_flow": 0, "out_flow": 0}).Error
-
-	tx.Commit()
-}
-
-func (r *Repository) ResetUserFlowByUserTunnel(userTunnelID int64) {
-	if r == nil || r.db == nil {
-		return
-	}
-	// 查询归零前的流量
-	var utFlow struct {
-		InFlow  int64
-		OutFlow int64
-		UserID  int64
-	}
-	r.db.Model(&model.UserTunnel{}).Select("in_flow", "out_flow", "user_id").Where("id = ?", userTunnelID).First(&utFlow)
-
-	_ = r.db.Model(&model.UserTunnel{}).
-		Where("id = ?", userTunnelID).
-		Updates(map[string]interface{}{"in_flow": 0, "out_flow": 0}).Error
-
-	// 记录隧道流量归零历史
-	if utFlow.InFlow > 0 || utFlow.OutFlow > 0 {
+	return r.db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
-		var tunnel model.Tunnel
-		r.db.Model(&model.User{}).Select("user", "name").Where("id = ?", utFlow.UserID).First(&user)
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
 
-		var userTunnel model.UserTunnel
-		r.db.Model(&model.UserTunnel{}).Select("tunnel_id").Where("id = ?", userTunnelID).First(&userTunnel)
-		r.db.Model(&model.Tunnel{}).Select("name").Where("id = ?", userTunnel.TunnelID).First(&tunnel)
+		var quota model.UserQuota
+		if err := tx.Where("user_id = ?", userID).First(&quota).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
 
-		totalBytes := utFlow.InFlow + utFlow.OutFlow
-		history := model.UserQuotaHistory{
-			UserID:        utFlow.UserID,
-			PeriodType:    "tunnel",
-			PeriodKey:     userTunnel.TunnelID,
-			InFlowBefore:  utFlow.InFlow,
-			OutFlowBefore: utFlow.OutFlow,
-			UsedBytes:     totalBytes,
-			ResetTime:     time.Now().UnixMilli(),
-			CreatedTime:   time.Now().UnixMilli(),
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Updates(map[string]interface{}{
+				"in_flow":      0,
+				"out_flow":     0,
+				"updated_time": sql.NullInt64{Int64: now, Valid: true},
+			}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&model.UserQuota{}).
+			Where("user_id = ?", userID).
+			Updates(map[string]interface{}{
+				"monthly_used_bytes": 0,
+				"updated_time":       now,
+			}).Error; err != nil {
+			return err
+		}
+
+		history := &model.UserQuotaHistory{
+			UserID:        userID,
+			PeriodType:    "monthly",
+			PeriodKey:     quota.MonthKey,
+			InFlowBefore:  user.InFlow,
+			OutFlowBefore: user.OutFlow,
+			UsedBytes:     user.InFlow + user.OutFlow,
+			ResetTime:     now,
+			CreatedTime:   now,
 			ResetReason:   "管理员手动归零",
 		}
-		r.db.Create(&history)
+		if err := tx.Create(history).Error; err != nil {
+			return err
+		}
+
+		return tx.Model(&model.UserTunnel{}).
+			Where("user_id = ?", userID).
+			Updates(map[string]interface{}{"in_flow": 0, "out_flow": 0}).Error
+	})
+}
+
+func (r *Repository) ResetUserFlowByUserTunnel(userTunnelID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
 	}
+
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var userTunnel model.UserTunnel
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userTunnelID).First(&userTunnel).Error; err != nil {
+			return err
+		}
+		inFlowBefore := userTunnel.InFlow
+		outFlowBefore := userTunnel.OutFlow
+		if err := tx.Model(&model.UserTunnel{}).
+			Where("id = ?", userTunnelID).
+			Updates(map[string]interface{}{"in_flow": 0, "out_flow": 0}).Error; err != nil {
+			return err
+		}
+		if inFlowBefore == 0 && outFlowBefore == 0 {
+			return nil
+		}
+
+		now := time.Now().UnixMilli()
+		history := &model.UserQuotaHistory{
+			UserID:        userTunnel.UserID,
+			PeriodType:    "tunnel",
+			PeriodKey:     userTunnel.TunnelID,
+			InFlowBefore:  inFlowBefore,
+			OutFlowBefore: outFlowBefore,
+			UsedBytes:     inFlowBefore + outFlowBefore,
+			ResetTime:     now,
+			CreatedTime:   now,
+			ResetReason:   "管理员手动归零",
+		}
+		return tx.Create(history).Error
+	})
 }
 
 func (r *Repository) GetUsernameByID(userID int64) string {
@@ -593,78 +588,73 @@ func (r *Repository) UpdateUserAutoBuyTraffic(userID int64, autoBuyTraffic int) 
 		Update("auto_buy_traffic", autoBuyTraffic).Error
 }
 
-func (r *Repository) BuyTrafficWithBalance(userID, buyPrice, buyAmount, flowBefore, now int64) error {
+func (r *Repository) BuyTrafficWithBalance(userID, buyPrice, buyAmount, threshold, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 
-	user, err := r.GetUserByID(userID)
-	if err != nil {
-		return err
-	}
-	if user.Balance < buyPrice {
-		return errors.New("insufficient balance")
-	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+		if user.Balance < buyPrice {
+			return errors.New("insufficient balance")
+		}
 
-	tx := r.db.Begin()
-	defer func() { tx.Rollback() }()
+		result := tx.Model(&model.User{}).
+			Where("id = ? AND balance = ? AND flow = ? AND flow * ? - in_flow - out_flow < ?", userID, user.Balance, user.Flow, int64(1024*1024*1024), threshold*1024*1024*1024).
+			Updates(map[string]interface{}{
+				"balance":      gorm.Expr("balance - ?", buyPrice),
+				"flow":         gorm.Expr("flow + ?", buyAmount),
+				"traffic_flow": gorm.Expr("traffic_flow + ?", buyAmount),
+				"updated_time": sql.NullInt64{Int64: now, Valid: true},
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("auto buy traffic condition no longer met")
+		}
 
-	newFlow := user.Flow + buyAmount
-	err = tx.Model(&model.User{}).
-		Where("id = ?", userID).
-		Updates(map[string]interface{}{
-			"balance":      user.Balance - buyPrice,
-			"flow":         newFlow,
-			"traffic_flow": gorm.Expr("traffic_flow + ?", buyAmount),
-			"updated_time": sql.NullInt64{Int64: now, Valid: true},
-		}).Error
-	if err != nil {
-		return err
-	}
+		if err := tx.Model(&model.UserTunnel{}).
+			Where("user_id = ?", userID).
+			Update("flow", gorm.Expr("flow + ?", buyAmount)).Error; err != nil {
+			return err
+		}
 
-	err = tx.Model(&model.UserTunnel{}).
-		Where("user_id = ?", userID).
-		Update("flow", gorm.Expr("flow + ?", buyAmount)).Error
-	if err != nil {
-		return err
-	}
+		newFlow := user.Flow + buyAmount
+		log := &model.UserTrafficBuyLog{
+			UserID:        userID,
+			UserName:      user.User,
+			BuyAmount:     buyAmount,
+			BuyPrice:      buyPrice,
+			BalanceBefore: user.Balance,
+			BalanceAfter:  user.Balance - buyPrice,
+			FlowBefore:    user.Flow,
+			FlowAfter:     newFlow,
+			BuyTime:       now,
+			Reason:        "自动购买流量",
+		}
+		if err := tx.Create(log).Error; err != nil {
+			return err
+		}
 
-	log := &model.UserTrafficBuyLog{
-		UserID:        userID,
-		UserName:      user.User,
-		BuyAmount:     buyAmount,
-		BuyPrice:      buyPrice,
-		BalanceBefore: user.Balance,
-		BalanceAfter:  user.Balance - buyPrice,
-		FlowBefore:    flowBefore,
-		FlowAfter:     newFlow,
-		BuyTime:       now,
-		Reason:        "自动购买流量",
-	}
-	err = tx.Create(log).Error
-	if err != nil {
-		return err
-	}
-
-	balanceLog := &model.BalanceLog{
-		UserID:        userID,
-		UserName:      user.User,
-		Amount:        -buyPrice,
-		BalanceBefore: user.Balance,
-		BalanceAfter:  user.Balance - buyPrice,
-		Reason:        "自动购买流量",
-		CreatedTime:   now,
-		Signature:     SignBalanceLog(userID, -buyPrice, user.Balance, user.Balance-buyPrice, now, "自动购买流量"),
-	}
-	err = tx.Create(balanceLog).Error
-	if err != nil {
-		return err
-	}
-
-	return tx.Commit().Error
+		balanceLog := &model.BalanceLog{
+			UserID:        userID,
+			UserName:      user.User,
+			Amount:        -buyPrice,
+			BalanceBefore: user.Balance,
+			BalanceAfter:  user.Balance - buyPrice,
+			Reason:        "自动购买流量",
+			CreatedTime:   now,
+			Signature:     SignBalanceLog(userID, -buyPrice, user.Balance, user.Balance-buyPrice, now, "自动购买流量"),
+		}
+		return tx.Create(balanceLog).Error
+	})
 }
 
-func (r *Repository) BuyTrafficPackageWithBalance(userID, packageID, now int64) error {
+func (r *Repository) BuyTrafficPackageWithBalance(userID, packageID, threshold, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -680,7 +670,7 @@ func (r *Repository) BuyTrafficPackageWithBalance(userID, packageID, now int64) 
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		var user model.User
-		if err := tx.Where("id = ?", userID).First(&user).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&user).Error; err != nil {
 			return err
 		}
 
@@ -708,15 +698,19 @@ func (r *Repository) BuyTrafficPackageWithBalance(userID, packageID, now int64) 
 		}
 
 		newFlow := user.Flow + pkg.TrafficLimit
-		if err := tx.Model(&model.User{}).
-			Where("id = ?", userID).
+		result := tx.Model(&model.User{}).
+			Where("id = ? AND balance = ? AND flow = ? AND flow * ? - in_flow - out_flow < ?", userID, user.Balance, user.Flow, int64(1024*1024*1024), threshold*1024*1024*1024).
 			Updates(map[string]interface{}{
-				"balance":      user.Balance - pkg.Price,
-				"flow":         newFlow,
+				"balance":      gorm.Expr("balance - ?", pkg.Price),
+				"flow":         gorm.Expr("flow + ?", pkg.TrafficLimit),
 				"traffic_flow": gorm.Expr("traffic_flow + ?", pkg.TrafficLimit),
 				"updated_time": sql.NullInt64{Int64: now, Valid: true},
-			}).Error; err != nil {
-			return err
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("auto buy traffic condition no longer met")
 		}
 
 		if len(tunnelIDs) > 0 {
@@ -2493,7 +2487,14 @@ func (r *Repository) DeleteUserTrafficBuyLog(id int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	return r.db.Delete(&model.UserTrafficBuyLog{}, id).Error
+	result := r.db.Delete(&model.UserTrafficBuyLog{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *Repository) MarkUserAutoRenewSuccess(userID, newExpTime, now int64) error {
@@ -2632,7 +2633,14 @@ func (r *Repository) DeleteUserRenewalLog(id int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	return r.db.Delete(&model.UserRenewalLog{}, id).Error
+	result := r.db.Delete(&model.UserRenewalLog{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (r *Repository) CreateUserRenewalLog(userID int64, renewalAmount, balanceBefore, balanceAfter, expTimeBefore, expTimeAfter, now int64, operatorName, reason string) {

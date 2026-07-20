@@ -693,9 +693,9 @@ func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
 		for attempt := 1; attempt <= maxRetries; attempt++ {
 			var err error
 			if user.AutoBuyTrafficPackageID > 0 {
-				err = h.repo.BuyTrafficPackageWithBalance(user.ID, user.AutoBuyTrafficPackageID, nowMs)
+				err = h.repo.BuyTrafficPackageWithBalance(user.ID, user.AutoBuyTrafficPackageID, threshold, nowMs)
 			} else {
-				err = h.repo.BuyTrafficWithBalance(user.ID, price, amount, user.Flow, nowMs)
+				err = h.repo.BuyTrafficWithBalance(user.ID, price, amount, threshold, nowMs)
 			}
 			if err != nil {
 				log.Printf("用户 %d 自动购流失败（第%d/%d次）：%v", user.ID, attempt, maxRetries, err)

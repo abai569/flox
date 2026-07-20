@@ -529,5 +529,12 @@ func (r *Repository) DeleteUserQuotaHistory(id int64) error {
 	if id <= 0 {
 		return errors.New("invalid history id")
 	}
-	return r.db.Delete(&model.UserQuotaHistory{}, id).Error
+	result := r.db.Delete(&model.UserQuotaHistory{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

@@ -920,7 +920,10 @@ func (h *Handler) userResetFlow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if typeVal == 1 {
-		h.repo.ResetUserFlowByUser(id, time.Now().UnixMilli())
+		if err := h.repo.ResetUserFlowByUser(id, time.Now().UnixMilli()); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 		user, _ := h.repo.GetUserByID(id)
 		if user != nil {
 			h.sendBotNotification(func(bot *telegram.Bot) {
@@ -928,7 +931,10 @@ func (h *Handler) userResetFlow(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	} else {
-		h.repo.ResetUserFlowByUserTunnel(id)
+		if err := h.repo.ResetUserFlowByUserTunnel(id); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	response.WriteJSON(w, response.OKEmpty())
 }
@@ -998,15 +1004,19 @@ func (h *Handler) userBatchResetFlow(w http.ResponseWriter, r *http.Request) {
 
 	resetTime := time.Now().UnixMilli()
 	successCount := 0
+	failCount := 0
 
 	for _, id := range req.IDs {
-		h.repo.ResetUserFlowByUser(id, resetTime)
-		successCount++
+		if err := h.repo.ResetUserFlowByUser(id, resetTime); err != nil {
+			failCount++
+		} else {
+			successCount++
+		}
 	}
 
 	response.WriteJSON(w, response.OK(map[string]int{
 		"successCount": successCount,
-		"failCount":    0,
+		"failCount":    failCount,
 	}))
 }
 

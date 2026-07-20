@@ -152,7 +152,7 @@ func (h *Handler) userQuotaHistory(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault("请求方法错误"))
 		return
 	}
-	
+
 	var req struct {
 		UserID int64 `json:"userId"`
 		Limit  int   `json:"limit"`
@@ -171,13 +171,13 @@ func (h *Handler) userQuotaHistory(w http.ResponseWriter, r *http.Request) {
 	if req.Limit > 200 {
 		req.Limit = 200
 	}
-	
+
 	histories, err := h.repo.GetUserQuotaHistory(req.UserID, req.Limit)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-	
+
 	response.WriteJSON(w, response.OK(histories))
 }
 
@@ -187,7 +187,7 @@ func (h *Handler) userQuotaHistoryDelete(w http.ResponseWriter, r *http.Request)
 		response.WriteJSON(w, response.ErrDefault("请求方法错误"))
 		return
 	}
-	
+
 	var req struct {
 		ID int64 `json:"id"`
 	}
@@ -199,12 +199,12 @@ func (h *Handler) userQuotaHistoryDelete(w http.ResponseWriter, r *http.Request)
 		response.WriteJSON(w, response.ErrDefault("历史记录 ID 不能为空"))
 		return
 	}
-	
+
 	if err := h.repo.DeleteUserQuotaHistory(req.ID); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-	
+
 	response.WriteJSON(w, response.OKEmpty())
 }
 
@@ -233,6 +233,9 @@ func (h *Handler) userRenewalLogs(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	if req.Limit > 0 {
 		limit = req.Limit
+	}
+	if limit > 200 {
+		limit = 200
 	}
 
 	logs, err := h.repo.GetUserRenewalLogs(req.UserID, limit)
@@ -293,6 +296,9 @@ func (h *Handler) userTrafficBuyLogs(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	if req.Limit > 0 {
 		limit = req.Limit
+	}
+	if limit > 200 {
+		limit = 200
 	}
 
 	logs, err := h.repo.GetUserTrafficBuyLogs(req.UserID, limit)
