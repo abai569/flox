@@ -645,12 +645,17 @@ function NodeInstanceGroupsView({
                               {formatUptime(member.uptime)}
                             </div>
                           </td>
-                          <td className="px-1 py-3 text-center align-middle font-mono text-xs">
+                          <td
+                            className="group relative px-1 py-3 text-center align-middle font-mono text-xs"
+                          >
                             <div className="truncate">
                               {formatBytes(member.periodTx)}↑
                             </div>
                             <div className="truncate">
                               {formatBytes(member.periodRx)}↓
+                            </div>
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                              总量:{formatBytes(member.periodTx + member.periodRx)}
                             </div>
                           </td>
                           <td className="px-1 py-3 align-middle">
