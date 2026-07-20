@@ -6731,31 +6731,15 @@ export default function ForwardPage() {
                     </button>
                     {advancedOptionsOpen && (
                       <div className="p-4 space-y-4 bg-content1">
-                        {/* 限速配置 */}
-                        <SpeedLimitConfigField
-                          enabled={form.speedLimitEnabled}
-                          speedLimit={form.speedLimit}
-                          onEnabledChange={(val) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              speedLimitEnabled: val,
-                            }))
-                          }
-                          onSpeedLimitChange={(val) =>
-                            setForm((prev) => ({
-                              ...prev,
-                              speedLimit: val,
-                            }))
-                          }
-                        />
-                        {/* 连接数限制 & 流量控制 - 同一行 */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                          <ConnectionLimitField
-                            value={form.maxConnections}
-                            onChange={(val) =>
+                        {/* 限速、连接数限制、流量控制 - 同一行 */}
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          <SpeedLimitConfigField
+                            speedLimit={form.speedLimit}
+                            onSpeedLimitChange={(val) =>
                               setForm((prev) => ({
                                 ...prev,
-                                maxConnections: val,
+                                speedLimit: val,
+                                speedLimitEnabled: val > 0,
                               }))
                             }
                           />
@@ -6768,6 +6752,17 @@ export default function ForwardPage() {
                               }))
                             }
                           />
+                          <ConnectionLimitField
+                            value={form.maxConnections}
+                            onChange={(val) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                maxConnections: val,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
                           {/* 监听ip */}
                           <Select
                             description={
@@ -8579,47 +8574,27 @@ function ConnectionLimitField({
 }
 // ─── Speed Limit Config Field ──────────────────────────────────────────────
 function SpeedLimitConfigField({
-  enabled,
   speedLimit,
-  onEnabledChange,
   onSpeedLimitChange,
 }: {
-  enabled: boolean;
   speedLimit: number;
-  onEnabledChange: (val: boolean) => void;
   onSpeedLimitChange: (val: number) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-foreground">限速配置</span>
-        <Switch
-          aria-label="启用限速"
-          isSelected={enabled}
-          size="sm"
-          onValueChange={onEnabledChange}
-        >
-          {enabled ? "启用" : "禁用"}
-        </Switch>
-      </div>
-      {enabled && (
-        <div>
-          <span className="text-xs text-default-600 block mb-1.5">
-            速率限制 (Mbps)
-          </span>
-          <Input
-            placeholder="0"
-            type="number"
-            value={speedLimit > 0 ? speedLimit.toString() : ""}
-            variant="bordered"
-            onChange={(e) => {
-              const val = parseInt(e.target.value, 10);
+    <div className="space-y-2">
+      <span className="text-sm font-medium text-foreground">速度限制</span>
+      <Input
+        description="留空表示不限制，单位：Mbps"
+        placeholder="不限制"
+        type="number"
+        value={speedLimit > 0 ? speedLimit.toString() : ""}
+        variant="bordered"
+        onChange={(e) => {
+          const val = parseInt(e.target.value, 10);
 
-              onSpeedLimitChange(isNaN(val) || val < 0 ? 0 : val);
-            }}
-          />
-        </div>
-      )}
+          onSpeedLimitChange(isNaN(val) || val < 0 ? 0 : val);
+        }}
+      />
     </div>
   );
 }
@@ -8652,7 +8627,7 @@ function TrafficLimitField({
 
   return (
     <div className="space-y-2">
-      <span className="text-sm font-medium text-foreground">流量控制</span>
+      <span className="text-sm font-medium text-foreground">流量限制</span>
       <Input
         description="留空表示不限制，单位：GB"
         placeholder="不限制"
