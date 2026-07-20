@@ -159,6 +159,18 @@ func (r *Repository) UpdateUserForwardSpeedLimit(userID int64, limit int) error 
 		Where("id = ?", userID).
 		Update("forward_speed_limit", limit).Error
 }
+
+func (r *Repository) UpdateUserManualTunnelPermission(userID int64, enabled int) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if enabled != 0 && enabled != 1 {
+		return errors.New("invalid manual tunnel permission")
+	}
+	return r.db.Model(&model.User{}).
+		Where("id = ?", userID).
+		Update("manual_tunnel_enabled", enabled).Error
+}
 func (r *Repository) PropagateUserFlowToTunnels(userID int64, flow int64, num int, expTime, flowResetTime int64, status int) {
 	if r == nil || r.db == nil {
 		return

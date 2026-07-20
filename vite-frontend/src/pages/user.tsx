@@ -200,6 +200,11 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
     ),
     baseFlow: Number(item.baseFlow ?? 0),
     roleId: Number((item as any).roleId ?? 1),
+    tunnelGroupId:
+      item.tunnelGroupId === null || item.tunnelGroupId === undefined
+        ? undefined
+        : Number(item.tunnelGroupId),
+    manualTunnelEnabled: item.manualTunnelEnabled === 1 ? 1 : 0,
     forwardSpeedLimit: item.forwardSpeedLimit ?? null,
     quotaHistory: [],
     showHistory: false,
@@ -274,15 +279,16 @@ export default function UserPage() {
       expTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
       flowResetTime: 0,
       tunnelGroupId: undefined,
+      manualTunnelEnabled: 0,
       renewalAmount: 0,
       balance: 0,
-      autoRenew: 0,
-      autoBuyTraffic: 0,
+      autoRenew: 1,
+      autoBuyTraffic: 1,
       buyTrafficAmount: 0,
       buyTrafficPrice: 0,
       autoBuyTrafficPackageId: 0,
-      autoBuyTrafficThreshold: 10,
-      autoBuyTrafficPackageType: "custom",
+      autoBuyTrafficThreshold: 0,
+      autoBuyTrafficPackageType: "",
       roleId: 1,
       forwardSpeedLimit: 0,
     } as {
@@ -298,6 +304,7 @@ export default function UserPage() {
       expTime: Date | null;
       flowResetTime: number;
       tunnelGroupId?: number;
+      manualTunnelEnabled: 0 | 1;
       renewalAmount: number;
       balance: number;
       autoRenew: number;
@@ -306,7 +313,7 @@ export default function UserPage() {
       buyTrafficPrice: number;
       autoBuyTrafficPackageId: number;
       autoBuyTrafficThreshold: number;
-      autoBuyTrafficPackageType: "package" | "custom";
+      autoBuyTrafficPackageType: "" | "package" | "custom";
       roleId: number;
       forwardSpeedLimit: number;
     },
@@ -646,7 +653,7 @@ export default function UserPage() {
             "vite_config_registration_enabled",
             enabled ? "true" : "false",
           );
-        } catch {}
+        } catch { }
         window.dispatchEvent(new CustomEvent("configUpdated"));
         toast.success(enabled ? "注册已开启" : "注册已关闭");
       } else {
@@ -847,7 +854,7 @@ export default function UserPage() {
       if (response.code === 0) {
         setTunnels(Array.isArray(response.data) ? response.data : []);
       }
-    } catch {}
+    } catch { }
   }, []);
   const loadSpeedLimits = useCallback(async () => {
     try {
@@ -856,15 +863,15 @@ export default function UserPage() {
       if (response.code === 0) {
         const speedLimitList = Array.isArray(response.data)
           ? response.data.map((item) => ({
-              ...item,
-              uploadSpeed: item.uploadSpeed ?? item.speed ?? 0,
-              downloadSpeed: item.downloadSpeed ?? item.speed ?? 0,
-            }))
+            ...item,
+            uploadSpeed: item.uploadSpeed ?? item.speed ?? 0,
+            downloadSpeed: item.downloadSpeed ?? item.speed ?? 0,
+          }))
           : [];
 
         setSpeedLimits(speedLimitList);
       }
-    } catch {}
+    } catch { }
   }, []);
   const loadTunnelGroups = useCallback(async () => {
     try {
@@ -873,7 +880,7 @@ export default function UserPage() {
       if (response.code === 0) {
         setTunnelGroups(Array.isArray(response.data) ? response.data : []);
       }
-    } catch {}
+    } catch { }
   }, []);
   const loadUserTunnels = useCallback(async (userId: number) => {
     setTunnelListLoading(true);
@@ -937,7 +944,7 @@ export default function UserPage() {
             setRegOpen(v === "1" || v === "true");
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     loadReg();
@@ -972,8 +979,10 @@ export default function UserPage() {
   // 用户管理操作
   const handleAdd = () => {
     setIsEdit(false);
+    resetUserDraft();
     setFlowInput("");
     setNumInput("");
+    setUsedFlowInput("");
     onUserModalOpen();
   };
 
@@ -1075,7 +1084,11 @@ export default function UserPage() {
       num: user.num,
       expTime: user.expTime ? new Date(user.expTime) : null,
       flowResetTime: user.flowResetTime ?? 0,
-      tunnelGroupId: user.tunnelGroupId,
+      tunnelGroupId:
+        user.tunnelGroupId === null || user.tunnelGroupId === undefined
+          ? undefined
+          : Number(user.tunnelGroupId),
+      manualTunnelEnabled: user.manualTunnelEnabled === 1 ? 1 : 0,
       renewalAmount: user.renewalAmount ?? 0,
       balance: user.balance ?? 0,
       autoRenew: user.autoRenew ?? 0,
@@ -1288,7 +1301,7 @@ export default function UserPage() {
             if (refreshRes.code === 0) {
               setRenewalLogs(refreshRes.data || []);
             }
-          } catch {}
+          } catch { }
         }
       } else {
         toast.error(res.msg || "删除失败");
@@ -1314,7 +1327,7 @@ export default function UserPage() {
             if (refreshRes.code === 0) {
               setTrafficBuyLogs(refreshRes.data || []);
             }
-          } catch {}
+          } catch { }
         }
       } else {
         toast.error(res.msg || "删除失败");
@@ -1414,10 +1427,10 @@ export default function UserPage() {
             speedLimitName:
               normalizeSpeedId(editTunnelForm.speedId) !== null
                 ? speedLimits.find(
-                    (speedLimit) =>
-                      speedLimit.id ===
-                      normalizeSpeedId(editTunnelForm.speedId),
-                  )?.name
+                  (speedLimit) =>
+                    speedLimit.id ===
+                    normalizeSpeedId(editTunnelForm.speedId),
+                )?.name
                 : undefined,
           });
 
@@ -1484,17 +1497,17 @@ export default function UserPage() {
       setUserTunnels((prev) =>
         prev.map((tunnel) =>
           selectedUserTunnelIds.has(tunnel.id)
-              ? normalizeUserTunnelItem({
-                  ...tunnel,
-                  flow: batchEditTunnelForm.flow,
-                  num: batchEditTunnelForm.num,
-                  expTime: batchEditTunnelForm.expTime,
-                  speedId,
-                  ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
-                  forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
-                  status: batchEditTunnelForm.status,
-                  speedLimitName,
-                })
+            ? normalizeUserTunnelItem({
+              ...tunnel,
+              flow: batchEditTunnelForm.flow,
+              num: batchEditTunnelForm.num,
+              expTime: batchEditTunnelForm.expTime,
+              speedId,
+              ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
+              forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
+              status: batchEditTunnelForm.status,
+              speedLimitName,
+            })
             : tunnel,
         ),
       );
@@ -1671,7 +1684,7 @@ export default function UserPage() {
               });
             }
           }
-        } catch {}
+        } catch { }
 
         setUserToReset(null);
       } else {
@@ -1754,7 +1767,7 @@ export default function UserPage() {
               });
             }
           }
-        } catch {}
+        } catch { }
 
         setTunnelToReset(null);
       } else {
@@ -1884,13 +1897,12 @@ export default function UserPage() {
     return (
       <TableRow
         ref={setNodeRef}
-        className={`cursor-default transition-colors ${
-          selectedUserIds.has(user.id)
+        className={`cursor-default transition-colors ${selectedUserIds.has(user.id)
+          ? "bg-primary-50 dark:bg-primary-900/30"
+          : selectedUserId === user.id
             ? "bg-primary-50 dark:bg-primary-900/30"
-            : selectedUserId === user.id
-              ? "bg-primary-50 dark:bg-primary-900/30"
-              : "hover:bg-default-50/50"
-        }`}
+            : "hover:bg-default-50/50"
+          }`}
         style={style}
         onClick={() => {
           if (!batchMode) {
@@ -2235,14 +2247,14 @@ export default function UserPage() {
                               className="w-24 mt-1"
                               color={
                                 usedFlow / (user.flow * 1024 * 1024 * 1024) >
-                                0.8
+                                  0.8
                                   ? "danger"
                                   : "primary"
                               }
                               size="sm"
                               value={Math.min(
                                 (usedFlow / (user.flow * 1024 * 1024 * 1024)) *
-                                  100,
+                                100,
                                 100,
                               )}
                             />
@@ -2275,16 +2287,15 @@ export default function UserPage() {
                                 </span>
                               ) : (
                                 <div
-                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                                    ((expStatus?.color as string) || "") ===
+                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "") ===
                                     "success"
-                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                      : expStatus?.color === "warning"
-                                        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-                                        : expStatus?.color === "danger"
-                                          ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                          : "bg-default-500/10 text-default-500"
-                                  }`}
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : expStatus?.color === "warning"
+                                      ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                                      : expStatus?.color === "danger"
+                                        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                        : "bg-default-500/10 text-default-500"
+                                    }`}
                                 >
                                   {expStatus?.text || "未知"}
                                 </div>
@@ -2329,11 +2340,10 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span
-                            className={`text-sm font-medium ${
-                              user.balance && user.balance > 0
-                                ? "text-success"
-                                : "text-default-400"
-                            }`}
+                            className={`text-sm font-medium ${user.balance && user.balance > 0
+                              ? "text-success"
+                              : "text-default-400"
+                              }`}
                           >
                             {user.balance != null ? `${user.balance}元` : "-"}
                           </span>
@@ -2347,35 +2357,32 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                              user.autoRenew === 1
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                            }`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
+                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                              }`}
                           >
                             {user.autoRenew === 1 ? "启用" : "禁用"}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                              user.autoBuyTraffic === 1
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                            }`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
+                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                              }`}
                           >
                             {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              monitorPermissionLevelMap.get(user.id) === 1
-                                ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                                : monitorPermissionLevelMap.has(user.id)
-                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                            }`}
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionLevelMap.get(user.id) === 1
+                              ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                              : monitorPermissionLevelMap.has(user.id)
+                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                              }`}
                           >
                             {monitorPermissionLevelMap.has(user.id) ? (
                               <>
@@ -2475,11 +2482,10 @@ export default function UserPage() {
                 return (
                   <StaggerItem key={user.id}>
                     <div
-                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${
-                        selectedUserIds.has(user.id)
-                          ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
-                          : ""
-                      }`}
+                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${selectedUserIds.has(user.id)
+                        ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
+                        : ""
+                        }`}
                     >
                       <Card className="shadow-none border-0">
                         <CardHeader className="pb-2 md:pb-2">
@@ -2570,7 +2576,7 @@ export default function UserPage() {
                                 {user.expTime && user.expTime > 0 ? (
                                   <>
                                     {expStatus &&
-                                    expStatus.color === "success" ? (
+                                      expStatus.color === "success" ? (
                                       <span className="text-xs">
                                         {new Date(user.expTime)
                                           .toLocaleDateString("zh-CN", {
@@ -2657,11 +2663,10 @@ export default function UserPage() {
                                 可用余额
                               </span>
                               <span
-                                className={`text-xs font-medium ${
-                                  user.balance && user.balance > 0
-                                    ? "text-success"
-                                    : "text-default-400"
-                                }`}
+                                className={`text-xs font-medium ${user.balance && user.balance > 0
+                                  ? "text-success"
+                                  : "text-default-400"
+                                  }`}
                               >
                                 {user.balance != null
                                   ? `${user.balance}元`
@@ -2673,11 +2678,10 @@ export default function UserPage() {
                                 自动续费
                               </span>
                               <div
-                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                  user.autoRenew === 1
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                }`}
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                  }`}
                               >
                                 {user.autoRenew === 1 ? "启用" : "禁用"}
                               </div>
@@ -2687,11 +2691,10 @@ export default function UserPage() {
                                 自动购流
                               </span>
                               <div
-                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                  user.autoBuyTraffic === 1
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                }`}
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                  }`}
                               >
                                 {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
                               </div>
@@ -2701,19 +2704,18 @@ export default function UserPage() {
                                 监控权限
                               </span>
                               <div
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  monitorPermissionLevelMap.get(user.id) === 1
-                                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                    : monitorPermissionLevelMap.has(user.id)
-                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                }`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionLevelMap.get(user.id) === 1
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                  : monitorPermissionLevelMap.has(user.id)
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                  }`}
                               >
                                 {monitorPermissionLevelMap.has(user.id) ? (
                                   <>
                                     <EyeIcon className="w-3 h-3" />
                                     {monitorPermissionLevelMap.get(user.id) ===
-                                    1
+                                      1
                                       ? "全开"
                                       : "同步"}
                                   </>
@@ -2818,7 +2820,7 @@ export default function UserPage() {
         <ModalContent>
           <ModalHeader>{isEdit ? "编辑用户" : "新增用户"}</ModalHeader>
           <ModalBody>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <Input
                 isRequired
                 label="用户名"
@@ -2835,6 +2837,15 @@ export default function UserPage() {
                 value={userForm.pwd}
                 onChange={(e) =>
                   setUserForm((prev) => ({ ...prev, pwd: e.target.value }))
+                }
+              />
+              <Input
+                description=""
+                label="备注"
+                placeholder="例：张三、朋友A"
+                value={userForm.name || ""}
+                onChange={(e) =>
+                  setUserForm((prev) => ({ ...prev, name: e.target.value }))
                 }
               />
               <Select
@@ -2856,6 +2867,82 @@ export default function UserPage() {
                   是
                 </SelectItem>
               </Select>
+              <Select
+                description=""
+                label="自组隧道"
+                placeholder="控制该用户是否可以自行组建隧道"
+                selectedKeys={[String(userForm.manualTunnelEnabled ?? 0)]}
+                onSelectionChange={(keys) => {
+                  const value = Array.from(keys)[0] as string;
+
+                  setUserForm((prev) => ({
+                    ...prev,
+                    manualTunnelEnabled: value === "1" ? 1 : 0,
+                  }));
+                }}
+              >
+                <SelectItem key="0" textValue="否">
+                  否
+                </SelectItem>
+                <SelectItem key="1" textValue="是">
+                  是
+                </SelectItem>
+              </Select>
+              <Select
+                label="分配隧道"
+                placeholder="请选择隧道分组"
+                selectedKeys={
+                  userForm.tunnelGroupId && userForm.tunnelGroupId > 0
+                    ? new Set([String(userForm.tunnelGroupId)])
+                    : new Set()
+                }
+                selectionMode="single"
+                onSelectionChange={(keys) => {
+                  const val = Array.from(keys as Set<string>)[0];
+                  setUserForm((prev) => ({
+                    ...prev,
+                    tunnelGroupId: val ? Number(val) : undefined,
+                  }));
+                }}
+              >
+                {tunnelGroups.map((g) => (
+                  <SelectItem key={String(g.id)} textValue={g.name}>
+                    {g.name}
+                  </SelectItem>
+                ))}
+              </Select>
+              <Input
+                label="可用流量(GB)"
+                max="99999"
+                min="0"
+                placeholder="例：1000"
+                type="number"
+                value={flowInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+
+                  setFlowInput(raw);
+                  const num =
+                    raw === ""
+                      ? 0
+                      : Math.min(Math.max(Number(raw) || 0, 0), 99999);
+
+                  setUserForm((prev) => ({ ...prev, flow: num }));
+                }}
+              />
+              <Input
+                description="用于矫正用户已用流量"
+                label="已用流量(GB)"
+                min="0"
+                placeholder="尽量别填"
+                type="number"
+                value={usedFlowInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+
+                  setUsedFlowInput(raw);
+                }}
+              />
               <DatePicker
                 showMonthAndYearPickers
                 description="新户默认3天有效期"
@@ -2884,41 +2971,10 @@ export default function UserPage() {
                 />
               </DatePicker>
               <Input
-                label="可用流量"
-                max="99999"
-                min="0"
-                placeholder="选填"
-                type="number"
-                value={flowInput}
-                onChange={(e) => {
-                  const raw = e.target.value;
-
-                  setFlowInput(raw);
-                  const num =
-                    raw === ""
-                      ? 0
-                      : Math.min(Math.max(Number(raw) || 0, 0), 99999);
-
-                  setUserForm((prev) => ({ ...prev, flow: num }));
-                }}
-              />
-              <Input
-                label="已用流量"
-                min="0"
-                placeholder="选填"
-                type="number"
-                value={usedFlowInput}
-                onChange={(e) => {
-                  const raw = e.target.value;
-
-                  setUsedFlowInput(raw);
-                }}
-              />
-              <Input
                 label="规则数量"
                 max="99999"
                 min="0"
-                placeholder="选填"
+                placeholder="例：10"
                 type="number"
                 value={numInput}
                 onChange={(e) => {
@@ -2934,10 +2990,10 @@ export default function UserPage() {
                 }}
               />
               <Input
-                description="限制该用户每条转发规则的最大速度，留空或 0 表示不限速，单位：Mbps"
+                description=""
                 label="规则限速"
+                placeholder="用户级限速 留空不限"
                 min="0"
-                placeholder="不限速"
                 type="number"
                 value={
                   userForm.forwardSpeedLimit > 0
@@ -2952,99 +3008,67 @@ export default function UserPage() {
                 }
               />
               <Input
-                description=" 例如：张三、朋友A"
-                label="备注"
-                placeholder="选填"
-                value={userForm.name || ""}
-                onChange={(e) =>
-                  setUserForm((prev) => ({ ...prev, name: e.target.value }))
-                }
-              />
-              <Select
-                label="分配隧道"
-                placeholder="选择隧道分组"
-                selectedKeys={
-                  userForm.tunnelGroupId && userForm.tunnelGroupId > 0
-                    ? new Set([String(userForm.tunnelGroupId)])
-                    : new Set()
-                }
-                selectionMode="single"
-                onSelectionChange={(keys) => {
-                  const val = Array.from(keys as Set<string>)[0];
-                  setUserForm((prev) => ({
-                    ...prev,
-                    tunnelGroupId: val ? Number(val) : undefined,
-                  }));
-                }}
-              >
-                {tunnelGroups.map((g) => (
-                  <SelectItem key={String(g.id)} textValue={g.name}>
-                    {g.name}
-                  </SelectItem>
-                ))}
-              </Select>
-              <Select
-                label="归零日期"
-                selectedKeys={[userForm.flowResetTime.toString()]}
-                onSelectionChange={(keys) => {
-                  const value = Array.from(keys)[0] as string;
-
-                  setUserForm((prev) => ({
-                    ...prev,
-                    flowResetTime: Number(value),
-                  }));
-                }}
-              >
-                <>
-                  <SelectItem key="0" textValue="不归零">
-                    不归零
-                  </SelectItem>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                    <SelectItem
-                      key={day.toString()}
-                      textValue={`每月${day}号-0点`}
-                    >
-                      每月{day}号-0点
-                    </SelectItem>
-                  ))}
-                </>
-              </Select>
-              <Input
-                label="续费金额 (元)"
-                min="0"
-                placeholder="选填"
-                step="1"
+                description=""
+                label="流量归零日"
+                placeholder="留空不归零 1-31=日期"
+                max={31}
+                min={0}
                 type="number"
                 value={
-                  userForm.renewalAmount > 0
-                    ? userForm.renewalAmount.toString()
+                  userForm.flowResetTime > 0
+                    ? String(userForm.flowResetTime)
                     : ""
                 }
                 onChange={(e) => {
                   const value = Number(e.target.value);
+                  const flowResetTime = Number.isFinite(value)
+                    ? Math.min(Math.max(Math.floor(value), 0), 31)
+                    : 0;
 
                   setUserForm((prev) => ({
                     ...prev,
-                    renewalAmount: Math.round(value),
+                    flowResetTime,
                   }));
                 }}
               />
-              <Input
-                label="可用余额 (元)"
-                min="0"
-                placeholder="选填"
-                step="1"
-                type="number"
-                value={userForm.balance > 0 ? userForm.balance.toString() : ""}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
+              <div className="col-span-2 grid grid-cols-2 gap-4 md:col-span-3">
+                <Input
+                  label="续费金额(元)"
+                  min="0"
+                  placeholder="例：100"
+                  step="1"
+                  type="number"
+                  value={
+                    userForm.renewalAmount > 0
+                      ? userForm.renewalAmount.toString()
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
 
-                  setUserForm((prev) => ({
-                    ...prev,
-                    balance: Math.round(value),
-                  }));
-                }}
-              />
+                    setUserForm((prev) => ({
+                      ...prev,
+                      renewalAmount: Math.round(value),
+                    }));
+                  }}
+                />
+                <Input
+                  label="可用余额(元)"
+                  min="0"
+                  placeholder="手动充值"
+                  step="1"
+                  type="number"
+                  value={userForm.balance > 0 ? userForm.balance.toString() : ""}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+
+                    setUserForm((prev) => ({
+                      ...prev,
+                      balance: Math.round(value),
+                    }));
+                  }}
+                />
+              </div>
             </div>
             {/* 配额状态保持原样 */}
             {isEdit &&
@@ -3057,87 +3081,88 @@ export default function UserPage() {
                 </div>
               )}
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-4 pt-3 mt-3 border-t border-divider">
-                <div>
-                  <RadioGroup
-                    label="自动续费"
-                    orientation="horizontal"
-                    value={userForm.autoRenew.toString()}
-                    onValueChange={(value: string) =>
+              <div className="grid grid-cols-2 gap-4 pt-3 mt-3 border-t border-divider">
+                <Select
+                  label="自动续费"
+                  selectedKeys={[userForm.autoRenew.toString()]}
+                  onSelectionChange={(keys) => {
+                    const value = Array.from(keys)[0] as string;
+                    setUserForm((prev) => ({
+                      ...prev,
+                      autoRenew: Number(value),
+                    }));
+                  }}
+                >
+                  <SelectItem key="1">启用</SelectItem>
+                  <SelectItem key="0">禁用</SelectItem>
+                </Select>
+                <Select
+                  label="用户状态"
+                  selectedKeys={[userForm.status.toString()]}
+                  onSelectionChange={(keys) => {
+                    const value = Array.from(keys)[0] as string;
+                    setUserForm((prev) => ({
+                      ...prev,
+                      status: Number(value),
+                    }));
+                  }}
+                >
+                  <SelectItem key="1">启用</SelectItem>
+                  <SelectItem key="0">禁用</SelectItem>
+                </Select>
+                <Select
+                  label="自动购流"
+                  selectedKeys={[userForm.autoBuyTraffic.toString()]}
+                  onSelectionChange={(keys) => {
+                    const value = Array.from(keys)[0] as string;
+                    setUserForm((prev) => ({
+                      ...prev,
+                      autoBuyTraffic: Number(value),
+                    }));
+                  }}
+                >
+                  <SelectItem key="1">启用</SelectItem>
+                  <SelectItem key="0">禁用</SelectItem>
+                </Select>
+                <Select
+                  isDisabled={userForm.autoBuyTraffic !== 1}
+                  label="购买方式"
+                  placeholder="请选择购买方式"
+                  selectedKeys={
+                    userForm.autoBuyTrafficPackageType
+                      ? [userForm.autoBuyTrafficPackageType]
+                      : []
+                  }
+                  onSelectionChange={(keys) => {
+                    const value = Array.from(keys)[0] as string;
+                    if (value === "package") {
+                      loadAutoBuyPackages();
                       setUserForm((prev) => ({
                         ...prev,
-                        autoRenew: Number(value),
-                      }))
-                    }
-                  >
-                    <Radio value="1">启用</Radio>
-                    <Radio value="0">禁用</Radio>
-                  </RadioGroup>
-                </div>
-                <div>
-                  <RadioGroup
-                    label="自动购流"
-                    orientation="horizontal"
-                    value={userForm.autoBuyTraffic.toString()}
-                    onValueChange={(value: string) =>
+                        autoBuyTrafficPackageType: "package",
+                        autoBuyTrafficPackageId: 0,
+                      }));
+                    } else {
                       setUserForm((prev) => ({
                         ...prev,
-                        autoBuyTraffic: Number(value),
-                      }))
+                        autoBuyTrafficPackageType: "custom",
+                        autoBuyTrafficPackageId: 0,
+                        buyTrafficAmount: 0,
+                        buyTrafficPrice: 0,
+                      }));
                     }
-                  >
-                    <Radio value="1">启用</Radio>
-                    <Radio value="0">禁用</Radio>
-                  </RadioGroup>
-                </div>
-                <div>
-                  <RadioGroup
-                    label="用户状态"
-                    orientation="horizontal"
-                    value={userForm.status.toString()}
-                    onValueChange={(value: string) =>
-                      setUserForm((prev) => ({
-                        ...prev,
-                        status: Number(value),
-                      }))
-                    }
-                  >
-                    <Radio value="1">启用</Radio>
-                    <Radio value="0">禁用</Radio>
-                  </RadioGroup>
-                </div>
+                  }}
+                >
+                  <SelectItem key="custom">自定义</SelectItem>
+                  <SelectItem key="package">商店套餐</SelectItem>
+                </Select>
               </div>
               {userForm.autoBuyTraffic === 1 && (
                 <div className="pt-3 mt-3 space-y-3">
-                  <RadioGroup
-                    label="购买方式"
-                    orientation="horizontal"
-                    value={userForm.autoBuyTrafficPackageType}
-                    onValueChange={(value: string) => {
-                      if (value === "package") {
-                        loadAutoBuyPackages();
-                        setUserForm((prev) => ({
-                          ...prev,
-                          autoBuyTrafficPackageType: "package",
-                          autoBuyTrafficPackageId: 0,
-                        }));
-                      } else {
-                        setUserForm((prev) => ({
-                          ...prev,
-                          autoBuyTrafficPackageType: "custom",
-                          autoBuyTrafficPackageId: 0,
-                          buyTrafficAmount: 0,
-                          buyTrafficPrice: 0,
-                        }));
-                      }
-                    }}
-                  >
-                    <Radio value="package">套餐选择</Radio>
-                    <Radio value="custom">自定义</Radio>
-                  </RadioGroup>
                   {userForm.autoBuyTrafficPackageType === "package" ? (
                     <Select
                       label="自动购流套餐"
+                      placeholder="请选择下面套餐"
                       selectedKeys={[String(userForm.autoBuyTrafficPackageId)]}
                       variant="bordered"
                       onSelectionChange={(keys) => {
@@ -3158,12 +3183,13 @@ export default function UserPage() {
                         </SelectItem>
                       ))}
                     </Select>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-4">
+                  ) : userForm.autoBuyTrafficPackageType === "custom" ? (
+                    <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                       <Input
+                        description="剩余流量低于此值时触发"
                         label="触发阈值 (GB)"
+                        placeholder="例：20"
                         min="1"
-                        placeholder="剩余流量低于此值时触发"
                         step="1"
                         type="number"
                         value={
@@ -3181,9 +3207,10 @@ export default function UserPage() {
                         }}
                       />
                       <Input
-                        label="每次购买量 (GB)"
+                        description="低于前面阈值时购买值"
+                        label="购买量(GB)"
                         min="0"
-                        placeholder="选填"
+                        placeholder="例：500"
                         step="1"
                         type="number"
                         value={
@@ -3201,9 +3228,10 @@ export default function UserPage() {
                         }}
                       />
                       <Input
-                        label="每次购买价格 (元)"
+                        description="保持账户余额充足"
+                        label="购买价格(元)"
                         min="0"
-                        placeholder="选填"
+                        placeholder="例：100"
                         step="1"
                         type="number"
                         value={
@@ -3221,7 +3249,7 @@ export default function UserPage() {
                         }}
                       />
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
@@ -3326,14 +3354,14 @@ export default function UserPage() {
                           <TableCell className="whitespace-nowrap">
                             {log.renewalTime
                               ? new Date(log.renewalTime)
-                                  .toLocaleString("zh-CN", {
-                                    year: "numeric",
-                                    month: "2-digit",
-                                    day: "2-digit",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                  .replace(/\//g, "-")
+                                .toLocaleString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                                .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="text-success font-medium whitespace-nowrap">
@@ -3348,32 +3376,31 @@ export default function UserPage() {
                           <TableCell className="whitespace-nowrap">
                             {log.expTimeBefore
                               ? new Date(log.expTimeBefore)
-                                  .toLocaleDateString("zh-CN", {
-                                    year: "numeric",
-                                    month: "2-digit",
-                                    day: "2-digit",
-                                  })
-                                  .replace(/\//g, "-")
+                                .toLocaleDateString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                })
+                                .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="text-primary font-medium whitespace-nowrap">
                             {log.expTimeAfter
                               ? new Date(log.expTimeAfter)
-                                  .toLocaleDateString("zh-CN", {
-                                    year: "numeric",
-                                    month: "2-digit",
-                                    day: "2-digit",
-                                  })
-                                  .replace(/\//g, "-")
+                                .toLocaleDateString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                })
+                                .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             <span
-                              className={`text-xs px-2 py-0.5 rounded ${
-                                log.reason === "自动续费"
-                                  ? "bg-success-500/10 text-success-600"
-                                  : "bg-default-500/10 text-default-600"
-                              }`}
+                              className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动续费"
+                                ? "bg-success-500/10 text-success-600"
+                                : "bg-default-500/10 text-default-600"
+                                }`}
                             >
                               {log.reason}
                             </span>
@@ -3448,14 +3475,14 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           {log.buyTime
                             ? new Date(log.buyTime)
-                                .toLocaleString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                              .toLocaleString("zh-CN", {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                              .replace(/\//g, "-")
                             : "-"}
                         </TableCell>
                         <TableCell className="text-danger font-medium whitespace-nowrap">
@@ -3478,11 +3505,10 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span
-                            className={`text-xs px-2 py-0.5 rounded ${
-                              log.reason === "自动购买流量"
-                                ? "bg-primary-500/10 text-primary-600"
-                                : "bg-default-500/10 text-default-600"
-                            }`}
+                            className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动购买流量"
+                              ? "bg-primary-500/10 text-primary-600"
+                              : "bg-default-500/10 text-default-600"
+                              }`}
                           >
                             {log.reason}
                           </span>
@@ -3637,11 +3663,10 @@ export default function UserPage() {
                   {/* 👇 核心修复 2：分配按钮必须和选择框放在同一行！用 flex-1 min-w-0 压制选择框宽度 */}
                   <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
                     <div
-                      className={`group flex items-center px-3 sm:px-4 h-10 rounded-xl border-2 transition-all cursor-pointer shadow-sm overflow-hidden flex-1 min-w-0 ${
-                        isTunnelListExpanded
-                          ? "border-primary bg-primary-50/20 ring-4 ring-primary/10"
-                          : "border-default-200 bg-default-50 hover:border-primary-300"
-                      }`}
+                      className={`group flex items-center px-3 sm:px-4 h-10 rounded-xl border-2 transition-all cursor-pointer shadow-sm overflow-hidden flex-1 min-w-0 ${isTunnelListExpanded
+                        ? "border-primary bg-primary-50/20 ring-4 ring-primary/10"
+                        : "border-default-200 bg-default-50 hover:border-primary-300"
+                        }`}
                       onClick={() =>
                         setIsTunnelListExpanded(!isTunnelListExpanded)
                       }
@@ -3651,12 +3676,12 @@ export default function UserPage() {
                       >
                         {batchTunnelSelections.size > 0
                           ? `已选 ${batchTunnelSelections.size} 项：` +
-                            Array.from(batchTunnelSelections.keys())
-                              .map(
-                                (id) => tunnels.find((t) => t.id === id)?.name,
-                              )
-                              .filter(Boolean)
-                              .join("、")
+                          Array.from(batchTunnelSelections.keys())
+                            .map(
+                              (id) => tunnels.find((t) => t.id === id)?.name,
+                            )
+                            .filter(Boolean)
+                            .join("、")
                           : "请选择隧道（勾选后配置）"}
                       </span>
                       <svg
@@ -3695,9 +3720,9 @@ export default function UserPage() {
                                   tunnels.filter((t) => !isTunnelAssigned(t.id))
                                     .length > 0 &&
                                   batchTunnelSelections.size ===
-                                    tunnels.filter(
-                                      (t) => !isTunnelAssigned(t.id),
-                                    ).length
+                                  tunnels.filter(
+                                    (t) => !isTunnelAssigned(t.id),
+                                  ).length
                                 }
                                 size="sm"
                                 onValueChange={(isSelected) => {
@@ -3880,15 +3905,15 @@ export default function UserPage() {
                     <Table
                       aria-label="用户隧道权限列表"
                       classNames={{
-                        th: "sticky top-0 z-20 bg-default-100/90 backdrop-blur text-default-600 font-semibold text-xs sm:text-sm border-b border-divider py-2 sm:py-3 whitespace-nowrap",
-                        td: "py-2 sm:py-3 border-b border-divider/50 group-data-[last=true]:border-b-0 whitespace-nowrap",
+                        th: "sticky top-0 z-20 bg-default-100/90 backdrop-blur text-left text-default-600 font-semibold text-xs sm:text-sm border-b border-divider py-2 sm:py-3 whitespace-nowrap",
+                        td: "py-2 sm:py-3 border-b border-divider/50 group-data-[last=true]:border-b-0 whitespace-nowrap text-left",
                         tr: "hover:bg-default-50/50 transition-colors",
                         wrapper:
                           "shadow-none p-0 rounded-none min-w-[700px] sm:min-w-full",
                       }}
                     >
                       <TableHeader>
-                        <TableColumn className="w-[40px] sm:w-[50px] text-center">
+                        <TableColumn className="w-[40px] sm:w-[50px] text-left">
                           <Checkbox
                             color="primary"
                             isSelected={
@@ -3899,19 +3924,19 @@ export default function UserPage() {
                             onValueChange={handleSelectAllUserTunnels}
                           />
                         </TableColumn>
-                        <TableColumn className="w-[120px] sm:w-[150px]">
+                        <TableColumn className="w-[120px] sm:w-[150px] text-left">
                           隧道名称
                         </TableColumn>
-                        <TableColumn className="w-[140px] sm:w-[160px]">
+                        <TableColumn className="w-[140px] sm:w-[160px] text-left">
                           流量统计
                         </TableColumn>
-                        <TableColumn className="w-[90px] sm:w-[100px]">
+                        <TableColumn className="w-[90px] sm:w-[100px] text-left">
                           限速
                         </TableColumn>
-                        <TableColumn className="w-[60px] sm:w-[80px]">
+                        <TableColumn className="w-[60px] sm:w-[80px] text-left">
                           状态
                         </TableColumn>
-                        <TableColumn className="w-[120px] sm:w-[140px]">
+                        <TableColumn className="w-[120px] sm:w-[140px] text-left">
                           操作
                         </TableColumn>
                       </TableHeader>
@@ -3930,7 +3955,7 @@ export default function UserPage() {
                             key={userTunnel.id}
                             className={`transition-colors ${selectedUserTunnelIds.has(userTunnel.id) ? "bg-danger-50/50 dark:bg-danger-900/20 hover:bg-danger-50/80" : ""}`}
                           >
-                            <TableCell className="text-center">
+                            <TableCell className="text-left">
                               <Checkbox
                                 color="danger"
                                 isSelected={selectedUserTunnelIds.has(
@@ -3960,7 +3985,7 @@ export default function UserPage() {
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-0.5 text-xs sm:text-sm">
-                                <span className="text-default-600 bg-default-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
+                                <span className="text-default-600">
                                   {userTunnel.ceilingSpeed != null
                                     ? `${userTunnel.ceilingSpeed}M`
                                     : "不限速"}
@@ -4225,12 +4250,12 @@ export default function UserPage() {
                       setBatchEditTunnelForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              ceilingSpeed:
-                                raw === "" || Number(raw) <= 0
-                                  ? null
-                                  : Number(raw),
-                            }
+                            ...prev,
+                            ceilingSpeed:
+                              raw === "" || Number(raw) <= 0
+                                ? null
+                                : Number(raw),
+                          }
                           : null,
                       );
                     }}
@@ -4251,12 +4276,12 @@ export default function UserPage() {
                       setBatchEditTunnelForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              forwardSpeedLimit:
-                                raw === "" || Number(raw) <= 0
-                                  ? null
-                                  : Number(raw),
-                            }
+                            ...prev,
+                            forwardSpeedLimit:
+                              raw === "" || Number(raw) <= 0
+                                ? null
+                                : Number(raw),
+                          }
                           : null,
                       );
                     }}
@@ -4379,12 +4404,12 @@ export default function UserPage() {
                       setEditTunnelForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              ceilingSpeed:
-                                raw === "" || Number(raw) <= 0
-                                  ? null
-                                  : Number(raw),
-                            }
+                            ...prev,
+                            ceilingSpeed:
+                              raw === "" || Number(raw) <= 0
+                                ? null
+                                : Number(raw),
+                          }
                           : null,
                       );
                     }}
@@ -4405,12 +4430,12 @@ export default function UserPage() {
                       setEditTunnelForm((prev) =>
                         prev
                           ? {
-                              ...prev,
-                              forwardSpeedLimit:
-                                raw === "" || Number(raw) <= 0
-                                  ? null
-                                  : Number(raw),
-                            }
+                            ...prev,
+                            forwardSpeedLimit:
+                              raw === "" || Number(raw) <= 0
+                                ? null
+                                : Number(raw),
+                          }
                           : null,
                       );
                     }}
@@ -4791,11 +4816,10 @@ export default function UserPage() {
                     </span>
                   </div>
                   <div
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                      user.status === 1
-                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                    }`}
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 1
+                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                      }`}
                   >
                     {user.status === 1 ? "启用" : "禁用"}
                   </div>
@@ -4859,11 +4883,10 @@ export default function UserPage() {
                     </span>
                   </div>
                   <div
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
-                      user.status === 1
-                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                    }`}
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 1
+                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                      }`}
                   >
                     {user.status === 1 ? "启用" : "禁用"}
                   </div>
@@ -4932,8 +4955,8 @@ export default function UserPage() {
           </ModalHeader>
           <ModalBody className="py-6">
             {historyModalUser &&
-            historyModalUser.quotaHistory &&
-            historyModalUser.quotaHistory.length > 0 ? (
+              historyModalUser.quotaHistory &&
+              historyModalUser.quotaHistory.length > 0 ? (
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {historyModalUser.quotaHistory.map((item) => (
                   <div

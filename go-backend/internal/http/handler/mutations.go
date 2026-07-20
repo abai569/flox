@@ -33,7 +33,6 @@ import (
 )
 
 const tunnelServiceBindRetryDelay = 150 * time.Millisecond
-const manualTunnelFeatureConfigKey = "manual_tunnel_enabled"
 const manualTunnelRemark = "自行组建隧道"
 const legacyManualTunnelRemark = "手动组建隧道"
 
@@ -53,9 +52,37 @@ func isManualTunnelPayload(req map[string]interface{}) bool {
 	return isManualTunnelNameRemark(asString(req["name"]), asString(req["remark"]))
 }
 
-func (h *Handler) manualTunnelFeatureEnabled() bool {
-	cfg, err := h.repo.GetConfigByName(manualTunnelFeatureConfigKey)
-	return err != nil || cfg == nil || cfg.Value != "false"
+func (h *Handler) canUserCreateManualTunnel(userID int64, roleID int) (bool, error) {
+	if roleID == 0 {
+		return true, nil
+	}
+	user, err := h.repo.GetUserByID(userID)
+	if err != nil {
+		return false, err
+	}
+	if user == nil {
+		return false, errors.New("用户不存在")
+	}
+	return user.ManualTunnelEnabled == 1, nil
+}
+
+func parseManualTunnelPermission(value interface{}) (int, error) {
+	if value == nil {
+		return 0, nil
+	}
+	var enabled int
+	switch v := value.(type) {
+	case float64:
+		enabled = int(v)
+	case int:
+		enabled = v
+	default:
+		return 0, errors.New("自组隧道权限参数错误")
+	}
+	if enabled != 0 && enabled != 1 {
+		return 0, errors.New("自组隧道权限参数错误")
+	}
+	return enabled, nil
 }
 
 func (h *Handler) isManualTunnelID(tunnelID int64) (bool, error) {
@@ -75,7 +102,11 @@ func (h *Handler) ensureManualTunnelAccess(userID int64, roleID int, tunnelID in
 	if roleID == 0 {
 		return nil
 	}
-	if !h.manualTunnelFeatureEnabled() {
+	allowed, err := h.canUserCreateManualTunnel(userID, roleID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
 		return errors.New("自行组建隧道功能未开放")
 	}
 	isManual, err := h.isManualTunnelID(tunnelID)
@@ -420,10 +451,22 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	manualTunnelEnabled := 0
+	if value, ok := req["manualTunnelEnabled"]; ok {
+		manualTunnelEnabled, err = parseManualTunnelPermission(value)
+		if err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+	}
 	now := time.Now().UnixMilli()
 
 	userID, err := h.repo.CreateUser(username, security.MD5(pwd), createRoleID, expTime, flow, flowResetTime, num, status, now, renewalAmount, balance, int64(autoRenew))
 	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+	if err := h.repo.UpdateUserManualTunnelPermission(userID, manualTunnelEnabled); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
@@ -540,6 +583,16 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	balance := asInt64(req["balance"], 0)
 	autoRenew := asInt(req["autoRenew"], 0)
 	newRoleID := asInt(req["roleId"], 1)
+	manualTunnelEnabled := 0
+	hasManualTunnelPermission := false
+	if value, ok := req["manualTunnelEnabled"]; ok {
+		hasManualTunnelPermission = true
+		manualTunnelEnabled, err = parseManualTunnelPermission(value)
+		if err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+	}
 	_, hasInFlow := req["inFlow"]
 	_, hasOutFlow := req["outFlow"]
 	inFlowVal := asInt64(req["inFlow"], 0)
@@ -607,6 +660,12 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 
 	if forwardSpeedLimitChanged {
 		_ = h.repo.UpdateUserForwardSpeedLimit(id, newForwardSpeedLimit)
+	}
+	if hasManualTunnelPermission {
+		if err := h.repo.UpdateUserManualTunnelPermission(id, manualTunnelEnabled); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	h.repo.PropagateUserFlowToTunnels(id, flow, num, expTime, flowResetTime, status)
 	if hasInFlow || hasOutFlow {
@@ -1719,7 +1778,12 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if actorRoleID != 0 {
-		if !h.manualTunnelFeatureEnabled() {
+		allowed, permissionErr := h.canUserCreateManualTunnel(actorUserID, actorRoleID)
+		if permissionErr != nil {
+			response.WriteJSON(w, response.Err(-2, permissionErr.Error()))
+			return
+		}
+		if !allowed {
 			response.WriteJSON(w, response.Err(403, "自行组建隧道功能未开放"))
 			return
 		}

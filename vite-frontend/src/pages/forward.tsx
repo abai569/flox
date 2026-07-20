@@ -131,8 +131,6 @@ const getForwardModeEnabledState = () => ({
   sdw: configCache.get("forward_mode_sdw_enabled") !== "false",
   wgm: configCache.get("forward_mode_mimic_enabled") !== "false",
 });
-const getManualTunnelEnabledState = () =>
-  configCache.get("manual_tunnel_enabled") !== "false";
 const MANUAL_TUNNEL_SELECT_KEY = "__manual__";
 const MANUAL_TUNNEL_REMARK = "自行组建隧道";
 const LEGACY_MANUAL_TUNNEL_REMARK = "自行组建隧道";
@@ -1714,9 +1712,7 @@ export default function ForwardPage() {
   const [forwardModeEnabled, setForwardModeEnabled] = useState(
     getForwardModeEnabledState,
   );
-  const [manualTunnelEnabled, setManualTunnelEnabled] = useState(
-    getManualTunnelEnabledState,
-  );
+  const [manualTunnelEnabled, setManualTunnelEnabled] = useState(isAdmin);
   // 批量操作相关状态
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -1790,6 +1786,25 @@ export default function ForwardPage() {
   const [tunnelSelectMode, setTunnelSelectMode] = useState<
     "existing" | "manual"
   >("existing");
+  const refreshManualTunnelPermission = useCallback(async () => {
+    if (isAdmin) {
+      setManualTunnelEnabled(true);
+      return;
+    }
+    try {
+      const response = await getUserPackageInfo();
+      const data = response.data as
+        | { userInfo?: { canCreateManualTunnel?: boolean } }
+        | undefined;
+      const allowed = data?.userInfo?.canCreateManualTunnel === true;
+      setManualTunnelEnabled(allowed);
+      if (!allowed) {
+        setTunnelSelectMode("existing");
+        setNodes([]);
+        setNodeGroups([]);
+      }
+    } catch {}
+  }, [isAdmin]);
   const [editingOriginalManualTunnelId, setEditingOriginalManualTunnelId] =
     useState<number | null>(null);
   const [manualTunnelType, setManualTunnelType] = useState<1 | 2>(2);
@@ -2545,12 +2560,16 @@ export default function ForwardPage() {
         }
         if (packageRes?.code === 0 && (packageRes as Record<string, unknown>).data) {
           const pkgData = (packageRes as Record<string, unknown>).data as Record<string, unknown>;
-          const ufwd = pkgData.userInfo
+          const userInfo = pkgData.userInfo as Record<string, unknown> | undefined;
+          const ufwd = userInfo
             ? (pkgData.userInfo as Record<string, unknown>).forwardSpeedLimit
             : undefined;
           const limit =
             typeof ufwd === "number" && ufwd > 0 ? ufwd : 0;
           setUserForwardSpeedLimit(limit);
+          setManualTunnelEnabled(
+            isAdmin || userInfo?.canCreateManualTunnel === true,
+          );
         }
         if (canUseManualTunnel) {
           const [nodesRes, nodeGroupsRes] = await Promise.all([
@@ -2573,6 +2592,21 @@ export default function ForwardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    void refreshManualTunnelPermission();
+    const refresh = () => {
+      if (!document.hidden) void refreshManualTunnelPermission();
+    };
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [refreshManualTunnelPermission]);
 
   const refreshNodes = useCallback(async () => {
     if (!canUseManualTunnel || document.hidden) return;
@@ -2623,13 +2657,12 @@ export default function ForwardPage() {
       if (
         changedKeys &&
         !changedKeys.some(
-          (key) => key.startsWith("forward_mode_") || key === "manual_tunnel_enabled",
+          (key) => key.startsWith("forward_mode_"),
         )
       ) {
         return;
       }
       setForwardModeEnabled(getForwardModeEnabledState());
-      setManualTunnelEnabled(getManualTunnelEnabledState());
     };
 
     window.addEventListener("configUpdated", handleConfigUpdated);

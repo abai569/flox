@@ -838,8 +838,13 @@ func (h *Handler) nodeList(w http.ResponseWriter, r *http.Request) {
 	}
 	h.syncRemoteNodeStatuses(items)
 
-	if _, roleID, err := userRoleFromRequest(r); err == nil && roleID != 0 {
-		if cfg, cfgErr := h.repo.GetConfigByName("manual_tunnel_enabled"); cfgErr == nil && cfg != nil && cfg.Value == "false" {
+	if userID, roleID, err := userRoleFromRequest(r); err == nil && roleID != 0 {
+		allowed, permissionErr := h.canUserCreateManualTunnel(userID, roleID)
+		if permissionErr != nil {
+			response.WriteJSON(w, response.Err(-2, permissionErr.Error()))
+			return
+		}
+		if !allowed {
 			response.WriteJSON(w, response.OK([]map[string]interface{}{}))
 			return
 		}
@@ -1592,6 +1597,11 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.Slice(stats, func(i, j int) bool { return stats[i].ID < stats[j].ID })
+	canCreateManualTunnel, err := h.canUserCreateManualTunnel(userID, user.RoleID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
 
 	tunnelOut := make([]map[string]interface{}, 0, len(tunnels))
 	for _, t := range tunnels {
@@ -1677,6 +1687,7 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 			"baseFlow":                user.BaseFlow,
 			"trafficFlow":             user.TrafficFlow,
 			"forwardSpeedLimit":       user.ForwardSpeedLimit,
+			"canCreateManualTunnel":   canCreateManualTunnel,
 		},
 		"tunnelPermissions": tunnelOut,
 		"forwards":          forwardOut,

@@ -66,7 +66,6 @@ const STANDALONE_SWITCH_KEYS = [
   "payment_enabled",
   "registration_enabled",
   "login_monitor_link",
-  "manual_tunnel_enabled",
 ];
 const DEFAULT_TRUE_CONFIG_KEYS = [
   "payment_enabled",
@@ -74,7 +73,6 @@ const DEFAULT_TRUE_CONFIG_KEYS = [
   "forward_mode_flc_enabled",
   "forward_mode_sdw_enabled",
   "forward_mode_mimic_enabled",
-  "manual_tunnel_enabled",
 ];
 const applyConfigDefaults = (data: Record<string, string>) => {
   const next = { ...data };
@@ -170,12 +168,6 @@ const CONFIG_ITEMS: ConfigItem[] = [
     type: "switch",
   },
   {
-    key: "manual_tunnel_enabled",
-    label: "极客可以自行组建隧道",
-    description: "开启后，普通用户可在创建规则时自行选择入口、转发链和出口节点",
-    type: "switch",
-  },
-  {
     key: "cloudflare_site_key",
     label: "Cloudflare Site Key",
     placeholder: "请输入 Cloudflare Site Key",
@@ -210,7 +202,6 @@ const getInitialConfigs = (): Record<string, string> => {
     "forward_mode_flc_enabled",
     "forward_mode_sdw_enabled",
     "forward_mode_mimic_enabled",
-    "manual_tunnel_enabled",
     "ghfast_url",
     "domestic_download_host",
     "ip",

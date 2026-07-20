@@ -66,6 +66,7 @@ export interface UserApiItem {
   disabledByQuota?: number;
   quotaDisabledAt?: number;
   forwardSpeedLimit?: number | null;
+  manualTunnelEnabled?: 0 | 1;
   tunnelGroupId?: number;
   [key: string]: unknown;
 }
@@ -458,6 +459,7 @@ export interface UserPackageInfoApiData {
     num: number;
     expTime?: string;
     flowResetTime?: number;
+    canCreateManualTunnel?: boolean;
     [key: string]: unknown;
   };
   tunnelPermissions: UserTunnelPermissionApiItem[];
@@ -538,8 +540,10 @@ export interface UserMutationPayload {
   monthlyQuotaGB?: number;
   tunnelFlow?: number;
   roleId?: number;
+  manualTunnelEnabled?: 0 | 1;
   inFlow?: number;
   outFlow?: number;
+  tunnelGroupId?: number | null;
   forwardSpeedLimit?: number | null;
 }
 

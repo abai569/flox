@@ -1274,6 +1274,7 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 			"autoBuyTrafficThreshold": u.AutoBuyTrafficThreshold,
 			"baseFlow":                u.BaseFlow,
 			"forwardSpeedLimit":       u.ForwardSpeedLimit,
+			"manualTunnelEnabled":     u.ManualTunnelEnabled,
 		}
 		if tgID, ok := tunnelGroupMap[u.ID]; ok {
 			item["tunnelGroupId"] = tgID
