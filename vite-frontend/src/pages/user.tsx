@@ -2,6 +2,7 @@ import type {
   UserQuotaHistoryItem,
   UserRenewalLogItem,
   UserTrafficBuyLogItem,
+  TunnelGroupNewApiItem,
 } from "@/api/types";
 
 import React, {
@@ -70,7 +71,6 @@ import { Alert } from "@/shadcn-bridge/heroui/alert";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
 import {
   User,
-  UserGroup,
   UserTunnel,
   TunnelAssignItem,
   Tunnel,
@@ -89,12 +89,11 @@ import {
   updateUserTunnel,
   getSpeedLimitList,
   resetUserFlow,
-  getUserGroupList,
+  getTunnelGroupNewList,
   listAutoBuyTrafficPackages,
   getMonitorPermissionList,
   assignMonitorPermission,
   removeMonitorPermission,
-  getUserGroups,
   batchDeleteUsers,
   batchResetUserFlow,
   updateUserOrder,
@@ -274,7 +273,7 @@ export default function UserPage() {
       num: 0,
       expTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
       flowResetTime: 0,
-      groupIds: [],
+      tunnelGroupId: undefined,
       renewalAmount: 0,
       balance: 0,
       autoRenew: 0,
@@ -298,7 +297,7 @@ export default function UserPage() {
       num: number;
       expTime: Date | null;
       flowResetTime: number;
-      groupIds: number[];
+      tunnelGroupId?: number;
       renewalAmount: number;
       balance: number;
       autoRenew: number;
@@ -592,7 +591,7 @@ export default function UserPage() {
   // 其他数据
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [speedLimits, setSpeedLimits] = useState<SpeedLimit[]>([]);
-  const [userGroups, setUserGroups] = useState<UserGroup[]>([]);
+  const [tunnelGroups, setTunnelGroups] = useState<TunnelGroupNewApiItem[]>([]);
   const noLimitSpeedLimitIds = useMemo(() => {
     return new Set(
       speedLimits
@@ -867,12 +866,12 @@ export default function UserPage() {
       }
     } catch {}
   }, []);
-  const loadUserGroups = useCallback(async () => {
+  const loadTunnelGroups = useCallback(async () => {
     try {
-      const response = await getUserGroupList();
+      const response = await getTunnelGroupNewList();
 
       if (response.code === 0) {
-        setUserGroups(Array.isArray(response.data) ? response.data : []);
+        setTunnelGroups(Array.isArray(response.data) ? response.data : []);
       }
     } catch {}
   }, []);
@@ -901,9 +900,9 @@ export default function UserPage() {
   useEffect(() => {
     void loadTunnels();
     void loadSpeedLimits();
-    void loadUserGroups();
+    void loadTunnelGroups();
     void loadMonitorPermissions();
-  }, [loadSpeedLimits, loadTunnels, loadUserGroups]);
+  }, [loadSpeedLimits, loadTunnels, loadTunnelGroups]);
   useEffect(() => {
     void loadUsers();
 
@@ -1059,15 +1058,6 @@ export default function UserPage() {
 
   const handleEdit = async (user: User) => {
     setIsEdit(true);
-    let currentGroupIds: number[] = [];
-
-    try {
-      const groupRes = await getUserGroups(user.id);
-
-      if (groupRes.code === 0) {
-        currentGroupIds = groupRes.data || [];
-      }
-    } catch {}
     setFlowInput(String(user.flow));
     setNumInput(String(user.num));
     const totalUsedBytes = (user.inFlow || 0) + (user.outFlow || 0);
@@ -1085,7 +1075,7 @@ export default function UserPage() {
       num: user.num,
       expTime: user.expTime ? new Date(user.expTime) : null,
       flowResetTime: user.flowResetTime ?? 0,
-      groupIds: currentGroupIds,
+      tunnelGroupId: (user as any).tunnelGroupId,
       renewalAmount: user.renewalAmount ?? 0,
       balance: user.balance ?? 0,
       autoRenew: user.autoRenew ?? 0,
@@ -1155,7 +1145,7 @@ export default function UserPage() {
         buyTrafficPrice: Math.round(userForm.buyTrafficPrice * 100),
         expTime:
           userForm.expTime instanceof Date ? userForm.expTime.getTime() : 0,
-        groupIds: userForm.groupIds ?? [],
+        tunnelGroupId: userForm.tunnelGroupId || 0,
         inFlow: usedFlowBytes,
         outFlow: 0,
       };
@@ -2971,21 +2961,24 @@ export default function UserPage() {
                 }
               />
               <Select
-                isDisabled={userGroups.length === 0}
-                label="用户组"
-                placeholder={
-                  userGroups.length > 0 ? "选择要加入的分组" : "暂无用户组"
+                label="分配隧道"
+                placeholder="选择隧道分组"
+                selectedKeys={
+                  userForm.tunnelGroupId && userForm.tunnelGroupId > 0
+                    ? new Set([String(userForm.tunnelGroupId)])
+                    : new Set()
                 }
-                selectedKeys={new Set((userForm.groupIds ?? []).map(String))}
-                selectionMode="multiple"
+                selectionMode="single"
                 onSelectionChange={(keys) => {
-                  const selected = Array.from(keys as Set<string>).map(Number);
-
-                  setUserForm((prev) => ({ ...prev, groupIds: selected }));
+                  const val = Array.from(keys as Set<string>)[0];
+                  setUserForm((prev) => ({
+                    ...prev,
+                    tunnelGroupId: val ? Number(val) : undefined,
+                  }));
                 }}
               >
-                {userGroups.map((g) => (
-                  <SelectItem key={g.id.toString()} textValue={g.name}>
+                {tunnelGroups.map((g) => (
+                  <SelectItem key={String(g.id)} textValue={g.name}>
                     {g.name}
                   </SelectItem>
                 ))}

@@ -456,6 +456,12 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if tgID, ok := req["tunnelGroupId"]; ok {
+		if gID, ok := tgID.(float64); ok && int64(gID) > 0 {
+			_ = h.applyTunnelGroupToUser(userID, int64(gID))
+		}
+	}
+
 	if hasAutoBuyTraffic {
 		if err := h.repo.UpdateUserBuyTrafficConfig(userID, autoBuyTraffic, buyTrafficAmount, buyTrafficPrice, autoBuyTrafficPackageID, autoBuyTrafficThreshold); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -642,6 +648,12 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 			for _, gid := range affected {
 				_ = h.syncPermissionsByUserGroup(gid)
 			}
+		}
+	}
+
+	if tgID, ok := req["tunnelGroupId"]; ok {
+		if gID, ok := tgID.(float64); ok && int64(gID) > 0 {
+			_ = h.applyTunnelGroupToUser(id, int64(gID))
 		}
 	}
 
@@ -5194,6 +5206,26 @@ func (h *Handler) applyGroupPermission(userGroupID, tunnelGroupID int64) error {
 			}
 			h.repo.InsertGroupPermissionGrant(userGroupID, tunnelGroupID, utID, createdByGroup, time.Now().UnixMilli())
 		}
+	}
+	return nil
+}
+
+func (h *Handler) applyTunnelGroupToUser(userID, tunnelGroupID int64) error {
+	tunnelIDs, err := h.repo.ListTunnelIDsByTunnelGroupNew(tunnelGroupID)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UnixMilli()
+	for _, tid := range tunnelIDs {
+		utID, created, err := h.repo.EnsureUserTunnelGrant(userID, tid)
+		if err != nil {
+			continue
+		}
+		createdByGroup := 0
+		if created {
+			createdByGroup = 1
+		}
+		h.repo.InsertGroupPermissionGrant(0, tunnelGroupID, utID, createdByGroup, now)
 	}
 	return nil
 }

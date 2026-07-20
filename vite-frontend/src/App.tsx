@@ -11,8 +11,6 @@ import TunnelPage from "@/pages/tunnel";
 import NodePage from "@/pages/node";
 import SDWANPage from "@/pages/sdwan";
 import UserPage from "@/pages/user";
-import GroupPage from "@/pages/group";
-import ProfilePage from "@/pages/profile";
 import ConfigPage from "@/pages/config";
 import ShopPage from "@/pages/shop";
 import MyHomePage from "@/pages/myhome";
@@ -190,30 +188,6 @@ function App() {
           </ProtectedRoute>
         }
         path="/user"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <GroupPage />
-          </ProtectedRoute>
-        }
-        path="/group"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <ProfilePage />
-          </ProtectedRoute>
-        }
-        path="/profile"
-      />
-      <Route
-        element={
-          <ProtectedRoute>
-            <ProfilePage />
-          </ProtectedRoute>
-        }
-        path="/profile"
       />
       <Route
         element={

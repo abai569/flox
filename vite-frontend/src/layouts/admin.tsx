@@ -248,16 +248,6 @@ export default function AdminLayout({
       ),
       adminOnly: true,
     },
-    {
-      path: "/group",
-      label: "分组",
-      icon: (
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10 2a3 3 0 100 6 3 3 0 000-6zM4 9a3 3 0 100 6 3 3 0 000-6zm12 0a3 3 0 100 6 3 3 0 000-6M4 16a2 2 0 00-2 2h4a2 2 0 00-2-2zm12 0a2 2 0 00-2 2h4a2 2 0 00-2-2zm-6 0a2 2 0 00-2 2h4a2 2 0 00-2-2z" />
-        </svg>
-      ),
-      adminOnly: true,
-    },
     //    {
     //      path: "/panel-sharing",
     //      label: "共享",
