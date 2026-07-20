@@ -142,6 +142,8 @@ export interface PeerShareApiItem {
   nodeId: number;
   token: string;
   maxBandwidth: number;
+  remSpeedLimit: number;
+  remForwardSpeedLimit: number;
   currentFlow: number;
   trafficRatio: number;
   expiryTime: number;
@@ -217,6 +219,8 @@ export interface PeerShareMutationPayload {
   name: string;
   nodeId?: number;
   maxBandwidth?: number;
+  remSpeedLimit?: number;
+  remForwardSpeedLimit?: number;
   expiryTime?: number;
   portRangeStart?: number;
   portRangeEnd?: number;
@@ -250,6 +254,8 @@ export interface PeerRemoteUsageNodeApiItem {
   portRangeStart: number;
   portRangeEnd: number;
   maxBandwidth: number;
+  remSpeedLimit: number;
+  remForwardSpeedLimit: number;
   trafficRatio?: number;
   currentFlow: number;
   remoteCurrentFlow?: number;

@@ -223,6 +223,9 @@ func autoMigrateAll(db *gorm.DB) error {
 	if err := migratePeerShareTrafficRatioColumn(db); err != nil {
 		return fmt.Errorf("migrate peer share traffic ratio column: %w", err)
 	}
+	if err := migratePeerShareSpeedLimitColumns(db); err != nil {
+		return fmt.Errorf("migrate peer share speed limit columns: %w", err)
+	}
 	models := []interface{}{
 		&model.User{},
 		&model.UserQuota{},
@@ -400,6 +403,21 @@ func migratePeerShareTrafficRatioColumn(db *gorm.DB) error {
 		return nil
 	}
 	return db.Migrator().AddColumn(&model.PeerShare{}, "TrafficRatio")
+}
+
+func migratePeerShareSpeedLimitColumns(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&model.PeerShare{}) {
+		return nil
+	}
+	for _, field := range []string{"RemSpeedLimit", "RemForwardSpeedLimit"} {
+		if db.Migrator().HasColumn(&model.PeerShare{}, field) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(&model.PeerShare{}, field); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrateNodeInstanceExpiryFromNode(db *gorm.DB) error {
@@ -2183,6 +2201,7 @@ func (r *Repository) UpdatePeerShare(share *model.PeerShare) error {
 	}
 	return r.db.Model(&model.PeerShare{}).Where("id = ?", share.ID).Updates(map[string]interface{}{
 		"name": share.Name, "max_bandwidth": share.MaxBandwidth,
+		"rem_speed_limit": share.RemSpeedLimit, "rem_forward_speed_limit": share.RemForwardSpeedLimit,
 		"current_flow": share.CurrentFlow,
 		"expiry_time":  share.ExpiryTime, "port_range_start": share.PortRangeStart,
 		"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
@@ -2240,6 +2259,7 @@ func (r *Repository) updatePeerShareWithInstances(share *model.PeerShare, instan
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		updates := map[string]interface{}{
 			"name": share.Name, "max_bandwidth": share.MaxBandwidth,
+			"rem_speed_limit": share.RemSpeedLimit, "rem_forward_speed_limit": share.RemForwardSpeedLimit,
 			"expiry_time": share.ExpiryTime, "port_range_start": share.PortRangeStart,
 			"port_range_end": share.PortRangeEnd, "is_active": share.IsActive,
 			"updated_time": share.UpdatedTime, "allowed_domains": share.AllowedDomains,

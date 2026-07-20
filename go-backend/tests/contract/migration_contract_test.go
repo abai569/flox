@@ -857,6 +857,12 @@ func TestOpenMigratesLegacyPeerShareToAllEnabledScope(t *testing.T) {
 	if share.ScopeType != "all_enabled" || share.AutoIncludeNewInstances != 1 || share.MinHealthyInstances != 1 {
 		t.Fatalf("unexpected migrated scope defaults: %+v", share)
 	}
+	columns := readTableColumns(t, r.DB(), "peer_share")
+	for _, required := range []string{"rem_speed_limit", "rem_forward_speed_limit"} {
+		if !columns[required] {
+			t.Fatalf("expected migrated peer_share column %q", required)
+		}
+	}
 	for _, table := range []string{"peer_share_instance", "peer_share_runtime_instance", "peer_share_flow"} {
 		if !r.DB().Migrator().HasTable(table) {
 			t.Fatalf("expected migrated table %s", table)

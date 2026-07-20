@@ -450,6 +450,8 @@ type PeerShare struct {
 	NodeID                  int64   `gorm:"column:node_id;not null;index:idx_peer_share_node" json:"nodeId"`
 	Token                   string  `gorm:"type:text;not null;uniqueIndex" json:"token"`
 	MaxBandwidth            int64   `gorm:"column:max_bandwidth;default:0" json:"maxBandwidth"`
+	RemSpeedLimit           int64   `gorm:"column:rem_speed_limit;not null;default:0" json:"remSpeedLimit"`
+	RemForwardSpeedLimit    int64   `gorm:"column:rem_forward_speed_limit;not null;default:0" json:"remForwardSpeedLimit"`
 	ExpiryTime              int64   `gorm:"column:expiry_time;default:0" json:"expiryTime"`
 	PortRangeStart          int     `gorm:"column:port_range_start;default:0" json:"portRangeStart"`
 	PortRangeEnd            int     `gorm:"column:port_range_end;default:0" json:"portRangeEnd"`
