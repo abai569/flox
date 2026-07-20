@@ -1250,6 +1250,7 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	tunnelGroupMap, _ := r.GetUserTunnelGroupIDs(userIDs)
 	items := make([]map[string]interface{}, 0, len(users))
 	for _, u := range users {
 		item := map[string]interface{}{
@@ -1269,6 +1270,9 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 			"autoBuyTrafficThreshold": u.AutoBuyTrafficThreshold,
 			"baseFlow":                u.BaseFlow,
 			"forwardSpeedLimit":       u.ForwardSpeedLimit,
+		}
+		if tgID, ok := tunnelGroupMap[u.ID]; ok {
+			item["tunnelGroupId"] = tgID
 		}
 		if quota := quotaMap[u.ID]; quota != nil {
 			item["dailyQuotaGB"] = quota.DailyLimitGB

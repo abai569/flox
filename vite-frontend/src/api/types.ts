@@ -66,6 +66,7 @@ export interface UserApiItem {
   disabledByQuota?: number;
   quotaDisabledAt?: number;
   forwardSpeedLimit?: number | null;
+  tunnelGroupId?: number;
   [key: string]: unknown;
 }
 

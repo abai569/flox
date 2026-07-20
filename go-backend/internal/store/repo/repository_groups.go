@@ -46,6 +46,38 @@ func (r *Repository) ListTunnelIDsByTunnelGroupNew(tunnelGroupID int64) ([]int64
 	return ids, err
 }
 
+// GetUserTunnelGroupIDs returns a map of userID → tunnelGroupID for users
+// who have been directly assigned to a tunnel group (userGroupID=0 in group_permission_grant).
+func (r *Repository) GetUserTunnelGroupIDs(userIDs []int64) (map[int64]int64, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	if len(userIDs) == 0 {
+		return map[int64]int64{}, nil
+	}
+	type result struct {
+		UserID        int64
+		TunnelGroupID int64
+	}
+	var rows []result
+	err := r.db.Table("group_permission_grant").
+		Select("user_tunnel.user_id, group_permission_grant.tunnel_group_id").
+		Joins("JOIN user_tunnel ON user_tunnel.id = group_permission_grant.user_tunnel_id").
+		Where("user_tunnel.user_id IN ? AND group_permission_grant.user_group_id = 0", userIDs).
+		Order("group_permission_grant.id DESC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		if _, exists := m[row.UserID]; !exists {
+			m[row.UserID] = row.TunnelGroupID
+		}
+	}
+	return m, nil
+}
+
 // ListGroupPermissionPairsByUserGroup returns [userGroupID, tunnelGroupID] pairs
 // for all group permissions associated with a user group.
 func (r *Repository) ListGroupPermissionPairsByUserGroup(userGroupID int64) ([][2]int64, error) {

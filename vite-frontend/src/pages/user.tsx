@@ -1075,7 +1075,7 @@ export default function UserPage() {
       num: user.num,
       expTime: user.expTime ? new Date(user.expTime) : null,
       flowResetTime: user.flowResetTime ?? 0,
-      tunnelGroupId: (user as any).tunnelGroupId,
+      tunnelGroupId: user.tunnelGroupId,
       renewalAmount: user.renewalAmount ?? 0,
       balance: user.balance ?? 0,
       autoRenew: user.autoRenew ?? 0,

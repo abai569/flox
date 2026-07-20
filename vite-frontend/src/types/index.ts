@@ -34,6 +34,7 @@ export interface User {
   autoBuyTrafficPackageId?: number; // 关联的自动购流套餐ID (0=使用自定义配置)
   baseFlow?: number; // 初始流量配额 (GB)
   forwardSpeedLimit?: number | null; // 用户级规则限速 (Mbps)
+  tunnelGroupId?: number; // 分配的隧道分组ID
 }
 
 export interface UserGroup {
