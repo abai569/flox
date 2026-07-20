@@ -1268,6 +1268,7 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 			"autoBuyTrafficPackageId": u.AutoBuyTrafficPackageID,
 			"autoBuyTrafficThreshold": u.AutoBuyTrafficThreshold,
 			"baseFlow":                u.BaseFlow,
+			"forwardSpeedLimit":       u.ForwardSpeedLimit,
 		}
 		if quota := quotaMap[u.ID]; quota != nil {
 			item["dailyQuotaGB"] = quota.DailyLimitGB

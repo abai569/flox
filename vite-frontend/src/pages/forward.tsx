@@ -83,6 +83,7 @@ import {
   createTunnel,
   updateTunnel,
   getTunnelById,
+  getUserPackageInfo,
   type LicenseInfo,
 } from "@/api";
 import {
@@ -1603,6 +1604,7 @@ export default function ForwardPage() {
   const [nodeGroups, setNodeGroups] = useState<NodeGroupApiItem[]>([]);
   const [speedLimits, setSpeedLimits] = useState<SpeedLimitApiItem[]>([]);
   const [licenseInfo, setLicenseInfo] = useState<LicenseInfo | null>(null);
+  const [userForwardSpeedLimit, setUserForwardSpeedLimit] = useState<number>(0);
   const [forwardPage, setForwardPage] = useState(1);
   const [forwardPageSize, setForwardPageSize] = useLocalStorageState(
     "forwardPageSize",
@@ -1884,27 +1886,31 @@ export default function ForwardPage() {
 
     return null;
   }, [allTunnels, form.tunnelId]);
-  const currentUserTunnelSpeedLimit = useMemo(() => {
+  const currentEffectiveSpeedLimit = useMemo(() => {
     if (isAdmin || !form.tunnelId) return 0;
 
-    const limit = allTunnels.find((tunnel) => tunnel.id === form.tunnelId)
+    const tunnelLimit = allTunnels.find((tunnel) => tunnel.id === form.tunnelId)
       ?.forwardSpeedLimit;
-
-    return typeof limit === "number" && limit > 0 ? limit : 0;
-  }, [allTunnels, form.tunnelId, isAdmin]);
+    const t = typeof tunnelLimit === "number" && tunnelLimit > 0 ? tunnelLimit : 0;
+    const u = userForwardSpeedLimit > 0 ? userForwardSpeedLimit : 0;
+    if (t > 0 && u > 0) return Math.min(t, u);
+    if (t > 0) return t;
+    if (u > 0) return u;
+    return 0;
+  }, [allTunnels, form.tunnelId, isAdmin, userForwardSpeedLimit]);
   useEffect(() => {
-    if (currentUserTunnelSpeedLimit <= 0) return;
+    if (currentEffectiveSpeedLimit <= 0) return;
 
     setForm((prev) =>
-      prev.speedLimit === currentUserTunnelSpeedLimit && prev.speedLimitEnabled
+      prev.speedLimit === currentEffectiveSpeedLimit && prev.speedLimitEnabled
         ? prev
         : {
             ...prev,
-            speedLimit: currentUserTunnelSpeedLimit,
+            speedLimit: currentEffectiveSpeedLimit,
             speedLimitEnabled: true,
           },
     );
-  }, [currentUserTunnelSpeedLimit]);
+  }, [currentEffectiveSpeedLimit]);
   const resetManualTunnelState = () => {
     setTunnelSelectMode("existing");
     setEditingOriginalManualTunnelId(null);
@@ -2510,12 +2516,13 @@ export default function ForwardPage() {
       setLoading(lod);
       try {
         const params = {}; // 永远拉取全量数据
-        const [tunnelsRes, forwardsRes, speedLimitsRes, licenseRes] =
+        const [tunnelsRes, forwardsRes, speedLimitsRes, licenseRes, packageRes] =
           await Promise.all([
             userTunnel(),
             getForwardList(params),
             getSpeedLimitList(),
             getLicenseInfo(),
+            isAdmin ? Promise.resolve({ code: -1 }) : getUserPackageInfo(),
           ]);
 
         if (tunnelsRes.code === 0) {
@@ -2535,6 +2542,15 @@ export default function ForwardPage() {
           setSpeedLimits(speedLimitsRes.data || []);
         if (licenseRes.code === 0) {
           setLicenseInfo(licenseRes.data || null);
+        }
+        if (packageRes?.code === 0 && (packageRes as Record<string, unknown>).data) {
+          const pkgData = (packageRes as Record<string, unknown>).data as Record<string, unknown>;
+          const ufwd = pkgData.userInfo
+            ? (pkgData.userInfo as Record<string, unknown>).forwardSpeedLimit
+            : undefined;
+          const limit =
+            typeof ufwd === "number" && ufwd > 0 ? ufwd : 0;
+          setUserForwardSpeedLimit(limit);
         }
         if (canUseManualTunnel) {
           const [nodesRes, nodeGroupsRes] = await Promise.all([
@@ -3001,10 +3017,17 @@ export default function ForwardPage() {
     const nextTunnelId = parseInt(tunnelId);
     const options = tunnelInIpOptionMap.get(nextTunnelId) || [];
     const selectedTunnel = allTunnels.find((tunnel) => tunnel.id === nextTunnelId);
-    const inheritedSpeedLimit =
+    const tunnelLimit =
       !isAdmin && selectedTunnel?.forwardSpeedLimit && selectedTunnel.forwardSpeedLimit > 0
         ? selectedTunnel.forwardSpeedLimit
         : 0;
+    const userLimit = !isAdmin && userForwardSpeedLimit > 0 ? userForwardSpeedLimit : 0;
+    const inheritedSpeedLimit =
+      tunnelLimit > 0 && userLimit > 0
+        ? Math.min(tunnelLimit, userLimit)
+        : tunnelLimit > 0
+          ? tunnelLimit
+          : userLimit;
 
     setTunnelSelectMode("existing");
     setInIpTouched(false);
@@ -6765,7 +6788,7 @@ export default function ForwardPage() {
                         <div className="grid grid-cols-3 gap-2 mb-2">
                           <SpeedLimitConfigField
                             speedLimit={form.speedLimit}
-                            readOnly={currentUserTunnelSpeedLimit > 0}
+                            readOnly={currentEffectiveSpeedLimit > 0}
                             onSpeedLimitChange={(val) =>
                               setForm((prev) => ({
                                 ...prev,

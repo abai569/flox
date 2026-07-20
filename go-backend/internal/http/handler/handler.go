@@ -1675,6 +1675,7 @@ func (h *Handler) userPackage(w http.ResponseWriter, r *http.Request) {
 			"autoBuyTrafficThreshold": user.AutoBuyTrafficThreshold,
 			"baseFlow":                user.BaseFlow,
 			"trafficFlow":             user.TrafficFlow,
+			"forwardSpeedLimit":       user.ForwardSpeedLimit,
 		},
 		"tunnelPermissions": tunnelOut,
 		"forwards":          forwardOut,

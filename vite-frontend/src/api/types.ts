@@ -65,6 +65,7 @@ export interface UserApiItem {
   monthlyUsedBytes?: number;
   disabledByQuota?: number;
   quotaDisabledAt?: number;
+  forwardSpeedLimit?: number | null;
   [key: string]: unknown;
 }
 
@@ -537,6 +538,7 @@ export interface UserMutationPayload {
   roleId?: number;
   inFlow?: number;
   outFlow?: number;
+  forwardSpeedLimit?: number | null;
 }
 
 export interface NodeMutationPayload {

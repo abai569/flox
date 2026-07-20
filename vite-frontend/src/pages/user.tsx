@@ -201,6 +201,7 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
     ),
     baseFlow: Number(item.baseFlow ?? 0),
     roleId: Number((item as any).roleId ?? 1),
+    forwardSpeedLimit: item.forwardSpeedLimit ?? null,
     quotaHistory: [],
     showHistory: false,
   } as UserWithHistory;
@@ -284,6 +285,7 @@ export default function UserPage() {
       autoBuyTrafficThreshold: 10,
       autoBuyTrafficPackageType: "custom",
       roleId: 1,
+      forwardSpeedLimit: 0,
     } as {
       id?: number;
       user: string;
@@ -307,6 +309,7 @@ export default function UserPage() {
       autoBuyTrafficThreshold: number;
       autoBuyTrafficPackageType: "package" | "custom";
       roleId: number;
+      forwardSpeedLimit: number;
     },
   );
   const [flowInput, setFlowInput] = useState("");
@@ -1098,6 +1101,7 @@ export default function UserPage() {
       autoBuyTrafficPackageType:
         ((user as any).autoBuyTrafficPackageId ?? 0) > 0 ? "package" : "custom",
       roleId: (user as any).roleId ?? 1,
+      forwardSpeedLimit: (user.forwardSpeedLimit ?? 0) > 0 ? (user.forwardSpeedLimit ?? 0) : 0,
     });
     if (((user as any).autoBuyTrafficPackageId ?? 0) > 0) {
       loadAutoBuyPackages();
@@ -2938,6 +2942,24 @@ export default function UserPage() {
 
                   setUserForm((prev) => ({ ...prev, num: num }));
                 }}
+              />
+              <Input
+                description="限制该用户每条转发规则的最大速度，留空或 0 表示不限速，单位：Mbps"
+                label="规则限速"
+                min="0"
+                placeholder="不限速"
+                type="number"
+                value={
+                  userForm.forwardSpeedLimit > 0
+                    ? String(userForm.forwardSpeedLimit)
+                    : ""
+                }
+                onChange={(e) =>
+                  setUserForm((prev) => ({
+                    ...prev,
+                    forwardSpeedLimit: Math.max(Number(e.target.value) || 0, 0),
+                  }))
+                }
               />
               <Input
                 description=" 例如：张三、朋友A"

@@ -427,6 +427,9 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	if fwdSpeedLimit := asInt(req["forwardSpeedLimit"], 0); fwdSpeedLimit > 0 {
+		_ = h.repo.UpdateUserForwardSpeedLimit(userID, fwdSpeedLimit)
+	}
 	if dailyQuotaGB > 0 || monthlyQuotaGB > 0 {
 		tx := h.repo.BeginTx()
 		if tx == nil || tx.Error != nil {
@@ -574,6 +577,12 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 
 	oldUser, _ := h.repo.GetUserByID(id)
 
+	forwardSpeedLimitChanged := false
+	newForwardSpeedLimit := asInt(req["forwardSpeedLimit"], 0)
+	if _, ok := req["forwardSpeedLimit"]; ok && oldUser != nil && oldUser.ForwardSpeedLimit != newForwardSpeedLimit {
+		forwardSpeedLimitChanged = true
+	}
+
 	name := asString(req["name"]) // 解析前端传来的备注名称
 	pwd := asString(req["pwd"])
 
@@ -589,6 +598,9 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if forwardSpeedLimitChanged {
+		_ = h.repo.UpdateUserForwardSpeedLimit(id, newForwardSpeedLimit)
+	}
 	h.repo.PropagateUserFlowToTunnels(id, flow, num, expTime, flowResetTime, status)
 	if hasInFlow || hasOutFlow {
 		h.repo.UpdateUserUsedFlow(id, inFlowVal, outFlowVal)
@@ -664,6 +676,10 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		h.repo.TryAutoRenewForUser(id)
 		_ = h.repo.UpdateUserForwardsStatus(id, 1, now)
 		h.resumePausedForwardsByUser(id, now)
+	}
+
+	if forwardSpeedLimitChanged || newForwardSpeedLimit > 0 {
+		_ = h.syncUserForwardsEffectiveSpeedLimit(id)
 	}
 
 	response.WriteJSON(w, response.OKEmpty())
@@ -3563,6 +3579,13 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 			speedLimitEnabled = true
 			speedLimit = int(utForwardSpeedLimit.Int64)
 		}
+		// 用户级规则限速强制：取用户级与隧道级中较小值
+		if user, uErr := h.repo.GetUserByID(userID); uErr == nil && user != nil && user.ForwardSpeedLimit > 0 {
+			if !speedLimitEnabled || user.ForwardSpeedLimit < speedLimit {
+				speedLimitEnabled = true
+				speedLimit = user.ForwardSpeedLimit
+			}
+		}
 	}
 	mode := normalizeForwardMode(asString(req["mode"]))
 	if !isValidForwardMode(mode) {
@@ -3779,6 +3802,13 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 			if oldForwardSpeedLimit.Valid && oldForwardSpeedLimit.Int64 > 0 {
 				speedLimitEnabled = false
 				speedLimit = 0
+			}
+		}
+		// 用户级规则限速强制：取用户级与隧道级中较小值
+		if user, uErr := h.repo.GetUserByID(forward.UserID); uErr == nil && user != nil && user.ForwardSpeedLimit > 0 {
+			if !speedLimitEnabled || user.ForwardSpeedLimit < speedLimit {
+				speedLimitEnabled = true
+				speedLimit = user.ForwardSpeedLimit
 			}
 		}
 	}
@@ -5930,7 +5960,6 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 	}
 
 	for _, inNode := range state.InNodes {
-		node := state.Nodes[inNode.NodeID]
 		targets := state.OutNodes
 		if len(state.ChainHops) > 0 {
 			targets = state.ChainHops[0]
@@ -7145,6 +7174,43 @@ func (h *Handler) upsertUserTunnel(req map[string]interface{}) error {
 		return fmt.Errorf("下发失败，已回滚: %w", syncErr)
 	}
 
+	return nil
+}
+
+func (h *Handler) resolveEffectiveForwardSpeedLimit(userID, tunnelID int64) (enabled bool, speed int) {
+	user, _ := h.repo.GetUserByID(userID)
+	userLimit := 0
+	if user != nil {
+		userLimit = user.ForwardSpeedLimit
+	}
+	_, _, _, _, _, _, _, utForwardSpeedLimit, _, _ := h.repo.GetExistingUserTunnel(userID, tunnelID)
+	tunnelLimit := 0
+	if utForwardSpeedLimit.Valid && utForwardSpeedLimit.Int64 > 0 {
+		tunnelLimit = int(utForwardSpeedLimit.Int64)
+	}
+	effective := 0
+	if userLimit > 0 {
+		effective = userLimit
+	}
+	if tunnelLimit > 0 && (effective == 0 || tunnelLimit < effective) {
+		effective = tunnelLimit
+	}
+	return effective > 0, effective
+}
+
+func (h *Handler) syncUserForwardsEffectiveSpeedLimit(userID int64) error {
+	forwards, err := h.repo.ListActiveForwardsByUser(userID)
+	if err != nil {
+		return err
+	}
+	for i := range forwards {
+		f := &forwards[i]
+		enabled, speed := h.resolveEffectiveForwardSpeedLimit(f.UserID, f.TunnelID)
+		_ = h.repo.BatchUpdateForwardSpeedLimit(f.UserID, f.TunnelID, enabled, speed)
+		if err := h.syncForwardServices(f, "UpdateService", true); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
