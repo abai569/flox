@@ -305,7 +305,7 @@ const mapTunnelApiItems = (items: any[]): Tunnel[] => {
     trafficRatio: tunnel.trafficRatio ?? 1,
     status: typeof tunnel.status === "number" ? tunnel.status : 0,
     createdTime: tunnel.createdTime || "",
-    tunnelGroupId: tunnel.tunnelGroupId ?? null,
+    tunnelGroupId: tunnel.tunnelGroupId ?? tunnel.tunnel_group_id ?? null,
     remark: tunnel.remark || "",
     bestExitState:
       tunnel.bestExitState && typeof tunnel.bestExitState === "object"
@@ -5211,8 +5211,8 @@ export default function TunnelPage() {
       <TunnelGroupManager
         isOpen={groupManagerOpen}
         onGroupChange={() => {
-          // 分组变化时，同时刷新分组和隧道列表
           refreshTunnelList(false);
+          loadTunnelGroupsNew();
         }}
         onOpenChange={setGroupManagerOpen}
       />

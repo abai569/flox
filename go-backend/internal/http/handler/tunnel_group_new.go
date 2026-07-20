@@ -86,7 +86,27 @@ func (h *Handler) tunnelGroupNewCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.WriteJSON(w, response.OK(group))
+	type GroupResp struct {
+		ID          int64  `json:"id"`
+		Name        string `json:"name"`
+		Color       string `json:"color"`
+		Description string `json:"description"`
+		Inx         int    `json:"inx"`
+		Status      int    `json:"status"`
+		CreatedTime int64  `json:"createdTime"`
+		UpdatedTime int64  `json:"updatedTime"`
+	}
+
+	response.WriteJSON(w, response.OK(GroupResp{
+		ID:          group.ID,
+		Name:        group.Name,
+		Color:       group.Color,
+		Description: group.Description,
+		Inx:         group.Inx,
+		Status:      group.Status,
+		CreatedTime: group.CreatedTime,
+		UpdatedTime: group.UpdatedTime,
+	}))
 }
 
 func (h *Handler) tunnelGroupNewUpdate(w http.ResponseWriter, r *http.Request) {
