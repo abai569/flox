@@ -14,12 +14,10 @@ func TestSystemUpgradeHelperBacksUpAndRollsBack(t *testing.T) {
 		`rollback "health_check"`,
 		`status_write "rolled_back"`,
 		`status_write "rollback_failed"`,
-		`cleanup_old_panel_images`,
-		`for IMAGE_NAME in ghcr.io/abai569/flox-svc-backend ghcr.io/abai569/flox-svc-frontend`,
-		`docker image ls --format '{{.Repository}}:{{.Tag}}' "$IMAGE_NAME"`,
-		`$IMAGE_NAME:<none>`,
-		`KEEP_ALT_VERSION="${TARGET_VERSION#v}"`,
-		`KEEP_ALT_VERSION="v${TARGET_VERSION}"`,
+		`schedule_old_panel_image_cleanup`,
+		`docker inspect -f '{{.Image}}' flox-svc-backend`,
+		`docker image rm -f "$IMAGE"`,
+		`docker run -d --rm --name "FLOX-upgrade-cleanup-${UPGRADE_ID}"`,
 	} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("helper script missing %q", expected)
