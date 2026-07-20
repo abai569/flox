@@ -676,6 +676,15 @@ func (h *Handler) speedLimiterExists(name string) bool {
 		forward, err := h.getForwardRecord(forwardID)
 		return err == nil && forward != nil && forward.SpeedLimitEnabled && forward.SpeedLimit > 0
 	}
+	if strings.HasPrefix(name, "user_tunnel_") && strings.HasSuffix(name, "_ceiling") {
+		idText := strings.TrimSuffix(strings.TrimPrefix(name, "user_tunnel_"), "_ceiling")
+		id, err := strconv.ParseInt(idText, 10, 64)
+		if err != nil || id <= 0 {
+			return false
+		}
+		ok, _ := h.repo.UserTunnelCeilingExists(id)
+		return ok
+	}
 	id, err := strconv.ParseInt(name, 10, 64)
 	if err != nil {
 		return false

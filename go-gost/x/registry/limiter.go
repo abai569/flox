@@ -2,6 +2,8 @@ package registry
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/go-gost/core/limiter"
 	"github.com/go-gost/core/limiter/conn"
@@ -18,10 +20,35 @@ func (r *trafficLimiterRegistry) Register(name string, v traffic.TrafficLimiter)
 }
 
 func (r *trafficLimiterRegistry) Get(name string) traffic.TrafficLimiter {
-	if name != "" {
-		return &trafficLimiterWrapper{name: name, r: r}
+	names := splitTrafficLimiterNames(name)
+	if len(names) == 1 {
+		return &trafficLimiterWrapper{name: names[0], r: r}
+	}
+	if len(names) > 1 {
+		limiters := make([]traffic.TrafficLimiter, 0, len(names))
+		for _, name := range names {
+			limiters = append(limiters, &trafficLimiterWrapper{name: name, r: r})
+		}
+		return &trafficLimiterSet{limiters: limiters}
 	}
 	return nil
+}
+
+func splitTrafficLimiterNames(value string) []string {
+	seen := make(map[string]struct{})
+	var names []string
+	for _, name := range strings.Split(value, ",") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		names = append(names, name)
+	}
+	return names
 }
 
 func (r *trafficLimiterRegistry) get(name string) traffic.TrafficLimiter {
@@ -31,6 +58,73 @@ func (r *trafficLimiterRegistry) get(name string) traffic.TrafficLimiter {
 type trafficLimiterWrapper struct {
 	name string
 	r    *trafficLimiterRegistry
+}
+
+type trafficLimiterSet struct {
+	limiters []traffic.TrafficLimiter
+}
+
+func (s *trafficLimiterSet) In(ctx context.Context, key string, opts ...limiter.Option) traffic.Limiter {
+	var limits []traffic.Limiter
+	for _, lim := range s.limiters {
+		if value := lim.In(ctx, key, opts...); value != nil {
+			limits = append(limits, value)
+		}
+	}
+	return newTrafficLimitSet(limits)
+}
+
+func (s *trafficLimiterSet) Out(ctx context.Context, key string, opts ...limiter.Option) traffic.Limiter {
+	var limits []traffic.Limiter
+	for _, lim := range s.limiters {
+		if value := lim.Out(ctx, key, opts...); value != nil {
+			limits = append(limits, value)
+		}
+	}
+	return newTrafficLimitSet(limits)
+}
+
+type trafficLimitSet struct {
+	limits []traffic.Limiter
+}
+
+func newTrafficLimitSet(limits []traffic.Limiter) traffic.Limiter {
+	if len(limits) == 0 {
+		return nil
+	}
+	if len(limits) == 1 {
+		return limits[0]
+	}
+	return &trafficLimitSet{limits: limits}
+}
+
+func (s *trafficLimitSet) Wait(ctx context.Context, n int) int {
+	for _, lim := range s.limits {
+		if value := lim.Wait(ctx, n); value < n {
+			n = value
+		}
+	}
+	return n
+}
+
+func (s *trafficLimitSet) Limit() int {
+	limit := 0
+	for _, lim := range s.limits {
+		if value := lim.Limit(); limit == 0 || value < limit {
+			limit = value
+		}
+	}
+	return limit
+}
+
+func (s *trafficLimitSet) Set(int) {}
+
+func (s *trafficLimitSet) String() string {
+	parts := make([]string, 0, len(s.limits))
+	for _, lim := range s.limits {
+		parts = append(parts, strconv.Itoa(lim.Limit()))
+	}
+	return strings.Join(parts, ",")
 }
 
 func (w *trafficLimiterWrapper) In(ctx context.Context, key string, opts ...limiter.Option) traffic.Limiter {

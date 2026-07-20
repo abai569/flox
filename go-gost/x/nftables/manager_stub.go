@@ -52,11 +52,11 @@ func (m *Manager) initChains() error {
 	return errors.New("nftables not supported on this platform")
 }
 
-func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protocol string, port int, target string, speedLimit int, chainType int) error {
+func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protocol string, port int, target string, speedLimit, ceilingSpeed int, chainType int) error {
 	return errors.New("nftables not supported on this platform")
 }
 
-func (m *Manager) UpdateRule(forwardID int64, protocol string, port int, target string, speedLimit int, chainType int) error {
+func (m *Manager) UpdateRule(forwardID int64, protocol string, port int, target string, speedLimit, ceilingSpeed int, chainType int) error {
 	return errors.New("nftables not supported on this platform")
 }
 

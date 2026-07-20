@@ -1396,7 +1396,6 @@ export default function UserPage() {
         flow: editTunnelForm.flow,
         num: editTunnelForm.num,
         expTime: editTunnelForm.expTime,
-        flowResetTime: editTunnelForm.flowResetTime,
         speedId: normalizeSpeedId(editTunnelForm.speedId),
         ceilingSpeed: editTunnelForm.ceilingSpeed ?? null,
         forwardSpeedLimit: editTunnelForm.forwardSpeedLimit ?? null,
@@ -1467,7 +1466,6 @@ export default function UserPage() {
             flow: batchEditTunnelForm.flow,
             num: batchEditTunnelForm.num,
             expTime: batchEditTunnelForm.expTime,
-            flowResetTime: batchEditTunnelForm.flowResetTime,
             speedId,
             ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
             forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
@@ -1497,7 +1495,6 @@ export default function UserPage() {
                   flow: batchEditTunnelForm.flow,
                   num: batchEditTunnelForm.num,
                   expTime: batchEditTunnelForm.expTime,
-                  flowResetTime: batchEditTunnelForm.flowResetTime,
                   speedId,
                   ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
                   forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
@@ -3846,7 +3843,7 @@ export default function UserPage() {
                         color="warning"
                         isLoading={batchUpdateStatusLoading.disable}
                         size="sm"
-                        onPress={() => handleBatchUpdateStatus(2)}
+                        onPress={() => handleBatchUpdateStatus(0)}
                       >
                         禁用
                       </Button>
@@ -4131,7 +4128,7 @@ export default function UserPage() {
         isDismissable={false}
         isOpen={isBatchEditTunnelModalOpen}
         placement="center"
-        scrollBehavior="inside"
+        scrollBehavior="outside"
         size="md"
         onClose={onBatchEditTunnelModalClose}
       >
@@ -4196,79 +4193,60 @@ export default function UserPage() {
                     }}
                   />
                 </DatePicker>
-                <Input
-                  label="流量重置日 (1-31)"
-                  max="31"
-                  min="1"
-                  type="number"
-                  value={String(batchEditTunnelForm.flowResetTime ?? 1)}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setBatchEditTunnelForm((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            flowResetTime: Math.min(
-                              Math.max(Number(e.target.value) || 1, 1),
-                              31,
-                            ),
-                          }
-                        : null,
-                    )
-                  }
-                />
-                <Input
-                  label="隧道限速阈值 (Mbps)"
-                  placeholder="不限速"
-                  type="number"
-                  value={
-                    batchEditTunnelForm.ceilingSpeed != null
-                      ? String(batchEditTunnelForm.ceilingSpeed)
-                      : ""
-                  }
-                  variant="bordered"
-                  description="限制总带宽，留空不限速"
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    setBatchEditTunnelForm((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            ceilingSpeed:
-                              raw === "" || Number(raw) <= 0
-                                ? null
-                                : Number(raw),
-                          }
-                        : null,
-                    );
-                  }}
-                />
-                <Input
-                  label="规则限速 (Mbps)"
-                  placeholder="留空允许用户自定义"
-                  type="number"
-                  value={
-                    batchEditTunnelForm.forwardSpeedLimit != null
-                      ? String(batchEditTunnelForm.forwardSpeedLimit)
-                      : ""
-                  }
-                  variant="bordered"
-                  description="管理员强制规则限速"
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    setBatchEditTunnelForm((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            forwardSpeedLimit:
-                              raw === "" || Number(raw) <= 0
-                                ? null
-                                : Number(raw),
-                          }
-                        : null,
-                    );
-                  }}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="隧道限速阈值 (Mbps)"
+                    placeholder="不限速"
+                    type="number"
+                    value={
+                      batchEditTunnelForm.ceilingSpeed != null
+                        ? String(batchEditTunnelForm.ceilingSpeed)
+                        : ""
+                    }
+                    variant="bordered"
+                    description="限制总带宽，留空不限速"
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      setBatchEditTunnelForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              ceilingSpeed:
+                                raw === "" || Number(raw) <= 0
+                                  ? null
+                                  : Number(raw),
+                            }
+                          : null,
+                      );
+                    }}
+                  />
+                  <Input
+                    label="规则限速 (Mbps)"
+                    placeholder="留空允许用户自定义"
+                    type="number"
+                    value={
+                      batchEditTunnelForm.forwardSpeedLimit != null
+                        ? String(batchEditTunnelForm.forwardSpeedLimit)
+                        : ""
+                    }
+                    variant="bordered"
+                    description="管理员强制规则限速"
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      setBatchEditTunnelForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              forwardSpeedLimit:
+                                raw === "" || Number(raw) <= 0
+                                  ? null
+                                  : Number(raw),
+                            }
+                          : null,
+                      );
+                    }}
+                  />
+                </div>
                 <RadioGroup
                   label="状态"
                   orientation="horizontal"
@@ -4306,7 +4284,7 @@ export default function UserPage() {
         isDismissable={false}
         isOpen={isEditTunnelModalOpen}
         placement="center"
-        scrollBehavior="inside"
+        scrollBehavior="outside"
         size="md"
         onClose={onEditTunnelModalClose}
       >
@@ -4349,7 +4327,9 @@ export default function UserPage() {
                   showMonthAndYearPickers
                   label="到期时间"
                   value={timestampToCalendarDate(
-                    editTunnelForm.expTime > 0 ? editTunnelForm.expTime : null,
+                    editTunnelForm.expTime > 0
+                      ? editTunnelForm.expTime
+                      : null,
                   )}
                   onChange={(date) => {
                     const ts = calendarDateToTimestamp(date) || 0;
@@ -4367,79 +4347,60 @@ export default function UserPage() {
                     }}
                   />
                 </DatePicker>
-                <Input
-                  label="流量重置日 (1-31)"
-                  max="31"
-                  min="1"
-                  type="number"
-                  value={String(editTunnelForm.flowResetTime ?? 1)}
-                  variant="bordered"
-                  onChange={(e) =>
-                    setEditTunnelForm((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            flowResetTime: Math.min(
-                              Math.max(Number(e.target.value) || 1, 1),
-                              31,
-                            ),
-                          }
-                        : null,
-                    )
-                  }
-                />
-                <Input
-                  label="隧道限速阈值 (Mbps)"
-                  placeholder="不限速"
-                  type="number"
-                  value={
-                    editTunnelForm.ceilingSpeed != null
-                      ? String(editTunnelForm.ceilingSpeed)
-                      : ""
-                  }
-                  variant="bordered"
-                  description="限制该用户在当前隧道的总带宽，留空不限速"
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    setEditTunnelForm((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            ceilingSpeed:
-                              raw === "" || Number(raw) <= 0
-                                ? null
-                                : Number(raw),
-                          }
-                        : null,
-                    );
-                  }}
-                />
-                <Input
-                  label="规则限速 (Mbps)"
-                  placeholder="留空允许用户自定义"
-                  type="number"
-                  value={
-                    editTunnelForm.forwardSpeedLimit != null
-                      ? String(editTunnelForm.forwardSpeedLimit)
-                      : ""
-                  }
-                  variant="bordered"
-                  description="管理员强制规则限速；留空则用户可自行设置"
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    setEditTunnelForm((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            forwardSpeedLimit:
-                              raw === "" || Number(raw) <= 0
-                                ? null
-                                : Number(raw),
-                          }
-                        : null,
-                    );
-                  }}
-                />
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="隧道限速阈值 (Mbps)"
+                    placeholder="不限速"
+                    type="number"
+                    value={
+                      editTunnelForm.ceilingSpeed != null
+                        ? String(editTunnelForm.ceilingSpeed)
+                        : ""
+                    }
+                    variant="bordered"
+                    description="限制该用户在当前隧道的总带宽，留空不限速"
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      setEditTunnelForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              ceilingSpeed:
+                                raw === "" || Number(raw) <= 0
+                                  ? null
+                                  : Number(raw),
+                            }
+                          : null,
+                      );
+                    }}
+                  />
+                  <Input
+                    label="规则限速 (Mbps)"
+                    placeholder="留空允许用户自定义"
+                    type="number"
+                    value={
+                      editTunnelForm.forwardSpeedLimit != null
+                        ? String(editTunnelForm.forwardSpeedLimit)
+                        : ""
+                    }
+                    variant="bordered"
+                    description="管理员强制规则限速；留空则用户可自行设置"
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      setEditTunnelForm((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              forwardSpeedLimit:
+                                raw === "" || Number(raw) <= 0
+                                  ? null
+                                  : Number(raw),
+                            }
+                          : null,
+                      );
+                    }}
+                  />
+                </div>
                 <RadioGroup
                   label="状态"
                   orientation="horizontal"

@@ -342,12 +342,53 @@ func (r *Repository) ResolveUserTunnelCeiling(userID, tunnelID int64) (*model.Us
 	}
 	info := &model.UserTunnelLimiterInfo{UserTunnelID: ut.ID}
 	if ut.CeilingSpeed.Valid && ut.CeilingSpeed.Int64 > 0 {
-		v := ut.CeilingSpeed.Int64
+		v := ut.ID
 		info.LimiterID = &v
 		s := int(ut.CeilingSpeed.Int64)
 		info.Speed = &s
 	}
 	return info, nil
+}
+
+func (r *Repository) ResolveUserTunnelSpeedLimit(userID, tunnelID int64) (*model.UserTunnelLimiterInfo, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	type row struct {
+		UserTunnelID int64
+		LimiterID    sql.NullInt64
+		Speed        sql.NullInt64
+	}
+	var rec row
+	err := r.db.Model(&model.UserTunnel{}).
+		Select("user_tunnel.id AS user_tunnel_id, speed_limit.id AS limiter_id, speed_limit.speed AS speed").
+		Joins("JOIN speed_limit ON speed_limit.id = user_tunnel.speed_id AND speed_limit.status = 1").
+		Where("user_tunnel.user_id = ? AND user_tunnel.tunnel_id = ?", userID, tunnelID).
+		Order("user_tunnel.id ASC").Limit(1).Take(&rec).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return &model.UserTunnelLimiterInfo{}, nil
+		}
+		return nil, err
+	}
+	info := &model.UserTunnelLimiterInfo{UserTunnelID: rec.UserTunnelID}
+	if rec.LimiterID.Valid && rec.LimiterID.Int64 > 0 && rec.Speed.Valid && rec.Speed.Int64 > 0 {
+		id, speed := rec.LimiterID.Int64, int(rec.Speed.Int64)
+		info.LimiterID = &id
+		info.Speed = &speed
+	}
+	return info, nil
+}
+
+func (r *Repository) UserTunnelCeilingExists(id int64) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	var count int64
+	err := r.db.Model(&model.UserTunnel{}).
+		Where("id = ? AND ceiling_speed IS NOT NULL AND ceiling_speed > 0", id).
+		Count(&count).Error
+	return count > 0, err
 }
 
 func (r *Repository) ListUserTunnelIDs(userID, tunnelID int64) ([]int64, error) {

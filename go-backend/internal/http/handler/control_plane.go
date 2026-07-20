@@ -259,6 +259,38 @@ func (h *Handler) resolveUserTunnelAndLimiter(userID, tunnelID int64) (int64, *i
 	return info.UserTunnelID, info.LimiterID, info.Speed, nil
 }
 
+func (h *Handler) resolveUserTunnelLegacyLimiter(userID, tunnelID int64) (*int64, *int, error) {
+	info, err := h.repo.ResolveUserTunnelSpeedLimit(userID, tunnelID)
+	if err != nil || info == nil {
+		return nil, nil, err
+	}
+	return info.LimiterID, info.Speed, nil
+}
+
+func userTunnelCeilingLimiterName(userTunnelID int64) string {
+	if userTunnelID <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("user_tunnel_%d_ceiling", userTunnelID)
+}
+
+func combineLimiterNames(names ...string) string {
+	seen := make(map[string]struct{}, len(names))
+	result := make([]string, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		result = append(result, name)
+	}
+	return strings.Join(result, ",")
+}
+
 func (h *Handler) listUserTunnelIDs(userID, tunnelID int64) ([]int64, error) {
 	return h.repo.ListUserTunnelIDs(userID, tunnelID)
 }
@@ -297,15 +329,27 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	if err != nil {
 		return nil, err
 	}
+	if userTunnelID > 0 {
+		if err := h.ensureUserTunnelForwardAllowed(forward.UserID, forward.TunnelID, time.Now().UnixMilli()); err != nil {
+			return nil, err
+		}
+	}
+	legacyLimiterID, legacySpeed, err := h.resolveUserTunnelLegacyLimiter(forward.UserID, forward.TunnelID)
+	if err != nil {
+		return nil, err
+	}
 
-	// Determine limiter from inline forward speed first, then SpeedID, then UserTunnel.
-	var limiterID *int64
+	// Apply the per-forward limit and the user-tunnel aggregate limit together.
 	var speed *int
-	limiterName := ""
+	perForwardLimiterName := ""
+	ceilingLimiterName := ""
+	if utLimiterID != nil && utSpeed != nil && *utSpeed > 0 {
+		ceilingLimiterName = userTunnelCeilingLimiterName(userTunnelID)
+	}
 	inlineLimiterName := forwardInlineSpeedLimiterName(forward.ID)
 
 	if forward.SpeedLimitEnabled && forward.SpeedLimit > 0 {
-		limiterName = inlineLimiterName
+		perForwardLimiterName = inlineLimiterName
 		speedVal := forward.SpeedLimit
 		speed = &speedVal
 	}
@@ -314,19 +358,20 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		// Forward has its own speed limit
 		speedVal, err := h.repo.GetSpeedLimitSpeed(forward.SpeedID.Int64)
 		if err == nil && speedVal > 0 {
-			limiterID = &forward.SpeedID.Int64
 			speed = &speedVal
-			limiterName = strconv.FormatInt(forward.SpeedID.Int64, 10)
+			perForwardLimiterName = strconv.FormatInt(forward.SpeedID.Int64, 10)
 		}
 	}
+	if speed == nil && legacySpeed != nil && legacyLimiterID != nil {
+		speed = legacySpeed
+		perForwardLimiterName = strconv.FormatInt(*legacyLimiterID, 10)
+	}
 
+	limiterName := combineLimiterNames(ceilingLimiterName, perForwardLimiterName)
 	if speed == nil {
-		// Fall back to UserTunnel speed limit
-		limiterID = utLimiterID
+		// Legacy transports accept one speed value. Use the aggregate ceiling when
+		// no per-forward limit has been selected.
 		speed = utSpeed
-		if limiterID != nil && *limiterID > 0 {
-			limiterName = strconv.FormatInt(*limiterID, 10)
-		}
 	}
 
 	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
@@ -345,7 +390,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	// nftables mode branch
 	if strings.EqualFold(forward.Mode, "nftables") {
 		fmt.Printf("[nft.debug] syncForwardServicesWithWarnings: nft mode branch, forwardID=%d\n", forward.ID)
-		if err := h.syncNftablesRules(forward, tunnel, ports, userTunnelID, speed); err != nil {
+		if err := h.syncNftablesRules(forward, tunnel, ports, userTunnelID, speed, utSpeed); err != nil {
 			return nil, err
 		}
 		// type=2 chain tunnel: deploy relay services on chain/exit nodes
@@ -379,8 +424,19 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	}
 
 	for _, fp := range ports {
-		if speed != nil && strings.TrimSpace(limiterName) != "" {
-			if err := h.ensureNamedLimiterOnNode(fp.NodeID, limiterName, *speed); err != nil {
+		limiters := []struct {
+			name  string
+			speed *int
+		}{
+			{name: ceilingLimiterName, speed: utSpeed},
+			{name: perForwardLimiterName, speed: speed},
+		}
+		nodeOffline := false
+		for _, limiter := range limiters {
+			if limiter.speed == nil || strings.TrimSpace(limiter.name) == "" {
+				continue
+			}
+			if err := h.ensureNamedLimiterOnNode(fp.NodeID, limiter.name, *limiter.speed); err != nil {
 				if isNodeOfflineOrTimeoutError(err) {
 					node, _ := h.getNodeRecord(fp.NodeID)
 					nodeName := fmt.Sprintf("%d", fp.NodeID)
@@ -388,11 +444,16 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 						nodeName = strings.TrimSpace(node.Name)
 					}
 					warnings = append(warnings, fmt.Sprintf("节点 %s 不在线，已跳过下发", nodeName))
-					continue
+					nodeOffline = true
+					break
 				}
 				return nil, err
 			}
-		} else {
+		}
+		if nodeOffline {
+			continue
+		}
+		if strings.TrimSpace(perForwardLimiterName) == "" {
 			_, _ = h.sendNodeCommand(fp.NodeID, "DeleteLimiters", map[string]interface{}{"limiter": inlineLimiterName}, false, true)
 		}
 
@@ -3040,6 +3101,7 @@ type NftablesRulePayload struct {
 	Port         int    `json:"port"`
 	Target       string `json:"target"`
 	SpeedLimit   int    `json:"speed_limit"`
+	CeilingSpeed int    `json:"ceiling_speed"`
 	ChainType    int    `json:"chain_type"`
 	NextHopIP    string `json:"next_hop_ip"`
 	NextHopPort  int    `json:"next_hop_port"`
@@ -3064,7 +3126,7 @@ type CleanStaleNftRulesRequest struct {
 }
 
 // syncNftablesRules sync nftables forwarding rules to nodes
-func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, userTunnelID int64, speedLimit *int) error {
+func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, userTunnelID int64, speedLimit *int, ceilingSpeeds ...*int) error {
 	if h == nil || forward == nil {
 		return errors.New("invalid nftables sync context")
 	}
@@ -3130,7 +3192,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 		}
 	}
 
-	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, nodeIPv6Map, userTunnelID, speedLimit)
+	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, nodeIPv6Map, userTunnelID, speedLimit, ceilingSpeeds...)
 	fmt.Printf("[nft.debug] built %d rule payloads for forwardID=%d\n", len(rules), forward.ID)
 
 	// Group ports by node for batch operations
@@ -3208,7 +3270,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 }
 
 // buildNftablesRulePayloads build nftables rule payloads
-func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, chainNodes []chainNodeRecord, nodeIPv6Map map[int64]string, userTunnelID int64, speedLimit *int) []NftablesRulePayload {
+func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, ports []forwardPortRecord, chainNodes []chainNodeRecord, nodeIPv6Map map[int64]string, userTunnelID int64, speedLimit *int, ceilingSpeeds ...*int) []NftablesRulePayload {
 	var rules []NftablesRulePayload
 	protocols := []string{"tcp", "udp"}
 	targets := splitRemoteTargets(forward.RemoteAddr)
@@ -3221,6 +3283,10 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 		spdLimit = forward.SpeedLimit
 	} else if speedLimit != nil {
 		spdLimit = *speedLimit
+	}
+	ceilingLimit := 0
+	if len(ceilingSpeeds) > 0 && ceilingSpeeds[0] != nil && *ceilingSpeeds[0] > 0 {
+		ceilingLimit = *ceilingSpeeds[0]
 	}
 
 	if tunnel.Type == 1 {
@@ -3241,6 +3307,7 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 					Port:         fp.Port,
 					Target:       target4,
 					SpeedLimit:   spdLimit,
+					CeilingSpeed: ceilingLimit,
 					ChainType:    1,
 					NextHopIPv6:  target6Host,
 					NextHopPort:  target6Port,
@@ -3279,6 +3346,7 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 						Port:         entryPort,
 						Target:       net.JoinHostPort(nextIP, strconv.Itoa(nextPort)),
 						SpeedLimit:   spdLimit,
+						CeilingSpeed: ceilingLimit,
 						ChainType:    2,
 						NextHopIP:    nextIP,
 						NextHopPort:  nextPort,
@@ -3309,6 +3377,7 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 							Port:         hopPort,
 							Target:       net.JoinHostPort(nextIP, strconv.Itoa(nextPort)),
 							SpeedLimit:   spdLimit,
+							CeilingSpeed: ceilingLimit,
 							ChainType:    2,
 							NextHopIP:    nextIP,
 							NextHopPort:  nextPort,
@@ -3337,6 +3406,7 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 						Port:         exitPort,
 						Target:       target4,
 						SpeedLimit:   spdLimit,
+						CeilingSpeed: ceilingLimit,
 						ChainType:    3,
 						NextHopIPv6:  target6Host,
 						NextHopPort:  target6Port,
