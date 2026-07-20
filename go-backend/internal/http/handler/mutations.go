@@ -3634,7 +3634,7 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 
 	// 规则限速强制：非管理员用户受 user_tunnel.forward_speed_limit 约束
 	if roleID != 0 {
-		_, _, _, _, _, _, utForwardSpeedLimit, _, _ := h.repo.GetExistingUserTunnel(userID, tunnelID)
+		_, _, _, _, _, _, _, utForwardSpeedLimit, _, _ := h.repo.GetExistingUserTunnel(userID, tunnelID)
 		if utForwardSpeedLimit.Valid && utForwardSpeedLimit.Int64 > 0 {
 			speedLimitEnabled = true
 			speedLimit = int(utForwardSpeedLimit.Int64)
@@ -3846,7 +3846,7 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 
 	// 规则限速强制：非管理员用户受 user_tunnel.forward_speed_limit 约束
 	if actorRole != 0 {
-		_, _, _, _, _, _, utForwardSpeedLimit, _, _ := h.repo.GetExistingUserTunnel(forward.UserID, forward.TunnelID)
+		_, _, _, _, _, _, _, utForwardSpeedLimit, _, _ := h.repo.GetExistingUserTunnel(forward.UserID, forward.TunnelID)
 		if utForwardSpeedLimit.Valid && utForwardSpeedLimit.Int64 > 0 {
 			speedLimitEnabled = true
 			speedLimit = int(utForwardSpeedLimit.Int64)

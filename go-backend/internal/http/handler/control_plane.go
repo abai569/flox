@@ -417,6 +417,9 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 			}
 			_, err = h.sendNodeCommand(node.ID, "AddService", services, true, false)
 		}
+		if err != nil && allowFallbackAdd && method == "UpdateService" && isNotActiveShareForwardError(err) {
+			_, err = h.sendNodeCommand(node.ID, "AddService", services, true, false)
+		}
 		if err != nil && strings.EqualFold(strings.TrimSpace(method), "UpdateService") && isAddressAlreadyInUseError(err) {
 			err = h.rebindForwardServiceOnSelfOccupiedPort(forward, node, fp.Port, services)
 		}

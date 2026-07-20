@@ -1843,18 +1843,11 @@ export default function UserPage() {
       setBatchOperationLoading((prev) => ({ ...prev, delete: false }));
     }
   };
-  const editAvailableSpeedLimits = speedLimits.filter(
-    (speedLimit) => !noLimitSpeedLimitIds.has(speedLimit.id),
-  );
   const getSpeedLimitsForTunnel = (_tunnelId: number) => {
     return speedLimits.filter(
       (speedLimit) => !noLimitSpeedLimitIds.has(speedLimit.id),
     );
   };
-  const editTunnelSelectedSpeedId = normalizeSpeedId(editTunnelForm?.speedId);
-  const batchEditTunnelSelectedSpeedId = normalizeSpeedId(
-    batchEditTunnelForm?.speedId,
-  );
   const toggleTunnelSelection = (tunnelId: number) => {
     setBatchTunnelSelections((prev) => {
       const newMap = new Map(prev);
