@@ -808,6 +808,8 @@ export default function NodePage() {
   });
   const [instanceDeleteTarget, setInstanceDeleteTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [instanceDeleteSaving, setInstanceDeleteSaving] = useState(false);
+  const [instanceResetTarget, setInstanceResetTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [instanceResetSaving, setInstanceResetSaving] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"single" | "batch">(
     "single",
@@ -2012,8 +2014,11 @@ export default function NodePage() {
       setInstanceDeleteSaving(false);
     }
   };
-  const resetInstanceTraffic = async (member: MonitorNodeInstanceGroupMemberApiItem) => {
-    if (!member.instanceId) return;
+  const resetInstanceTraffic = async () => {
+    const member = instanceResetTarget;
+
+    if (!member?.instanceId) return;
+    setInstanceResetSaving(true);
     try {
       const res = await batchResetNodeInstanceTraffic({
         instances: [{ nodeId: member.nodeId, instanceId: member.instanceId }],
@@ -2023,6 +2028,7 @@ export default function NodePage() {
       });
       if (res.code === 0) {
         toast.success("实例流量归零成功");
+        setInstanceResetTarget(null);
         await loadNodeInstances();
         await loadNodes({ silent: true });
       } else {
@@ -2030,6 +2036,8 @@ export default function NodePage() {
       }
     } catch {
       toast.error("归零失败");
+    } finally {
+      setInstanceResetSaving(false);
     }
   };
   // 查看节点流量归零日志
@@ -4050,7 +4058,7 @@ export default function NodePage() {
                                         nodeGroups={nodeGroups}
                                         onConfigureInstance={openInstanceConfigEditor}
                                         onDeleteInstance={setInstanceDeleteTarget}
-                                        onResetInstanceTraffic={resetInstanceTraffic}
+                                        onResetInstanceTraffic={setInstanceResetTarget}
                                         onReorderInstances={reorderNodeInstances}
                                         onInstallMimicDeps={(node) =>
                                           requestMimicDepsInstall([node])
@@ -4141,7 +4149,7 @@ export default function NodePage() {
                     nodeGroups={nodeGroups}
                     onConfigureInstance={openInstanceConfigEditor}
                     onDeleteInstance={setInstanceDeleteTarget}
-                    onResetInstanceTraffic={resetInstanceTraffic}
+                    onResetInstanceTraffic={setInstanceResetTarget}
                     onReorderInstances={reorderNodeInstances}
                     onInstallMimicDeps={(node) => requestMimicDepsInstall([node])}
 					onShareNode={(node) => void openNodeSharing(node)}
@@ -5313,15 +5321,30 @@ export default function NodePage() {
           </ModalContent>
         </Modal>
 
+        <Modal isDismissable={!instanceResetSaving} isOpen={!!instanceResetTarget} placement="center" onOpenChange={(open) => !open && !instanceResetSaving && setInstanceResetTarget(null)}>
+          <ModalContent>
+            <ModalHeader>确认 {getInstanceLabel(instanceResetTarget)} 流量归零</ModalHeader>
+            <ModalBody>
+              <p className="text-sm text-default-600">
+                确认将 {getInstanceLabel(instanceResetTarget)} 的周期流量归零？此操作不会修改实例配置。
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button isDisabled={instanceResetSaving} variant="flat" onPress={() => setInstanceResetTarget(null)}>取消</Button>
+              <Button color="danger" isLoading={instanceResetSaving} onPress={resetInstanceTraffic}>确认</Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+
         <Modal isOpen={!!instanceDeleteTarget} placement="center" onOpenChange={(open) => !open && setInstanceDeleteTarget(null)}>
           <ModalContent>
-            <ModalHeader>删除实例</ModalHeader>
+            <ModalHeader>删除实例 {getInstanceLabel(instanceDeleteTarget)}</ModalHeader>
             <ModalBody>
-              <p className="text-sm text-default-600">确认删除 {getInstanceLabel(instanceDeleteTarget)}？系统会尝试卸载远程 Agent，并永久移除当前实例 ID；旧实例继续上报也不会重新出现。</p>
+              <p className="text-sm text-default-600">删除 {getInstanceLabel(instanceDeleteTarget)}系统会尝试卸载远程 Agent，并永久移除当前实例 ID；旧实例继续上报也不会重新出现。</p>
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setInstanceDeleteTarget(null)}>取消</Button>
-              <Button color="danger" isLoading={instanceDeleteSaving} onPress={deleteInstanceConfig}>删除</Button>
+              <Button color="danger" isLoading={instanceDeleteSaving} onPress={deleteInstanceConfig}>确认</Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
