@@ -1752,6 +1752,7 @@ export default function ForwardPage() {
   const [currentLogForward, setCurrentLogForward] = useState<Forward | null>(
     null,
   );
+  const trafficResetLogsGenerationRef = useRef(0);
   const [deleteLogModalOpen, setDeleteLogModalOpen] = useState(false);
   const [logToDelete, setLogToDelete] = useState<number | null>(null);
   const [batchProgress, setBatchProgress] = useState<BatchProgressState>({
@@ -2915,27 +2916,35 @@ export default function ForwardPage() {
     setModalOpen(true);
   };
   // 查看流量归零日志
-  const handleViewTrafficResetLogs = async (forward: Forward) => {
-    setTrafficResetLogsLoading(true);
+	const handleViewTrafficResetLogs = async (forward: Forward) => {
+		const generation = ++trafficResetLogsGenerationRef.current;
+		setTrafficResetLogsLoading(true);
     setCurrentLogForward(forward);
     try {
       const res = await getForwardTrafficResetLogs(forward.id, 30);
 
-      if (res.code === 0) {
-        setTrafficResetLogs((res.data as any)?.logs || []);
+		if (generation !== trafficResetLogsGenerationRef.current) return;
+		if (res.code === 0) {
+        setTrafficResetLogs(res.data?.logs || []);
         setTrafficResetLogModalOpen(true);
       } else {
         toast.error(res.msg || "获取日志失败");
       }
-    } catch {
-      toast.error("网络错误，请重试");
-    } finally {
-      setTrafficResetLogsLoading(false);
+		} catch {
+			if (generation === trafficResetLogsGenerationRef.current) {
+				toast.error("网络错误，请重试");
+			}
+		} finally {
+			if (generation === trafficResetLogsGenerationRef.current) {
+				setTrafficResetLogsLoading(false);
+			}
     }
   };
   // 删除流量归零日志
   const handleDeleteLog = async () => {
-    if (!logToDelete || !currentLogForward) return;
+    if (!isAdmin || !logToDelete || !currentLogForward) return;
+    const generation = trafficResetLogsGenerationRef.current;
+    const forwardId = currentLogForward.id;
     try {
       const res = await deleteForwardTrafficResetLog(logToDelete);
 
@@ -2943,12 +2952,15 @@ export default function ForwardPage() {
         toast.success("删除成功");
         // 重新获取最新列表
         const refreshRes = await getForwardTrafficResetLogs(
-          currentLogForward.id,
+          forwardId,
           30,
         );
 
-        if (refreshRes.code === 0) {
-          setTrafficResetLogs((refreshRes.data as any)?.logs || []);
+        if (
+          refreshRes.code === 0 &&
+          generation === trafficResetLogsGenerationRef.current
+        ) {
+          setTrafficResetLogs(refreshRes.data?.logs || []);
         }
         setDeleteLogModalOpen(false);
         setLogToDelete(null);
@@ -4151,7 +4163,7 @@ export default function ForwardPage() {
 
       if (res.code === 0) {
         const successCount =
-          (res.data as any)?.filter((r: { success: boolean }) => r.success)
+          res.data?.filter((r) => r.success)
             .length || 0;
 
         toast.success(
@@ -8245,28 +8257,30 @@ export default function ForwardPage() {
                             <span className="text-xs text-default-500">
                               {formatDateTime(log.createdTime)}
                             </span>
-                            <Button
-                              isIconOnly
-                              className="w-6 h-6 min-w-6 text-danger hover:bg-danger/10"
-                              size="sm"
-                              variant="flat"
-                              onPress={() => {
-                                setLogToDelete(log.id);
-                                setDeleteLogModalOpen(true);
-                              }}
-                            >
-                              <svg
-                                className="w-3.5 h-3.5"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
+                            {isAdmin && (
+                              <Button
+                                isIconOnly
+                                className="w-6 h-6 min-w-6 text-danger hover:bg-danger/10"
+                                size="sm"
+                                variant="flat"
+                                onPress={() => {
+                                  setLogToDelete(log.id);
+                                  setDeleteLogModalOpen(true);
+                                }}
                               >
-                                <path
-                                  clipRule="evenodd"
-                                  d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                  fillRule="evenodd"
-                                />
-                              </svg>
-                            </Button>
+                                <svg
+                                  className="w-3.5 h-3.5"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    clipRule="evenodd"
+                                    d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                    fillRule="evenodd"
+                                  />
+                                </svg>
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col gap-1 w-full">
@@ -8337,9 +8351,11 @@ export default function ForwardPage() {
             <Button variant="flat" onPress={() => setDeleteLogModalOpen(false)}>
               取消
             </Button>
-            <Button color="danger" onPress={handleDeleteLog}>
-              删除
-            </Button>
+            {isAdmin && (
+              <Button color="danger" onPress={handleDeleteLog}>
+                删除
+              </Button>
+            )}
           </ModalFooter>
         </ModalContent>
       </Modal>

@@ -620,24 +620,13 @@ func (h *Handler) disableExpiredForwards(nowMs int64) {
 		log.Printf("Forward %d paused: expired at %v", forward.ID, time.UnixMilli(forward.ExpiryTime.Int64))
 
 		// 归零流量 + 记录日志
-		inFlowBefore := forward.InFlow
-		outFlowBefore := forward.OutFlow
-		if resetErr := h.repo.ResetForwardTraffic(forward.ID); resetErr != nil {
+		if resetErr := h.repo.ResetForwardTrafficWithLog(forward.ID, &repo.ForwardTrafficResetLogCreateParams{
+			ForwardID: forward.ID, ForwardName: forward.Name, UserID: forward.UserID, UserName: forward.UserName,
+			ResetTime: nowMs, OperatorID: 1, OperatorName: "system", Reason: "到期归零",
+		}); resetErr != nil {
 			log.Printf("ERROR: reset forward %d traffic failed: %v", forward.ID, resetErr)
 			continue
 		}
-		_ = h.repo.CreateForwardTrafficResetLog(&repo.ForwardTrafficResetLogCreateParams{
-			ForwardID:     forward.ID,
-			ForwardName:   forward.Name,
-			UserID:        forward.UserID,
-			UserName:      forward.UserName,
-			ResetTime:     nowMs,
-			InFlowBefore:  inFlowBefore,
-			OutFlowBefore: outFlowBefore,
-			OperatorID:    1,
-			OperatorName:  "system",
-			Reason:        "到期归零",
-		})
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendForwardTrafficReset(forward.Name, forward.UserName)

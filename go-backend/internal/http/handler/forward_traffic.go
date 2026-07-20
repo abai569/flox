@@ -61,28 +61,17 @@ func (h *Handler) forwardBatchResetTraffic(w http.ResponseWriter, r *http.Reques
 			continue
 		}
 
-		inFlowBefore := forward.InFlow
-		outFlowBefore := forward.OutFlow
-
-		if err := h.repo.ResetForwardTraffic(forwardID); err != nil {
-			result.Error = err.Error()
-			results = append(results, result)
-			continue
-		}
-
-		if err := h.repo.CreateForwardTrafficResetLog(&repo.ForwardTrafficResetLogCreateParams{
-			ForwardID:     forwardID,
-			ForwardName:   forward.Name,
-			UserID:        forward.UserID,
-			UserName:      forward.UserName,
-			ResetTime:     time.Now().UnixMilli(),
-			InFlowBefore:  inFlowBefore,
-			OutFlowBefore: outFlowBefore,
-			OperatorID:    actorUserID,
-			OperatorName:  actorUserName,
-			Reason:        "手动归零",
+		if err := h.repo.ResetForwardTrafficWithLog(forwardID, &repo.ForwardTrafficResetLogCreateParams{
+			ForwardID:    forwardID,
+			ForwardName:  forward.Name,
+			UserID:       forward.UserID,
+			UserName:     forward.UserName,
+			ResetTime:    time.Now().UnixMilli(),
+			OperatorID:   actorUserID,
+			OperatorName: actorUserName,
+			Reason:       "手动归零",
 		}); err != nil {
-			result.Error = "归零成功但记录日志失败：" + err.Error()
+			result.Error = err.Error()
 			results = append(results, result)
 			continue
 		}

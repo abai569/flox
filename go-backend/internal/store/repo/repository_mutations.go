@@ -192,6 +192,9 @@ func (r *Repository) DeleteUserCascade(userID int64) error {
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		forwardIDs := tx.Model(&model.Forward{}).Select("id").Where("user_id = ?", userID)
+		if err := tx.Where("forward_id IN (?)", forwardIDs).Delete(&model.ForwardTrafficResetLog{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("forward_id IN (?)", forwardIDs).Delete(&model.ForwardPort{}).Error; err != nil {
 			return err
 		}
@@ -1074,6 +1077,9 @@ func (r *Repository) DeleteNodeCascade(nodeID int64) error {
 		if err := tx.Where("node_id = ?", nodeID).Delete(&model.ForwardPort{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("node_id = ?", nodeID).Delete(&model.NodeTrafficResetLog{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("node_id = ?", nodeID).Delete(&model.ChainTunnel{}).Error; err != nil {
 			return err
 		}
@@ -1622,6 +1628,9 @@ func (r *Repository) DeleteForwardCascade(forwardID int64) error {
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("forward_id = ?", forwardID).Delete(&model.ForwardPort{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("forward_id = ?", forwardID).Delete(&model.ForwardTrafficResetLog{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("id = ?", forwardID).Delete(&model.Forward{}).Error
@@ -3722,17 +3731,34 @@ type ForwardTrafficResetLogCreateParams struct {
 	Reason        string
 }
 
-func (r *Repository) ResetForwardTraffic(id int64) error {
+func (r *Repository) ResetForwardTrafficWithLog(id int64, params *ForwardTrafficResetLogCreateParams) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	return r.db.Model(&model.Forward{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"in_flow":      0,
-			"out_flow":     0,
-			"updated_time": time.Now().UnixMilli(),
-		}).Error
+	if params == nil {
+		return errors.New("params is nil")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var forward model.Forward
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&forward).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Forward{}).Where("id = ?", id).Updates(map[string]interface{}{
+			"in_flow": 0, "out_flow": 0, "updated_time": time.Now().UnixMilli(),
+		}).Error; err != nil {
+			return err
+		}
+		log := &model.ForwardTrafficResetLog{
+			ForwardID: id, ForwardName: forward.Name, UserID: forward.UserID, UserName: forward.UserName,
+			ResetTime: params.ResetTime, InFlowBefore: forward.InFlow, OutFlowBefore: forward.OutFlow,
+			OperatorID: params.OperatorID, OperatorName: params.OperatorName, Reason: params.Reason,
+			CreatedTime: time.Now().UnixMilli(),
+		}
+		if err := tx.Create(log).Error; err != nil {
+			return err
+		}
+		return r.cleanupForwardTrafficResetLogsTx(tx, id)
+	})
 }
 
 func (r *Repository) CreateForwardTrafficResetLog(params *ForwardTrafficResetLogCreateParams) error {
@@ -3764,30 +3790,27 @@ func (r *Repository) CreateForwardTrafficResetLog(params *ForwardTrafficResetLog
 	return r.cleanupForwardTrafficResetLogs(params.ForwardID)
 }
 
+func (r *Repository) cleanupForwardTrafficResetLogsTx(tx *gorm.DB, forwardID int64) error {
+	var logs []model.ForwardTrafficResetLog
+	if err := tx.Where("forward_id = ?", forwardID).Order("created_time DESC, id DESC").Find(&logs).Error; err != nil {
+		return err
+	}
+	if len(logs) <= 30 {
+		return nil
+	}
+	ids := make([]int64, 0, len(logs)-30)
+	for _, log := range logs[30:] {
+		ids = append(ids, log.ID)
+	}
+	return tx.Where("id IN ?", ids).Delete(&model.ForwardTrafficResetLog{}).Error
+}
+
 func (r *Repository) cleanupForwardTrafficResetLogs(forwardID int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
 
-	var count int64
-	if err := r.db.Model(&model.ForwardTrafficResetLog{}).Where("forward_id = ?", forwardID).Count(&count).Error; err != nil {
-		return err
-	}
-
-	if count > 30 {
-		var cutoffLog model.ForwardTrafficResetLog
-		if err := r.db.Where("forward_id = ?", forwardID).
-			Order("created_time DESC").
-			Offset(29).Limit(1).
-			First(&cutoffLog).Error; err != nil {
-			return err
-		}
-
-		return r.db.Where("forward_id = ? AND created_time < ?", forwardID, cutoffLog.CreatedTime).
-			Delete(&model.ForwardTrafficResetLog{}).Error
-	}
-
-	return nil
+	return r.cleanupForwardTrafficResetLogsTx(r.db, forwardID)
 }
 
 type NodeTrafficResetLogCreateParams struct {
@@ -3830,6 +3853,21 @@ func (r *Repository) CreateNodeTrafficResetLog(params *NodeTrafficResetLogCreate
 	}
 
 	return r.cleanupNodeTrafficResetLogs(params.NodeID)
+}
+
+func (r *Repository) cleanupNodeTrafficResetLogsTx(tx *gorm.DB, nodeID int64) error {
+	var logs []model.NodeTrafficResetLog
+	if err := tx.Where("node_id = ?", nodeID).Order("created_time DESC, id DESC").Find(&logs).Error; err != nil {
+		return err
+	}
+	if len(logs) <= 30 {
+		return nil
+	}
+	ids := make([]int64, 0, len(logs)-30)
+	for _, log := range logs[30:] {
+		ids = append(ids, log.ID)
+	}
+	return tx.Where("id IN ?", ids).Delete(&model.NodeTrafficResetLog{}).Error
 }
 
 // DeductUserBalance atomically deducts balance if sufficient. Returns false if insufficient.
@@ -3915,25 +3953,7 @@ func (r *Repository) cleanupNodeTrafficResetLogs(nodeID int64) error {
 		return errors.New("repository not initialized")
 	}
 
-	var count int64
-	if err := r.db.Model(&model.NodeTrafficResetLog{}).Where("node_id = ?", nodeID).Count(&count).Error; err != nil {
-		return err
-	}
-
-	if count > 30 {
-		var cutoffLog model.NodeTrafficResetLog
-		if err := r.db.Where("node_id = ?", nodeID).
-			Order("created_time DESC").
-			Offset(29).Limit(1).
-			First(&cutoffLog).Error; err != nil {
-			return err
-		}
-
-		return r.db.Where("node_id = ? AND created_time < ?", nodeID, cutoffLog.CreatedTime).
-			Delete(&model.NodeTrafficResetLog{}).Error
-	}
-
-	return nil
+	return r.cleanupNodeTrafficResetLogsTx(r.db, nodeID)
 }
 
 type NodeTrafficLimitItem struct {
@@ -4005,15 +4025,33 @@ func (r *Repository) AddNodeTotalFlow(nodeID int64, rx, tx int64) error {
 		}).Error
 }
 
-func (r *Repository) ResetNodeTotalFlow(nodeID int64) error {
+func (r *Repository) ResetNodeTotalFlowWithLog(nodeID int64, params *NodeTrafficResetLogCreateParams) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
-		Updates(map[string]interface{}{
-			"total_in_flow":  0,
-			"total_out_flow": 0,
-		}).Error
+	if params == nil {
+		return errors.New("params is nil")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", nodeID).First(&node).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
+			"total_in_flow": 0, "total_out_flow": 0,
+		}).Error; err != nil {
+			return err
+		}
+		log := &model.NodeTrafficResetLog{
+			NodeID: nodeID, NodeName: node.Name, ResetTime: params.ResetTime,
+			OperatorID: params.OperatorID, OperatorName: params.OperatorName, Reason: params.Reason,
+			InFlowBefore: node.TotalInFlow, OutFlowBefore: node.TotalOutFlow, CreatedTime: time.Now().UnixMilli(),
+		}
+		if err := tx.Create(log).Error; err != nil {
+			return err
+		}
+		return r.cleanupNodeTrafficResetLogsTx(tx, nodeID)
+	})
 }
 
 func (r *Repository) SetNodePaused(nodeID int64, paused int) error {

@@ -13,11 +13,9 @@ import (
 )
 
 type nodeRecordOfflineLogRequest struct {
-	NodeID        int64  `json:"nodeId"`
-	InstanceID    string `json:"instanceId"`
-	InFlowBefore  int64  `json:"inFlowBefore"`
-	OutFlowBefore int64  `json:"outFlowBefore"`
-	Reason        string `json:"reason"`
+	NodeID     int64  `json:"nodeId"`
+	InstanceID string `json:"instanceId"`
+	Reason     string `json:"reason"`
 }
 
 type nodeTrafficInstanceTarget struct {
@@ -42,9 +40,13 @@ func (h *Handler) nodeRecordOfflineLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actorUserID, _, err := userRoleFromRequest(r)
+	actorUserID, actorRole, err := userRoleFromRequest(r)
 	if err != nil {
 		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
+		return
+	}
+	if actorRole != 0 {
+		response.WriteJSON(w, response.Err(403, "无权操作"))
 		return
 	}
 
@@ -55,9 +57,14 @@ func (h *Handler) nodeRecordOfflineLog(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-1, "节点不存在"))
 		return
 	}
+	if node == nil {
+		response.WriteJSON(w, response.Err(-1, "节点不存在"))
+		return
+	}
 	nodeName := node.Name
 	instanceID := strings.TrimSpace(req.InstanceID)
 	instanceName := ""
+	inFlowBefore, outFlowBefore := int64(0), int64(0)
 	if instanceID != "" {
 		instances, _ := h.repo.ListNodeInstances(req.NodeID)
 		for _, inst := range instances {
@@ -70,6 +77,23 @@ func (h *Handler) nodeRecordOfflineLog(w http.ResponseWriter, r *http.Request) {
 			}
 			instanceName = label
 			break
+		}
+		metric, metricErr := h.repo.GetLatestNodeInstanceMetric(req.NodeID, instanceID)
+		if metricErr != nil {
+			response.WriteJSON(w, response.Err(-1, "读取节点流量失败："+metricErr.Error()))
+			return
+		}
+		if metric != nil {
+			inFlowBefore, outFlowBefore = metric.PeriodTx, metric.PeriodRx
+		}
+	} else {
+		metric, metricErr := h.repo.GetLatestNodeAggregateMetric(req.NodeID)
+		if metricErr != nil {
+			response.WriteJSON(w, response.Err(-1, "读取节点流量失败："+metricErr.Error()))
+			return
+		}
+		if metric != nil {
+			inFlowBefore, outFlowBefore = metric.PeriodTx, metric.PeriodRx
 		}
 	}
 
@@ -87,8 +111,8 @@ func (h *Handler) nodeRecordOfflineLog(w http.ResponseWriter, r *http.Request) {
 		OperatorID:    actorUserID,
 		OperatorName:  actorUserName,
 		Reason:        reason,
-		InFlowBefore:  req.InFlowBefore,
-		OutFlowBefore: req.OutFlowBefore,
+		InFlowBefore:  inFlowBefore,
+		OutFlowBefore: outFlowBefore,
 	}); err != nil {
 		response.WriteJSON(w, response.Err(-1, "记录离线日志失败："+err.Error()))
 		return
@@ -98,11 +122,9 @@ func (h *Handler) nodeRecordOfflineLog(w http.ResponseWriter, r *http.Request) {
 }
 
 type nodeBatchResetTrafficRequest struct {
-	NodeIDs       []int64                     `json:"nodeIds"`
-	Instances     []nodeTrafficInstanceTarget `json:"instances"`
-	Reason        string                      `json:"reason"`
-	InFlowBefore  int64                       `json:"inFlowBefore"`
-	OutFlowBefore int64                       `json:"outFlowBefore"`
+	NodeIDs   []int64                     `json:"nodeIds"`
+	Instances []nodeTrafficInstanceTarget `json:"instances"`
+	Reason    string                      `json:"reason"`
 }
 
 type nodeBatchResetTrafficResult struct {
@@ -130,9 +152,13 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	actorUserID, _, err := userRoleFromRequest(r)
+	actorUserID, actorRole, err := userRoleFromRequest(r)
 	if err != nil {
 		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
+		return
+	}
+	if actorRole != 0 {
+		response.WriteJSON(w, response.Err(403, "无权操作"))
 		return
 	}
 
@@ -157,6 +183,11 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 			results = append(results, result)
 			continue
 		}
+		if node == nil {
+			result.Error = "节点不存在"
+			results = append(results, result)
+			continue
+		}
 		instList, _ := h.repo.ListNodeInstances(result.NodeID)
 		matched := false
 		for _, inst := range instList {
@@ -164,6 +195,16 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 				continue
 			}
 			matched = true
+			metric, metricErr := h.repo.GetLatestNodeInstanceMetric(result.NodeID, result.InstanceID)
+			if metricErr != nil {
+				result.Error = "读取归零前流量失败：" + metricErr.Error()
+				results = append(results, result)
+				break
+			}
+			inFlowBefore, outFlowBefore := int64(0), int64(0)
+			if metric != nil {
+				inFlowBefore, outFlowBefore = metric.PeriodTx, metric.PeriodRx
+			}
 			cmdResult, err := h.sendNodeCommandToInstanceWithTimeout(
 				result.NodeID,
 				result.InstanceID,
@@ -200,8 +241,8 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 				OperatorID:    actorUserID,
 				OperatorName:  actorUserName,
 				Reason:        req.Reason,
-				InFlowBefore:  req.InFlowBefore,
-				OutFlowBefore: req.OutFlowBefore,
+				InFlowBefore:  inFlowBefore,
+				OutFlowBefore: outFlowBefore,
 			}); err != nil {
 				result.Error = "归零成功但记录日志失败：" + err.Error()
 				results = append(results, result)
@@ -240,6 +281,21 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 			results = append(results, result)
 			continue
 		}
+		if node == nil {
+			result.Error = "节点不存在"
+			results = append(results, result)
+			continue
+		}
+		metric, metricErr := h.repo.GetLatestNodeAggregateMetric(nodeID)
+		if metricErr != nil {
+			result.Error = "读取归零前流量失败：" + metricErr.Error()
+			results = append(results, result)
+			continue
+		}
+		inFlowBefore, outFlowBefore := int64(0), int64(0)
+		if metric != nil {
+			inFlowBefore, outFlowBefore = metric.PeriodTx, metric.PeriodRx
+		}
 
 		cmdResult, err := h.sendNodeCommandWithTimeout(
 			nodeID,
@@ -269,8 +325,8 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 			OperatorID:    actorUserID,
 			OperatorName:  actorUserName,
 			Reason:        req.Reason,
-			InFlowBefore:  req.InFlowBefore,
-			OutFlowBefore: req.OutFlowBefore,
+			InFlowBefore:  inFlowBefore,
+			OutFlowBefore: outFlowBefore,
 		}); err != nil {
 			result.Error = "归零成功但记录日志失败：" + err.Error()
 			results = append(results, result)
@@ -315,20 +371,31 @@ func (h *Handler) nodeResetTotalFlow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	actorUserID, _, err := userRoleFromRequest(r)
+	actorUserID, actorRole, err := userRoleFromRequest(r)
 	if err != nil {
 		response.WriteJSON(w, response.Err(401, "无效的 token 或 token 已过期"))
 		return
 	}
-	_ = actorUserID
+	if actorRole != 0 {
+		response.WriteJSON(w, response.Err(403, "无权操作"))
+		return
+	}
 
 	node, err := h.repo.GetNodeByID(req.NodeID)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-1, "节点不存在"))
 		return
 	}
+	if node == nil {
+		response.WriteJSON(w, response.Err(-1, "节点不存在"))
+		return
+	}
 
-	if err := h.repo.ResetNodeTotalFlow(req.NodeID); err != nil {
+	if err := h.repo.ResetNodeTotalFlowWithLog(req.NodeID, &repo.NodeTrafficResetLogCreateParams{
+		NodeID: req.NodeID, NodeName: node.Name, ResetTime: time.Now().UnixMilli(),
+		OperatorID: actorUserID, OperatorName: h.repo.GetUsernameByID(actorUserID),
+		Reason: "管理员归零全量流量",
+	}); err != nil {
 		response.WriteJSON(w, response.Err(-1, "归零失败："+err.Error()))
 		return
 	}

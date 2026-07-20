@@ -66,7 +66,7 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		}
 
 		// ✅ 新增：检查 Forward 流量限制
-		h.enforceForwardTrafficLimit(forwardID, inFlow, outFlow)
+		h.enforceForwardTrafficLimit(forwardID)
 
 		if userTunnelID > 0 {
 			h.enforceFlowPolicies(userID, userTunnelID)
@@ -726,7 +726,7 @@ func (h *Handler) speedLimiterExists(name string) bool {
 }
 
 // ✅ 新增：检查 Forward 流量限制
-func (h *Handler) enforceForwardTrafficLimit(forwardID int64, inFlow, outFlow int64) {
+func (h *Handler) enforceForwardTrafficLimit(forwardID int64) {
 	if h == nil || h.repo == nil || forwardID <= 0 {
 		return
 	}
@@ -736,8 +736,8 @@ func (h *Handler) enforceForwardTrafficLimit(forwardID int64, inFlow, outFlow in
 		return // 未设置流量限制
 	}
 
-	// 计算累计流量（包含本次上报）
-	totalFlow := forward.InFlow + forward.OutFlow + inFlow + outFlow
+	// AddFlow has already persisted the current report.
+	totalFlow := forward.InFlow + forward.OutFlow
 	limitBytes := forward.TrafficLimit * bytesPerGB
 
 	if totalFlow >= limitBytes {
@@ -749,23 +749,11 @@ func (h *Handler) enforceForwardTrafficLimit(forwardID int64, inFlow, outFlow in
 				forwardID, float64(totalFlow)/1e9, float64(limitBytes)/1e9)
 
 			// 归零流量 + 记录日志
-			inFlowBefore := forward.InFlow
-			outFlowBefore := forward.OutFlow
-			if resetErr := h.repo.ResetForwardTraffic(forwardID); resetErr != nil {
+			if resetErr := h.repo.ResetForwardTrafficWithLog(forwardID, &repo.ForwardTrafficResetLogCreateParams{
+				ForwardID: forwardID, ForwardName: forward.Name, UserID: forward.UserID, UserName: forward.UserName,
+				ResetTime: time.Now().UnixMilli(), OperatorID: 1, OperatorName: "system", Reason: "流量超限",
+			}); resetErr != nil {
 				log.Printf("ERROR: reset forward %d traffic failed: %v", forwardID, resetErr)
-			} else {
-				_ = h.repo.CreateForwardTrafficResetLog(&repo.ForwardTrafficResetLogCreateParams{
-					ForwardID:     forwardID,
-					ForwardName:   forward.Name,
-					UserID:        forward.UserID,
-					UserName:      forward.UserName,
-					ResetTime:     time.Now().UnixMilli(),
-					InFlowBefore:  inFlowBefore,
-					OutFlowBefore: outFlowBefore,
-					OperatorID:    1,
-					OperatorName:  "system",
-					Reason:        "流量超限",
-				})
 			}
 		}
 	}

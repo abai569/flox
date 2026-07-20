@@ -4763,6 +4763,37 @@ func (r *Repository) GetLatestNodeMetric(nodeID int64) (*model.NodeMetric, error
 	return &m, nil
 }
 
+func (r *Repository) GetLatestNodeAggregateMetric(nodeID int64) (*model.NodeMetric, error) {
+	if r == nil || r.db == nil {
+		return nil, nil
+	}
+	var m model.NodeMetric
+	err := r.db.Where("node_id = ? AND instance_id = ?", nodeID, "").Order("timestamp DESC").First(&m).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (r *Repository) GetLatestNodeInstanceMetric(nodeID int64, instanceID string) (*model.NodeMetric, error) {
+	if r == nil || r.db == nil {
+		return nil, nil
+	}
+	var m model.NodeMetric
+	err := r.db.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Order("timestamp DESC").First(&m).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &m, nil
+}
+
 func (r *Repository) PruneNodeMetrics(olderThanMs int64) error {
 	if r == nil || r.db == nil {
 		return nil

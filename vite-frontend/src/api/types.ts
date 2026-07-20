@@ -475,6 +475,16 @@ export interface BatchOperationResult {
   [key: string]: unknown;
 }
 
+export interface TrafficResetBatchItem {
+  nodeId?: number;
+  forwardId?: number;
+  instanceId?: string;
+  nodeName?: string;
+  forwardName?: string;
+  success: boolean;
+  error?: string;
+}
+
 export interface BatchOperationFailure {
   id?: number;
   name?: string;

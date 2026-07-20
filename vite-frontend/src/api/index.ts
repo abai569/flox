@@ -1,5 +1,6 @@
 import type {
   BatchOperationResult,
+  TrafficResetBatchItem,
   ForwardDiagnosisApiData,
   ForwardApiItem,
   GroupPermissionApiItem,
@@ -589,35 +590,22 @@ export const batchDeleteNodes = (ids: number[]) =>
 export const batchResetNodeTraffic = (
   nodeIds: number[],
   reason?: string,
-  inFlowBefore?: number,
-  outFlowBefore?: number,
 ) =>
-  Network.post<BatchOperationResult>("/node/batch-reset-traffic", {
+  Network.post<TrafficResetBatchItem[]>("/node/batch-reset-traffic", {
     nodeIds,
     reason,
-    inFlowBefore,
-    outFlowBefore,
   });
 export const batchResetNodeInstanceTraffic = (data: {
   instances: Array<{ nodeId: number; instanceId: string }>;
   reason?: string;
-  inFlowBefore?: number;
-  outFlowBefore?: number;
-}) => Network.post<BatchOperationResult>("/node/batch-reset-traffic", data);
-export const recordNodeOfflineLog = (
-  nodeId: number,
-  inFlowBefore: number,
-  outFlowBefore: number,
-  reason?: string,
-) =>
+}) => Network.post<TrafficResetBatchItem[]>("/node/batch-reset-traffic", data);
+export const recordNodeOfflineLog = (nodeId: number, reason?: string) =>
   Network.post("/node/record-offline-log", {
     nodeId,
     reason,
-    inFlowBefore,
-    outFlowBefore,
   });
 export const batchResetForward = (forwardIds: number[]) =>
-  Network.post<BatchOperationResult>("/forward/batch-reset-traffic", {
+  Network.post<TrafficResetBatchItem[]>("/forward/batch-reset-traffic", {
     forwardIds,
   });
 export const getForwardTrafficResetLogs = (forwardId: number, limit?: number) =>

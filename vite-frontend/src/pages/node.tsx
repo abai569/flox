@@ -129,6 +129,7 @@ import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { loadStoredOrder, saveOrder } from "@/utils/order-storage";
 import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
+import { JwtUtil } from "@/utils/jwt";
 // TypeScript 全局类型扩展
 declare global {
   interface Window {
@@ -642,6 +643,7 @@ const formatNodeAddressForCell = (address: string): string => {
 };
 
 export default function NodePage() {
+  const isAdmin = JwtUtil.getRoleIdFromToken() === 0;
   const [nodeList, setNodeList] = useState<Node[]>([]);
   const [nodeOrder, setNodeOrder] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
@@ -850,6 +852,7 @@ export default function NodePage() {
   const [nodeTrafficLogsLoading, setNodeTrafficLogsLoading] = useState(false);
   const [nodeTrafficLogs, setNodeTrafficLogs] = useState<any[]>([]);
   const [currentLogNode, setCurrentLogNode] = useState<Node | null>(null);
+  const nodeTrafficLogsGenerationRef = useRef(0);
   const [deleteLogModalOpen, setDeleteLogModalOpen] = useState(false);
   const [logToDelete, setLogToDelete] = useState<number | null>(null);
   const [upgradeProgress, setUpgradeProgress] = useState<
@@ -893,15 +896,18 @@ export default function NodePage() {
     [],
   );
   const handleDeleteLog = useCallback(async () => {
-    if (!logToDelete) return;
+    if (!isAdmin || !logToDelete) return;
+    const generation = nodeTrafficLogsGenerationRef.current;
     try {
       const res = await deleteNodeTrafficResetLog(logToDelete);
 
       if (res.code === 0) {
         toast.success("删除成功");
-        setNodeTrafficLogs((prev) =>
-          prev.filter((log) => log.id !== logToDelete),
-        );
+        if (generation === nodeTrafficLogsGenerationRef.current) {
+          setNodeTrafficLogs((prev) =>
+            prev.filter((log) => log.id !== logToDelete),
+          );
+        }
         setDeleteLogModalOpen(false);
         setLogToDelete(null);
       } else {
@@ -910,7 +916,7 @@ export default function NodePage() {
     } catch {
       toast.error("删除失败");
     }
-  }, [logToDelete]);
+  }, [isAdmin, logToDelete]);
 
   useEffect(() => {
     pageActiveRef.current = true;
@@ -942,13 +948,11 @@ export default function NodePage() {
         }
 
         const offlineMetrics = realtimeNodeMetricsRef.current[nodeId];
-        const inFlow = offlineMetrics?.periodTraffic?.tx || 0;
-        const outFlow = offlineMetrics?.periodTraffic?.rx || 0;
-
-        if (inFlow > 0 || outFlow > 0) {
-          recordNodeOfflineLog(nodeId, inFlow, outFlow, "节点离线").catch(
-            () => { },
-          );
+        if (
+          (offlineMetrics?.periodTraffic?.tx || 0) > 0 ||
+          (offlineMetrics?.periodTraffic?.rx || 0) > 0
+        ) {
+          recordNodeOfflineLog(nodeId, "节点离线").catch(() => { });
         }
 
         return {
@@ -2023,16 +2027,31 @@ export default function NodePage() {
       const res = await batchResetNodeInstanceTraffic({
         instances: [{ nodeId: member.nodeId, instanceId: member.instanceId }],
         reason: "管理员手动归零",
-        inFlowBefore: member.periodTx || 0,
-        outFlowBefore: member.periodRx || 0,
       });
-      if (res.code === 0) {
+      const result = res.data?.[0];
+      if (res.code === 0 && result?.success) {
         toast.success("实例流量归零成功");
         setInstanceResetTarget(null);
+        setRealtimeNodeInstanceMetrics((prev) => {
+          const key = `${member.nodeId}:${member.instanceId}`;
+          const metric = prev[key];
+          if (!metric) return prev;
+          return {
+            ...prev,
+            [key]: {
+              ...metric,
+              periodTraffic: {
+                ...(metric.periodTraffic ?? { since: 0 }),
+                tx: 0,
+                rx: 0,
+              },
+            },
+          };
+        });
         await loadNodeInstances();
         await loadNodes({ silent: true });
       } else {
-        toast.error(res.msg || "归零失败");
+        toast.error(result?.error || res.msg || "归零失败");
       }
     } catch {
       toast.error("归零失败");
@@ -2042,21 +2061,27 @@ export default function NodePage() {
   };
   // 查看节点流量归零日志
   const handleViewNodeTrafficLogs = async (node: Node) => {
+    const generation = ++nodeTrafficLogsGenerationRef.current;
     setNodeTrafficLogsLoading(true);
     setCurrentLogNode(node);
     try {
       const res = await getNodeTrafficResetLogs(node.id, 30);
 
+      if (generation !== nodeTrafficLogsGenerationRef.current) return;
       if (res.code === 0) {
-        setNodeTrafficLogs((res.data as any)?.logs || []);
+        setNodeTrafficLogs(res.data?.logs || []);
         setNodeTrafficLogModalOpen(true);
       } else {
         toast.error(res.msg || "获取日志失败");
       }
     } catch {
-      toast.error("网络错误，请重试");
+      if (generation === nodeTrafficLogsGenerationRef.current) {
+        toast.error("网络错误，请重试");
+      }
     } finally {
-      setNodeTrafficLogsLoading(false);
+      if (generation === nodeTrafficLogsGenerationRef.current) {
+        setNodeTrafficLogsLoading(false);
+      }
     }
   };
   // 归零节点流量
@@ -2088,24 +2113,34 @@ export default function NodePage() {
     if (!nodeToReset) return;
     setResetTrafficLoading(true);
     try {
-      // 从实时数据中获取最新流量
-      const metrics = realtimeNodeMetrics[nodeToReset.id];
-      const inFlowBefore = metrics?.periodTraffic?.tx || 0;
-      const outFlowBefore = metrics?.periodTraffic?.rx || 0;
       const res = await batchResetNodeTraffic(
         [nodeToReset.id],
         "管理员手动归零",
-        inFlowBefore,
-        outFlowBefore,
       );
 
-      if (res.code === 0) {
+      const result = res.data?.[0];
+      if (res.code === 0 && result?.success) {
         toast.success("流量归零成功");
         onResetTrafficModalClose();
+        setRealtimeNodeMetrics((prev) => {
+          const metric = prev[nodeToReset.id];
+          if (!metric) return prev;
+          return {
+            ...prev,
+            [nodeToReset.id]: {
+              ...metric,
+              periodTraffic: {
+                ...(metric.periodTraffic ?? { since: 0 }),
+                tx: 0,
+                rx: 0,
+              },
+            },
+          };
+        });
         // 静默刷新节点列表，保持当前滚动位置
         await loadNodes({ silent: true });
       } else {
-        toast.error(res.msg || "归零失败");
+        toast.error(result?.error || res.msg || "归零失败");
       }
     } catch {
       toast.error("归零失败");
@@ -2551,30 +2586,16 @@ export default function NodePage() {
     }
     setBatchResetTrafficLoading(true);
     try {
-      // 计算选中节点的总流量
-      let totalInFlow = 0;
-      let totalOutFlow = 0;
-
-      selectedLocalIds.forEach((nodeId) => {
-        const metrics = realtimeNodeMetrics[nodeId];
-
-        if (metrics) {
-          totalInFlow += metrics.periodTraffic?.tx || 0;
-          totalOutFlow += metrics.periodTraffic?.rx || 0;
-        }
-      });
-
       const res = await batchResetNodeTraffic(
         selectedLocalIds,
         "管理员手动归零",
-        totalInFlow,
-        totalOutFlow,
       );
 
       if (res.code === 0) {
-        const successCount =
-          (res.data as any)?.filter((r: { success: boolean }) => r.success)
-            .length || 0;
+        const successCount = res.data?.filter((r) => r.success).length || 0;
+        const successfulIds = new Set(
+          (res.data || []).filter((r) => r.success).map((r) => r.nodeId),
+        );
 
         toast.success(
           `已成功归零 ${successCount}/${selectedLocalIds.length} 个节点的流量统计`,
@@ -2582,6 +2603,22 @@ export default function NodePage() {
         setBatchResetTrafficModalOpen(false);
         setSelectMode(false);
         setSelectedIds(new Set());
+        setRealtimeNodeMetrics((prev) => {
+          const next = { ...prev };
+          for (const nodeId of successfulIds) {
+            if (nodeId === undefined || !next[nodeId]) continue;
+            next[nodeId] = {
+              ...next[nodeId],
+              periodTraffic: {
+                ...(next[nodeId].periodTraffic ?? { since: 0 }),
+                tx: 0,
+                rx: 0,
+              },
+            };
+          }
+          return next;
+        });
+        await loadNodes({ silent: true });
       } else {
         toast.error(res.msg || "批量归零失败");
       }
