@@ -1778,6 +1778,7 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
+	trafficRatio = calculateTunnelTrafficRatio(runtimeState)
 	runtimeState.IPPreference = ipPreference
 	if strings.TrimSpace(inIP) == "" {
 		inIP = buildTunnelInIP(runtimeState.InNodes, runtimeState.Nodes, ipPreference)
@@ -2201,6 +2202,7 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	runtimeState.TunnelID = id
 	runtimeState.IPPreference = ipPreference
+	req["trafficRatio"] = calculateTunnelTrafficRatio(runtimeState)
 
 	// 🎯 修复：优先读取前端传递的入口地址
 	inIp := asString(req["inIp"])
@@ -5485,6 +5487,37 @@ func buildTunnelInIP(inNodes []tunnelRuntimeNode, nodes map[int64]*nodeRecord, i
 		}
 	}
 	return strings.Join(ordered, ",")
+}
+
+func calculateTunnelTrafficRatio(state *tunnelCreateState) float64 {
+	if state == nil {
+		return 1
+	}
+	groupMax := func(items []tunnelRuntimeNode) float64 {
+		maxRatio := 0.0
+		for _, item := range items {
+			ratio := 1.0
+			if node := state.Nodes[item.NodeID]; node != nil && node.TrafficRatio > 0 {
+				ratio = node.TrafficRatio
+			}
+			if ratio > maxRatio {
+				maxRatio = ratio
+			}
+		}
+		return maxRatio
+	}
+
+	total := groupMax(state.InNodes)
+	if state.Type == 2 {
+		for _, hop := range state.ChainHops {
+			total += groupMax(hop)
+		}
+		total += groupMax(state.OutNodes)
+	}
+	if total <= 0 {
+		return 1
+	}
+	return total
 }
 
 func validateTunnelConnectIPConstraints(req map[string]interface{}) error {

@@ -68,8 +68,8 @@ export const validateTunnelForm = (
     }
   }
 
-  if (form.trafficRatio <= 0 || form.trafficRatio > 100.0) {
-    errors.trafficRatio = "流量倍率须大于 0，支持小数（如 0.5）";
+  if (form.trafficRatio <= 0) {
+    errors.trafficRatio = "流量倍率须大于 0";
   }
 
   // 🎯 多端口验证：验证出口节点端口格式

@@ -541,6 +541,54 @@ func TestDiagnosisTargetEndpoints_FallsBackToInstancesWhenNodeAddressMissing(t *
 	}
 }
 
+func TestCalculateTunnelTrafficRatioUsesMaximumPerLayer(t *testing.T) {
+	state := &tunnelCreateState{
+		Type: 2,
+		InNodes: []tunnelRuntimeNode{
+			{NodeID: 1},
+			{NodeID: 2},
+		},
+		ChainHops: [][]tunnelRuntimeNode{
+			{{NodeID: 3}, {NodeID: 4}},
+			{{NodeID: 5}},
+		},
+		OutNodes: []tunnelRuntimeNode{
+			{NodeID: 6},
+			{NodeID: 7},
+		},
+		Nodes: map[int64]*nodeRecord{
+			1: {ID: 1, TrafficRatio: 1},
+			2: {ID: 2, TrafficRatio: 3},
+			3: {ID: 3, TrafficRatio: 2},
+			4: {ID: 4, TrafficRatio: 5},
+			5: {ID: 5, TrafficRatio: 4},
+			6: {ID: 6, TrafficRatio: 2},
+			7: {ID: 7, TrafficRatio: 6},
+		},
+	}
+
+	if got := calculateTunnelTrafficRatio(state); got != 18 {
+		t.Fatalf("expected entry max 3 + hop max 5 + hop max 4 + exit max 6 = 18, got %v", got)
+	}
+}
+
+func TestCalculatePortForwardTrafficRatioUsesEntryMaximumOnly(t *testing.T) {
+	state := &tunnelCreateState{
+		Type:     1,
+		InNodes:  []tunnelRuntimeNode{{NodeID: 1}, {NodeID: 2}},
+		OutNodes: []tunnelRuntimeNode{{NodeID: 3}},
+		Nodes: map[int64]*nodeRecord{
+			1: {ID: 1, TrafficRatio: 1},
+			2: {ID: 2, TrafficRatio: 3},
+			3: {ID: 3, TrafficRatio: 9},
+		},
+	}
+
+	if got := calculateTunnelTrafficRatio(state); got != 3 {
+		t.Fatalf("expected entry maximum 3, got %v", got)
+	}
+}
+
 func TestBuildTunnelChainConfig_DoesNotFallbackWhenInstancesDisabled(t *testing.T) {
 	nodes := map[int64]*nodeRecord{
 		1: {ID: 1, Name: "from", ServerIPv4: "10.0.0.1"},

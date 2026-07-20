@@ -151,6 +151,7 @@ interface Node {
   extraIPs?: string;
   remark?: string;
   isRemote?: number;
+  trafficRatio?: number;
 }
 const REMOTE_NODE_REFRESH_INTERVAL_MS = 20000;
 interface TunnelForm {
@@ -671,6 +672,37 @@ export default function TunnelPage() {
     },
     [refreshNodes],
   );
+  const calculatedTrafficRatio = useMemo(() => {
+    const nodeRatio = (nodeId: number) => {
+      const ratio = Number(nodes.find((node) => node.id === nodeId)?.trafficRatio);
+
+      return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+    };
+    const groupMax = (items?: ChainTunnel[]) => {
+      const selected = (items || []).filter((item) => item.nodeId > 0);
+
+      return selected.length > 0
+        ? Math.max(...selected.map((item) => nodeRatio(item.nodeId)))
+        : 0;
+    };
+
+    let total = groupMax(form.inNodeId);
+
+    if (form.type === 2) {
+      total += (form.chainNodes || []).reduce(
+        (sum, group) => sum + groupMax(group),
+        0,
+      );
+      total += groupMax(form.outNodeId);
+    }
+
+    return Number(total.toFixed(4));
+  }, [form.chainNodes, form.inNodeId, form.outNodeId, form.type, nodes]);
+
+  useEffect(() => {
+    if (form.trafficRatio === calculatedTrafficRatio) return;
+    setForm((prev) => ({ ...prev, trafficRatio: calculatedTrafficRatio }));
+  }, [calculatedTrafficRatio, form.trafficRatio, setForm]);
 
   useNodeRealtime({ onMessage: handleNodeRealtimeMessage });
 
@@ -1489,6 +1521,7 @@ export default function TunnelPage() {
       // 🎯 终极杀招：同时发送驼峰和下划线字段，专治后端更新接口“挑食”！
       const data = {
         ...form,
+        trafficRatio: calculatedTrafficRatio,
         // 驼峰命名，给新增接口看
         inIp: inIpString,
         outNodeId: cleanedOutNodeId,
@@ -3238,19 +3271,10 @@ export default function TunnelPage() {
                       errorMessage={errors.trafficRatio}
                       isInvalid={!!errors.trafficRatio}
                       label="流量倍率"
-                      max={100}
-                      min={0.01}
-                      placeholder="例如：0.5 或 1 或 2"
-                      step="any"
+                      readOnly
                       type="number"
-                      value={form.trafficRatio.toString()}
+                      value={calculatedTrafficRatio.toString()}
                       variant="bordered"
-                      onChange={(e) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          trafficRatio: parseFloat(e.target.value) || 0,
-                        }))
-                      }
                     />
                   </div>
                   <Divider />
