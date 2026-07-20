@@ -210,3 +210,32 @@ func (h *Handler) tunnelGroupNewAssign(w http.ResponseWriter, r *http.Request) {
 
 	response.WriteJSON(w, response.OKEmpty())
 }
+
+func (h *Handler) tunnelGroupAssignSingle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		response.WriteJSON(w, response.ErrDefault("请求失败"))
+		return
+	}
+
+	var req struct {
+		TunnelId int64   `json:"tunnelId"`
+		GroupIds []int64 `json:"groupIds"`
+	}
+
+	if err := decodeJSON(r.Body, &req); err != nil {
+		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
+		return
+	}
+
+	if req.TunnelId <= 0 {
+		response.WriteJSON(w, response.ErrDefault("隧道 ID 无效"))
+		return
+	}
+
+	if err := h.repo.AssignTunnelToGroupNew(req.TunnelId, req.GroupIds); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
+
+	response.WriteJSON(w, response.OKEmpty())
+}

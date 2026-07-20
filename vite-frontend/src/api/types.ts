@@ -94,6 +94,7 @@ export interface TunnelApiItem {
   inx?: number;
   listId?: number | null;
   tunnelGroupId?: number | null;
+  tunnelGroupIds?: number[];
   remark?: string;
   [key: string]: unknown;
 }

@@ -489,6 +489,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/tunnel-group-new/update", h.tunnelGroupNewUpdate)
 	mux.HandleFunc("/api/v1/tunnel-group-new/delete", h.tunnelGroupNewDelete)
 	mux.HandleFunc("/api/v1/tunnel-group-new/assign", h.tunnelGroupNewAssign)
+	mux.HandleFunc("/api/v1/tunnel-group-new/assign-single", h.tunnelGroupAssignSingle)
 	// Tunnel Group Management for Tunnel Page
 	mux.HandleFunc("/api/v1/tunnel-group/list", h.tunnelGroupListNew)
 	mux.HandleFunc("/api/v1/tunnel-group/create", h.createTunnelGroupNew)

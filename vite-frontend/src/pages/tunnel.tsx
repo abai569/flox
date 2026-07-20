@@ -132,6 +132,7 @@ interface Tunnel {
   status: number;
   createdTime: string;
   tunnelGroupId?: number | null;
+  tunnelGroupIds?: number[];
   remark?: string;
   bestExitState?: BestExitState | null;
   http?: number;
@@ -166,7 +167,7 @@ interface TunnelForm {
   inIp: string;
   ipPreference: string;
   status: number;
-  tunnelGroupId: number | null;
+  tunnelGroupIds: number[];
   remark: string;
   http: number;
   tls: number;
@@ -306,6 +307,7 @@ const mapTunnelApiItems = (items: any[]): Tunnel[] => {
     status: typeof tunnel.status === "number" ? tunnel.status : 0,
     createdTime: tunnel.createdTime || "",
     tunnelGroupId: tunnel.tunnelGroupId ?? tunnel.tunnel_group_id ?? null,
+    tunnelGroupIds: tunnel.tunnelGroupIds ?? [],
     remark: tunnel.remark || "",
     bestExitState:
       tunnel.bestExitState && typeof tunnel.bestExitState === "object"
@@ -871,7 +873,7 @@ export default function TunnelPage() {
         : "",
       ipPreference: tunnel.ipPreference || "",
       status: tunnel.status,
-      tunnelGroupId: tunnel.tunnelGroupId ?? null,
+      tunnelGroupIds: tunnel.tunnelGroupIds ?? (tunnel.tunnelGroupId ? [tunnel.tunnelGroupId] : []),
       remark: tunnel.remark || "",
       http: typeof tunnel.http === "number" ? tunnel.http : 0,
       tls: typeof tunnel.tls === "number" ? tunnel.tls : 0,
@@ -901,7 +903,7 @@ export default function TunnelPage() {
         : "",
       ipPreference: tunnel.ipPreference || "",
       status: 1,
-      tunnelGroupId: tunnel.tunnelGroupId ?? null,
+      tunnelGroupIds: tunnel.tunnelGroupIds ?? (tunnel.tunnelGroupId ? [tunnel.tunnelGroupId] : []),
       remark: tunnel.remark || "",
       http: typeof tunnel.http === "number" ? tunnel.http : 0,
       tls: typeof tunnel.tls === "number" ? tunnel.tls : 0,
@@ -1522,12 +1524,10 @@ export default function TunnelPage() {
       const data = {
         ...form,
         trafficRatio: calculatedTrafficRatio,
-        // 驼峰命名，给新增接口看
         inIp: inIpString,
         outNodeId: cleanedOutNodeId,
         chainNodes: cleanedChainNodes,
-        tunnelGroupId: form.tunnelGroupId,
-        // 下划线命名，给更新接口看 (强制绑定)
+        tunnelGroupIds: form.tunnelGroupIds,
         in_ip: inIpString,
         in_node_id: (form.inNodeId || []).map((n) => ({
           ...n,
@@ -1536,7 +1536,6 @@ export default function TunnelPage() {
         })),
         out_node_id: cleanedOutNodeId,
         chain_nodes: cleanedChainNodes,
-        tunnel_group_id: form.tunnelGroupId,
       };
       const response = isEdit
         ? await updateTunnel(data)
@@ -2048,13 +2047,12 @@ export default function TunnelPage() {
     // 按分组筛选
     if (filterGroupId !== null) {
       if (filterGroupId === -1) {
-        // -1 表示未分组
         filteredTunnels = filteredTunnels.filter(
-          (t) => !t.tunnelGroupId || t.tunnelGroupId === 0,
+          (t) => !t.tunnelGroupIds || t.tunnelGroupIds.length === 0,
         );
       } else {
         filteredTunnels = filteredTunnels.filter(
-          (t) => t.tunnelGroupId === filterGroupId,
+          (t) => t.tunnelGroupIds?.includes(filterGroupId),
         );
       }
     }
@@ -2622,29 +2620,24 @@ export default function TunnelPage() {
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 align-middle">
-                                  {tunnel.tunnelGroupId &&
-                                  tunnel.tunnelGroupId > 0 ? (
-                                    (() => {
-                                      const group = tunnelGroupsNew.find(
-                                        (g) => g.id === tunnel.tunnelGroupId,
-                                      );
-
-                                      return group ? (
-                                        <div
-                                          className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
-                                          style={{
-                                            backgroundColor: `${group.color}1A`,
-                                            color: group.color,
-                                          }}
-                                        >
-                                          {group.name}
-                                        </div>
-                                      ) : (
-                                        <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
-                                          未分组
-                                        </div>
-                                      );
-                                    })()
+                                  {(tunnel.tunnelGroupIds && tunnel.tunnelGroupIds.length > 0) ? (
+                                    <div className="flex flex-wrap gap-1">
+                                      {tunnel.tunnelGroupIds.map((gid) => {
+                                        const group = tunnelGroupsNew.find((g) => g.id === gid);
+                                        return group ? (
+                                          <div
+                                            key={gid}
+                                            className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
+                                            style={{
+                                              backgroundColor: `${group.color}1A`,
+                                              color: group.color,
+                                            }}
+                                          >
+                                            {group.name}
+                                          </div>
+                                        ) : null;
+                                      })}
+                                    </div>
                                   ) : (
                                     <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
                                       未分组
@@ -2867,16 +2860,13 @@ export default function TunnelPage() {
                                       <div className={tunnelTypeChipClassName}>
                                         {typeDisplay.text}
                                       </div>
-                                      {tunnel.tunnelGroupId &&
-                                      tunnel.tunnelGroupId > 0
-                                        ? (() => {
-                                            const group = tunnelGroupsNew.find(
-                                              (g) =>
-                                                g.id === tunnel.tunnelGroupId,
-                                            );
-
+                                      {tunnel.tunnelGroupIds &&
+                                      tunnel.tunnelGroupIds.length > 0
+                                        ? tunnel.tunnelGroupIds.map((gid) => {
+                                            const group = tunnelGroupsNew.find((g) => g.id === gid);
                                             return group ? (
                                               <div
+                                                key={gid}
                                                 className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
                                                 style={{
                                                   backgroundColor: `${group.color}1A`,
@@ -2886,7 +2876,7 @@ export default function TunnelPage() {
                                                 {group.name}
                                               </div>
                                             ) : null;
-                                          })()
+                                          })
                                         : null}
                                     </div>
                                   </div>
@@ -3192,21 +3182,20 @@ export default function TunnelPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
                       label="分组"
-                      placeholder="选择分组"
+                      placeholder="选择分组（可多选）"
                       selectedKeys={
-                        form.tunnelGroupId ? [String(form.tunnelGroupId)] : []
+                        new Set(form.tunnelGroupIds.map(String))
                       }
+                      selectionMode="multiple"
                       variant="bordered"
                       onSelectionChange={(keys) => {
-                        const selected = Array.from(keys)[0] as string;
-
+                        const selected = Array.from(keys as Set<string>).map(Number);
                         setForm((prev) => ({
                           ...prev,
-                          tunnelGroupId: selected ? parseInt(selected) : null,
+                          tunnelGroupIds: selected,
                         }));
                       }}
                     >
-                      <SelectItem key="none">未分组</SelectItem>
                       {tunnelGroupsNew.map((group) => (
                         <SelectItem
                           key={String(group.id)}

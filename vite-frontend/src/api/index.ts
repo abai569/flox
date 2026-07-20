@@ -1047,6 +1047,11 @@ export const assignTunnelToGroupNew = (data: {
   tunnelIds: number[];
 }) => Network.post("/tunnel-group-new/assign", data);
 
+export const assignSingleTunnelToGroups = (data: {
+  tunnelId: number;
+  groupIds: number[];
+}) => Network.post("/tunnel-group-new/assign-single", data);
+
 // ─── Node Group & Tag Management ─────────────────────────────────────
 
 export const getNodeGroupList = () =>

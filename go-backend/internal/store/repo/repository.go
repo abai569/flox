@@ -1839,14 +1839,6 @@ func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, 
 		if !includeManual && isManualTunnelNameRemark(t.Name, remark) {
 			continue
 		}
-		// Convert sql.NullInt64 to interface{} (int64 or nil)
-		var tunnelGroupID interface{}
-		if t.TunnelGroupID.Valid {
-			tunnelGroupID = t.TunnelGroupID.Int64
-		} else {
-			tunnelGroupID = nil
-		}
-
 		tunnelMap[t.ID] = map[string]interface{}{
 			"id": t.ID, "inx": t.Inx, "name": t.Name,
 			"type": t.Type, "flow": t.Flow, "trafficRatio": t.TrafficRatio,
@@ -1856,7 +1848,7 @@ func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, 
 			"inNodeId":      make([]map[string]interface{}, 0),
 			"outNodeId":     make([]map[string]interface{}, 0),
 			"chainNodes":    make([][]map[string]interface{}, 0),
-			"tunnelGroupId": tunnelGroupID,
+			"tunnelGroupIds": []int64{},
 			"remark":        nullableString(t.Remark),
 			"http":          t.HTTP,
 			"tls":           t.TLS,
@@ -1988,6 +1980,15 @@ func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, 
 		if s, ok := t["inIp"].(string); !ok || strings.TrimSpace(s) == "" {
 			if ips := inNodeIPs[tunnelID]; len(ips) > 0 {
 				t["inIp"] = strings.Join(ips, ",")
+			}
+		}
+	}
+
+	// Populate tunnelGroupIds from tunnel_group_tunnel_new
+	if groupMap, err := r.ListTunnelGroupIDsByTunnelIDs(orderedIDs); err == nil {
+		for tid, gids := range groupMap {
+			if t, ok := tunnelMap[tid]; ok {
+				t["tunnelGroupIds"] = gids
 			}
 		}
 	}

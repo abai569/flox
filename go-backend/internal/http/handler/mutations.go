@@ -1781,17 +1781,7 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UnixMilli()
 	inx := h.repo.NextIndex("tunnel")
 
-	// Handle tunnelGroupId the same way as node groupId
-	var tunnelGroupID interface{}
-	if _, ok := req["tunnelGroupId"]; ok {
-		if gID, ok := req["tunnelGroupId"].(float64); ok {
-			if gID > 0 {
-				tunnelGroupID = int64(gID)
-			} else {
-				tunnelGroupID = nil
-			}
-		}
-	}
+	tunnelGroupIDs := asInt64Slice(req["tunnelGroupIds"])
 
 	tx := h.repo.BeginTx()
 	if tx.Error != nil {
@@ -1820,12 +1810,6 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	if listID > 0 {
 		tunnelListID = sql.NullInt64{Int64: listID, Valid: true}
 	}
-	var tunnelTunnelGroupID sql.NullInt64
-	if tunnelGroupID != nil {
-		if groupID, ok := tunnelGroupID.(int64); ok && groupID > 0 {
-			tunnelTunnelGroupID = sql.NullInt64{Int64: groupID, Valid: true}
-		}
-	}
 	tunnel := model.Tunnel{
 		Name:          name,
 		TrafficRatio:  trafficRatio,
@@ -1839,7 +1823,6 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		Inx:           inx,
 		IPPreference:  ipPreference,
 		ListID:        tunnelListID,
-		TunnelGroupID: tunnelTunnelGroupID,
 		Remark:        sql.NullString{String: strings.TrimSpace(asString(req["remark"])), Valid: req["remark"] != nil},
 		HTTP:          asInt(req["http"], 0),
 		TLS:           asInt(req["tls"], 0),
@@ -1883,6 +1866,9 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	if err := tx.Commit().Error; err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
+	}
+	if _, has := req["tunnelGroupIds"]; has {
+		_ = h.repo.AssignTunnelToGroupNew(tunnelID, tunnelGroupIDs)
 	}
 	if typeVal == 2 {
 		relayMode, resolveErr := h.resolveTunnelRelayMode(tunnelID)
@@ -2176,17 +2162,7 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	typeVal := asInt(req["type"], 1)
 	ipPreference := asString(req["ipPreference"])
 
-	// Handle tunnelGroupId the same way as node groupId
-	var tunnelGroupID interface{}
-	if _, ok := req["tunnelGroupId"]; ok {
-		if gID, ok := req["tunnelGroupId"].(float64); ok {
-			if gID > 0 {
-				tunnelGroupID = int64(gID)
-			} else {
-				tunnelGroupID = nil
-			}
-		}
-	}
+	tunnelGroupIDs := asInt64Slice(req["tunnelGroupIds"])
 
 	tx := h.repo.BeginTx()
 	if tx.Error != nil {
@@ -2229,7 +2205,7 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		inIp,
 		ipPreference,
 		asInt64(req["listId"], 0),
-		tunnelGroupID,
+		nil, // tunnelGroupID - deprecated, use tunnelGroupIds instead
 		asString(req["remark"]),
 		now,
 		asInt(req["http"], 0),
@@ -2267,6 +2243,9 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	if err := tx.Commit().Error; err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
+	}
+	if _, has := req["tunnelGroupIds"]; has {
+		_ = h.repo.AssignTunnelToGroupNew(id, tunnelGroupIDs)
 	}
 	newEntryNodeIDs, _ = h.tunnelEntryNodeIDs(id)
 	httpVal := asInt(req["http"], 0)

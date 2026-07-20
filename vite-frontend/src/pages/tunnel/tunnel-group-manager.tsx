@@ -35,7 +35,7 @@ import {
   deleteTunnelGroupNew,
   getTunnelList,
   assignTunnelToGroupNew,
-  updateTunnel,
+  assignSingleTunnelToGroups,
 } from "@/api";
 
 interface TunnelGroupManagerProps {
@@ -110,7 +110,7 @@ export function TunnelGroupManager({
         // 🎯 1. 获取原本在此分组的隧道
         const originalTunnels = editingGroup
           ? allTunnels
-              .filter((t) => t.tunnelGroupId === editingGroup.id)
+              .filter((t) => t.tunnelGroupIds?.includes(editingGroup.id))
               .map((t) => t.id)
           : [];
 
@@ -128,22 +128,17 @@ export function TunnelGroupManager({
           );
         }
 
-        // 🎯 4. 对取消勾选的隧道，逐个单条强制解绑 (用 null 彻底清空，不留 0 的隐患)
         if (toRemove.length > 0) {
           toRemove.forEach((id) => {
             const t = allTunnels.find((x) => x.id === id);
-
             if (t) {
+              const remainingGroups = (t.tunnelGroupIds || []).filter(
+                (gid: number) => gid !== groupId,
+              );
               promises.push(
-                updateTunnel({
-                  ...t,
-                  // 顺手兼容一下后端的各种奇葩字段格式要求
-                  in_node_id: Array.isArray(t.inNodeId) ? t.inNodeId : [],
-                  out_node_id: Array.isArray(t.outNodeId) ? t.outNodeId : [],
-                  chain_nodes: Array.isArray(t.chainNodes) ? t.chainNodes : [],
-                  in_ip: t.inIp || "",
-                  tunnelGroupId: null,
-                  tunnel_group_id: null,
+                assignSingleTunnelToGroups({
+                  tunnelId: id,
+                  groupIds: remainingGroups,
                 }),
               );
             }
@@ -307,10 +302,10 @@ export function TunnelGroupManager({
                               {group.id === -1
                                 ? allTunnels.filter(
                                     (t) =>
-                                      !t.tunnelGroupId || t.tunnelGroupId === 0,
+                                      !t.tunnelGroupIds || t.tunnelGroupIds.length === 0,
                                   ).length
                                 : allTunnels.filter(
-                                    (t) => t.tunnelGroupId === group.id,
+                                    (t) => t.tunnelGroupIds?.includes(group.id),
                                   ).length}
                             </div>
                           </div>
@@ -410,10 +405,10 @@ function GroupEditModal({
       const currentTunnels =
         group.id === -1
           ? allTunnels
-              .filter((t) => !t.tunnelGroupId || t.tunnelGroupId === 0)
+              .filter((t) => !t.tunnelGroupIds || t.tunnelGroupIds.length === 0)
               .map((t) => t.id)
           : allTunnels
-              .filter((t) => t.tunnelGroupId === group.id)
+              .filter((t) => t.tunnelGroupIds?.includes(group.id))
               .map((t) => t.id);
 
       setSelectedTunnelIds(currentTunnels);
@@ -521,7 +516,7 @@ function GroupEditModal({
               >
                 {(group?.id === -1
                   ? allTunnels.filter(
-                      (t) => !t.tunnelGroupId || t.tunnelGroupId === 0,
+                      (t) => !t.tunnelGroupIds || t.tunnelGroupIds.length === 0,
                     )
                   : allTunnels
                 ).map((tunnel: any) => (
