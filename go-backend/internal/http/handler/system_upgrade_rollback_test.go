@@ -15,7 +15,9 @@ func TestSystemUpgradeHelperBacksUpAndRollsBack(t *testing.T) {
 		`status_write "rolled_back"`,
 		`status_write "rollback_failed"`,
 		`cleanup_old_panel_images`,
-		`docker image ls --format '{{.Repository}}:{{.Tag}}' ghcr.io/abai569/flox-svc-backend ghcr.io/abai569/flox-svc-frontend`,
+		`for IMAGE_NAME in ghcr.io/abai569/flox-svc-backend ghcr.io/abai569/flox-svc-frontend`,
+		`docker image ls --format '{{.Repository}}:{{.Tag}}' "$IMAGE_NAME"`,
+		`$IMAGE_NAME:<none>`,
 		`KEEP_ALT_VERSION="${TARGET_VERSION#v}"`,
 		`KEEP_ALT_VERSION="v${TARGET_VERSION}"`,
 	} {

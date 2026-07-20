@@ -395,6 +395,7 @@ cleanup_old_panel_images() {
   local keep_alt_version="$keep_version"
   local old_images=()
   local image
+  local image_name
 
   if [[ -z "$keep_version" ]]; then
     echo "⚠️  当前版本为空，跳过旧镜像清理"
@@ -407,15 +408,16 @@ cleanup_old_panel_images() {
     keep_alt_version="v${keep_version}"
   fi
 
-  while IFS= read -r image; do
-    [[ -n "$image" ]] || continue
-    [[ "$image" != "ghcr.io/abai569/flox-svc-backend:<none>" ]] || continue
-    [[ "$image" != "ghcr.io/abai569/flox-svc-frontend:<none>" ]] || continue
-    case "$image" in
-      *":$keep_version"|*":$keep_alt_version") continue ;;
-    esac
-    old_images+=("$image")
-  done < <(docker image ls --format '{{.Repository}}:{{.Tag}}' ghcr.io/abai569/flox-svc-backend ghcr.io/abai569/flox-svc-frontend 2>/dev/null | sort -u)
+  for image_name in ghcr.io/abai569/flox-svc-backend ghcr.io/abai569/flox-svc-frontend; do
+    while IFS= read -r image; do
+      [[ -n "$image" ]] || continue
+      [[ "$image" != "$image_name:<none>" ]] || continue
+      case "$image" in
+        *":$keep_version"|*":$keep_alt_version") continue ;;
+      esac
+      old_images+=("$image")
+    done < <(docker image ls --format '{{.Repository}}:{{.Tag}}' "$image_name" 2>/dev/null)
+  done
 
   if [[ ${#old_images[@]} -eq 0 ]]; then
     echo "✨ 没有需要清理的旧版本面板镜像"
