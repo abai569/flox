@@ -14,6 +14,10 @@ func TestSystemUpgradeHelperBacksUpAndRollsBack(t *testing.T) {
 		`rollback "health_check"`,
 		`status_write "rolled_back"`,
 		`status_write "rollback_failed"`,
+		`cleanup_old_panel_images`,
+		`docker image ls --format '{{.Repository}}:{{.Tag}}' ghcr.io/abai569/flox-svc-backend ghcr.io/abai569/flox-svc-frontend`,
+		`KEEP_ALT_VERSION="${TARGET_VERSION#v}"`,
+		`KEEP_ALT_VERSION="v${TARGET_VERSION}"`,
 	} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("helper script missing %q", expected)

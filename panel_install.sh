@@ -390,6 +390,50 @@ download_compose_file() {
   return 1
 }
 
+cleanup_old_panel_images() {
+  local keep_version="$1"
+  local keep_alt_version="$keep_version"
+  local old_images=()
+  local image
+
+  if [[ -z "$keep_version" ]]; then
+    echo "⚠️  当前版本为空，跳过旧镜像清理"
+    return 0
+  fi
+
+  if [[ "$keep_version" == v* ]]; then
+    keep_alt_version="${keep_version#v}"
+  else
+    keep_alt_version="v${keep_version}"
+  fi
+
+  while IFS= read -r image; do
+    [[ -n "$image" ]] || continue
+    [[ "$image" != "ghcr.io/abai569/flox-svc-backend:<none>" ]] || continue
+    [[ "$image" != "ghcr.io/abai569/flox-svc-frontend:<none>" ]] || continue
+    case "$image" in
+      *":$keep_version"|*":$keep_alt_version") continue ;;
+    esac
+    old_images+=("$image")
+  done < <(docker image ls --format '{{.Repository}}:{{.Tag}}' ghcr.io/abai569/flox-svc-backend ghcr.io/abai569/flox-svc-frontend 2>/dev/null | sort -u)
+
+  if [[ ${#old_images[@]} -eq 0 ]]; then
+    echo "✨ 没有需要清理的旧版本面板镜像"
+    return 0
+  fi
+
+  echo "发现旧版本面板镜像，正在强制删除："
+  printf '  %s\n' "${old_images[@]}"
+  for image in "${old_images[@]}"; do
+    if docker image rm "$image" >/dev/null 2>&1; then
+      echo "  已删除：$image"
+    else
+      echo "  ⚠️ 删除失败或仍被使用：$image"
+    fi
+  done
+  echo "✅ 旧版本面板镜像清理完成"
+}
+
 get_installed_version() {
   local env_file version
 
@@ -1131,20 +1175,7 @@ update_panel() {
 
   echo "⏳ 准备清理旧版本镜像..."
   sleep 10
-  
-  # 解决 Nerdctl/Docker 格式不兼容以及 $1 提取错误 (如 Tag 和 ID 粘连) 的问题
-  # 使用正则提取标准镜像格式：ghcr.io/abai569/<名称>:<版本>
-  # 排除当前最新版本 $UPDATE_VERSION
-  OLD_IMAGES=$(docker images 2>/dev/null | grep -v "WARNING" | grep -oE 'ghcr.io/abai569/[^:]+:[^[:space:]":]+' | grep -v ":${UPDATE_VERSION}$" | sort -u)
-  
-  if [ -n "$OLD_IMAGES" ]; then
-    echo " 发现旧版本面板镜像，正在强制删除："
-    echo "$OLD_IMAGES"
-    echo "$OLD_IMAGES" | xargs docker rmi -f >/dev/null 2>&1 || true
-    echo "✅ 旧版本面板镜像清理完毕"
-  else
-    echo "✨ 没有需要清理的旧版本面板镜像"
-  fi
+  cleanup_old_panel_images "$CURRENT_VERSION"
 
   # 显示备份信息
   if [[ -n "$BACKUP_INFO_RECENT" ]]; then
