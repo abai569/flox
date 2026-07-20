@@ -307,7 +307,11 @@ const mapTunnelApiItems = (items: any[]): Tunnel[] => {
     status: typeof tunnel.status === "number" ? tunnel.status : 0,
     createdTime: tunnel.createdTime || "",
     tunnelGroupId: tunnel.tunnelGroupId ?? tunnel.tunnel_group_id ?? null,
-    tunnelGroupIds: tunnel.tunnelGroupIds ?? [],
+    tunnelGroupIds: Array.isArray(tunnel.tunnelGroupIds)
+      ? tunnel.tunnelGroupIds
+      : tunnel.tunnelGroupId
+        ? [tunnel.tunnelGroupId]
+        : [],
     remark: tunnel.remark || "",
     bestExitState:
       tunnel.bestExitState && typeof tunnel.bestExitState === "object"
@@ -434,6 +438,14 @@ export default function TunnelPage() {
     "tunnel-create-draft",
     createTunnelFormDefaults(),
   );
+  const normalizedTunnelGroupIds = Array.isArray(form.tunnelGroupIds)
+    ? form.tunnelGroupIds
+    : ((form as TunnelForm & { tunnelGroupId?: number | null }).tunnelGroupId
+        ? [
+            (form as TunnelForm & { tunnelGroupId?: number | null })
+              .tunnelGroupId as number,
+          ]
+        : []);
   // 表单验证错误
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   // 👇 新增这行：用于暂存正在编辑中的文本框内容，防止逗号被吞
@@ -1527,7 +1539,7 @@ export default function TunnelPage() {
         inIp: inIpString,
         outNodeId: cleanedOutNodeId,
         chainNodes: cleanedChainNodes,
-        tunnelGroupIds: form.tunnelGroupIds,
+        tunnelGroupIds: normalizedTunnelGroupIds,
         in_ip: inIpString,
         in_node_id: (form.inNodeId || []).map((n) => ({
           ...n,
@@ -3184,7 +3196,7 @@ export default function TunnelPage() {
                       label="分组"
                       placeholder="选择分组（可多选）"
                       selectedKeys={
-                        new Set(form.tunnelGroupIds.map(String))
+                        new Set(normalizedTunnelGroupIds.map(String))
                       }
                       selectionMode="multiple"
                       variant="bordered"

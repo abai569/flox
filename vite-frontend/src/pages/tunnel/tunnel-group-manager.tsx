@@ -35,7 +35,6 @@ import {
   deleteTunnelGroupNew,
   getTunnelList,
   assignTunnelToGroupNew,
-  assignSingleTunnelToGroups,
 } from "@/api";
 
 interface TunnelGroupManagerProps {
@@ -107,62 +106,13 @@ export function TunnelGroupManager({
       }
 
       if (groupId && groupId > 0) {
-        // 🎯 1. 获取原本在此分组的隧道
-        const originalTunnels = editingGroup
-          ? allTunnels
-              .filter((t) => t.tunnelGroupIds?.includes(editingGroup.id))
-              .map((t) => t.id)
-          : [];
-
-        // 🎯 2. 对比找出被取消勾选的“倒霉蛋”
-        const toRemove = originalTunnels.filter(
-          (id) => !selectedTunnelIds.includes(id),
-        );
-
-        const promises: Promise<any>[] = [];
-
-        // 🎯 3. 批量绑定目前勾选的隧道
-        if (selectedTunnelIds.length > 0) {
-          promises.push(
-            assignTunnelToGroupNew({ groupId, tunnelIds: selectedTunnelIds }),
-          );
-        }
-
-        if (toRemove.length > 0) {
-          toRemove.forEach((id) => {
-            const t = allTunnels.find((x) => x.id === id);
-            if (t) {
-              const remainingGroups = (t.tunnelGroupIds || []).filter(
-                (gid: number) => gid !== groupId,
-              );
-              promises.push(
-                assignSingleTunnelToGroups({
-                  tunnelId: id,
-                  groupIds: remainingGroups,
-                }),
-              );
-            }
-          });
-        }
-
-        if (promises.length > 0) {
-          // 🎯 5. 捕获所有 Promise，防止单个接口挂掉导致大白屏
-          const results = await Promise.all(
-            promises.map((p) => p.catch((e) => e)),
-          );
-          const failed = results.find(
-            (r) =>
-              r instanceof Error || (r && r.code !== undefined && r.code !== 0),
-          );
-
-          if (failed) {
-            console.error("部分隧道操作失败:", failed);
-            toast.error(
-              failed.msg || failed.message || "部分隧道解绑失败，请重试",
-            );
-
-            return; // 有报错直接拦截，绝不骗你“保存成功”
-          }
+        const assignRes = await assignTunnelToGroupNew({
+          groupId,
+          tunnelIds: selectedTunnelIds,
+        });
+        if (assignRes.code !== 0) {
+          toast.error(assignRes.msg || "分组成员保存失败");
+          return;
         }
       }
 

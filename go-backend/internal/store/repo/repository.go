@@ -246,6 +246,7 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.TunnelGroup{},
 		&model.TunnelGroupNew{},
 		&model.TunnelGroupTunnelNew{},
+		&model.UserTunnelGroupNew{},
 		&model.UserGroup{},
 		&model.TunnelGroupTunnel{},
 		&model.UserGroupUser{},
@@ -1250,7 +1251,10 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	tunnelGroupMap, _ := r.GetUserTunnelGroupIDs(userIDs)
+	tunnelGroupMap, err := r.GetUserTunnelGroupIDs(userIDs)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]map[string]interface{}, 0, len(users))
 	for _, u := range users {
 		item := map[string]interface{}{
@@ -1843,18 +1847,18 @@ func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, 
 			"id": t.ID, "inx": t.Inx, "name": t.Name,
 			"type": t.Type, "flow": t.Flow, "trafficRatio": t.TrafficRatio,
 			"status": t.Status, "createdTime": t.CreatedTime,
-			"inIp":          nullableString(t.InIP),
-			"ipPreference":  t.IPPreference,
-			"inNodeId":      make([]map[string]interface{}, 0),
-			"outNodeId":     make([]map[string]interface{}, 0),
-			"chainNodes":    make([][]map[string]interface{}, 0),
+			"inIp":           nullableString(t.InIP),
+			"ipPreference":   t.IPPreference,
+			"inNodeId":       make([]map[string]interface{}, 0),
+			"outNodeId":      make([]map[string]interface{}, 0),
+			"chainNodes":     make([][]map[string]interface{}, 0),
 			"tunnelGroupIds": []int64{},
-			"remark":        nullableString(t.Remark),
-			"http":          t.HTTP,
-			"tls":           t.TLS,
-			"socks":         t.Socks,
-			"blockOther":    t.BlockOther,
-			"mode":          t.Mode,
+			"remark":         nullableString(t.Remark),
+			"http":           t.HTTP,
+			"tls":            t.TLS,
+			"socks":          t.Socks,
+			"blockOther":     t.BlockOther,
+			"mode":           t.Mode,
 		}
 		orderedIDs = append(orderedIDs, t.ID)
 	}
@@ -1985,11 +1989,13 @@ func (r *Repository) listTunnels(includeManual bool) ([]map[string]interface{}, 
 	}
 
 	// Populate tunnelGroupIds from tunnel_group_tunnel_new
-	if groupMap, err := r.ListTunnelGroupIDsByTunnelIDs(orderedIDs); err == nil {
-		for tid, gids := range groupMap {
-			if t, ok := tunnelMap[tid]; ok {
-				t["tunnelGroupIds"] = gids
-			}
+	groupMap, err := r.ListTunnelGroupIDsByTunnelIDs(orderedIDs)
+	if err != nil {
+		return nil, err
+	}
+	for tid, gids := range groupMap {
+		if t, ok := tunnelMap[tid]; ok {
+			t["tunnelGroupIds"] = gids
 		}
 	}
 

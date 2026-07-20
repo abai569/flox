@@ -176,6 +176,10 @@ func (h *Handler) tunnelGroupNewDelete(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	if err := h.syncDirectTunnelGroup(req.ID); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
 
 	response.WriteJSON(w, response.OKEmpty())
 }
@@ -207,6 +211,10 @@ func (h *Handler) tunnelGroupNewAssign(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	if err := h.syncDirectTunnelGroup(req.GroupId); err != nil {
+		response.WriteJSON(w, response.Err(-2, err.Error()))
+		return
+	}
 
 	response.WriteJSON(w, response.OKEmpty())
 }
@@ -232,7 +240,7 @@ func (h *Handler) tunnelGroupAssignSingle(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.repo.AssignTunnelToGroupNew(req.TunnelId, req.GroupIds); err != nil {
+	if err := h.assignTunnelGroups(req.TunnelId, req.GroupIds); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}

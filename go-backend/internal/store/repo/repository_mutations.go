@@ -159,8 +159,6 @@ func (r *Repository) UpdateUserForwardSpeedLimit(userID int64, limit int) error 
 		Where("id = ?", userID).
 		Update("forward_speed_limit", limit).Error
 }
-
-
 func (r *Repository) PropagateUserFlowToTunnels(userID int64, flow int64, num int, expTime, flowResetTime int64, status int) {
 	if r == nil || r.db == nil {
 		return

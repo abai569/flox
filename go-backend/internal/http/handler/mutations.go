@@ -456,9 +456,10 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if tgID, ok := req["tunnelGroupId"]; ok {
-		if gID, ok := tgID.(float64); ok && int64(gID) > 0 {
-			_ = h.applyTunnelGroupToUser(userID, int64(gID))
+	if _, ok := req["tunnelGroupId"]; ok {
+		if err := h.setUserTunnelGroup(userID, asInt64(req["tunnelGroupId"], 0)); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
 		}
 	}
 
@@ -651,9 +652,10 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if tgID, ok := req["tunnelGroupId"]; ok {
-		if gID, ok := tgID.(float64); ok && int64(gID) > 0 {
-			_ = h.applyTunnelGroupToUser(id, int64(gID))
+	if _, ok := req["tunnelGroupId"]; ok {
+		if err := h.setUserTunnelGroup(id, asInt64(req["tunnelGroupId"], 0)); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
 		}
 	}
 
@@ -1811,24 +1813,24 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		tunnelListID = sql.NullInt64{Int64: listID, Valid: true}
 	}
 	tunnel := model.Tunnel{
-		Name:          name,
-		TrafficRatio:  trafficRatio,
-		Type:          typeVal,
-		Protocol:      "tls",
-		Flow:          flow,
-		CreatedTime:   now,
-		UpdatedTime:   now,
-		Status:        status,
-		InIP:          tunnelInIP,
-		Inx:           inx,
-		IPPreference:  ipPreference,
-		ListID:        tunnelListID,
-		Remark:        sql.NullString{String: strings.TrimSpace(asString(req["remark"])), Valid: req["remark"] != nil},
-		HTTP:          asInt(req["http"], 0),
-		TLS:           asInt(req["tls"], 0),
-		Socks:         asInt(req["socks"], 0),
-		BlockOther:    asInt(req["blockOther"], 0),
-		Mode:          "gost",
+		Name:         name,
+		TrafficRatio: trafficRatio,
+		Type:         typeVal,
+		Protocol:     "tls",
+		Flow:         flow,
+		CreatedTime:  now,
+		UpdatedTime:  now,
+		Status:       status,
+		InIP:         tunnelInIP,
+		Inx:          inx,
+		IPPreference: ipPreference,
+		ListID:       tunnelListID,
+		Remark:       sql.NullString{String: strings.TrimSpace(asString(req["remark"])), Valid: req["remark"] != nil},
+		HTTP:         asInt(req["http"], 0),
+		TLS:          asInt(req["tls"], 0),
+		Socks:        asInt(req["socks"], 0),
+		BlockOther:   asInt(req["blockOther"], 0),
+		Mode:         "gost",
 	}
 	if err := tx.Create(&tunnel).Error; err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -1868,7 +1870,10 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, has := req["tunnelGroupIds"]; has {
-		_ = h.repo.AssignTunnelToGroupNew(tunnelID, tunnelGroupIDs)
+		if err := h.assignTunnelGroups(tunnelID, tunnelGroupIDs); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	if typeVal == 2 {
 		relayMode, resolveErr := h.resolveTunnelRelayMode(tunnelID)
@@ -2245,7 +2250,10 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, has := req["tunnelGroupIds"]; has {
-		_ = h.repo.AssignTunnelToGroupNew(id, tunnelGroupIDs)
+		if err := h.assignTunnelGroups(id, tunnelGroupIDs); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	newEntryNodeIDs, _ = h.tunnelEntryNodeIDs(id)
 	httpVal := asInt(req["http"], 0)
@@ -5205,6 +5213,85 @@ func (h *Handler) applyTunnelGroupToUser(userID, tunnelGroupID int64) error {
 			createdByGroup = 1
 		}
 		h.repo.InsertGroupPermissionGrant(0, tunnelGroupID, utID, createdByGroup, now)
+	}
+	return nil
+}
+
+func (h *Handler) syncDirectTunnelGroup(tunnelGroupID int64) error {
+	if tunnelGroupID <= 0 {
+		return nil
+	}
+	tx := h.repo.BeginTx()
+	if tx == nil || tx.Error != nil {
+		return errors.New("database unavailable")
+	}
+	defer func() { tx.Rollback() }()
+	revokedPairs, err := h.repo.RevokeGroupPermissionPairTx(tx, 0, tunnelGroupID)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	for _, pair := range revokedPairs {
+		h.cleanupForwardsForUserTunnel(pair.UserID, pair.TunnelID)
+	}
+	userIDs, err := h.repo.ListUserIDsByTunnelGroupNew(tunnelGroupID)
+	if err != nil {
+		return err
+	}
+	for _, userID := range userIDs {
+		if err := h.applyTunnelGroupToUser(userID, tunnelGroupID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *Handler) assignTunnelGroups(tunnelID int64, groupIDs []int64) error {
+	groupMap, err := h.repo.ListTunnelGroupIDsByTunnelIDs([]int64{tunnelID})
+	if err != nil {
+		return err
+	}
+	previousGroupIDs := groupMap[tunnelID]
+	if err := h.repo.AssignTunnelToGroupNew(tunnelID, groupIDs); err != nil {
+		return err
+	}
+	affected := make(map[int64]struct{}, len(previousGroupIDs)+len(groupIDs))
+	for _, groupID := range previousGroupIDs {
+		if groupID > 0 {
+			affected[groupID] = struct{}{}
+		}
+	}
+	for _, groupID := range groupIDs {
+		if groupID > 0 {
+			affected[groupID] = struct{}{}
+		}
+	}
+	for groupID := range affected {
+		if err := h.syncDirectTunnelGroup(groupID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *Handler) setUserTunnelGroup(userID, tunnelGroupID int64) error {
+	groups, err := h.repo.GetUserTunnelGroupIDs([]int64{userID})
+	if err != nil {
+		return err
+	}
+	previousGroupID := groups[userID]
+	if err := h.repo.SetUserTunnelGroupNew(userID, tunnelGroupID, time.Now().UnixMilli()); err != nil {
+		return err
+	}
+	if previousGroupID > 0 && previousGroupID != tunnelGroupID {
+		if err := h.syncDirectTunnelGroup(previousGroupID); err != nil {
+			return err
+		}
+	}
+	if tunnelGroupID > 0 {
+		return h.syncDirectTunnelGroup(tunnelGroupID)
 	}
 	return nil
 }

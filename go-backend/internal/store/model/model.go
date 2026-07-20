@@ -36,7 +36,7 @@ type User struct {
 	BaseFlow                int64         `gorm:"column:base_flow;default:0"`                   // 初始流量配额 (GB)
 	TrafficFlow             int64         `gorm:"column:traffic_flow;default:0"`                // 流量快餐累计 (GB)
 	SpeedLimit              int           `gorm:"column:speed_limit;default:0"`                 // 限速 MB/s (0=不限)
-	ForwardSpeedLimit       int           `gorm:"column:forward_speed_limit;default:0"`          // 用户级规则限速 Mbps (0=不限)
+	ForwardSpeedLimit       int           `gorm:"column:forward_speed_limit;default:0"`         // 用户级规则限速 Mbps (0=不限)
 	MaxRules                int           `gorm:"column:max_rules;default:0"`                   // 最大规则数 (0=不限)
 	MaxConnections          int           `gorm:"column:max_connections;default:0"`             // 最大连接数 (0=不限)
 	MaxIPAccess             int           `gorm:"column:max_ip_access;default:0"`               // 单 IP 接入限制 (0=不限)
@@ -309,19 +309,19 @@ type ChainTunnel struct {
 func (ChainTunnel) TableName() string { return "chain_tunnel" }
 
 type UserTunnel struct {
-	ID                 int64         `gorm:"primaryKey;autoIncrement"`
-	UserID             int64         `gorm:"column:user_id;not null;uniqueIndex:idx_user_tunnel_unique"`
-	TunnelID           int64         `gorm:"column:tunnel_id;not null;uniqueIndex:idx_user_tunnel_unique"`
-	SpeedID            sql.NullInt64 `gorm:"column:speed_id"`
-	CeilingSpeed       sql.NullInt64 `gorm:"column:ceiling_speed"`
-	ForwardSpeedLimit  sql.NullInt64 `gorm:"column:forward_speed_limit"`
-	Num                int           `gorm:"not null"`
-	Flow               int64         `gorm:"not null"`
-	InFlow             int64         `gorm:"column:in_flow;not null;default:0"`
-	OutFlow            int64         `gorm:"column:out_flow;not null;default:0"`
-	FlowResetTime      int64         `gorm:"column:flow_reset_time;not null"`
-	ExpTime            int64         `gorm:"column:exp_time;not null"`
-	Status             int           `gorm:"not null"`
+	ID                int64         `gorm:"primaryKey;autoIncrement"`
+	UserID            int64         `gorm:"column:user_id;not null;uniqueIndex:idx_user_tunnel_unique"`
+	TunnelID          int64         `gorm:"column:tunnel_id;not null;uniqueIndex:idx_user_tunnel_unique"`
+	SpeedID           sql.NullInt64 `gorm:"column:speed_id"`
+	CeilingSpeed      sql.NullInt64 `gorm:"column:ceiling_speed"`
+	ForwardSpeedLimit sql.NullInt64 `gorm:"column:forward_speed_limit"`
+	Num               int           `gorm:"not null"`
+	Flow              int64         `gorm:"not null"`
+	InFlow            int64         `gorm:"column:in_flow;not null;default:0"`
+	OutFlow           int64         `gorm:"column:out_flow;not null;default:0"`
+	FlowResetTime     int64         `gorm:"column:flow_reset_time;not null"`
+	ExpTime           int64         `gorm:"column:exp_time;not null"`
+	Status            int           `gorm:"not null"`
 }
 
 func (UserTunnel) TableName() string { return "user_tunnel" }
@@ -360,6 +360,16 @@ type TunnelGroupTunnelNew struct {
 }
 
 func (TunnelGroupTunnelNew) TableName() string { return "tunnel_group_tunnel_new" }
+
+type UserTunnelGroupNew struct {
+	ID            int64 `gorm:"primaryKey;autoIncrement"`
+	UserID        int64 `gorm:"column:user_id;not null;uniqueIndex:idx_user_tunnel_group_new_user"`
+	TunnelGroupID int64 `gorm:"column:tunnel_group_id;not null;index"`
+	CreatedTime   int64 `gorm:"column:created_time;not null"`
+	UpdatedTime   int64 `gorm:"column:updated_time;not null"`
+}
+
+func (UserTunnelGroupNew) TableName() string { return "user_tunnel_group_new" }
 
 type UserGroup struct {
 	ID          int64  `gorm:"primaryKey;autoIncrement"`

@@ -6,6 +6,7 @@ import (
 
 	"go-backend/internal/store/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ─── Semantic Group Queries (replacing QueryInt64List/QueryPairs passthrough) ─
@@ -66,8 +67,7 @@ func (r *Repository) ListTunnelGroupIDsByTunnelIDs(tunnelIDs []int64) (map[int64
 	return m, nil
 }
 
-// GetUserTunnelGroupIDs returns a map of userID → tunnelGroupID for users
-// who have been directly assigned to a tunnel group (userGroupID=0 in group_permission_grant).
+// GetUserTunnelGroupIDs returns the explicitly assigned tunnel group for each user.
 func (r *Repository) GetUserTunnelGroupIDs(userIDs []int64) (map[int64]int64, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
@@ -75,27 +75,67 @@ func (r *Repository) GetUserTunnelGroupIDs(userIDs []int64) (map[int64]int64, er
 	if len(userIDs) == 0 {
 		return map[int64]int64{}, nil
 	}
-	type result struct {
-		UserID        int64
-		TunnelGroupID int64
-	}
-	var rows []result
-	err := r.db.Table("group_permission_grant").
-		Select("user_tunnel.user_id, group_permission_grant.tunnel_group_id").
-		Joins("JOIN user_tunnel ON user_tunnel.id = group_permission_grant.user_tunnel_id").
-		Where("user_tunnel.user_id IN ? AND group_permission_grant.user_group_id = 0", userIDs).
-		Order("group_permission_grant.id DESC").
-		Scan(&rows).Error
+	var rows []model.UserTunnelGroupNew
+	err := r.db.Where("user_id IN ?", userIDs).Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
 	m := make(map[int64]int64, len(rows))
 	for _, row := range rows {
+		m[row.UserID] = row.TunnelGroupID
+	}
+	// Read legacy direct grants so existing assignments remain visible after
+	// introducing the explicit user_tunnel_group_new relation.
+	type legacyResult struct {
+		UserID        int64
+		TunnelGroupID int64
+	}
+	var legacyRows []legacyResult
+	err = r.db.Table("group_permission_grant").
+		Select("user_tunnel.user_id, group_permission_grant.tunnel_group_id").
+		Joins("JOIN user_tunnel ON user_tunnel.id = group_permission_grant.user_tunnel_id").
+		Where("user_tunnel.user_id IN ? AND group_permission_grant.user_group_id = 0", userIDs).
+		Order("group_permission_grant.id DESC").
+		Scan(&legacyRows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range legacyRows {
 		if _, exists := m[row.UserID]; !exists {
 			m[row.UserID] = row.TunnelGroupID
 		}
 	}
 	return m, nil
+}
+
+func (r *Repository) ListUserIDsByTunnelGroupNew(tunnelGroupID int64) ([]int64, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var ids []int64
+	err := r.db.Model(&model.UserTunnelGroupNew{}).
+		Where("tunnel_group_id = ?", tunnelGroupID).
+		Pluck("user_id", &ids).Error
+	return ids, err
+}
+
+func (r *Repository) SetUserTunnelGroupNew(userID, tunnelGroupID, now int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if tunnelGroupID <= 0 {
+		return r.db.Where("user_id = ?", userID).Delete(&model.UserTunnelGroupNew{}).Error
+	}
+	relation := model.UserTunnelGroupNew{
+		UserID:        userID,
+		TunnelGroupID: tunnelGroupID,
+		CreatedTime:   now,
+		UpdatedTime:   now,
+	}
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"tunnel_group_id", "updated_time"}),
+	}).Create(&relation).Error
 }
 
 // ListGroupPermissionPairsByUserGroup returns [userGroupID, tunnelGroupID] pairs
@@ -200,6 +240,9 @@ func (r *Repository) DeleteTunnelGroupNew(id int64) error {
 		if err := tx.Where("tunnel_group_id = ?", id).Delete(&model.TunnelGroupTunnelNew{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("tunnel_group_id = ?", id).Delete(&model.UserTunnelGroupNew{}).Error; err != nil {
+			return err
+		}
 		// Delete the group
 		return tx.Delete(&model.TunnelGroupNew{}, id).Error
 	})
@@ -215,10 +258,23 @@ func (r *Repository) AssignTunnelToGroupNew(tunnelId int64, groupIds []int64) er
 			return err
 		}
 
-		if len(groupIds) > 0 {
+		validGroupIDs := make([]int64, 0, len(groupIds))
+		seen := make(map[int64]struct{}, len(groupIds))
+		for _, groupID := range groupIds {
+			if groupID <= 0 {
+				continue
+			}
+			if _, exists := seen[groupID]; exists {
+				continue
+			}
+			seen[groupID] = struct{}{}
+			validGroupIDs = append(validGroupIDs, groupID)
+		}
+
+		if len(validGroupIDs) > 0 {
 			now := time.Now().UnixMilli()
-			relations := make([]model.TunnelGroupTunnelNew, len(groupIds))
-			for i, groupId := range groupIds {
+			relations := make([]model.TunnelGroupTunnelNew, len(validGroupIDs))
+			for i, groupId := range validGroupIDs {
 				relations[i] = model.TunnelGroupTunnelNew{
 					TunnelGroupID: groupId,
 					TunnelID:      tunnelId,
@@ -246,23 +302,27 @@ func (r *Repository) AssignTunnelsToGroupNew(tunnelIds []int64, groupId int64) e
 			}
 		}
 
+		query := tx.Where("tunnel_group_id = ?", groupId)
+		if len(validTunnelIds) > 0 {
+			query = query.Where("tunnel_id NOT IN ?", validTunnelIds)
+		}
+		if err := query.Delete(&model.TunnelGroupTunnelNew{}).Error; err != nil {
+			return err
+		}
+
 		if len(validTunnelIds) == 0 {
 			return nil
 		}
 
-		if err := tx.Where("tunnel_id IN ?", validTunnelIds).Delete(&model.TunnelGroupTunnelNew{}).Error; err != nil {
-			return err
-		}
-
 		now := time.Now().UnixMilli()
-		relations := make([]model.TunnelGroupTunnelNew, len(validTunnelIds))
-		for i, tunnelId := range validTunnelIds {
-			relations[i] = model.TunnelGroupTunnelNew{
+		relations := make([]model.TunnelGroupTunnelNew, 0, len(validTunnelIds))
+		for _, tunnelId := range validTunnelIds {
+			relations = append(relations, model.TunnelGroupTunnelNew{
 				TunnelGroupID: groupId,
 				TunnelID:      tunnelId,
 				CreatedTime:   now,
-			}
+			})
 		}
-		return tx.Create(&relations).Error
+		return tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&relations).Error
 	})
 }
