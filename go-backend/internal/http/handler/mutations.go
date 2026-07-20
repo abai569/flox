@@ -1752,7 +1752,6 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	ipPreference := asString(req["ipPreference"])
 	now := time.Now().UnixMilli()
 	inx := h.repo.NextIndex("tunnel")
-	localDomain := h.federationLocalDomain()
 
 	// Handle tunnelGroupId the same way as node groupId
 	var tunnelGroupID interface{}
@@ -1826,27 +1825,8 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	tunnelID := tunnel.ID
 	runtimeState.TunnelID = tunnelID
-	var federationBindings []repo.FederationTunnelBinding
-	var federationReleaseRefs []federationRuntimeReleaseRef
-	if status == 1 {
-		federationBindings, federationReleaseRefs, err = h.applyFederationRuntime(runtimeState, localDomain)
-		if err != nil {
-			response.WriteJSON(w, response.ErrDefault(err.Error()))
-			return
-		}
-	}
-	federationTxCommitted := false
-	defer func() {
-		if !federationTxCommitted {
-			h.releaseFederationRuntimeRefs(federationReleaseRefs)
-		}
-	}()
 	applyTunnelPortsToRequest(req, runtimeState)
 	if err := h.replaceTunnelChainsTx(tx, tunnelID, req); err != nil {
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
-	}
-	if err := h.repo.ReplaceFederationTunnelBindingsTx(tx, tunnelID, federationBindings); err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
@@ -1876,7 +1856,6 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-	federationTxCommitted = true
 	if typeVal == 2 {
 		relayMode, resolveErr := h.resolveTunnelRelayMode(tunnelID)
 		if resolveErr != nil {
@@ -1888,8 +1867,7 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		createdChains, createdServices, applyErr := h.applyTunnelRuntime(runtimeState)
 		if applyErr != nil {
 			h.rollbackTunnelRuntime(createdChains, createdServices, tunnelID)
-			h.discardFederationDeployment(tunnelID, federationReleaseRefs)
-			if len(federationReleaseRefs) == 0 && shouldDeferTunnelRuntimeApplyError(applyErr) {
+			if shouldDeferTunnelRuntimeApplyError(applyErr) {
 				response.WriteJSON(w, response.OKEmpty())
 				return
 			}
@@ -2169,7 +2147,6 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UnixMilli()
 	typeVal := asInt(req["type"], 1)
 	ipPreference := asString(req["ipPreference"])
-	localDomain := h.federationLocalDomain()
 
 	// Handle tunnelGroupId the same way as node groupId
 	var tunnelGroupID interface{}
@@ -2211,21 +2188,6 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		inIp = buildTunnelInIP(runtimeState.InNodes, runtimeState.Nodes, ipPreference)
 	}
 
-	var federationBindings []repo.FederationTunnelBinding
-	var federationReleaseRefs []federationRuntimeReleaseRef
-	if asInt(req["status"], 1) == 1 {
-		federationBindings, federationReleaseRefs, err = h.applyFederationRuntime(runtimeState, localDomain)
-		if err != nil {
-			response.WriteJSON(w, response.ErrDefault(err.Error()))
-			return
-		}
-	}
-	federationTxCommitted := false
-	defer func() {
-		if !federationTxCommitted {
-			h.releaseFederationRuntimeRefs(federationReleaseRefs)
-		}
-	}()
 	applyTunnelPortsToRequest(req, runtimeState)
 
 	if err := h.repo.UpdateTunnelTx(
@@ -2278,22 +2240,12 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
-	federationTxCommitted = true
-	if asInt(req["status"], 1) == 0 {
-		previous, switched, completeErr := h.repo.CompleteFederationTunnelDeployment(id, now, nil)
-		if completeErr != nil {
-			log.Printf("disable federation tunnel %d bindings failed: %v", id, completeErr)
-		} else if switched {
-			h.releaseFederationRuntimeRefs(h.federationReleaseRefsFromBindings(previous))
-		}
-	}
-
 	newEntryNodeIDs, _ = h.tunnelEntryNodeIDs(id)
 	httpVal := asInt(req["http"], 0)
 	tlsVal := asInt(req["tls"], 0)
 	socksVal := asInt(req["socks"], 0)
 	blockOtherVal := asInt(req["blockOther"], 0)
-	go h.redeployTunnelRuntimeAfterUpdate(id, typeVal, asInt(req["status"], 1), now, oldChainRows, oldEntryNodeIDs, newEntryNodeIDs, runtimeState, federationBindings, federationReleaseRefs, httpVal, tlsVal, socksVal, blockOtherVal)
+	go h.redeployTunnelRuntimeAfterUpdate(id, typeVal, asInt(req["status"], 1), now, oldChainRows, oldEntryNodeIDs, newEntryNodeIDs, runtimeState, httpVal, tlsVal, socksVal, blockOtherVal)
 
 	items, err := h.repo.ListTunnelsIncludingManual()
 	if err != nil {
@@ -2329,7 +2281,7 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(updatedTunnel))
 }
 
-func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, status int, expectedUpdatedTime int64, oldChainRows []chainNodeRecord, oldEntryNodeIDs, newEntryNodeIDs []int64, runtimeState *tunnelCreateState, federationBindings []repo.FederationTunnelBinding, federationReleaseRefs []federationRuntimeReleaseRef, httpVal, tlsVal, socksVal, blockOtherVal int) {
+func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, status int, expectedUpdatedTime int64, oldChainRows []chainNodeRecord, oldEntryNodeIDs, newEntryNodeIDs []int64, runtimeState *tunnelCreateState, httpVal, tlsVal, socksVal, blockOtherVal int) {
 	if h == nil || tunnelID <= 0 {
 		return
 	}
@@ -2338,12 +2290,10 @@ func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, 
 	defer lock.Unlock()
 	defer func() {
 		if v := recover(); v != nil {
-			h.releaseFederationRuntimeRefs(federationReleaseRefs)
 			log.Printf("redeploy tunnel %d panic: %v", tunnelID, v)
 		}
 	}()
 	if !h.isTunnelRuntimeUpdateCurrent(tunnelID, expectedUpdatedTime) {
-		h.releaseFederationRuntimeRefs(federationReleaseRefs)
 		return
 	}
 	if len(oldChainRows) > 0 {
@@ -2357,18 +2307,15 @@ func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, 
 		return
 	}
 	if !h.isTunnelRuntimeUpdateCurrent(tunnelID, expectedUpdatedTime) {
-		h.releaseFederationRuntimeRefs(federationReleaseRefs)
 		return
 	}
 	if typeVal == 2 {
 		if runtimeState == nil {
-			h.releaseFederationRuntimeRefs(federationReleaseRefs)
 			log.Printf("redeploy tunnel %d runtime skipped: empty runtime state", tunnelID)
 			return
 		}
 		relayMode, resolveErr := h.resolveTunnelRelayMode(tunnelID)
 		if resolveErr != nil {
-			h.releaseFederationRuntimeRefs(federationReleaseRefs)
 			log.Printf("redeploy tunnel %d resolve mode failed: %v", tunnelID, resolveErr)
 			return
 		}
@@ -2376,13 +2323,11 @@ func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, 
 		createdChains, createdServices, applyErr := h.applyTunnelRuntime(runtimeState)
 		if applyErr != nil {
 			h.rollbackTunnelRuntime(createdChains, createdServices, tunnelID)
-			h.releaseFederationRuntimeRefs(federationReleaseRefs)
 			log.Printf("redeploy tunnel %d runtime failed: %v", tunnelID, applyErr)
 			return
 		}
 	}
 	if !h.isTunnelRuntimeUpdateCurrent(tunnelID, expectedUpdatedTime) {
-		h.releaseFederationRuntimeRefs(federationReleaseRefs)
 		return
 	}
 	if forwards, fwdErr := h.listForwardsByTunnel(tunnelID); fwdErr == nil {
@@ -2402,9 +2347,6 @@ func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, 
 				}
 			}
 		}
-	}
-	if !h.completeFederationDeployment(tunnelID, expectedUpdatedTime, federationBindings, federationReleaseRefs) {
-		return
 	}
 }
 
@@ -2983,32 +2925,12 @@ func (h *Handler) redeployTunnelAndForwards(tunnelID int64) error {
 		return err
 	}
 
-	var federationDeploymentCompleted bool
-	var federationBindings []repo.FederationTunnelBinding
-	var federationReleaseRefs []federationRuntimeReleaseRef
-	var expectedFederationUpdatedTime int64
-	defer func() {
-		if !federationDeploymentCompleted {
-			h.releaseFederationRuntimeRefs(federationReleaseRefs)
-		}
-	}()
-
 	if tunnel.Type == 2 {
 		h.cleanupTunnelRuntime(tunnelID)
-		expectedFederationUpdatedTime, err = h.repo.GetTunnelUpdatedTime(tunnelID)
-		if err != nil {
-			return err
-		}
 		state, err := h.reconstructTunnelState(tunnelID)
 		if err != nil {
 			return err
 		}
-		newBindings, newReleaseRefs, fedErr := h.applyFederationRuntime(state, h.federationLocalDomain())
-		if fedErr != nil {
-			return fedErr
-		}
-		federationBindings = newBindings
-		federationReleaseRefs = newReleaseRefs
 		_, _, applyErr := h.applyTunnelRuntime(state)
 		if applyErr != nil {
 			return applyErr
@@ -3041,14 +2963,6 @@ func (h *Handler) redeployTunnelAndForwards(tunnelID int64) error {
 		return syncErr
 	}
 
-	if tunnel.Type == 2 {
-		completed := h.completeFederationDeployment(tunnelID, expectedFederationUpdatedTime, federationBindings, federationReleaseRefs)
-		federationDeploymentCompleted = true
-		if !completed {
-			return errors.New("隧道已被更新，已取消过期的联邦重部署")
-		}
-	}
-	federationDeploymentCompleted = true
 	return nil
 }
 
@@ -5345,16 +5259,10 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 			nodeIDs = append(nodeIDs, nodeID)
 			port := asInt(item["port"], 0)
 			if port <= 0 {
-				isRemote, remoteErr := h.repo.IsRemoteNodeTx(tx, nodeID)
-				if remoteErr != nil {
-					return nil, remoteErr
-				}
-				if !isRemote {
-					var err error
-					port, err = h.repo.PickRandomNodePortTx(tx, nodeID, allocated, excludeTunnelID)
-					if err != nil {
-						return nil, err
-					}
+				var err error
+				port, err = h.repo.PickRandomNodePortTx(tx, nodeID, allocated, excludeTunnelID)
+				if err != nil {
+					return nil, err
 				}
 			}
 			state.OutNodes = append(state.OutNodes, tunnelRuntimeNode{
@@ -5380,16 +5288,10 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 				nodeIDs = append(nodeIDs, nodeID)
 				port := asInt(item["port"], 0)
 				if port <= 0 {
-					isRemote, remoteErr := h.repo.IsRemoteNodeTx(tx, nodeID)
-					if remoteErr != nil {
-						return nil, remoteErr
-					}
-					if !isRemote {
-						var err error
-						port, err = h.repo.PickRandomNodePortTx(tx, nodeID, allocated, excludeTunnelID)
-						if err != nil {
-							return nil, err
-						}
+					var err error
+					port, err = h.repo.PickRandomNodePortTx(tx, nodeID, allocated, excludeTunnelID)
+					if err != nil {
+						return nil, err
 					}
 				}
 				hop = append(hop, tunnelRuntimeNode{
@@ -5425,7 +5327,7 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		if node == nil {
 			return nil, errors.New("节点不存在")
 		}
-		if node.IsRemote != 1 && node.Status != 1 {
+		if node.Status != 1 {
 			return nil, errors.New("部分节点不在线")
 		}
 		state.Nodes[nodeID] = node
@@ -5441,6 +5343,11 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 			if err := validateRemoteNodePort(state.Nodes[chainNode.NodeID], chainNode.Port); err != nil {
 				return nil, err
 			}
+		}
+	}
+	for _, outNode := range state.OutNodes {
+		if err := validateRemoteNodePort(state.Nodes[outNode.NodeID], outNode.Port); err != nil {
+			return nil, err
 		}
 	}
 
@@ -5653,95 +5560,23 @@ func (h *Handler) federationLocalDomain() string {
 }
 
 func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain string) ([]repo.FederationTunnelBinding, []federationRuntimeReleaseRef, error) {
-	bindings := make([]repo.FederationTunnelBinding, 0)
-	releaseRefs := make([]federationRuntimeReleaseRef, 0)
-	if h == nil || state == nil {
-		return bindings, releaseRefs, nil
-	}
-	fc := client.NewFederationClient()
-	now := time.Now().UnixMilli()
-	deploymentID := randomToken(12)
+	// Remote nodes use the same tunnel lifecycle as local nodes. Cross-panel
+	// dispatch happens at sendNodeCommand; no second federation runtime is
+	// created for a tunnel.
+	return []repo.FederationTunnelBinding{}, []federationRuntimeReleaseRef{}, nil
+	/*
+		bindings := make([]repo.FederationTunnelBinding, 0)
+		releaseRefs := make([]federationRuntimeReleaseRef, 0)
+		if h == nil || state == nil {
+			return bindings, releaseRefs, nil
+		}
+		fc := client.NewFederationClient()
+		now := time.Now().UnixMilli()
+		deploymentID := randomToken(12)
 
-	for outIdx := range state.OutNodes {
-		outNode := state.OutNodes[outIdx]
-		node := state.Nodes[outNode.NodeID]
-		if node == nil || node.IsRemote != 1 {
-			continue
-		}
-		remoteURL := strings.TrimSpace(node.RemoteURL)
-		remoteToken := strings.TrimSpace(node.RemoteToken)
-		if remoteURL == "" || remoteToken == "" {
-			h.releaseFederationRuntimeRefs(releaseRefs)
-			return nil, nil, fmt.Errorf("远程节点 %s 缺少共享配置", nodeDisplayName(node))
-		}
-
-		resourceKey := federationRuntimeResourceKey(deploymentID, state.TunnelID, outNode.NodeID, 3, 0)
-		reserveReq := client.RuntimeReservePortRequest{
-			ResourceKey:   resourceKey,
-			Protocol:      defaultString(outNode.Protocol, "tls"),
-			RequestedPort: outNode.Port,
-		}
-		reserveRes, err := fc.ReservePort(remoteURL, remoteToken, localDomain, reserveReq)
-		if err != nil && reserveReq.RequestedPort > 0 {
-			reserveReq.RequestedPort = 0
-			reserveRes, err = fc.ReservePort(remoteURL, remoteToken, localDomain, reserveReq)
-		}
-		if err != nil {
-			h.releaseFederationRuntimeRefs(releaseRefs)
-			return nil, nil, fmt.Errorf("远程节点 %s 端口分配失败: %w", nodeDisplayName(node), err)
-		}
-		releaseRefs = append(releaseRefs, federationRuntimeReleaseRef{
-			RemoteURL: remoteURL, RemoteToken: remoteToken,
-			ReservationID: reserveRes.ReservationID, ResourceKey: resourceKey,
-		})
-
-		state.OutNodes[outIdx].Port = reserveRes.AllocatedPort
-		outNode = state.OutNodes[outIdx]
-
-		applyReq := client.RuntimeApplyRoleRequest{
-			ReservationID: reserveRes.ReservationID,
-			ResourceKey:   resourceKey,
-			Role:          "exit",
-			Protocol:      defaultString(outNode.Protocol, "tls"),
-			Strategy:      defaultString(outNode.Strategy, "round"),
-		}
-		applyRes, err := fc.ApplyRole(remoteURL, remoteToken, localDomain, applyReq)
-		if err != nil {
-			h.releaseFederationRuntimeRefs(releaseRefs)
-			return nil, nil, fmt.Errorf("远程节点 %s 运行时下发失败: %w", nodeDisplayName(node), err)
-		}
-		if applyRes.AllocatedPort > 0 {
-			state.OutNodes[outIdx].Port = applyRes.AllocatedPort
-			outNode = state.OutNodes[outIdx]
-		}
-		if len(applyRes.Endpoints) == 0 {
-			h.releaseFederationRuntimeRefs(releaseRefs)
-			return nil, nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(node))
-		}
-		state.OutNodes[outIdx].Endpoints = applyRes.Endpoints
-		state.OutNodes[outIdx].ConnectIPType = resolveRuntimeEndpointIPType(applyRes.Endpoints, outNode.ConnectIPType, state.IPPreference)
-		outNode = state.OutNodes[outIdx]
-
-		bindings = append(bindings, repo.FederationTunnelBinding{
-			TunnelID:        state.TunnelID,
-			NodeID:          outNode.NodeID,
-			ChainType:       3,
-			HopInx:          0,
-			RemoteURL:       remoteURL,
-			ResourceKey:     resourceKey,
-			RemoteBindingID: defaultString(applyRes.BindingID, reserveRes.BindingID),
-			AllocatedPort:   outNode.Port,
-			Status:          1,
-			CreatedTime:     now,
-			UpdatedTime:     now,
-		})
-		releaseRefs[len(releaseRefs)-1].BindingID = applyRes.BindingID
-	}
-
-	for hopIdx := len(state.ChainHops) - 1; hopIdx >= 0; hopIdx-- {
-		for nodeIdx := range state.ChainHops[hopIdx] {
-			chainNode := state.ChainHops[hopIdx][nodeIdx]
-			node := state.Nodes[chainNode.NodeID]
+		for outIdx := range state.OutNodes {
+			outNode := state.OutNodes[outIdx]
+			node := state.Nodes[outNode.NodeID]
 			if node == nil || node.IsRemote != 1 {
 				continue
 			}
@@ -5752,11 +5587,11 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 				return nil, nil, fmt.Errorf("远程节点 %s 缺少共享配置", nodeDisplayName(node))
 			}
 
-			resourceKey := federationRuntimeResourceKey(deploymentID, state.TunnelID, chainNode.NodeID, 2, hopIdx+1)
+			resourceKey := federationRuntimeResourceKey(deploymentID, state.TunnelID, outNode.NodeID, 3, 0)
 			reserveReq := client.RuntimeReservePortRequest{
 				ResourceKey:   resourceKey,
-				Protocol:      defaultString(chainNode.Protocol, "tls"),
-				RequestedPort: chainNode.Port,
+				Protocol:      defaultString(outNode.Protocol, "tls"),
+				RequestedPort: outNode.Port,
 			}
 			reserveRes, err := fc.ReservePort(remoteURL, remoteToken, localDomain, reserveReq)
 			if err != nil && reserveReq.RequestedPort > 0 {
@@ -5772,41 +5607,15 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 				ReservationID: reserveRes.ReservationID, ResourceKey: resourceKey,
 			})
 
-			state.ChainHops[hopIdx][nodeIdx].Port = reserveRes.AllocatedPort
-			chainNode = state.ChainHops[hopIdx][nodeIdx]
-
-			nextTargets := state.OutNodes
-			if hopIdx+1 < len(state.ChainHops) {
-				nextTargets = state.ChainHops[hopIdx+1]
-			}
-			applyTargets := make([]client.RuntimeTarget, 0, len(nextTargets))
-			for _, target := range nextTargets {
-				targetNode := state.Nodes[target.NodeID]
-				if targetNode == nil {
-					h.releaseFederationRuntimeRefs(releaseRefs)
-					return nil, nil, errors.New("节点不存在")
-				}
-				endpoints, endpointErr := resolveFederationTargetEndpoints(target, targetNode, state.NodeInstances[target.NodeID], state.IPPreference)
-				if endpointErr != nil {
-					h.releaseFederationRuntimeRefs(releaseRefs)
-					return nil, nil, endpointErr
-				}
-				for _, endpoint := range endpoints {
-					applyTargets = append(applyTargets, client.RuntimeTarget{
-						Host:     endpoint.host,
-						Port:     endpoint.port,
-						Protocol: defaultString(target.Protocol, "tls"),
-					})
-				}
-			}
+			state.OutNodes[outIdx].Port = reserveRes.AllocatedPort
+			outNode = state.OutNodes[outIdx]
 
 			applyReq := client.RuntimeApplyRoleRequest{
 				ReservationID: reserveRes.ReservationID,
 				ResourceKey:   resourceKey,
-				Role:          "middle",
-				Protocol:      defaultString(chainNode.Protocol, "tls"),
-				Strategy:      defaultString(chainNode.Strategy, "round"),
-				Targets:       applyTargets,
+				Role:          "exit",
+				Protocol:      defaultString(outNode.Protocol, "tls"),
+				Strategy:      defaultString(outNode.Strategy, "round"),
 			}
 			applyRes, err := fc.ApplyRole(remoteURL, remoteToken, localDomain, applyReq)
 			if err != nil {
@@ -5814,35 +5623,139 @@ func (h *Handler) applyFederationRuntime(state *tunnelCreateState, localDomain s
 				return nil, nil, fmt.Errorf("远程节点 %s 运行时下发失败: %w", nodeDisplayName(node), err)
 			}
 			if applyRes.AllocatedPort > 0 {
-				state.ChainHops[hopIdx][nodeIdx].Port = applyRes.AllocatedPort
-				chainNode = state.ChainHops[hopIdx][nodeIdx]
+				state.OutNodes[outIdx].Port = applyRes.AllocatedPort
+				outNode = state.OutNodes[outIdx]
 			}
 			if len(applyRes.Endpoints) == 0 {
 				h.releaseFederationRuntimeRefs(releaseRefs)
 				return nil, nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(node))
 			}
-			state.ChainHops[hopIdx][nodeIdx].Endpoints = applyRes.Endpoints
-			state.ChainHops[hopIdx][nodeIdx].ConnectIPType = resolveRuntimeEndpointIPType(applyRes.Endpoints, chainNode.ConnectIPType, state.IPPreference)
-			chainNode = state.ChainHops[hopIdx][nodeIdx]
+			state.OutNodes[outIdx].Endpoints = applyRes.Endpoints
+			state.OutNodes[outIdx].ConnectIPType = resolveRuntimeEndpointIPType(applyRes.Endpoints, outNode.ConnectIPType, state.IPPreference)
+			outNode = state.OutNodes[outIdx]
 
 			bindings = append(bindings, repo.FederationTunnelBinding{
 				TunnelID:        state.TunnelID,
-				NodeID:          chainNode.NodeID,
-				ChainType:       2,
-				HopInx:          hopIdx + 1,
+				NodeID:          outNode.NodeID,
+				ChainType:       3,
+				HopInx:          0,
 				RemoteURL:       remoteURL,
 				ResourceKey:     resourceKey,
 				RemoteBindingID: defaultString(applyRes.BindingID, reserveRes.BindingID),
-				AllocatedPort:   chainNode.Port,
+				AllocatedPort:   outNode.Port,
 				Status:          1,
 				CreatedTime:     now,
 				UpdatedTime:     now,
 			})
 			releaseRefs[len(releaseRefs)-1].BindingID = applyRes.BindingID
 		}
-	}
 
-	return bindings, releaseRefs, nil
+		for hopIdx := len(state.ChainHops) - 1; hopIdx >= 0; hopIdx-- {
+			for nodeIdx := range state.ChainHops[hopIdx] {
+				chainNode := state.ChainHops[hopIdx][nodeIdx]
+				node := state.Nodes[chainNode.NodeID]
+				if node == nil || node.IsRemote != 1 {
+					continue
+				}
+				remoteURL := strings.TrimSpace(node.RemoteURL)
+				remoteToken := strings.TrimSpace(node.RemoteToken)
+				if remoteURL == "" || remoteToken == "" {
+					h.releaseFederationRuntimeRefs(releaseRefs)
+					return nil, nil, fmt.Errorf("远程节点 %s 缺少共享配置", nodeDisplayName(node))
+				}
+
+				resourceKey := federationRuntimeResourceKey(deploymentID, state.TunnelID, chainNode.NodeID, 2, hopIdx+1)
+				reserveReq := client.RuntimeReservePortRequest{
+					ResourceKey:   resourceKey,
+					Protocol:      defaultString(chainNode.Protocol, "tls"),
+					RequestedPort: chainNode.Port,
+				}
+				reserveRes, err := fc.ReservePort(remoteURL, remoteToken, localDomain, reserveReq)
+				if err != nil && reserveReq.RequestedPort > 0 {
+					reserveReq.RequestedPort = 0
+					reserveRes, err = fc.ReservePort(remoteURL, remoteToken, localDomain, reserveReq)
+				}
+				if err != nil {
+					h.releaseFederationRuntimeRefs(releaseRefs)
+					return nil, nil, fmt.Errorf("远程节点 %s 端口分配失败: %w", nodeDisplayName(node), err)
+				}
+				releaseRefs = append(releaseRefs, federationRuntimeReleaseRef{
+					RemoteURL: remoteURL, RemoteToken: remoteToken,
+					ReservationID: reserveRes.ReservationID, ResourceKey: resourceKey,
+				})
+
+				state.ChainHops[hopIdx][nodeIdx].Port = reserveRes.AllocatedPort
+				chainNode = state.ChainHops[hopIdx][nodeIdx]
+
+				nextTargets := state.OutNodes
+				if hopIdx+1 < len(state.ChainHops) {
+					nextTargets = state.ChainHops[hopIdx+1]
+				}
+				applyTargets := make([]client.RuntimeTarget, 0, len(nextTargets))
+				for _, target := range nextTargets {
+					targetNode := state.Nodes[target.NodeID]
+					if targetNode == nil {
+						h.releaseFederationRuntimeRefs(releaseRefs)
+						return nil, nil, errors.New("节点不存在")
+					}
+					endpoints, endpointErr := resolveFederationTargetEndpoints(target, targetNode, state.NodeInstances[target.NodeID], state.IPPreference)
+					if endpointErr != nil {
+						h.releaseFederationRuntimeRefs(releaseRefs)
+						return nil, nil, endpointErr
+					}
+					for _, endpoint := range endpoints {
+						applyTargets = append(applyTargets, client.RuntimeTarget{
+							Host:     endpoint.host,
+							Port:     endpoint.port,
+							Protocol: defaultString(target.Protocol, "tls"),
+						})
+					}
+				}
+
+				applyReq := client.RuntimeApplyRoleRequest{
+					ReservationID: reserveRes.ReservationID,
+					ResourceKey:   resourceKey,
+					Role:          "middle",
+					Protocol:      defaultString(chainNode.Protocol, "tls"),
+					Strategy:      defaultString(chainNode.Strategy, "round"),
+					Targets:       applyTargets,
+				}
+				applyRes, err := fc.ApplyRole(remoteURL, remoteToken, localDomain, applyReq)
+				if err != nil {
+					h.releaseFederationRuntimeRefs(releaseRefs)
+					return nil, nil, fmt.Errorf("远程节点 %s 运行时下发失败: %w", nodeDisplayName(node), err)
+				}
+				if applyRes.AllocatedPort > 0 {
+					state.ChainHops[hopIdx][nodeIdx].Port = applyRes.AllocatedPort
+					chainNode = state.ChainHops[hopIdx][nodeIdx]
+				}
+				if len(applyRes.Endpoints) == 0 {
+					h.releaseFederationRuntimeRefs(releaseRefs)
+					return nil, nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(node))
+				}
+				state.ChainHops[hopIdx][nodeIdx].Endpoints = applyRes.Endpoints
+				state.ChainHops[hopIdx][nodeIdx].ConnectIPType = resolveRuntimeEndpointIPType(applyRes.Endpoints, chainNode.ConnectIPType, state.IPPreference)
+				chainNode = state.ChainHops[hopIdx][nodeIdx]
+
+				bindings = append(bindings, repo.FederationTunnelBinding{
+					TunnelID:        state.TunnelID,
+					NodeID:          chainNode.NodeID,
+					ChainType:       2,
+					HopInx:          hopIdx + 1,
+					RemoteURL:       remoteURL,
+					ResourceKey:     resourceKey,
+					RemoteBindingID: defaultString(applyRes.BindingID, reserveRes.BindingID),
+					AllocatedPort:   chainNode.Port,
+					Status:          1,
+					CreatedTime:     now,
+					UpdatedTime:     now,
+				})
+				releaseRefs[len(releaseRefs)-1].BindingID = applyRes.BindingID
+			}
+		}
+
+		return bindings, releaseRefs, nil
+	*/
 }
 
 func (h *Handler) releaseFederationRuntimeRefs(refs []federationRuntimeReleaseRef) {
@@ -5946,23 +5859,28 @@ func (h *Handler) discardFederationDeployment(tunnelID int64, newRefs []federati
 }
 
 func (h *Handler) cleanupFederationRuntime(tunnelID int64) error {
-	if h == nil || tunnelID <= 0 {
-		return nil
-	}
-	bindings, err := h.repo.ListActiveFederationTunnelBindingsByTunnel(tunnelID)
-	if err != nil || len(bindings) == 0 {
-		return err
-	}
+	// Tunnel cleanup is handled by the ordinary DeleteService/DeleteChains
+	// lifecycle. The legacy federation runtime has no tunnel ownership now.
+	return nil
+	/*
+		if h == nil || tunnelID <= 0 {
+			return nil
+		}
+		bindings, err := h.repo.ListActiveFederationTunnelBindingsByTunnel(tunnelID)
+		if err != nil || len(bindings) == 0 {
+			return err
+		}
 
-	refs := h.federationReleaseRefsFromBindings(bindings)
-	if len(refs) != len(bindings) {
-		return fmt.Errorf("远程隧道绑定缺少节点共享配置，保留本地绑定等待恢复")
-	}
-	if err := h.releaseFederationRuntimeRefsErr(refs); err != nil {
-		_ = h.repo.MarkFederationTunnelBindingsReleasePending(tunnelID)
-		return err
-	}
-	return h.repo.DeleteFederationTunnelBindingsByTunnel(tunnelID)
+		refs := h.federationReleaseRefsFromBindings(bindings)
+		if len(refs) != len(bindings) {
+			return fmt.Errorf("远程隧道绑定缺少节点共享配置，保留本地绑定等待恢复")
+		}
+		if err := h.releaseFederationRuntimeRefsErr(refs); err != nil {
+			_ = h.repo.MarkFederationTunnelBindingsReleasePending(tunnelID)
+			return err
+		}
+		return h.repo.DeleteFederationTunnelBindingsByTunnel(tunnelID)
+	*/
 }
 
 // resolveTunnelRelayMode 根据 tunnel 下所有 forward 的 mode 推导 relay 内核。
@@ -6023,17 +5941,11 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 			return createdChains, createdServices, err
 		}
 		if _, err := h.sendNodeCommand(inNode.NodeID, "AddChains", chainData, true, false); err != nil {
-			if node != nil && node.IsRemote == 1 && shouldDeferTunnelRuntimeApplyError(err) {
-				continue
-			}
 			return createdChains, createdServices, fmt.Errorf("入口节点 %s 下发转发链失败: %w", nodeDisplayName(state.Nodes[inNode.NodeID]), err)
 		}
 		createdChains = append(createdChains, inNode.NodeID)
 
 		if strings.EqualFold(state.Mode, "floxcore") {
-			if node != nil && node.IsRemote == 1 {
-				continue
-			}
 			entryServiceData := buildEntryRelayServiceConfig(state.TunnelID, inNode, state.Nodes[inNode.NodeID], state.ChainHops, state.OutNodes, state.Nodes)
 			if err := h.addTunnelServiceOnNode(inNode.NodeID, state.TunnelID, entryServiceData); err != nil {
 				return createdChains, createdServices, fmt.Errorf("入口节点 %s 下发入口服务失败: %w", nodeDisplayName(state.Nodes[inNode.NodeID]), err)
@@ -6048,9 +5960,6 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 			nextTargets = state.ChainHops[i+1]
 		}
 		for _, chainNode := range hop {
-			if node := state.Nodes[chainNode.NodeID]; node != nil && node.IsRemote == 1 {
-				continue
-			}
 			preparedTargets := h.prepareRuntimeTargetsForOwner(state.TunnelID, chainNode.NodeID, nextTargets, 0)
 			chainData, err := buildTunnelChainConfig(state.TunnelID, chainNode.NodeID, preparedTargets, state.Nodes, state.NodeInstances, state.IPPreference)
 			if err != nil {
@@ -6070,9 +5979,6 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 	}
 
 	for _, outNode := range state.OutNodes {
-		if node := state.Nodes[outNode.NodeID]; node != nil && node.IsRemote == 1 {
-			continue
-		}
 		serviceData := buildTunnelChainServiceConfig(state.TunnelID, outNode, state.Nodes[outNode.NodeID], 1, state.Mode)
 		if err := h.addTunnelServiceOnNode(outNode.NodeID, state.TunnelID, serviceData); err != nil {
 			return createdChains, createdServices, fmt.Errorf("出口节点 %s 下发服务失败: %w", nodeDisplayName(state.Nodes[outNode.NodeID]), err)
@@ -6188,28 +6094,6 @@ func buildTunnelChainConfig(tunnelID int64, fromNodeID int64, targets []tunnelRu
 		if port <= 0 {
 			return nil, errors.New("节点端口不能为空")
 		}
-		if targetNode.IsRemote == 1 {
-			if len(target.Endpoints) == 0 {
-				return nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(targetNode))
-			}
-			before := len(nodeItems)
-			for _, endpoint := range target.Endpoints {
-				host := pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
-				if host == "" && strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
-					host = pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference)
-				}
-				if host == "" || endpoint.Port <= 0 || endpoint.Weight <= 0 {
-					continue
-				}
-				itemIndex++
-				nodeItems = append(nodeItems, buildTunnelChainNodeItem(itemIndex, host, endpoint.Port, target.Protocol, endpoint.Weight))
-			}
-			if len(nodeItems) == before {
-				return nil, fmt.Errorf("远程节点 %s 没有匹配地址族的健康运行端点", nodeDisplayName(targetNode))
-			}
-			continue
-		}
-
 		instances := instancesByNode[target.NodeID]
 		hasEnabledInstance := false
 		for _, inst := range instances {
@@ -6289,26 +6173,6 @@ type federationTargetEndpoint struct {
 func resolveFederationTargetEndpoints(target tunnelRuntimeNode, targetNode *nodeRecord, instances []model.NodeInstance, ipPreference string) ([]federationTargetEndpoint, error) {
 	if targetNode == nil {
 		return nil, errors.New("节点不存在")
-	}
-	if targetNode.IsRemote == 1 {
-		if len(target.Endpoints) == 0 {
-			return nil, fmt.Errorf("远程节点 %s 没有健康运行端点", nodeDisplayName(targetNode))
-		}
-		result := make([]federationTargetEndpoint, 0, len(target.Endpoints))
-		for _, endpoint := range target.Endpoints {
-			host := pickRuntimeEndpointAddress(endpoint, target.ConnectIPType, ipPreference)
-			if host == "" && strings.EqualFold(strings.TrimSpace(target.ConnectIPType), "lan") {
-				host = pickNodeConfiguredTunnelAddress(targetNode, target.ConnectIPType, ipPreference)
-			}
-			if host == "" || endpoint.Port <= 0 || endpoint.Weight <= 0 {
-				continue
-			}
-			result = append(result, federationTargetEndpoint{host: host, port: endpoint.Port})
-		}
-		if len(result) == 0 {
-			return nil, fmt.Errorf("远程节点 %s 没有匹配地址族的健康运行端点", nodeDisplayName(targetNode))
-		}
-		return result, nil
 	}
 	if target.Port <= 0 {
 		return nil, errors.New("节点端口不能为空")
@@ -6731,13 +6595,6 @@ func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[str
 		}
 		port := asInt(n["port"], 0)
 		if port <= 0 {
-			isRemote, remoteErr := h.repo.IsRemoteNodeTx(tx, nodeID)
-			if remoteErr != nil {
-				return remoteErr
-			}
-			if isRemote {
-				return fmt.Errorf("远程出口节点 %d 缺少运行时分配端口", nodeID)
-			}
 			var pickErr error
 			port, pickErr = h.repo.PickRandomNodePortTx(tx, nodeID, allocated, 0)
 			if pickErr != nil {
@@ -6770,13 +6627,6 @@ func (h *Handler) replaceTunnelChainsTx(tx *gorm.DB, tunnelID int64, req map[str
 			}
 			port := asInt(n["port"], 0)
 			if port <= 0 {
-				isRemote, remoteErr := h.repo.IsRemoteNodeTx(tx, nodeID)
-				if remoteErr != nil {
-					return remoteErr
-				}
-				if isRemote {
-					return fmt.Errorf("远程转发链节点 %d 缺少运行时分配端口", nodeID)
-				}
 				var pickErr error
 				port, pickErr = h.repo.PickRandomNodePortTx(tx, nodeID, allocated, 0)
 				if pickErr != nil {

@@ -444,11 +444,6 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 			if limiter.speed == nil || strings.TrimSpace(limiter.name) == "" {
 				continue
 			}
-			// Remote providers own limiter creation and inject their share limiter
-			// while applying the service. The consumer must not call AddLimiters.
-			if !shouldManageLimiterOnNode(node) {
-				continue
-			}
 			if err := h.ensureNamedLimiterOnNode(fp.NodeID, limiter.name, *limiter.speed); err != nil {
 				if isNodeOfflineOrTimeoutError(err) {
 					node, _ := h.getNodeRecord(fp.NodeID)
@@ -1091,6 +1086,7 @@ func (h *Handler) sendRemoteNodeCommandToInstanceWithTimeout(node *nodeRecord, i
 	if timeout > 0 {
 		fc = client.NewFederationClientWithTimeout(timeout)
 	}
+	data = remNamespaceCommandData(node, commandType, data)
 	res, err := fc.Command(remoteURL, remoteToken, h.federationLocalDomain(), client.RuntimeNodeCommandRequest{
 		CommandType: commandType,
 		Data:        data,
@@ -1168,6 +1164,7 @@ func (h *Handler) sendRemoteNodeCommandWithTimeout(node *nodeRecord, commandType
 	if timeout > 0 {
 		fc = client.NewFederationClientWithTimeout(timeout)
 	}
+	data = remNamespaceCommandData(node, commandType, data)
 	res, err := fc.Command(remoteURL, remoteToken, h.federationLocalDomain(), client.RuntimeNodeCommandRequest{
 		CommandType: commandType,
 		Data:        data,

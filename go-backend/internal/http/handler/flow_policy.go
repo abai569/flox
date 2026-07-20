@@ -41,6 +41,16 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 	if serviceName == "" || serviceName == "web_api" {
 		return nil
 	}
+	if shareID, ok := parseRemShareServiceName(serviceName); ok {
+		if item.D+item.U <= 0 {
+			return nil
+		}
+		if err := h.repo.AddPeerShareFlow(shareID, 0, instanceID, item.D, item.U, time.Now()); err != nil {
+			return err
+		}
+		h.publishPeerShareEvent(shareID, "flow_changed")
+		return nil
+	}
 
 	forwardID, userID, userTunnelID, ok := parseFlowServiceIDs(serviceName)
 	if ok {
@@ -69,6 +79,24 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		return nil
 	}
 	return h.processPeerShareFlow(runtimeID, instanceID, item)
+}
+
+func parseRemShareServiceName(serviceName string) (int64, bool) {
+	const prefix = "rem_s"
+	serviceName = strings.TrimSpace(serviceName)
+	if !strings.HasPrefix(serviceName, prefix) {
+		return 0, false
+	}
+	raw := strings.TrimPrefix(serviceName, prefix)
+	idx := strings.IndexByte(raw, '_')
+	if idx <= 0 {
+		return 0, false
+	}
+	shareID, err := strconv.ParseInt(raw[:idx], 10, 64)
+	if err != nil || shareID <= 0 {
+		return 0, false
+	}
+	return shareID, true
 }
 
 func parseFlowServiceIDs(serviceName string) (int64, int64, int64, bool) {
