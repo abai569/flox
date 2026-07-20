@@ -3166,7 +3166,27 @@ export default function UserPage() {
                       ))}
                     </Select>
                   ) : (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <Input
+                        label="触发阈值 (GB)"
+                        min="1"
+                        placeholder="剩余流量低于此值时触发"
+                        step="1"
+                        type="number"
+                        value={
+                          userForm.autoBuyTrafficThreshold > 0
+                            ? userForm.autoBuyTrafficThreshold.toString()
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const value = Number(e.target.value);
+
+                          setUserForm((prev) => ({
+                            ...prev,
+                            autoBuyTrafficThreshold: Math.max(0, value),
+                          }));
+                        }}
+                      />
                       <Input
                         label="每次购买量 (GB)"
                         min="0"
@@ -3209,26 +3229,6 @@ export default function UserPage() {
                       />
                     </div>
                   )}
-                  <Input
-                    label="触发阈值 (GB)"
-                    min="1"
-                    placeholder="剩余流量低于此值时触发"
-                    step="1"
-                    type="number"
-                    value={
-                      userForm.autoBuyTrafficThreshold > 0
-                        ? userForm.autoBuyTrafficThreshold.toString()
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const value = Number(e.target.value);
-
-                      setUserForm((prev) => ({
-                        ...prev,
-                        autoBuyTrafficThreshold: Math.max(0, value),
-                      }));
-                    }}
-                  />
                 </div>
               )}
             </div>
