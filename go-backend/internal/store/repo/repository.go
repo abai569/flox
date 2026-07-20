@@ -1600,14 +1600,15 @@ func (r *Repository) ListUserAccessibleTunnels(userID int64) ([]map[string]inter
 	}
 
 	type row struct {
-		ID           int64
-		Name         string
-		Remark       sql.NullString
-		TrafficRatio float64
+		ID                int64
+		Name              string
+		Remark            sql.NullString
+		TrafficRatio      float64
+		ForwardSpeedLimit sql.NullInt64
 	}
 	var rows []row
 	err := r.db.Model(&model.UserTunnel{}).
-		Select("tunnel.id, tunnel.name, tunnel.remark, tunnel.traffic_ratio").
+		Select("tunnel.id, tunnel.name, tunnel.remark, tunnel.traffic_ratio, user_tunnel.forward_speed_limit").
 		Joins("JOIN tunnel ON tunnel.id = user_tunnel.tunnel_id").
 		Where("user_tunnel.user_id = ? AND tunnel.status = 1", userID).
 		Order("tunnel.inx ASC, tunnel.id ASC").
@@ -1625,10 +1626,14 @@ func (r *Repository) ListUserAccessibleTunnels(userID int64) ([]map[string]inter
 	items := make([]map[string]interface{}, 0, len(rows))
 	for _, rw := range rows {
 		item := map[string]interface{}{
-			"id":           rw.ID,
-			"name":         rw.Name,
-			"remark":       nullableString(rw.Remark),
-			"trafficRatio": rw.TrafficRatio,
+			"id":                rw.ID,
+			"name":              rw.Name,
+			"remark":            nullableString(rw.Remark),
+			"trafficRatio":      rw.TrafficRatio,
+			"forwardSpeedLimit": nil,
+		}
+		if rw.ForwardSpeedLimit.Valid {
+			item["forwardSpeedLimit"] = rw.ForwardSpeedLimit.Int64
 		}
 		if pr, ok := portRangeMap[rw.ID]; ok {
 			item["portRangeMin"] = pr.min

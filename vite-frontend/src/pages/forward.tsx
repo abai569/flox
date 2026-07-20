@@ -182,6 +182,7 @@ interface Tunnel {
   portRangeMax?: number;
   remark?: string;
   trafficRatio?: number;
+  forwardSpeedLimit?: number | null;
 }
 interface ChainTunnel {
   nodeId: number;
@@ -1883,6 +1884,27 @@ export default function ForwardPage() {
 
     return null;
   }, [allTunnels, form.tunnelId]);
+  const currentUserTunnelSpeedLimit = useMemo(() => {
+    if (isAdmin || !form.tunnelId) return 0;
+
+    const limit = allTunnels.find((tunnel) => tunnel.id === form.tunnelId)
+      ?.forwardSpeedLimit;
+
+    return typeof limit === "number" && limit > 0 ? limit : 0;
+  }, [allTunnels, form.tunnelId, isAdmin]);
+  useEffect(() => {
+    if (currentUserTunnelSpeedLimit <= 0) return;
+
+    setForm((prev) =>
+      prev.speedLimit === currentUserTunnelSpeedLimit && prev.speedLimitEnabled
+        ? prev
+        : {
+            ...prev,
+            speedLimit: currentUserTunnelSpeedLimit,
+            speedLimitEnabled: true,
+          },
+    );
+  }, [currentUserTunnelSpeedLimit]);
   const resetManualTunnelState = () => {
     setTunnelSelectMode("existing");
     setEditingOriginalManualTunnelId(null);
@@ -2978,6 +3000,11 @@ export default function ForwardPage() {
     }
     const nextTunnelId = parseInt(tunnelId);
     const options = tunnelInIpOptionMap.get(nextTunnelId) || [];
+    const selectedTunnel = allTunnels.find((tunnel) => tunnel.id === nextTunnelId);
+    const inheritedSpeedLimit =
+      !isAdmin && selectedTunnel?.forwardSpeedLimit && selectedTunnel.forwardSpeedLimit > 0
+        ? selectedTunnel.forwardSpeedLimit
+        : 0;
 
     setTunnelSelectMode("existing");
     setInIpTouched(false);
@@ -2988,6 +3015,9 @@ export default function ForwardPage() {
         ...prev,
         tunnelId: nextTunnelId,
         inIp: tunnelChanged ? "" : options.includes(prev.inIp) ? prev.inIp : "",
+        speedLimit: inheritedSpeedLimit || (tunnelChanged ? 0 : prev.speedLimit),
+        speedLimitEnabled:
+          inheritedSpeedLimit > 0 || (tunnelChanged ? false : prev.speedLimitEnabled),
       };
     });
   };
@@ -6735,6 +6765,7 @@ export default function ForwardPage() {
                         <div className="grid grid-cols-3 gap-2 mb-2">
                           <SpeedLimitConfigField
                             speedLimit={form.speedLimit}
+                            readOnly={currentUserTunnelSpeedLimit > 0}
                             onSpeedLimitChange={(val) =>
                               setForm((prev) => ({
                                 ...prev,
@@ -8575,9 +8606,11 @@ function ConnectionLimitField({
 // ─── Speed Limit Config Field ──────────────────────────────────────────────
 function SpeedLimitConfigField({
   speedLimit,
+  readOnly = false,
   onSpeedLimitChange,
 }: {
   speedLimit: number;
+  readOnly?: boolean;
   onSpeedLimitChange: (val: number) => void;
 }) {
   return (
@@ -8586,6 +8619,7 @@ function SpeedLimitConfigField({
       <Input
         description="留空表示不限制，单位：Mbps"
         placeholder="不限制"
+        readOnly={readOnly}
         type="number"
         value={speedLimit > 0 ? speedLimit.toString() : ""}
         variant="bordered"
