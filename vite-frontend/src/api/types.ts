@@ -97,6 +97,7 @@ export interface TunnelApiItem {
   tunnelGroupId?: number | null;
   tunnelGroupIds?: number[];
   remark?: string;
+  forwardSpeedLimit?: number | null;
   [key: string]: unknown;
 }
 
@@ -299,6 +300,8 @@ export interface UserTunnelPermissionApiItem {
   flowResetTime: number;
   speedId?: number | null;
   speedLimitName?: string;
+  ceilingSpeed?: number | null;
+  forwardSpeedLimit?: number | null;
   inFlow: number;
   outFlow: number;
   tunnelFlow?: number;
@@ -318,7 +321,7 @@ export interface SpeedLimitApiItem {
   id: number;
   name: string;
   speed: number;
-  status: number;
+  status?: number;
   createdTime: string;
   updatedTime: string;
   uploadSpeed?: number;
@@ -660,6 +663,8 @@ export interface ForwardMutationPayload {
   remoteAddr?: string;
   strategy?: string;
   speedId?: number | null;
+  speedLimitEnabled?: boolean;
+  speedLimit?: number;
   maxConnections?: number;
   mode?: string;
 }

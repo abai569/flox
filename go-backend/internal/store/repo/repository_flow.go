@@ -54,17 +54,19 @@ func (r *Repository) ListActiveForwardsByUser(userID int64) ([]model.ForwardReco
 	rows := make([]model.ForwardRecord, 0, len(forwards))
 	for _, f := range forwards {
 		rows = append(rows, model.ForwardRecord{
-			ID:             f.ID,
-			UserID:         f.UserID,
-			UserName:       f.UserName,
-			Name:           f.Name,
-			TunnelID:       f.TunnelID,
-			RemoteAddr:     f.RemoteAddr,
-			Strategy:       f.Strategy,
-			Status:         f.Status,
-			SpeedID:        f.SpeedID,
-			MaxConnections: f.MaxConnections,
-			Mode:           f.Mode,
+			ID:                f.ID,
+			UserID:            f.UserID,
+			UserName:          f.UserName,
+			Name:              f.Name,
+			TunnelID:          f.TunnelID,
+			RemoteAddr:        f.RemoteAddr,
+			Strategy:          f.Strategy,
+			Status:            f.Status,
+			SpeedID:           f.SpeedID,
+			SpeedLimitEnabled: f.SpeedLimitEnabled,
+			SpeedLimit:        f.SpeedLimit,
+			MaxConnections:    f.MaxConnections,
+			Mode:              f.Mode,
 		})
 	}
 	for i := range rows {
@@ -87,17 +89,19 @@ func (r *Repository) ListPausedForwardsByUser(userID int64) ([]model.ForwardReco
 	rows := make([]model.ForwardRecord, 0, len(forwards))
 	for _, f := range forwards {
 		rows = append(rows, model.ForwardRecord{
-			ID:             f.ID,
-			UserID:         f.UserID,
-			UserName:       f.UserName,
-			Name:           f.Name,
-			TunnelID:       f.TunnelID,
-			RemoteAddr:     f.RemoteAddr,
-			Strategy:       f.Strategy,
-			Status:         f.Status,
-			SpeedID:        f.SpeedID,
-			MaxConnections: f.MaxConnections,
-			Mode:           f.Mode,
+			ID:                f.ID,
+			UserID:            f.UserID,
+			UserName:          f.UserName,
+			Name:              f.Name,
+			TunnelID:          f.TunnelID,
+			RemoteAddr:        f.RemoteAddr,
+			Strategy:          f.Strategy,
+			Status:            f.Status,
+			SpeedID:           f.SpeedID,
+			SpeedLimitEnabled: f.SpeedLimitEnabled,
+			SpeedLimit:        f.SpeedLimit,
+			MaxConnections:    f.MaxConnections,
+			Mode:              f.Mode,
 		})
 	}
 	for i := range rows {
@@ -120,17 +124,19 @@ func (r *Repository) ListActiveForwardsByUserTunnel(userID, tunnelID int64) ([]m
 	rows := make([]model.ForwardRecord, 0, len(forwards))
 	for _, f := range forwards {
 		rows = append(rows, model.ForwardRecord{
-			ID:             f.ID,
-			UserID:         f.UserID,
-			UserName:       f.UserName,
-			Name:           f.Name,
-			TunnelID:       f.TunnelID,
-			RemoteAddr:     f.RemoteAddr,
-			Strategy:       f.Strategy,
-			Status:         f.Status,
-			SpeedID:        f.SpeedID,
-			MaxConnections: f.MaxConnections,
-			Mode:           f.Mode,
+			ID:                f.ID,
+			UserID:            f.UserID,
+			UserName:          f.UserName,
+			Name:              f.Name,
+			TunnelID:          f.TunnelID,
+			RemoteAddr:        f.RemoteAddr,
+			Strategy:          f.Strategy,
+			Status:            f.Status,
+			SpeedID:           f.SpeedID,
+			SpeedLimitEnabled: f.SpeedLimitEnabled,
+			SpeedLimit:        f.SpeedLimit,
+			MaxConnections:    f.MaxConnections,
+			Mode:              f.Mode,
 		})
 	}
 	for i := range rows {
@@ -153,17 +159,19 @@ func (r *Repository) ListActiveForwardsByTunnel(tunnelID int64) ([]model.Forward
 	rows := make([]model.ForwardRecord, 0, len(forwards))
 	for _, f := range forwards {
 		rows = append(rows, model.ForwardRecord{
-			ID:             f.ID,
-			UserID:         f.UserID,
-			UserName:       f.UserName,
-			Name:           f.Name,
-			TunnelID:       f.TunnelID,
-			RemoteAddr:     f.RemoteAddr,
-			Strategy:       f.Strategy,
-			Status:         f.Status,
-			SpeedID:        f.SpeedID,
-			MaxConnections: f.MaxConnections,
-			Mode:           f.Mode,
+			ID:                f.ID,
+			UserID:            f.UserID,
+			UserName:          f.UserName,
+			Name:              f.Name,
+			TunnelID:          f.TunnelID,
+			RemoteAddr:        f.RemoteAddr,
+			Strategy:          f.Strategy,
+			Status:            f.Status,
+			SpeedID:           f.SpeedID,
+			SpeedLimitEnabled: f.SpeedLimitEnabled,
+			SpeedLimit:        f.SpeedLimit,
+			MaxConnections:    f.MaxConnections,
+			Mode:              f.Mode,
 		})
 	}
 	for i := range rows {
@@ -186,17 +194,19 @@ func (r *Repository) ListForwardsByUserAndTunnel(userID, tunnelID int64) ([]mode
 	rows := make([]model.ForwardRecord, 0, len(forwards))
 	for _, f := range forwards {
 		rows = append(rows, model.ForwardRecord{
-			ID:             f.ID,
-			UserID:         f.UserID,
-			UserName:       f.UserName,
-			Name:           f.Name,
-			TunnelID:       f.TunnelID,
-			RemoteAddr:     f.RemoteAddr,
-			Strategy:       f.Strategy,
-			Status:         f.Status,
-			SpeedID:        f.SpeedID,
-			MaxConnections: f.MaxConnections,
-			Mode:           f.Mode,
+			ID:                f.ID,
+			UserID:            f.UserID,
+			UserName:          f.UserName,
+			Name:              f.Name,
+			TunnelID:          f.TunnelID,
+			RemoteAddr:        f.RemoteAddr,
+			Strategy:          f.Strategy,
+			Status:            f.Status,
+			SpeedID:           f.SpeedID,
+			SpeedLimitEnabled: f.SpeedLimitEnabled,
+			SpeedLimit:        f.SpeedLimit,
+			MaxConnections:    f.MaxConnections,
+			Mode:              f.Mode,
 		})
 	}
 	for i := range rows {

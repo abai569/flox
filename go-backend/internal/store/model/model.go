@@ -35,7 +35,7 @@ type User struct {
 	AutoBuyTrafficThreshold int64         `gorm:"column:auto_buy_traffic_threshold;default:10"` // 自动购流触发阈值(GB)，默认10
 	BaseFlow                int64         `gorm:"column:base_flow;default:0"`                   // 初始流量配额 (GB)
 	TrafficFlow             int64         `gorm:"column:traffic_flow;default:0"`                // 流量快餐累计 (GB)
-	SpeedLimit              int           `gorm:"column:speed_limit;default:0"`                 // 限速 MB/s (0=不限)
+	SpeedLimit              int           `gorm:"column:speed_limit;default:0"`                 // 限速 Mbps (0=不限)
 	ForwardSpeedLimit       int           `gorm:"column:forward_speed_limit;default:0"`         // 用户级规则限速 Mbps (0=不限)
 	ManualTunnelEnabled     int           `gorm:"column:manual_tunnel_enabled;not null;default:0" json:"manualTunnelEnabled"`
 	MaxRules                int           `gorm:"column:max_rules;default:0"`       // 最大规则数 (0=不限)

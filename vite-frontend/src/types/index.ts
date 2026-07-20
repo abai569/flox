@@ -118,6 +118,7 @@ export interface Tunnel {
 export interface SpeedLimit {
   id: number;
   name: string;
+  status?: number;
   speed?: number;
   uploadSpeed: number;
   downloadSpeed: number;

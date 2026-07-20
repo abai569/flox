@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"database/sql"
 	"errors"
 	"reflect"
 	"testing"
 
+	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 )
 
@@ -236,6 +238,55 @@ func TestValidateForwardPortAvailabilityRejectsOtherForwardOccupancy(t *testing.
 	err = h.validateForwardPortAvailability(&nodeRecord{ID: 9, Name: "test-node"}, 2000, 1)
 	if err != nil {
 		t.Fatalf("same forward should be allowed, got %v", err)
+	}
+}
+
+func TestResolveEffectiveForwardSpeedLimitUsesSmallestPositiveLimit(t *testing.T) {
+	rawRepo, err := repo.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	h := &Handler{repo: rawRepo}
+	if err := rawRepo.DB().Create(&model.User{ID: 1001, User: "limit-user", RoleID: 1, ForwardSpeedLimit: 40, SpeedLimit: 30}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := rawRepo.DB().Create(&model.UserTunnel{ID: 1001, UserID: 1001, TunnelID: 1001, SpeedID: sql.NullInt64{Int64: 1001, Valid: true}, ForwardSpeedLimit: sql.NullInt64{Int64: 20, Valid: true}}).Error; err != nil {
+		t.Fatalf("create user tunnel: %v", err)
+	}
+	if err := rawRepo.DB().Create(&model.SpeedLimit{ID: 1001, Name: "active", Speed: 25, Status: 1}).Error; err != nil {
+		t.Fatalf("create speed limit: %v", err)
+	}
+	if err := rawRepo.DB().Create(&model.SpeedLimit{ID: 1002, Name: "forward", Speed: 22, Status: 1}).Error; err != nil {
+		t.Fatalf("create forward speed limit: %v", err)
+	}
+	limit, enabled := h.resolveEffectiveForwardSpeedLimit(&forwardRecord{
+		UserID:            1001,
+		TunnelID:          1001,
+		SpeedID:           sql.NullInt64{Int64: 1002, Valid: true},
+		SpeedLimitEnabled: true,
+		SpeedLimit:        35,
+	})
+	if !enabled || limit != 20 {
+		t.Fatalf("expected smallest positive limit 20, got enabled=%v limit=%d", enabled, limit)
+	}
+}
+
+func TestNormalizeSpeedLimitReferenceRejectsDisabledAndClearsMissingRule(t *testing.T) {
+	rawRepo, err := repo.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	h := &Handler{repo: rawRepo}
+	if err := rawRepo.DB().Create(&model.SpeedLimit{ID: 1, Name: "disabled", Speed: 10, Status: 0}).Error; err != nil {
+		t.Fatalf("create disabled speed limit: %v", err)
+	}
+	disabledID := int64(1)
+	if _, err := h.normalizeSpeedLimitReference(&disabledID); err == nil {
+		t.Fatal("expected disabled rule to be rejected")
+	}
+	missingID := int64(99)
+	if normalized, err := h.normalizeSpeedLimitReference(&missingID); err != nil || normalized != nil {
+		t.Fatalf("expected missing rule to be cleared, got normalized=%v err=%v", normalized, err)
 	}
 }
 

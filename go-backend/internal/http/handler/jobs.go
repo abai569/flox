@@ -935,6 +935,10 @@ func (h *Handler) expirePackageSubscriptions() {
 		}
 		if err := h.repo.ResetUserPackageQuotas(sub.UserID); err != nil {
 			log.Printf("[packages] 重置用户 %d 配额失败: %v", sub.UserID, err)
+			continue
+		}
+		if err := h.syncUserForwardsEffectiveSpeedLimit(sub.UserID); err != nil {
+			log.Printf("[packages] 同步用户 %d 限速失败: %v", sub.UserID, err)
 		}
 	}
 

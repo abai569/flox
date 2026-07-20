@@ -259,14 +259,6 @@ func (h *Handler) resolveUserTunnelAndLimiter(userID, tunnelID int64) (int64, *i
 	return info.UserTunnelID, info.LimiterID, info.Speed, nil
 }
 
-func (h *Handler) resolveUserTunnelLegacyLimiter(userID, tunnelID int64) (*int64, *int, error) {
-	info, err := h.repo.ResolveUserTunnelSpeedLimit(userID, tunnelID)
-	if err != nil || info == nil {
-		return nil, nil, err
-	}
-	return info.LimiterID, info.Speed, nil
-}
-
 func userTunnelCeilingLimiterName(userTunnelID int64) string {
 	if userTunnelID <= 0 {
 		return ""
@@ -338,46 +330,19 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 			return nil, err
 		}
 	}
-	legacyLimiterID, legacySpeed, err := h.resolveUserTunnelLegacyLimiter(forward.UserID, forward.TunnelID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Apply the per-forward limit and the user-tunnel aggregate limit together.
+	// Apply the effective per-forward limit and the user-tunnel aggregate limit together.
 	var speed *int
 	perForwardLimiterName := ""
 	ceilingLimiterName := ""
 	if utLimiterID != nil && utSpeed != nil && *utSpeed > 0 {
 		ceilingLimiterName = userTunnelCeilingLimiterName(userTunnelID)
 	}
-	inlineLimiterName := forwardInlineSpeedLimiterName(forward.ID)
-
-	if forward.SpeedLimitEnabled && forward.SpeedLimit > 0 {
-		perForwardLimiterName = inlineLimiterName
-		speedVal := forward.SpeedLimit
-		speed = &speedVal
-	}
-
-	if speed == nil && forward.SpeedID.Valid && forward.SpeedID.Int64 > 0 {
-		// Forward has its own speed limit
-		speedVal, err := h.repo.GetSpeedLimitSpeed(forward.SpeedID.Int64)
-		if err == nil && speedVal > 0 {
-			speed = &speedVal
-			perForwardLimiterName = strconv.FormatInt(forward.SpeedID.Int64, 10)
-		}
-	}
-	if speed == nil && legacySpeed != nil && legacyLimiterID != nil {
-		speed = legacySpeed
-		perForwardLimiterName = strconv.FormatInt(*legacyLimiterID, 10)
+	if effective, ok := h.resolveEffectiveForwardSpeedLimit(forward); ok {
+		speed = &effective
+		perForwardLimiterName = forwardInlineSpeedLimiterName(forward.ID)
 	}
 
 	limiterName := combineLimiterNames(ceilingLimiterName, perForwardLimiterName)
-	if speed == nil {
-		// Legacy transports accept one speed value. Use the aggregate ceiling when
-		// no per-forward limit has been selected.
-		speed = utSpeed
-	}
-
 	if tier, _ := middleware.GetLicenseTier(); tier == middleware.TierFree && isPremiumForwardMode(forward.Mode) {
 		return nil, ensureForwardModeAllowedForTier(tier, forward.Mode)
 	}
@@ -417,7 +382,17 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		}
 	}
 	if strings.EqualFold(forward.Mode, forwardModeSDWAN) && tunnel != nil && tunnel.Type == 2 {
-		return h.syncSDWANChainForwardServicesWithWarnings(forward, tunnel, ports, userTunnelID, limiterName, speed)
+		return h.syncSDWANChainForwardServicesWithWarnings(
+			forward,
+			tunnel,
+			ports,
+			userTunnelID,
+			limiterName,
+			ceilingLimiterName,
+			utSpeed,
+			perForwardLimiterName,
+			speed,
+		)
 	}
 	h.syncFloxChainTunnel(forward, tunnel)
 
@@ -462,7 +437,7 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 			continue
 		}
 		if shouldManageLimiterOnNode(node) && strings.TrimSpace(perForwardLimiterName) == "" {
-			_, _ = h.sendNodeCommand(fp.NodeID, "DeleteLimiters", map[string]interface{}{"limiter": inlineLimiterName}, false, true)
+			_, _ = h.sendNodeCommand(fp.NodeID, "DeleteLimiters", map[string]interface{}{"limiter": forwardInlineSpeedLimiterName(forward.ID)}, false, true)
 		}
 
 		services := buildForwardServiceConfigsWithLimiterName(serviceBase, forward, tunnel, node, fp.Port, strings.TrimSpace(fp.InIP), limiterName, tunnelTLSProtocol)

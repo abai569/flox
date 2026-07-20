@@ -169,6 +169,19 @@ const calculateTunnelUsedFlow = (tunnel: UserTunnel): number => {
 };
 const USER_SEARCH_DEBOUNCE_MS = 250;
 const USER_VIEW_MODE_KEY = "user_view_mode";
+const isNoLimitSpeedRule = (
+  speedLimit: SpeedLimit & { status?: number },
+): boolean => {
+  const speeds = [
+    speedLimit.speed,
+    speedLimit.uploadSpeed,
+    speedLimit.downloadSpeed,
+  ].filter((speed): speed is number =>
+    typeof speed === "number" && Number.isFinite(speed),
+  );
+
+  return speeds.length > 0 && speeds.every((speed) => speed <= 0);
+};
 const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
   return {
     id: Number(item.id ?? 0),
@@ -205,7 +218,7 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
         ? undefined
         : Number(item.tunnelGroupId),
     manualTunnelEnabled: item.manualTunnelEnabled === 1 ? 1 : 0,
-    forwardSpeedLimit: item.forwardSpeedLimit ?? null,
+    forwardSpeedLimit: Number(item.forwardSpeedLimit) > 0 ? Number(item.forwardSpeedLimit) : 0,
     quotaHistory: [],
     showHistory: false,
   } as UserWithHistory;
@@ -223,8 +236,9 @@ const normalizeUserTunnelItem = (item: Partial<UserTunnel>): UserTunnel => {
     flowResetTime: Number(item.flowResetTime ?? 0),
     speedId: item.speedId ?? null,
     speedLimitName: item.speedLimitName,
-    ceilingSpeed: item.ceilingSpeed ?? null,
-    forwardSpeedLimit: item.forwardSpeedLimit ?? null,
+    ceilingSpeed: Number(item.ceilingSpeed) > 0 ? Number(item.ceilingSpeed) : null,
+    forwardSpeedLimit:
+      Number(item.forwardSpeedLimit) > 0 ? Number(item.forwardSpeedLimit) : null,
     inFlow: Number(item.inFlow ?? 0),
     outFlow: Number(item.outFlow ?? 0),
     tunnelFlow: item.tunnelFlow,
@@ -602,7 +616,11 @@ export default function UserPage() {
   const noLimitSpeedLimitIds = useMemo(() => {
     return new Set(
       speedLimits
-        .filter((speedLimit) => speedLimit.name.trim() === "不限速")
+        .filter(
+          (speedLimit) =>
+            speedLimit.status === undefined || speedLimit.status === 1,
+        )
+        .filter(isNoLimitSpeedRule)
         .map((speedLimit) => speedLimit.id),
     );
   }, [speedLimits]);
@@ -1411,7 +1429,10 @@ export default function UserPage() {
         expTime: editTunnelForm.expTime,
         speedId: normalizeSpeedId(editTunnelForm.speedId),
         ceilingSpeed: editTunnelForm.ceilingSpeed ?? null,
-        forwardSpeedLimit: editTunnelForm.forwardSpeedLimit ?? null,
+        forwardSpeedLimit:
+          Number(editTunnelForm.forwardSpeedLimit) > 0
+            ? Number(editTunnelForm.forwardSpeedLimit)
+            : null,
         status: editTunnelForm.status,
       });
 
@@ -1429,7 +1450,10 @@ export default function UserPage() {
             ...editTunnelForm,
             speedId: normalizeSpeedId(editTunnelForm.speedId),
             ceilingSpeed: editTunnelForm.ceilingSpeed ?? null,
-            forwardSpeedLimit: editTunnelForm.forwardSpeedLimit ?? null,
+            forwardSpeedLimit:
+              Number(editTunnelForm.forwardSpeedLimit) > 0
+                ? Number(editTunnelForm.forwardSpeedLimit)
+                : null,
             speedLimitName:
               normalizeSpeedId(editTunnelForm.speedId) !== null
                 ? speedLimits.find(
@@ -1481,7 +1505,10 @@ export default function UserPage() {
             expTime: batchEditTunnelForm.expTime,
             speedId,
             ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
-            forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
+            forwardSpeedLimit:
+              Number(batchEditTunnelForm.forwardSpeedLimit) > 0
+                ? Number(batchEditTunnelForm.forwardSpeedLimit)
+                : null,
             status: batchEditTunnelForm.status,
           }),
         ),
@@ -1510,7 +1537,10 @@ export default function UserPage() {
               expTime: batchEditTunnelForm.expTime,
               speedId,
               ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
-              forwardSpeedLimit: batchEditTunnelForm.forwardSpeedLimit ?? null,
+              forwardSpeedLimit:
+                Number(batchEditTunnelForm.forwardSpeedLimit) > 0
+                  ? Number(batchEditTunnelForm.forwardSpeedLimit)
+                  : null,
               status: batchEditTunnelForm.status,
               speedLimitName,
             })
@@ -1855,7 +1885,9 @@ export default function UserPage() {
   };
   const getSpeedLimitsForTunnel = (_tunnelId: number) => {
     return speedLimits.filter(
-      (speedLimit) => !noLimitSpeedLimitIds.has(speedLimit.id),
+      (speedLimit) =>
+        !noLimitSpeedLimitIds.has(speedLimit.id) &&
+        (speedLimit.status === undefined || speedLimit.status === 1),
     );
   };
   const toggleTunnelSelection = (tunnelId: number) => {
@@ -2998,20 +3030,29 @@ export default function UserPage() {
               <Input
                 description=""
                 label="规则限速"
-                placeholder="用户级限速 留空不限"
-                min="0"
+                placeholder="正整数 Mbps，留空不限"
+                min="1"
+                step="1"
                 type="number"
                 value={
                   userForm.forwardSpeedLimit > 0
                     ? String(userForm.forwardSpeedLimit)
                     : ""
                 }
-                onChange={(e) =>
-                  setUserForm((prev) => ({
-                    ...prev,
-                    forwardSpeedLimit: Math.max(Number(e.target.value) || 0, 0),
-                  }))
-                }
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+
+                  if (raw === "") {
+                    setUserForm((prev) => ({ ...prev, forwardSpeedLimit: 0 }));
+
+                    return;
+                  }
+                  const speed = Number(raw);
+
+                  if (Number.isInteger(speed) && speed > 0) {
+                    setUserForm((prev) => ({ ...prev, forwardSpeedLimit: speed }));
+                  }
+                }}
               />
               <Input
                 description=""
@@ -4000,13 +4041,13 @@ export default function UserPage() {
                             <TableCell>
                               <div className="flex flex-col gap-0.5 text-xs sm:text-sm">
                                 <span className="text-default-600">
-                                  {userTunnel.ceilingSpeed != null
-                                    ? `${userTunnel.ceilingSpeed}M`
+                                  {userTunnel.ceilingSpeed != null && userTunnel.ceilingSpeed > 0
+                                    ? `${userTunnel.ceilingSpeed} Mbps`
                                     : "不限速"}
                                 </span>
-                                {userTunnel.forwardSpeedLimit != null && (
+                                {userTunnel.forwardSpeedLimit != null && userTunnel.forwardSpeedLimit > 0 && (
                                   <span className="text-primary-600 bg-primary-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
-                                    规则 {userTunnel.forwardSpeedLimit}M
+                                    规则 {userTunnel.forwardSpeedLimit} Mbps
                                   </span>
                                 )}
                               </div>
@@ -4252,6 +4293,8 @@ export default function UserPage() {
                     label="隧道限速阈值 (Mbps)"
                     placeholder="不限速"
                     type="number"
+                    min="1"
+                    step="1"
                     value={
                       batchEditTunnelForm.ceilingSpeed != null
                         ? String(batchEditTunnelForm.ceilingSpeed)
@@ -4265,10 +4308,14 @@ export default function UserPage() {
                         prev
                           ? {
                             ...prev,
-                            ceilingSpeed:
-                              raw === "" || Number(raw) <= 0
-                                ? null
-                                : Number(raw),
+                            ceilingSpeed: (() => {
+                              if (raw === "") return null;
+                              const speed = Number(raw);
+
+                              return Number.isInteger(speed) && speed > 0
+                                ? speed
+                                : prev.ceilingSpeed;
+                            })(),
                           }
                           : null,
                       );
@@ -4278,6 +4325,8 @@ export default function UserPage() {
                     label="规则限速 (Mbps)"
                     placeholder="留空允许用户自定义"
                     type="number"
+                    min="1"
+                    step="1"
                     value={
                       batchEditTunnelForm.forwardSpeedLimit != null
                         ? String(batchEditTunnelForm.forwardSpeedLimit)
@@ -4291,10 +4340,14 @@ export default function UserPage() {
                         prev
                           ? {
                             ...prev,
-                            forwardSpeedLimit:
-                              raw === "" || Number(raw) <= 0
-                                ? null
-                                : Number(raw),
+                            forwardSpeedLimit: (() => {
+                              if (raw === "") return null;
+                              const speed = Number(raw);
+
+                              return Number.isInteger(speed) && speed > 0
+                                ? speed
+                                : prev.forwardSpeedLimit;
+                            })(),
                           }
                           : null,
                       );
@@ -4406,6 +4459,8 @@ export default function UserPage() {
                     label="隧道限速阈值 (Mbps)"
                     placeholder="不限速"
                     type="number"
+                    min="1"
+                    step="1"
                     value={
                       editTunnelForm.ceilingSpeed != null
                         ? String(editTunnelForm.ceilingSpeed)
@@ -4419,10 +4474,14 @@ export default function UserPage() {
                         prev
                           ? {
                             ...prev,
-                            ceilingSpeed:
-                              raw === "" || Number(raw) <= 0
-                                ? null
-                                : Number(raw),
+                            ceilingSpeed: (() => {
+                              if (raw === "") return null;
+                              const speed = Number(raw);
+
+                              return Number.isInteger(speed) && speed > 0
+                                ? speed
+                                : prev.ceilingSpeed;
+                            })(),
                           }
                           : null,
                       );
@@ -4432,6 +4491,8 @@ export default function UserPage() {
                     label="规则限速 (Mbps)"
                     placeholder="留空允许用户自定义"
                     type="number"
+                    min="1"
+                    step="1"
                     value={
                       editTunnelForm.forwardSpeedLimit != null
                         ? String(editTunnelForm.forwardSpeedLimit)
@@ -4445,10 +4506,14 @@ export default function UserPage() {
                         prev
                           ? {
                             ...prev,
-                            forwardSpeedLimit:
-                              raw === "" || Number(raw) <= 0
-                                ? null
-                                : Number(raw),
+                            forwardSpeedLimit: (() => {
+                              if (raw === "") return null;
+                              const speed = Number(raw);
+
+                              return Number.isInteger(speed) && speed > 0
+                                ? speed
+                                : prev.forwardSpeedLimit;
+                            })(),
                           }
                           : null,
                       );

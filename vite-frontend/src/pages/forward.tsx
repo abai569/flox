@@ -134,6 +134,17 @@ const getForwardModeEnabledState = () => ({
 const MANUAL_TUNNEL_SELECT_KEY = "__manual__";
 const MANUAL_TUNNEL_REMARK = "自行组建隧道";
 const LEGACY_MANUAL_TUNNEL_REMARK = "自行组建隧道";
+const isNoLimitSpeedRule = (speedLimit: SpeedLimitApiItem): boolean => {
+  const speeds = [
+    speedLimit.speed,
+    speedLimit.uploadSpeed,
+    speedLimit.downloadSpeed,
+  ].filter((speed): speed is number =>
+    typeof speed === "number" && Number.isFinite(speed),
+  );
+
+  return speeds.length > 0 && speeds.every((speed) => speed <= 0);
+};
 
 interface Forward {
   id: number;
@@ -2735,11 +2746,11 @@ export default function ForwardPage() {
   const noLimitSpeedLimitIds = useMemo(() => {
     return new Set(
       speedLimits
-        .filter((speedLimit) => {
-          const name = speedLimit.name || "";
-
-          return name.includes("不限速") || speedLimit.speed === 0;
-        })
+        .filter(
+          (speedLimit) =>
+            speedLimit.status === undefined || speedLimit.status === 1,
+        )
+        .filter(isNoLimitSpeedRule)
         .map((speedLimit) => speedLimit.id),
     );
   }, [speedLimits]);
@@ -3230,8 +3241,8 @@ export default function ForwardPage() {
           maxConnections: form.maxConnections,
           trafficLimit: form.trafficLimit,
           expiryTime: form.expiryTime,
-          speedLimitEnabled: form.speedLimitEnabled,
-          speedLimit: form.speedLimit,
+          speedLimitEnabled: form.speedLimit > 0,
+          speedLimit: form.speedLimit > 0 ? form.speedLimit : 0,
           mode: form.mode,
         };
 
@@ -3248,8 +3259,8 @@ export default function ForwardPage() {
           maxConnections: form.maxConnections,
           trafficLimit: form.trafficLimit,
           expiryTime: form.expiryTime,
-          speedLimitEnabled: form.speedLimitEnabled,
-          speedLimit: form.speedLimit,
+          speedLimitEnabled: form.speedLimit > 0,
+          speedLimit: form.speedLimit > 0 ? form.speedLimit : 0,
           mode: form.mode,
         };
 
@@ -8690,15 +8701,26 @@ function SpeedLimitConfigField({
       <span className="text-sm font-medium text-foreground">速度限制</span>
       <Input
         description="留空表示不限制，单位：Mbps"
-        placeholder="不限制"
+        placeholder="正整数 Mbps，留空不限"
         readOnly={readOnly}
         type="number"
+        min="1"
+        step="1"
         value={speedLimit > 0 ? speedLimit.toString() : ""}
         variant="bordered"
         onChange={(e) => {
-          const val = parseInt(e.target.value, 10);
+          const raw = e.target.value.trim();
 
-          onSpeedLimitChange(isNaN(val) || val < 0 ? 0 : val);
+          if (raw === "") {
+            onSpeedLimitChange(0);
+
+            return;
+          }
+          const speed = Number(raw);
+
+          if (Number.isInteger(speed) && speed > 0) {
+            onSpeedLimitChange(speed);
+          }
         }}
       />
     </div>
