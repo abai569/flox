@@ -291,6 +291,10 @@ func combineLimiterNames(names ...string) string {
 	return strings.Join(result, ",")
 }
 
+func shouldManageLimiterOnNode(node *nodeRecord) bool {
+	return node != nil && node.IsRemote != 1
+}
+
 func (h *Handler) listUserTunnelIDs(userID, tunnelID int64) ([]int64, error) {
 	return h.repo.ListUserTunnelIDs(userID, tunnelID)
 }
@@ -424,6 +428,10 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 	}
 
 	for _, fp := range ports {
+		node, err := h.getNodeRecord(fp.NodeID)
+		if err != nil {
+			return nil, err
+		}
 		limiters := []struct {
 			name  string
 			speed *int
@@ -434,6 +442,11 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		nodeOffline := false
 		for _, limiter := range limiters {
 			if limiter.speed == nil || strings.TrimSpace(limiter.name) == "" {
+				continue
+			}
+			// Remote providers own limiter creation and inject their share limiter
+			// while applying the service. The consumer must not call AddLimiters.
+			if !shouldManageLimiterOnNode(node) {
 				continue
 			}
 			if err := h.ensureNamedLimiterOnNode(fp.NodeID, limiter.name, *limiter.speed); err != nil {
@@ -453,14 +466,10 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		if nodeOffline {
 			continue
 		}
-		if strings.TrimSpace(perForwardLimiterName) == "" {
+		if shouldManageLimiterOnNode(node) && strings.TrimSpace(perForwardLimiterName) == "" {
 			_, _ = h.sendNodeCommand(fp.NodeID, "DeleteLimiters", map[string]interface{}{"limiter": inlineLimiterName}, false, true)
 		}
 
-		node, err := h.getNodeRecord(fp.NodeID)
-		if err != nil {
-			return nil, err
-		}
 		services := buildForwardServiceConfigsWithLimiterName(serviceBase, forward, tunnel, node, fp.Port, strings.TrimSpace(fp.InIP), limiterName, tunnelTLSProtocol)
 		if handled, instanceWarnings, instanceErr := h.syncForwardServicesOnNodeInstances(forward, node, fp.Port, method, services, allowFallbackAdd); handled {
 			warnings = append(warnings, instanceWarnings...)
@@ -2994,6 +3003,13 @@ func (h *Handler) ensureForwardDynamicLimiter(forward *forwardRecord, limiterNam
 
 // Deprecated: 动态限速器已废弃，统一使用 speed_id 限速规则。
 func (h *Handler) ensureDynamicLimiterOnNode(nodeID int64, limiterName string, speedLimit int) error {
+	node, err := h.getNodeRecord(nodeID)
+	if err != nil {
+		return err
+	}
+	if !shouldManageLimiterOnNode(node) {
+		return nil
+	}
 	var limits []string
 	if speedLimit > 0 {
 		speedMB := float64(speedLimit) / 8.0
@@ -3034,7 +3050,7 @@ func (h *Handler) deleteForwardDynamicLimiter(forward *forwardRecord) {
 
 	for _, fp := range ports {
 		node, err := h.getNodeRecord(fp.NodeID)
-		if err != nil {
+		if err != nil || !shouldManageLimiterOnNode(node) {
 			continue
 		}
 		_, _ = h.sendNodeCommand(node.ID, "DeleteLimiters", map[string]interface{}{

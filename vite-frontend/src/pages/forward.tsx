@@ -2066,16 +2066,18 @@ export default function ForwardPage() {
       const groupColor = isRemote
         ? "#a855f7"
         : ((group as any)?.color as string | undefined);
+      const displayName = formatRemoteDisplayText(node.name);
+      const hasRemoteSuffix = /\s\(Rem\)$/i.test(displayName);
 
       return (
         <SelectItem
           key={node.id}
-          textValue={isRemote ? `${node.name || ""} (Rem)` : node.name || ""}
+          textValue={isRemote ? `${displayName}${hasRemoteSuffix ? "" : " (Rem)"}` : displayName}
         >
           <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
             <span className="w-full min-w-0 truncate text-left">
-              {formatRemoteDisplayText(node.name)}
-              {isRemote && <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">(Rem)</span>}
+              {displayName}
+              {isRemote && !hasRemoteSuffix && <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">(Rem)</span>}
               {used.has(node.id) && (
                 <span className="ml-1 text-[11px] text-primary-600">已选</span>
               )}

@@ -4966,6 +4966,13 @@ func (h *Handler) syncReferencedSpeedLimit(id int64, forwardIDs []int64, enabled
 
 	name := strconv.FormatInt(id, 10)
 	for nodeID := range nodes {
+		node, nodeErr := h.getNodeRecord(nodeID)
+		if nodeErr != nil {
+			return nodeErr
+		}
+		if !shouldManageLimiterOnNode(node) {
+			continue
+		}
 		var err error
 		if enabled {
 			err = h.upsertNamedLimiterOnNode(nodeID, name, speed)

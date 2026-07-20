@@ -51,6 +51,7 @@ import {
 } from "@/shadcn-bridge/heroui/table";
 import { StatusDot } from "@/components/status-dot";
 import { CountryFlag } from "@/components/country-flag";
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 import {
   DistroIcon,
   parseDistroFromVersion,
@@ -1428,8 +1429,8 @@ function SortableTableRow({
               copyToClipboard(node.name, "节点名称");
             }}
           >
-            {node.name}
-            {node.isRemote === 1 && (
+            {formatRemoteDisplayText(node.name)}
+            {node.isRemote === 1 && !/\s\(Rem\)$/i.test(formatRemoteDisplayText(node.name)) && (
               <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">(Rem)</span>
             )}
           </span>

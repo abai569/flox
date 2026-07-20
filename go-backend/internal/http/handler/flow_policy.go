@@ -644,6 +644,10 @@ func (h *Handler) cleanOrphanedChains(nodeID int64, chains []namedConfigItem) {
 }
 
 func (h *Handler) cleanOrphanedLimiters(nodeID int64, limiters []namedConfigItem) {
+	node, err := h.getNodeRecord(nodeID)
+	if err != nil || !shouldManageLimiterOnNode(node) {
+		return
+	}
 	for _, item := range limiters {
 		name := strings.TrimSpace(item.Name)
 		if name == "" || h.speedLimiterExists(name) {

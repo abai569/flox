@@ -443,6 +443,18 @@ func TestBuildLimiterAddPayloadByNameUsesMbpsAsBytesPerSecond(t *testing.T) {
 		t.Fatalf("expected 10 Mbps to become 1250000 bytes/s, got %q", limits[0])
 	}
 }
+
+func TestShouldManageLimiterOnNodeRejectsRemoteProvider(t *testing.T) {
+	if shouldManageLimiterOnNode(nil) {
+		t.Fatal("expected nil node to skip limiter management")
+	}
+	if shouldManageLimiterOnNode(&nodeRecord{IsRemote: 1}) {
+		t.Fatal("expected remote node to skip limiter management")
+	}
+	if !shouldManageLimiterOnNode(&nodeRecord{}) {
+		t.Fatal("expected local node to manage limiters")
+	}
+}
 func TestBuildForwardServiceConfigs_BindIPAlreadyContainsPort(t *testing.T) {
 	forward := &forwardRecord{RemoteAddr: "1.2.3.4:80", Strategy: "fifo", TunnelID: 7}
 	node := &nodeRecord{TCPListenAddr: "[::]", UDPListenAddr: "[::]"}
