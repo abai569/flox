@@ -2167,16 +2167,6 @@ func (r *Repository) CreatePeerShareWithInstances(share *model.PeerShare, instan
 			if len(instances) != len(instanceIDs) {
 				return errors.New("one or more share instances no longer exist")
 			}
-			healthy := 0
-			for i := range instances {
-				instance := &instances[i]
-				if instance.Status == 1 && instance.Weight > 0 && (!instance.ExpiryTime.Valid || instance.ExpiryTime.Int64 <= 0 || instance.ExpiryTime.Int64 > share.CreatedTime) {
-					healthy++
-				}
-			}
-			if healthy < share.MinHealthyInstances {
-				return errors.New("healthy instance count is below minHealthyInstances")
-			}
 		}
 		if err := tx.Create(share).Error; err != nil {
 			return err
