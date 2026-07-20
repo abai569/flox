@@ -5519,8 +5519,8 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		if node == nil {
 			return nil, errors.New("节点不存在")
 		}
-		if node.Status != 1 {
-			return nil, errors.New("部分节点不在线")
+		if node.IsRemote != 1 && node.Status != 1 {
+			return nil, fmt.Errorf("节点 %s 不在线", nodeDisplayName(node))
 		}
 		state.Nodes[nodeID] = node
 	}
