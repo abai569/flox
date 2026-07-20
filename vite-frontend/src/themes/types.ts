@@ -201,7 +201,6 @@ export type PageKey =
   | "TunnelPage"
   | "NodePage"
   | "UserPage"
-  | "LimitPage"
   | "ConfigPage"
   | "PanelSharingPage"
   | "SettingsPage"
