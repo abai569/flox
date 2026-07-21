@@ -547,6 +547,31 @@ func (r *Repository) ResetNodeInstancesTotalFlowByNode(nodeID int64) error {
 		}).Error
 }
 
+func (r *Repository) ResetNodeInstanceRuntimeTrafficByNode(nodeID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if nodeID <= 0 {
+		return nil
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.NodeInstance{}).
+			Where("node_id = ?", nodeID).
+			Updates(map[string]interface{}{
+				"net_in_bytes": 0, "net_out_bytes": 0,
+				"period_rx": 0, "period_tx": 0,
+			}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.NodeMetric{}).
+			Where("node_id = ? AND timestamp = (SELECT MAX(nm.timestamp) FROM node_metric nm WHERE nm.node_id = node_metric.node_id AND nm.instance_id = node_metric.instance_id)", nodeID).
+			Updates(map[string]interface{}{
+				"net_in_bytes": 0, "net_out_bytes": 0,
+				"period_rx": 0, "period_tx": 0,
+			}).Error
+	})
+}
+
 func (r *Repository) UpdateNodeInstanceTrafficNotifiedMask(nodeID int64, instanceID string, mask int) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")

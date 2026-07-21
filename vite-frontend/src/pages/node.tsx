@@ -573,6 +573,25 @@ const aggregateRealtimeNodeMetrics = (
       : fallback?.periodTraffic,
   };
 };
+
+const resetRealtimeNodeInstanceMetrics = (
+  instanceMetrics: Record<string, RealtimeNodeInstanceMetric>,
+  nodeIDs: Set<number>,
+) => {
+  const next = { ...instanceMetrics };
+  for (const [key, metric] of Object.entries(next)) {
+    if (!nodeIDs.has(metric.nodeId)) continue;
+    next[key] = {
+      ...metric,
+      periodTraffic: {
+        ...(metric.periodTraffic ?? { since: 0 }),
+        tx: 0,
+        rx: 0,
+      },
+    };
+  }
+  return next;
+};
 const SortableItem = ({
   id,
   disabled,
@@ -2137,6 +2156,14 @@ export default function NodePage() {
             },
           };
         });
+        setRealtimeNodeInstanceMetrics((prev) => {
+          const next = resetRealtimeNodeInstanceMetrics(
+            prev,
+            new Set([nodeToReset.id]),
+          );
+          realtimeNodeInstanceMetricsRef.current = next;
+          return next;
+        });
         // 静默刷新节点列表，保持当前滚动位置
         await loadNodes({ silent: true });
       } else {
@@ -2593,9 +2620,12 @@ export default function NodePage() {
 
       if (res.code === 0) {
         const successCount = res.data?.filter((r) => r.success).length || 0;
-        const successfulIds = new Set(
-          (res.data || []).filter((r) => r.success).map((r) => r.nodeId),
-        );
+        const successfulIds = new Set<number>();
+        for (const result of res.data || []) {
+          if (result.success && result.nodeId !== undefined) {
+            successfulIds.add(result.nodeId);
+          }
+        }
 
         toast.success(
           `已成功归零 ${successCount}/${selectedLocalIds.length} 个节点的流量统计`,
@@ -2616,6 +2646,11 @@ export default function NodePage() {
               },
             };
           }
+          return next;
+        });
+        setRealtimeNodeInstanceMetrics((prev) => {
+          const next = resetRealtimeNodeInstanceMetrics(prev, successfulIds);
+          realtimeNodeInstanceMetricsRef.current = next;
           return next;
         });
         await loadNodes({ silent: true });

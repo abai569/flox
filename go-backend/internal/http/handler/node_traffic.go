@@ -341,6 +341,7 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 		_ = h.repo.ResetNodeTotalFlow(nodeID)
 		_ = h.repo.ResetNodeInstanceTrafficNotifiedMasksByNode(nodeID)
 		_ = h.repo.ResetNodeInstancesTotalFlowByNode(nodeID)
+		_ = h.repo.ResetNodeInstanceRuntimeTrafficByNode(nodeID)
 		h.deleteNodeTrafficCacheEntries(nodeID)
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
@@ -404,6 +405,7 @@ func (h *Handler) nodeResetTotalFlow(w http.ResponseWriter, r *http.Request) {
 	_ = h.repo.UpdateNodeTrafficNotifiedMask(req.NodeID, 0)
 	_ = h.repo.ResetNodeInstanceTrafficNotifiedMasksByNode(req.NodeID)
 	_ = h.repo.ResetNodeInstancesTotalFlowByNode(req.NodeID)
+	_ = h.repo.ResetNodeInstanceRuntimeTrafficByNode(req.NodeID)
 	h.deleteNodeTrafficCacheEntries(req.NodeID)
 
 	h.sendBotNotification(func(bot *telegram.Bot) {
