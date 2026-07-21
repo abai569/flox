@@ -49,11 +49,17 @@ function useModalContext() {
   return React.useContext(ModalContext);
 }
 
-type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "full";
+type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "5xl" |  "6xl" |  "7xl" |  "full";
 
 function mapSize(size: ModalSize | undefined) {
+  if (size === "xs") {
+    return "max-w-xs";
+  }
   if (size === "sm") {
     return "max-w-md";
+  }
+  if (size === "md") {
+    return "max-w-lg";
   }
   if (size === "lg") {
     return "max-w-2xl";
@@ -62,10 +68,20 @@ function mapSize(size: ModalSize | undefined) {
     return "max-w-3xl";
   }
   if (size === "2xl") {
+    return "max-w-4xl";
+  }
+  if (size === "3xl") {
     return "max-w-5xl";
   }
   if (size === "4xl") {
     return "max-w-6xl";
+  }
+  //  新增 5xl 对应 max-w-7xl (1280px)，刚好塞下你的 1110px 大表格
+  if (size === "5xl") {
+    return "max-w-7xl";
+  }
+  if (size === "6xl" || size === "7xl") {
+    return "max-w-[1400px]";
   }
   if (size === "full") {
     return "w-[95vw] max-w-[95vw] h-[95vh] max-h-[95vh]";
