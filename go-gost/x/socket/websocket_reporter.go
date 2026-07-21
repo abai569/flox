@@ -1120,17 +1120,22 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 	lastNetTime = now
 	connInfo := w.getAgentConnectionInfo(serviceConnections)
 
-	// 计算周期流量
+	// Node traffic is FLOX business traffic. Host NIC counters remain available
+	// for speed fallback but must not be used for quota or billing.
+	businessUp, businessDown, periodUp, periodDown := service.GetGlobalTrafficManager().BusinessTraffic()
 	var periodRX, periodTX uint64
 	var baselineRecordedAt, nextResetAt int64
 	var renewalCycle string
 
 	if bm := traffic.GetManager(); bm != nil {
 		// 检查并执行自动归零
-		bm.CheckAndAutoReset(networkStats.BytesReceived, networkStats.BytesTransmitted)
+		if _, reset := bm.CheckAndAutoReset(networkStats.BytesReceived, networkStats.BytesTransmitted); reset {
+			service.GetGlobalTrafficManager().ResetBusinessTraffic()
+			_, _, periodUp, periodDown = service.GetGlobalTrafficManager().BusinessTraffic()
+		}
 
 		// 计算周期流量
-		periodRX, periodTX = bm.CalculatePeriodTraffic(networkStats.BytesReceived, networkStats.BytesTransmitted)
+		periodRX, periodTX = periodDown, periodUp
 
 		// 获取基线信息
 		if baseline := bm.GetCurrentBaseline(); baseline != nil {
@@ -1140,16 +1145,15 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 		}
 	} else {
 		// 基线管理器未初始化，使用原始流量
-		periodRX = networkStats.BytesReceived
-		periodTX = networkStats.BytesTransmitted
+		periodRX, periodTX = periodDown, periodUp
 	}
 	hostname, _ := os.Hostname()
 	publicIPV4, publicIPV6 := w.getCachedPublicIPs()
 
 	return SystemInfo{
 		Uptime:                 getUptime(),
-		BytesReceived:          networkStats.BytesReceived,
-		BytesTransmitted:       networkStats.BytesTransmitted,
+		BytesReceived:          businessDown,
+		BytesTransmitted:       businessUp,
 		PeriodBytesReceived:    periodRX,
 		PeriodBytesTransmitted: periodTX,
 		BaselineRecordedAt:     baselineRecordedAt,
@@ -1210,8 +1214,6 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 				var delta uint64
 				if total > prev {
 					delta = total - prev
-				} else if total < prev {
-					delta = total
 				}
 				if delta > 0 {
 					deltas = append(deltas, deltaEntry{
@@ -1276,8 +1278,6 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 			var delta uint64
 			if total > prev {
 				delta = total - prev
-			} else if total < prev {
-				delta = total
 			}
 			if delta > 0 {
 				deltas = append(deltas, deltaEntry{
@@ -2069,7 +2069,9 @@ func (w *WebSocketReporter) handleResetTraffic(data interface{}) error {
 		return fmt.Errorf("基线管理器未初始化")
 	}
 
-	// 获取当前网卡流量
+	service.GetGlobalTrafficManager().ResetBusinessTraffic()
+
+	// Keep the host baseline in sync for host monitoring compatibility.
 	networkStats := getNetworkStats()
 
 	// 创建手动归零基线（归档当前周期，创建新周期）

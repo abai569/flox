@@ -130,6 +130,9 @@ func main() {
 	if config.ServiceName != "" {
 		configDir = "/etc/" + config.ServiceName
 	}
+	if err := service.ConfigureBusinessTrafficState(configDir + "/business_traffic.json"); err != nil {
+		fmt.Printf("⚠️ 恢复业务流量状态失败：%v\n", err)
+	}
 
 	// 启动时检查基线文件是否存在，不存在则创建初始基线
 	baselinePath := configDir + "/traffic_baseline.json"
@@ -170,7 +173,7 @@ func main() {
 	fullVersion := fmt.Sprintf("%s (%s/%s)", version, distro, runtime.GOARCH)
 	wsReporter := socket.StartWebSocketReporterWithConfig(config.Addr, config.Secret, config.BlockHttp, config.BlockTls, config.BlockSocks, config.BlockOtherPorts, fullVersion, config.NodeID, config.InstanceID)
 	defer wsReporter.Stop()
-	service.SetHTTPReportURL(config.Addr, config.Secret)
+	service.SetHTTPReportURL(config.Addr, config.Secret, config.InstanceID)
 
 	p := &program{}
 	if err := svc.Run(p); err != nil {

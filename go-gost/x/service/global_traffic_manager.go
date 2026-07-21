@@ -2,18 +2,26 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
 
 // GlobalTrafficManager 全局流量管理器（所有服务共享）
 type GlobalTrafficManager struct {
-	mu            sync.RWMutex
-	serviceTraffic map[string]*ServiceTraffic // key: 服务名, value: 流量数据
-	ctx           context.Context
-	cancel        context.CancelFunc
-	reportTicker  *time.Ticker
+	mu                sync.RWMutex
+	serviceTraffic    map[string]*ServiceTraffic // key: 服务名, value: 流量数据
+	totalUpBytes      uint64
+	totalDownBytes    uint64
+	baselineUpBytes   uint64
+	baselineDownBytes uint64
+	statePath         string
+	ctx               context.Context
+	cancel            context.CancelFunc
+	reportTicker      *time.Ticker
 }
 
 // ServiceTraffic 单个服务的流量累积
@@ -22,6 +30,19 @@ type ServiceTraffic struct {
 	ServiceName string
 	UpBytes     int64 // 上行流量（累积）
 	DownBytes   int64 // 下行流量（累积）
+}
+
+type businessTrafficState struct {
+	TotalUpBytes      uint64                    `json:"total_up_bytes"`
+	TotalDownBytes    uint64                    `json:"total_down_bytes"`
+	BaselineUpBytes   uint64                    `json:"baseline_up_bytes"`
+	BaselineDownBytes uint64                    `json:"baseline_down_bytes"`
+	Pending           map[string]pendingTraffic `json:"pending"`
+}
+
+type pendingTraffic struct {
+	UpBytes   int64 `json:"up_bytes"`
+	DownBytes int64 `json:"down_bytes"`
 }
 
 var (
@@ -45,6 +66,43 @@ func GetGlobalTrafficManager() *GlobalTrafficManager {
 	return globalManager
 }
 
+// ConfigureBusinessTrafficState restores and persists business counters and
+// pending reports across agent restarts.
+func ConfigureBusinessTrafficState(path string) error {
+	m := GetGlobalTrafficManager()
+	path = filepath.Clean(path)
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	m.mu.Lock()
+	m.statePath = path
+	if len(data) > 0 {
+		var state businessTrafficState
+		if err := json.Unmarshal(data, &state); err != nil {
+			m.mu.Unlock()
+			return err
+		}
+		m.totalUpBytes = state.TotalUpBytes
+		m.totalDownBytes = state.TotalDownBytes
+		m.baselineUpBytes = state.BaselineUpBytes
+		m.baselineDownBytes = state.BaselineDownBytes
+		for name, pending := range state.Pending {
+			if pending.UpBytes == 0 && pending.DownBytes == 0 {
+				continue
+			}
+			m.serviceTraffic[name] = &ServiceTraffic{
+				ServiceName: name,
+				UpBytes:     pending.UpBytes,
+				DownBytes:   pending.DownBytes,
+			}
+		}
+	}
+	m.mu.Unlock()
+	return nil
+}
+
 // AddTraffic 添加流量到指定服务（由各服务调用）
 func (m *GlobalTrafficManager) AddTraffic(serviceName string, upBytes, downBytes int64) {
 	if upBytes == 0 && downBytes == 0 {
@@ -53,6 +111,12 @@ func (m *GlobalTrafficManager) AddTraffic(serviceName string, upBytes, downBytes
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if upBytes > 0 {
+		m.totalUpBytes += uint64(upBytes)
+	}
+	if downBytes > 0 {
+		m.totalDownBytes += uint64(downBytes)
+	}
 
 	// 获取或创建服务流量记录
 	traffic, exists := m.serviceTraffic[serviceName]
@@ -68,6 +132,39 @@ func (m *GlobalTrafficManager) AddTraffic(serviceName string, upBytes, downBytes
 	traffic.UpBytes += upBytes
 	traffic.DownBytes += downBytes
 	traffic.mu.Unlock()
+}
+
+// BusinessTraffic returns this agent instance's FLOX service traffic. The
+// cumulative values are monotonic for the process lifetime; period values use
+// the latest explicit reset as their baseline.
+func (m *GlobalTrafficManager) BusinessTraffic() (up, down, periodUp, periodDown uint64) {
+	if m == nil {
+		return
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	up = m.totalUpBytes
+	down = m.totalDownBytes
+	if up >= m.baselineUpBytes {
+		periodUp = up - m.baselineUpBytes
+	}
+	if down >= m.baselineDownBytes {
+		periodDown = down - m.baselineDownBytes
+	}
+	return
+}
+
+// ResetBusinessTraffic starts a new business traffic period without touching
+// pending HTTP report deltas.
+func (m *GlobalTrafficManager) ResetBusinessTraffic() {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.baselineUpBytes = m.totalUpBytes
+	m.baselineDownBytes = m.totalDownBytes
+	m.mu.Unlock()
+	m.persistState()
 }
 
 // startReporting 启动定时上报协程（每5秒执行一次）
@@ -87,8 +184,9 @@ func (m *GlobalTrafficManager) startReporting() {
 
 // collectAndReport 收集所有服务流量并合并上报
 func (m *GlobalTrafficManager) collectAndReport() {
+	defer m.persistState()
 	m.mu.Lock()
-	
+
 	// 如果没有流量，直接返回
 	if len(m.serviceTraffic) == 0 {
 		m.mu.Unlock()
@@ -126,7 +224,7 @@ func (m *GlobalTrafficManager) collectAndReport() {
 	// 构建上报数据数组（保持每个服务独立）
 	reportItems := make([]TrafficReportItem, 0, len(reportData))
 	var totalUp, totalDown int64
-	
+
 	for serviceName, data := range reportData {
 		reportItems = append(reportItems, TrafficReportItem{
 			N: serviceName, // 保持服务名不变
@@ -151,6 +249,38 @@ func (m *GlobalTrafficManager) collectAndReport() {
 
 	// 上报成功，清空已上报的流量
 	m.clearReportedTraffic(reportData)
+}
+
+func (m *GlobalTrafficManager) persistState() {
+	if m == nil {
+		return
+	}
+	m.mu.RLock()
+	path := m.statePath
+	state := businessTrafficState{
+		TotalUpBytes:      m.totalUpBytes,
+		TotalDownBytes:    m.totalDownBytes,
+		BaselineUpBytes:   m.baselineUpBytes,
+		BaselineDownBytes: m.baselineDownBytes,
+		Pending:           make(map[string]pendingTraffic, len(m.serviceTraffic)),
+	}
+	for name, traffic := range m.serviceTraffic {
+		traffic.mu.Lock()
+		state.Pending[name] = pendingTraffic{UpBytes: traffic.UpBytes, DownBytes: traffic.DownBytes}
+		traffic.mu.Unlock()
+	}
+	m.mu.RUnlock()
+	if path == "" {
+		return
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return
+	}
+	_ = os.WriteFile(path, data, 0600)
 }
 
 // clearReportedTraffic 清空已成功上报的流量
@@ -203,4 +333,3 @@ func (m *GlobalTrafficManager) GetServiceTraffic(serviceName string) (upBytes, d
 	}
 	return
 }
-

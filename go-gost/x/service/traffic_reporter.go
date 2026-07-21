@@ -50,26 +50,18 @@ func ReportNftablesFlow(deltas []NftablesFlowDelta) {
 		return
 	}
 
-	items := make([]TrafficReportItem, 0, len(deltas))
+	manager := GetGlobalTrafficManager()
 	for _, d := range deltas {
-		items = append(items, TrafficReportItem{
-			N: d.ServiceName,
-			U: int64(d.Up),
-			D: int64(d.Down),
-		})
+		manager.AddTraffic(d.ServiceName, int64(d.Up), int64(d.Down))
 	}
-
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if _, err := sendBatchTrafficReport(ctx, items); err != nil {
-			fmt.Printf("⚠️ [nft] 上报流量失败: %v\n", err)
-		}
-	}()
 }
 
-func SetHTTPReportURL(addr string, secret string) {
-	uploadURLs, configURLs := buildReportURLCandidates(addr, secret)
+func SetHTTPReportURL(addr string, secret string, instanceID ...string) {
+	id := ""
+	if len(instanceID) > 0 {
+		id = strings.TrimSpace(instanceID[0])
+	}
+	uploadURLs, configURLs := buildReportURLCandidates(addr, secret, id)
 	if len(uploadURLs) > 0 {
 		httpReportURL = strings.Join(uploadURLs, ",")
 	}
@@ -92,7 +84,7 @@ func SetHTTPReportURL(addr string, secret string) {
 	}
 }
 
-func buildReportURLCandidates(addr string, secret string) (upload []string, config []string) {
+func buildReportURLCandidates(addr string, secret string, instanceID ...string) (upload []string, config []string) {
 	normalizedAddr, explicitScheme := normalizeReportAddress(addr)
 	if normalizedAddr == "" {
 		normalizedAddr = strings.TrimSpace(addr)
@@ -103,9 +95,13 @@ func buildReportURLCandidates(addr string, secret string) (upload []string, conf
 		schemes = []string{"http", "https"}
 	}
 
+	uploadQuery := url.Values{"secret": []string{secret}}
+	if len(instanceID) > 0 && strings.TrimSpace(instanceID[0]) != "" {
+		uploadQuery.Set("instance_id", strings.TrimSpace(instanceID[0]))
+	}
 	upload = []string{
-		schemes[0] + "://" + normalizedAddr + "/flow/upload?secret=" + secret,
-		schemes[1] + "://" + normalizedAddr + "/flow/upload?secret=" + secret,
+		schemes[0] + "://" + normalizedAddr + "/flow/upload?" + uploadQuery.Encode(),
+		schemes[1] + "://" + normalizedAddr + "/flow/upload?" + uploadQuery.Encode(),
 	}
 	config = []string{
 		schemes[0] + "://" + normalizedAddr + "/flow/config?secret=" + secret,

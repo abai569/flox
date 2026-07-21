@@ -1156,8 +1156,9 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 		SELECT nm.* FROM node_metric nm
 		INNER JOIN (
 			SELECT node_id, MAX(timestamp) as max_ts
-			FROM node_metric GROUP BY node_id
+			FROM node_metric WHERE instance_id = '' GROUP BY node_id
 		) latest ON nm.node_id = latest.node_id AND nm.timestamp = latest.max_ts
+		WHERE nm.instance_id = ''
 	`).Scan(&latestMetrics)
 
 	metricMap := make(map[int64]model.NodeMetric, len(latestMetrics))

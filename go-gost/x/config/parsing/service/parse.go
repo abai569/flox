@@ -370,10 +370,10 @@ func ParseService(cfg *config.ServiceConfig) (service.Service, error) {
 		return nil, err
 	}
 	var observer observer.Observer
-	// 如果服务名以_tls结尾，则不启用观察器
-	if strings.HasSuffix(cfg.Name, "_tls") {
+	// Local tunnel relay traffic is accounted by its forward services. Remote
+	// relays have no local forward observer, so they must keep this observer.
+	if strings.HasSuffix(cfg.Name, "_tls") && !strings.HasPrefix(cfg.Name, "rem_") {
 		observer = nil
-		fmt.Println("服务名以_tls结尾，跳过观察器启用")
 	} else if cfg.Observer != "" {
 		observer = registry.ObserverRegistry().Get(cfg.Observer)
 	} else if pStats != nil {

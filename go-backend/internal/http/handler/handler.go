@@ -1434,6 +1434,14 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 			if instanceID == "" {
 				instanceID = strings.TrimSpace(r.URL.Query().Get("instanceId"))
 			}
+			if instanceID != "" {
+				exists, existsErr := h.repo.NodeInstanceExists(node.ID, instanceID)
+				if existsErr != nil || !exists {
+					log.Printf("[flowUpload] invalid instance node=%d instance=%q err=%v", node.ID, instanceID, existsErr)
+					http.Error(w, "invalid instance", http.StatusConflict)
+					return
+				}
+			}
 			for _, item := range items {
 				if err := h.processFlowItem(node.ID, instanceID, item); err != nil {
 					log.Printf("[flowUpload] persist peer share flow failed node=%d: %v", node.ID, err)

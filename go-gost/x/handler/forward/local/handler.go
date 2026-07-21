@@ -8,6 +8,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-gost/core/chain"
@@ -18,7 +19,6 @@ import (
 	"github.com/go-gost/core/recorder"
 	ctxvalue "github.com/go-gost/x/ctx"
 	xnet "github.com/go-gost/x/internal/net"
-	forwardStats "github.com/go-gost/x/stats"
 	"github.com/go-gost/x/internal/util/forwarder"
 	"github.com/go-gost/x/internal/util/sniffing"
 	tls_util "github.com/go-gost/x/internal/util/tls"
@@ -27,6 +27,7 @@ import (
 	stats_wrapper "github.com/go-gost/x/observer/stats/wrapper"
 	xrecorder "github.com/go-gost/x/recorder"
 	"github.com/go-gost/x/registry"
+	forwardStats "github.com/go-gost/x/stats"
 )
 
 func init() {
@@ -130,18 +131,20 @@ func (h *forwardHandler) Handle(ctx context.Context, conn net.Conn, opts ...hand
 	// 启动后台协程定期上报流量（每 1 秒）
 	var statsTicker *time.Ticker
 	var statsDone chan struct{}
+	var statsWG sync.WaitGroup
+	var lastInput, lastOutput uint64
 	if forwardID > 0 {
 		statsTicker = time.NewTicker(time.Second)
 		statsDone = make(chan struct{})
+		statsWG.Add(1)
 		go func() {
-			lastInput := uint64(0)
-			lastOutput := uint64(0)
+			defer statsWG.Done()
 			for {
 				select {
 				case <-statsTicker.C:
 					inputBytes := pStats.Get(stats.KindInputBytes)
 					outputBytes := pStats.Get(stats.KindOutputBytes)
-					
+
 					// 上报增量流量（用于计算实时带宽）
 					if inputBytes > lastInput {
 						forwardStats.AddForwardTraffic(forwardID, userID, tunnelID, h.options.Service, 0, port, true, inputBytes-lastInput)
@@ -163,8 +166,9 @@ func (h *forwardHandler) Handle(ctx context.Context, conn net.Conn, opts ...hand
 		if statsTicker != nil {
 			statsTicker.Stop()
 			close(statsDone)
+			statsWG.Wait()
 		}
-		
+
 		if err != nil {
 			ro.Err = err.Error()
 		}
@@ -174,12 +178,16 @@ func (h *forwardHandler) Handle(ctx context.Context, conn net.Conn, opts ...hand
 		ro.OutputBytes = outputBytes
 		ro.Duration = time.Since(start)
 
-		// 上报剩余流量（连接关闭时的最终统计）
+		// Report only the tail that was not emitted by the periodic sampler.
 		if forwardID > 0 {
 			h.options.Logger.Debugf("[forward.stats] service=%s forwardID=%d userID=%d tunnelID=%d port=%d inBytes=%d outBytes=%d",
 				h.options.Service, forwardID, userID, tunnelID, port, inputBytes, outputBytes)
-			forwardStats.AddForwardTraffic(forwardID, userID, tunnelID, h.options.Service, 0, port, true, inputBytes)
-			forwardStats.AddForwardTraffic(forwardID, userID, tunnelID, h.options.Service, 0, port, false, outputBytes)
+			if inputBytes > lastInput {
+				forwardStats.AddForwardTraffic(forwardID, userID, tunnelID, h.options.Service, 0, port, true, inputBytes-lastInput)
+			}
+			if outputBytes > lastOutput {
+				forwardStats.AddForwardTraffic(forwardID, userID, tunnelID, h.options.Service, 0, port, false, outputBytes-lastOutput)
+			}
 		}
 	}()
 
@@ -363,24 +371,24 @@ func parseServiceName(serviceName string) (forwardID, userID, tunnelID int64) {
 	if serviceName == "" {
 		return 0, 0, 0
 	}
-	
+
 	// 去除 _tcp 或 _udp 后缀
 	name := strings.TrimSuffix(serviceName, "_tcp")
 	name = strings.TrimSuffix(name, "_udp")
-	
+
 	// 按 _ 分割
 	parts := strings.Split(name, "_")
 	if len(parts) < 3 {
 		return 0, 0, 0
 	}
-	
+
 	forwardID, _ = strconv.ParseInt(parts[0], 10, 64)
 	userID, _ = strconv.ParseInt(parts[1], 10, 64)
 	tunnelID, _ = strconv.ParseInt(parts[2], 10, 64)
-	
+
 	if forwardID > 0 {
 		return forwardID, userID, tunnelID
 	}
-	
+
 	return 0, 0, 0
 }

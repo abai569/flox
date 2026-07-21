@@ -666,6 +666,17 @@ func (r *Repository) ListNodeInstances(nodeID int64) ([]model.NodeInstance, erro
 	return instances, err
 }
 
+func (r *Repository) NodeInstanceExists(nodeID int64, instanceID string) (bool, error) {
+	if r == nil || r.db == nil || nodeID <= 0 || strings.TrimSpace(instanceID) == "" {
+		return false, nil
+	}
+	var count int64
+	err := r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, strings.TrimSpace(instanceID)).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (r *Repository) UpdateNodeInstanceOrder(nodeID int64, instanceIDs []string) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
