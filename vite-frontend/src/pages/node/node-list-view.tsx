@@ -847,15 +847,8 @@ function NodeInstanceRows({
                   <div className="inline-flex items-center justify-end gap-1">
                     <span>
                       {(() => {
-                        const realtime = getRealtimeMetric(member);
-                              const tx =
-                                realtime?.periodTraffic?.tx ??
-                                member.periodTx ??
-                                0;
-                              const rx =
-                                realtime?.periodTraffic?.rx ??
-                                member.periodRx ??
-                                0;
+                        const tx = member.totalOutFlow ?? 0;
+                        const rx = member.totalInFlow ?? 0;
 
                         return formatTraffic(tx + rx);
                       })()}
@@ -884,18 +877,10 @@ function NodeInstanceRows({
                   </div>
                 </td>
                 <td className="px-1 py-3 text-right text-success-700 dark:text-success-300">
-                  {formatTraffic(
-                    getRealtimeMetric(member)?.periodTraffic?.tx ??
-                      member.periodTx ??
-                      0,
-                  )}
+                  {formatTraffic(member.totalOutFlow ?? 0)}
                 </td>
                 <td className="px-1 py-3 text-right text-primary-700 dark:text-primary-300">
-                  {formatTraffic(
-                    getRealtimeMetric(member)?.periodTraffic?.rx ??
-                      member.periodRx ??
-                      0,
-                  )}
+                  {formatTraffic(member.totalInFlow ?? 0)}
                 </td>
                 <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-3 text-right text-default-700" style={{ width: "100px" }}>
                         {(member.trafficLimit ?? 0) > 0
@@ -1115,7 +1100,6 @@ function SortableInstanceRow({
 }
 function SortableTableRow({
   node,
-  realtimeNodeMetrics,
   selectedIds,
   toggleSelect,
   copyToClipboard,
@@ -1233,27 +1217,6 @@ function SortableTableRow({
       total + (instance.onlineCount ?? 0),
     0,
   );
-  const remoteShareFlows = (node.remoteFlows || []).filter(
-    (flow: NonNullable<Node["remoteFlows"]>[number]) =>
-      flow.runtimeId === 0 &&
-      !flow.instanceId &&
-      flow.periodType.toLowerCase() === "total" &&
-      remoteInstances.length > 0,
-  );
-  const remotePeriodRx = remoteShareFlows.reduce(
-    (total: number, flow: NonNullable<Node["remoteFlows"]>[number]) =>
-      total + flow.outFlow,
-    0,
-  );
-  const remotePeriodTx = remoteShareFlows.reduce(
-    (total: number, flow: NonNullable<Node["remoteFlows"]>[number]) =>
-      total + flow.inFlow,
-    0,
-  );
-  const remoteScaledRx = node.remoteOutFlow ?? remotePeriodRx;
-  const remoteScaledTx = node.remoteInFlow ?? remotePeriodTx;
-  const remotePeriodFlow =
-    node.remoteCurrentFlow ?? remoteScaledRx + remoteScaledTx;
   const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
   const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
@@ -1556,15 +1519,9 @@ function SortableTableRow({
       >
         <div className="flex w-[104px] items-center justify-end gap-1">
           <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
-            {node.isRemote === 1
-                ? formatTraffic(remotePeriodFlow)
-              : realtimeNodeMetrics?.[node.id]
-              ? formatTraffic(
-                  (realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0) +
-                        (realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx ||
-                          0),
-                )
-              : "-"}
+            {formatTraffic(
+              (node.totalOutFlow ?? 0) + (node.totalInFlow ?? 0),
+            )}
           </span>
         </div>
       </TableCell>
@@ -1573,13 +1530,7 @@ function SortableTableRow({
       >
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-success-700 dark:text-success-300">
-            {node.isRemote === 1
-                ? formatTraffic(remoteScaledTx)
-              : realtimeNodeMetrics?.[node.id]
-              ? formatTraffic(
-                  realtimeNodeMetrics?.[node.id]?.periodTraffic?.tx || 0,
-                )
-              : "-"}
+            {formatTraffic(node.totalOutFlow ?? 0)}
           </span>
         </div>
       </TableCell>
@@ -1588,13 +1539,7 @@ function SortableTableRow({
       >
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-primary-700 dark:text-primary-300">
-            {node.isRemote === 1
-                ? formatTraffic(remoteScaledRx)
-              : realtimeNodeMetrics?.[node.id]
-              ? formatTraffic(
-                  realtimeNodeMetrics?.[node.id]?.periodTraffic?.rx || 0,
-                )
-              : "-"}
+            {formatTraffic(node.totalInFlow ?? 0)}
           </span>
         </div>
       </TableCell>

@@ -338,6 +338,7 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 		results = append(results, result)
 
 		_ = h.repo.UpdateNodeTrafficNotifiedMask(nodeID, 0)
+		_ = h.repo.ResetNodeTotalFlow(nodeID)
 		_ = h.repo.ResetNodeInstanceTrafficNotifiedMasksByNode(nodeID)
 		_ = h.repo.ResetNodeInstancesTotalFlowByNode(nodeID)
 		h.deleteNodeTrafficCacheEntries(nodeID)

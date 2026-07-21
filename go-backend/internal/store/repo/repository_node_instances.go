@@ -363,7 +363,7 @@ func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeIns
 				"version": item.Version,
 				"status":  item.Status, "weight": item.Weight, "traffic_ratio": item.TrafficRatio,
 				"flow_reset_time": item.FlowResetTime, "traffic_limit": item.TrafficLimit,
-				"total_in_flow": item.TotalInFlow, "total_out_flow": item.TotalOutFlow, "period_rx": item.PeriodRx, "period_tx": item.PeriodTx,
+				"total_in_flow": int64(0), "total_out_flow": int64(0), "period_rx": item.PeriodRx, "period_tx": item.PeriodTx,
 				"net_in_speed": item.NetInSpeed, "net_out_speed": item.NetOutSpeed, "net_in_bytes": item.NetInBytes, "net_out_bytes": item.NetOutBytes,
 				"tcp_conns": item.TCPConns, "udp_conns": item.UDPConns, "uptime": item.Uptime, "cpu_usage": item.CPUUsage,
 				"mem_usage": item.MemUsage, "disk_usage": item.DiskUsage, "last_seen_at": now, "created_time": now, "updated_time": now,
@@ -380,7 +380,7 @@ func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeIns
 			}
 			if err := tx.Model(&model.NodeInstance{}).Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "node_id"}, {Name: "instance_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "public_ip_v4", "public_ip_v6", "version", "status", "weight", "traffic_ratio", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "total_in_flow", "total_out_flow", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
+				DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "public_ip_v4", "public_ip_v6", "version", "status", "weight", "traffic_ratio", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
 			}).Create(values).Error; err != nil {
 				return err
 			}
@@ -675,6 +675,38 @@ func (r *Repository) NodeInstanceExists(nodeID int64, instanceID string) (bool, 
 		Where("node_id = ? AND instance_id = ?", nodeID, strings.TrimSpace(instanceID)).
 		Count(&count).Error
 	return count > 0, err
+}
+
+func (r *Repository) AddNodeInstanceTotalFlow(nodeID int64, instanceID string, inFlow, outFlow int64) error {
+	if r == nil || r.db == nil || nodeID <= 0 || strings.TrimSpace(instanceID) == "" {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, strings.TrimSpace(instanceID)).
+		Updates(map[string]interface{}{
+			"total_in_flow":  gorm.Expr("total_in_flow + ?", inFlow),
+			"total_out_flow": gorm.Expr("total_out_flow + ?", outFlow),
+		}).Error
+}
+
+// AddSoleEnabledNodeInstanceTotalFlow attributes raw traffic only when the
+// selected node has one unambiguous enabled instance.
+func (r *Repository) AddSoleEnabledNodeInstanceTotalFlow(nodeID int64, inFlow, outFlow int64) error {
+	if r == nil || r.db == nil || nodeID <= 0 {
+		return nil
+	}
+	var instances []model.NodeInstance
+	where, args := validNodeInstanceWhere()
+	if err := r.db.Where("node_id = ? AND status = 1 AND weight > 0", nodeID).
+		Where(where, args...).
+		Limit(2).
+		Find(&instances).Error; err != nil {
+		return err
+	}
+	if len(instances) != 1 {
+		return nil
+	}
+	return r.AddNodeInstanceTotalFlow(nodeID, instances[0].InstanceID, inFlow, outFlow)
 }
 
 func (r *Repository) UpdateNodeInstanceOrder(nodeID int64, instanceIDs []string) error {

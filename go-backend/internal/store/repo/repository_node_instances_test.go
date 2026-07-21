@@ -207,7 +207,7 @@ func TestSyncRemoteNodeInstancesReplacesLocalTrafficRatio(t *testing.T) {
 	if err := r.db.Create(&node).Error; err != nil {
 		t.Fatalf("create node: %v", err)
 	}
-	instance := model.NodeInstance{NodeID: node.ID, InstanceID: "instance-a", TrafficRatio: 3.5, Weight: 1, CreatedTime: now, UpdatedTime: now}
+	instance := model.NodeInstance{NodeID: node.ID, InstanceID: "instance-a", TrafficRatio: 3.5, Weight: 1, TotalInFlow: 11, TotalOutFlow: 22, CreatedTime: now, UpdatedTime: now}
 	if err := r.db.Create(&instance).Error; err != nil {
 		t.Fatalf("create instance: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestSyncRemoteNodeInstancesReplacesLocalTrafficRatio(t *testing.T) {
 	if len(instances) != 1 || instances[0].TrafficRatio != 7.5 {
 		t.Fatalf("expected provider ratio 7.5 to replace local ratio, got %+v", instances)
 	}
-	if instances[0].DisplayName != "Source A" || instances[0].PublicIPV4 != "203.0.113.30" || instances[0].PublicIPV6 != "2001:db8::30" || instances[0].Weight != 4 || instances[0].TotalInFlow != 100 || instances[0].TotalOutFlow != 200 {
+	if instances[0].DisplayName != "Source A" || instances[0].PublicIPV4 != "203.0.113.30" || instances[0].PublicIPV6 != "2001:db8::30" || instances[0].Weight != 4 || instances[0].TotalInFlow != 11 || instances[0].TotalOutFlow != 22 {
 		t.Fatalf("expected remote fields to update, got %+v", instances[0])
 	}
 	storedNode, err := r.GetNodeByID(node.ID)

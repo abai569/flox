@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -56,9 +57,24 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 
 	forwardID, userID, userTunnelID, ok := parseFlowServiceIDs(serviceName)
 	if ok {
-		inFlow, outFlow := h.scaleFlowByTunnel(forwardID, nodeID, item.D, item.U)
-		if err := h.repo.AddFlow(forwardID, userID, userTunnelID, inFlow, outFlow); err != nil {
-			log.Printf("[flow] AddFlow failed forward=%d user=%d: %v", forwardID, userID, err)
+		topology, topologyErr := h.repo.GetForwardTrafficTopology(forwardID, nodeID)
+		if topologyErr != nil {
+			log.Printf("[flow] ignore non-entry or invalid topology forward=%d node=%d: %v", forwardID, nodeID, topologyErr)
+			return h.processPeerShareFlowFromForward(forwardID, nodeID, instanceID, serviceName, item)
+		}
+		inFlow := int64(math.Round(float64(item.D) * topology.TotalRatio))
+		outFlow := int64(math.Round(float64(item.U) * topology.TotalRatio))
+		nodeDeltas := make([]repo.ForwardTrafficNodeDelta, 0, len(topology.Nodes))
+		for _, trafficNode := range topology.Nodes {
+			nodeDeltas = append(nodeDeltas, repo.ForwardTrafficNodeDelta{
+				NodeID:  trafficNode.NodeID,
+				InFlow:  int64(math.Round(float64(item.D) * trafficNode.TrafficRatio)),
+				OutFlow: int64(math.Round(float64(item.U) * trafficNode.TrafficRatio)),
+				IsEntry: trafficNode.IsEntry,
+			})
+		}
+		if err := h.repo.AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID, inFlow, outFlow, item.D, item.U, instanceID, nodeDeltas); err != nil {
+			return err
 		}
 		if quota, quotaErr := h.repo.AddUserQuotaUsage(userID, inFlow+outFlow, time.Now()); quotaErr == nil {
 			h.enforceUserQuotaIfNeeded(userID, quota)
@@ -330,17 +346,6 @@ func (h *Handler) enforcePeerShareFlowLimit(shareID int64) {
 	if err := h.cleanupPeerShareRuntimes(shareID); err != nil {
 		log.Printf("[flow] cleanup over-limit peer share failed share=%d: %v", shareID, err)
 	}
-}
-
-func (h *Handler) scaleFlowByTunnel(forwardID, nodeID int64, inFlow int64, outFlow int64) (int64, int64) {
-	ratio, err := h.repo.GetForwardFlowRatio(forwardID, nodeID)
-	if err != nil || ratio <= 0 {
-		ratio = 1
-	}
-
-	scaledIn := int64(float64(inFlow) * ratio)
-	scaledOut := int64(float64(outFlow) * ratio)
-	return scaledIn, scaledOut
 }
 
 func (h *Handler) enforceFlowPolicies(userID int64, userTunnelID int64) {

@@ -1,14 +1,105 @@
 package repo
 
 import (
-	"database/sql"
 	"errors"
+	"fmt"
+	"math"
 	"strings"
 
 	"gorm.io/gorm"
 
 	"go-backend/internal/store/model"
 )
+
+type ForwardTrafficNode struct {
+	NodeID       int64
+	TrafficRatio float64
+	IsRemote     bool
+	IsEntry      bool
+	Layer        string
+}
+
+type ForwardTrafficTopology struct {
+	TunnelID   int64
+	TotalRatio float64
+	Nodes      []ForwardTrafficNode
+}
+
+type ForwardTrafficNodeDelta struct {
+	NodeID  int64
+	InFlow  int64
+	OutFlow int64
+	IsEntry bool
+}
+
+func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID int64, inFlow, outFlow int64, rawIn, rawOut int64, entryInstanceID string, nodes []ForwardTrafficNodeDelta) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&model.Forward{}).Where("id = ?", forwardID).
+			UpdateColumns(map[string]interface{}{
+				"in_flow":  gorm.Expr("in_flow + ?", inFlow),
+				"out_flow": gorm.Expr("out_flow + ?", outFlow),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("forward not found")
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).
+			UpdateColumns(map[string]interface{}{
+				"in_flow":  gorm.Expr("in_flow + ?", inFlow),
+				"out_flow": gorm.Expr("out_flow + ?", outFlow),
+			}).Error; err != nil {
+			return err
+		}
+		if userTunnelID > 0 {
+			if err := tx.Model(&model.UserTunnel{}).Where("id = ?", userTunnelID).
+				UpdateColumns(map[string]interface{}{
+					"in_flow":  gorm.Expr("in_flow + ?", inFlow),
+					"out_flow": gorm.Expr("out_flow + ?", outFlow),
+				}).Error; err != nil {
+				return err
+			}
+		}
+		for _, node := range nodes {
+			if err := tx.Model(&model.Node{}).Where("id = ?", node.NodeID).
+				Updates(map[string]interface{}{
+					"total_in_flow":  gorm.Expr("total_in_flow + ?", node.InFlow),
+					"total_out_flow": gorm.Expr("total_out_flow + ?", node.OutFlow),
+				}).Error; err != nil {
+				return err
+			}
+			instanceID := ""
+			if node.IsEntry {
+				instanceID = strings.TrimSpace(entryInstanceID)
+			} else {
+				var instances []model.NodeInstance
+				where, args := validNodeInstanceWhere()
+				if err := tx.Where("node_id = ? AND status = 1 AND weight > 0", node.NodeID).
+					Where(where, args...).Limit(2).Find(&instances).Error; err != nil {
+					return err
+				}
+				if len(instances) == 1 {
+					instanceID = instances[0].InstanceID
+				}
+			}
+			if instanceID != "" {
+				if err := tx.Model(&model.NodeInstance{}).
+					Where("node_id = ? AND instance_id = ?", node.NodeID, instanceID).
+					Updates(map[string]interface{}{
+						"total_in_flow":  gorm.Expr("total_in_flow + ?", rawIn),
+						"total_out_flow": gorm.Expr("total_out_flow + ?", rawOut),
+					}).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
 
 func (r *Repository) UpdateForwardStatus(forwardID int64, status int, now int64) error {
 	if r == nil || r.db == nil {
@@ -590,79 +681,124 @@ func (r *Repository) ListNodeIDsByTunnelIDs(tunnelIDs []int64) ([]int64, error) 
 	return result, nil
 }
 
-// GetForwardFlowRatio resolves the billing ratio for one flow report.
-// Purely local manual tunnels use their displayed topology ratio once; all
-// other tunnels use the ratio of the node that reported the flow.
-func (r *Repository) GetForwardFlowRatio(forwardID, nodeID int64) (float64, error) {
+// GetForwardTrafficTopology resolves the same per-layer topology used by the
+// tunnel ratio shown in the UI. Only the actual entry node may author traffic.
+func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*ForwardTrafficTopology, error) {
 	if r == nil || r.db == nil {
-		return 0, errors.New("repository not initialized")
+		return nil, errors.New("repository not initialized")
 	}
-
-	var tunnel struct {
-		ID     int64
-		Name   string
-		Remark sql.NullString
+	var forward struct {
+		TunnelID int64
 	}
 	if err := r.db.Table("forward").
-		Select("tunnel.id, tunnel.name, tunnel.remark").
-		Joins("JOIN tunnel ON tunnel.id = forward.tunnel_id").
+		Select("tunnel_id").
 		Where("forward.id = ?", forwardID).
-		First(&tunnel).Error; err != nil {
-		return 0, err
+		First(&forward).Error; err != nil {
+		return nil, err
 	}
-
-	manual := isManualTunnelNameRemark(tunnel.Name, tunnel.Remark.String)
-	type chainNode struct {
+	type trafficNodeRow struct {
 		NodeID       int64
 		TrafficRatio float64
 		IsRemote     int
+		ChainType    string
+		Inx          int
+		ID           int64
 	}
-	var chainNodes []chainNode
-	if err := r.db.Table("chain_tunnel").
-		Select("chain_tunnel.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
-		Joins("JOIN node ON node.id = chain_tunnel.node_id").
-		Where("chain_tunnel.tunnel_id = ?", tunnel.ID).
-		Find(&chainNodes).Error; err != nil {
-		return 0, err
-	}
-	var entryNodes []chainNode
+	var entries []trafficNodeRow
 	if err := r.db.Table("forward_port").
-		Select("forward_port.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
+		Select("forward_port.id, forward_port.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
 		Joins("JOIN node ON node.id = forward_port.node_id").
-		Joins("JOIN forward ON forward.id = forward_port.forward_id").
-		Where("forward.id = ?", forwardID).
-		Find(&entryNodes).Error; err != nil {
-		return 0, err
+		Where("forward_port.forward_id = ?", forwardID).
+		Order("forward_port.id ASC").
+		Find(&entries).Error; err != nil {
+		return nil, err
 	}
-	chainNodes = append(chainNodes, entryNodes...)
+	entryFound := false
+	for _, entry := range entries {
+		if entry.NodeID == entryNodeID {
+			entryFound = true
+			break
+		}
+	}
+	if !entryFound {
+		return nil, fmt.Errorf("node %d is not an entry for forward %d", entryNodeID, forwardID)
+	}
 
-	if manual {
-		totalRatio := 0.0
-		hasRemote := false
-		for _, node := range chainNodes {
-			ratio := node.TrafficRatio
-			if ratio <= 0 {
-				ratio = 1
+	var chainNodes []trafficNodeRow
+	if err := r.db.Table("chain_tunnel").
+		Select("chain_tunnel.id, chain_tunnel.node_id, chain_tunnel.chain_type, COALESCE(chain_tunnel.inx, 0) AS inx, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
+		Joins("JOIN node ON node.id = chain_tunnel.node_id").
+		Where("chain_tunnel.tunnel_id = ? AND chain_tunnel.chain_type IN ?", forward.TunnelID, []string{"2", "3"}).
+		Order("chain_tunnel.chain_type ASC, chain_tunnel.inx ASC, chain_tunnel.id ASC").
+		Find(&chainNodes).Error; err != nil {
+		return nil, err
+	}
+
+	normalizeRatio := func(ratio float64) float64 {
+		if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio <= 0 {
+			return 1
+		}
+		return ratio
+	}
+	result := &ForwardTrafficTopology{TunnelID: forward.TunnelID}
+	entryMax := 0.0
+	var actualEntry trafficNodeRow
+	for _, entry := range entries {
+		ratio := normalizeRatio(entry.TrafficRatio)
+		if ratio > entryMax {
+			entryMax = ratio
+		}
+		if entry.NodeID == entryNodeID {
+			actualEntry = entry
+		}
+	}
+	result.TotalRatio += entryMax
+	result.Nodes = append(result.Nodes, ForwardTrafficNode{
+		NodeID: actualEntry.NodeID, TrafficRatio: normalizeRatio(actualEntry.TrafficRatio),
+		IsRemote: actualEntry.IsRemote == 1, IsEntry: true, Layer: "entry",
+	})
+
+	layers := make(map[string]trafficNodeRow)
+	for _, node := range chainNodes {
+		layer := node.ChainType
+		if node.ChainType == "2" {
+			layer = fmt.Sprintf("middle:%d", node.Inx)
+		}
+		current, exists := layers[layer]
+		if !exists || normalizeRatio(node.TrafficRatio) > normalizeRatio(current.TrafficRatio) {
+			layers[layer] = node
+		}
+	}
+	orderedLayers := make([]string, 0, len(layers))
+	for _, node := range chainNodes {
+		layer := node.ChainType
+		if node.ChainType == "2" {
+			layer = fmt.Sprintf("middle:%d", node.Inx)
+		}
+		if _, seen := layers[layer]; !seen {
+			continue
+		}
+		alreadyAdded := false
+		for _, existing := range orderedLayers {
+			if existing == layer {
+				alreadyAdded = true
+				break
 			}
-			totalRatio += ratio
-			hasRemote = hasRemote || node.IsRemote == 1
 		}
-		if !hasRemote && totalRatio > 0 {
-			return totalRatio, nil
+		if !alreadyAdded {
+			orderedLayers = append(orderedLayers, layer)
 		}
 	}
-
-	var node struct {
-		TrafficRatio float64
+	for _, layer := range orderedLayers {
+		node := layers[layer]
+		ratio := normalizeRatio(node.TrafficRatio)
+		result.TotalRatio += ratio
+		result.Nodes = append(result.Nodes, ForwardTrafficNode{
+			NodeID: node.NodeID, TrafficRatio: ratio, IsRemote: node.IsRemote == 1, Layer: layer,
+		})
 	}
-	if err := r.db.Table("node").
-		Select("COALESCE(traffic_ratio, 1.0) AS traffic_ratio").
-		Where("id = ?", nodeID).
-		First(&node).Error; err != nil {
-		return 1, nil
+	if result.TotalRatio <= 0 {
+		result.TotalRatio = 1
 	}
-	if node.TrafficRatio <= 0 {
-		return 1, nil
-	}
-	return node.TrafficRatio, nil
+	return result, nil
 }

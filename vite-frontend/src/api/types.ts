@@ -10,6 +10,8 @@ export interface NodeApiItem {
   expiryReminderDismissedUntil?: number | null;
   flowResetTime?: number;
   trafficLimit?: number;
+  totalInFlow?: number;
+  totalOutFlow?: number;
   expiryInstances?: NodeExpiryInstanceApiItem[];
   weight?: number;
   trafficRatio?: number;
@@ -798,6 +800,8 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   expiryReminderDismissedUntil?: number | null;
   flowResetTime?: number;
   trafficLimit?: number;
+  totalInFlow?: number;
+  totalOutFlow?: number;
   onlineCount: number;
   tcpConns?: number;
   udpConns?: number;

@@ -4025,6 +4025,14 @@ func (r *Repository) AddNodeTotalFlow(nodeID int64, rx, tx int64) error {
 		}).Error
 }
 
+func (r *Repository) ResetNodeTotalFlow(nodeID int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
+		Updates(map[string]interface{}{"total_in_flow": 0, "total_out_flow": 0}).Error
+}
+
 func (r *Repository) ResetNodeTotalFlowWithLog(nodeID int64, params *NodeTrafficResetLogCreateParams) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")

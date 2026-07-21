@@ -1186,18 +1186,17 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 	}
 
 	for _, n := range nodes {
-		pt := func() interface{} {
-			if m, ok := metricMap[n.ID]; ok {
-				return map[string]interface{}{
-					"rx":    m.PeriodRx,
-					"tx":    m.PeriodTx,
-					"since": m.Timestamp,
-				}
-			}
-			return nil
-		}()
+		periodSince := int64(0)
+		if m, ok := metricMap[n.ID]; ok {
+			periodSince = m.Timestamp
+		}
+		pt := map[string]interface{}{
+			"rx":    n.TotalInFlow,
+			"tx":    n.TotalOutFlow,
+			"since": periodSince,
+		}
 
-		instanceExpiryItems, nearestExpiryTime, nearestRenewalCycle, nearestDismissed, nearestDismissedUntil, nearestFlowResetTime, nearestTrafficLimit, nearestTotalInFlow, nearestTotalOutFlow, nearestTrafficNotifiedMask := nodeInstanceExpirySummary(instancesByNode[n.ID])
+		instanceExpiryItems, nearestExpiryTime, nearestRenewalCycle, nearestDismissed, nearestDismissedUntil, nearestFlowResetTime, nearestTrafficLimit, _, _, nearestTrafficNotifiedMask := nodeInstanceExpirySummary(instancesByNode[n.ID])
 		items = append(items, map[string]interface{}{
 			"id": n.ID, "inx": n.Inx, "name": n.Name,
 			"remark":          nullableString(n.Remark),
@@ -1226,8 +1225,8 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"flowResetTime":                nearestFlowResetTime,
 			"groupId":                      nullableInt64(n.GroupID),
 			"trafficLimit":                 nearestTrafficLimit,
-			"totalInFlow":                  nearestTotalInFlow,
-			"totalOutFlow":                 nearestTotalOutFlow,
+			"totalInFlow":                  n.TotalInFlow,
+			"totalOutFlow":                 n.TotalOutFlow,
 			"trafficNotifiedMask":          nearestTrafficNotifiedMask,
 			"paused":                       n.Paused,
 			"weight":                       n.Weight,
