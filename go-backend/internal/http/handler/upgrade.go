@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -549,23 +550,25 @@ func (h *Handler) resetNodeNotifyCooldown(nodeID int64) {
 	notifyStateMu.Unlock()
 }
 
-func (h *Handler) redeployNodeRuntime(nodeID int64) {
+func (h *Handler) redeployNodeRuntime(nodeID int64) error {
 	tunnelIDs, err := h.repo.ListActiveTunnelIDsByNode(nodeID)
 	if err != nil {
 		fmt.Printf("redeploy: list tunnels for node %d failed: %v\n", nodeID, err)
-		return
+		return err
 	}
 	forwardIDs, err := h.repo.ListActiveForwardIDsByNode(nodeID)
 	if err != nil {
 		fmt.Printf("redeploy: list forwards for node %d failed: %v\n", nodeID, err)
-		return
+		return err
 	}
 
 	tunnelFailed := make(map[int64]struct{})
+	var deployErr error
 	for _, tunnelID := range tunnelIDs {
 		if err := h.redeployTunnelAndForwards(tunnelID); err != nil {
 			tunnelFailed[tunnelID] = struct{}{}
 			fmt.Printf("redeploy: tunnel %d failed on node %d: %v\n", tunnelID, nodeID, err)
+			deployErr = errors.Join(deployErr, err)
 		}
 	}
 
@@ -579,6 +582,8 @@ func (h *Handler) redeployNodeRuntime(nodeID int64) {
 		}
 		if err := h.syncForwardServices(forward, "UpdateService", true); err != nil {
 			fmt.Printf("redeploy: forward %d failed on node %d: %v\n", forwardID, nodeID, err)
+			deployErr = errors.Join(deployErr, err)
 		}
 	}
+	return deployErr
 }

@@ -164,8 +164,13 @@ func (h *Handler) runRemoteShareEventWorker(ctx context.Context, nodeID int64, r
 		debounceMu.Unlock()
 	}()
 	for {
+		if info, connectErr := federationClient.Connect(remoteURL, token, h.federationLocalDomain()); connectErr == nil && info != nil {
+			h.invalidateRemoteNodeRuntimeReconcile(nodeID)
+			h.scheduleRemoteNodeRuntimeReconcile(nodeID, info.Instances)
+		}
 		err := federationClient.WatchEvents(ctx, remoteURL, token, h.federationLocalDomain(), func(event client.PeerShareEvent) {
 			if event.Type != "flow_changed" {
+				h.invalidateRemoteNodeRuntimeReconcile(nodeID)
 				debounceMu.Lock()
 				if debounceTimer != nil {
 					debounceTimer.Stop()

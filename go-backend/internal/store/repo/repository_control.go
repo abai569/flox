@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -72,16 +73,35 @@ func (r *Repository) ListActiveTunnelIDsByNode(nodeID int64) ([]int64, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
-	var ids []int64
+	var chainIDs []int64
 	err := r.db.Model(&model.ChainTunnel{}).
 		Joins("JOIN tunnel ON tunnel.id = chain_tunnel.tunnel_id").
 		Where("chain_tunnel.node_id = ? AND tunnel.status = 1", nodeID).
 		Select("DISTINCT chain_tunnel.tunnel_id").
 		Order("chain_tunnel.tunnel_id ASC").
-		Pluck("chain_tunnel.tunnel_id", &ids).Error
+		Pluck("chain_tunnel.tunnel_id", &chainIDs).Error
 	if err != nil {
 		return nil, err
 	}
+	var entryIDs []int64
+	if err := r.db.Model(&model.ForwardPort{}).
+		Joins("JOIN forward ON forward.id = forward_port.forward_id").
+		Joins("JOIN tunnel ON tunnel.id = forward.tunnel_id").
+		Where("forward_port.node_id = ? AND forward.status = 1 AND tunnel.status = 1", nodeID).
+		Select("DISTINCT forward.tunnel_id").
+		Pluck("forward.tunnel_id", &entryIDs).Error; err != nil {
+		return nil, err
+	}
+	seen := make(map[int64]struct{}, len(chainIDs)+len(entryIDs))
+	ids := make([]int64, 0, len(chainIDs)+len(entryIDs))
+	for _, id := range append(chainIDs, entryIDs...) {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	return ids, nil
 }
 

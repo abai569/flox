@@ -62,6 +62,9 @@ type Handler struct {
 	peerShareEventRevisions   map[int64]int64
 	remoteEventMu             sync.Mutex
 	remoteEventWorkers        map[int64]remoteEventWorker
+	remoteRuntimeMu           sync.Mutex
+	remoteRuntimeApplied      map[int64]string
+	remoteRuntimeRedeploying  map[int64]bool
 }
 
 type remoteEventWorker struct {
@@ -270,15 +273,17 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		version = floxVersion[0]
 	}
 	h := &Handler{
-		repo:                repo,
-		jwtSecret:           jwtSecret,
-		wsServer:            ws.NewServer(repo, jwtSecret),
-		metrics:             metrics.NewIngestionService(repo),
-		healthCheck:         nil,
-		bestExit:            newBestExitManager(),
-		floxVersion:         version,
-		captchaTokens:       make(map[string]int64),
-		nftablesDomainCache: make(map[int64]string),
+		repo:                     repo,
+		jwtSecret:                jwtSecret,
+		wsServer:                 ws.NewServer(repo, jwtSecret),
+		metrics:                  metrics.NewIngestionService(repo),
+		healthCheck:              nil,
+		bestExit:                 newBestExitManager(),
+		floxVersion:              version,
+		captchaTokens:            make(map[string]int64),
+		nftablesDomainCache:      make(map[int64]string),
+		remoteRuntimeApplied:     make(map[int64]string),
+		remoteRuntimeRedeploying: make(map[int64]bool),
 	}
 	h.healthCheck = health.NewChecker(repo, h.wsServer)
 	h.healthCheck.SetOnResult(h.onServiceMonitorResult)

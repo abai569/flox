@@ -70,3 +70,42 @@ func TestListForwardIDsBySpeedLimitIncludesDirectAndTunnelReferences(t *testing.
 		t.Fatalf("unexpected forward IDs: %v", ids)
 	}
 }
+
+func TestListActiveTunnelIDsByNodeIncludesForwardEntry(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	now := time.Now().UnixMilli()
+	node := model.Node{
+		Name: "remote-entry", Secret: "secret", ServerIP: "127.0.0.1", Port: "0",
+		CreatedTime: now, Status: 1, TCPListenAddr: "[::]", UDPListenAddr: "[::]",
+	}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatal(err)
+	}
+	tunnel := model.Tunnel{Name: "entry-only", TrafficRatio: 1, Type: 1, Protocol: "tls", Flow: 1, CreatedTime: now, UpdatedTime: now, Status: 1}
+	if err := r.db.Create(&tunnel).Error; err != nil {
+		t.Fatal(err)
+	}
+	forward := model.Forward{
+		UserID: 1, UserName: "test", Name: "entry", TunnelID: tunnel.ID,
+		RemoteAddr: "127.0.0.1:80", Strategy: "fifo", CreatedTime: now, UpdatedTime: now, Status: 1,
+	}
+	if err := r.db.Create(&forward).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.db.Create(&model.ForwardPort{ForwardID: forward.ID, NodeID: node.ID, Port: 30001}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	ids, err := r.ListActiveTunnelIDsByNode(node.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 || ids[0] != tunnel.ID {
+		t.Fatalf("unexpected tunnel IDs: %v", ids)
+	}
+}
