@@ -711,7 +711,7 @@ function NodeInstanceRows({
                   <th className="px-1 py-2 text-right font-medium">
                     下行流量
                   </th>
-                  <th className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-2 text-right font-medium">
+                  <th className="w-[110px] min-w-[110px] max-w-[110px] px-1 py-2 text-center font-medium">
                     流量限额
                   </th>
                   <th className="w-[110px] min-w-[110px] max-w-[110px] px-1 py-2 text-center font-medium">
@@ -882,9 +882,9 @@ function NodeInstanceRows({
                 <td className="px-1 py-3 text-right text-primary-700 dark:text-primary-300">
                   {formatTraffic(member.totalInFlow ?? 0)}
                 </td>
-                <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-3 text-right text-default-700" style={{ width: "100px" }}>
+                <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-3 text-center text-default-700" style={{ width: "100px" }}>
                         {(member.trafficLimit ?? 0) > 0
-                          ? `${member.trafficLimit} GB`
+                          ? `${member.trafficLimit} G`
                           : "不限"}
                 </td>
                 <td className="w-[110px] min-w-[110px] max-w-[110px] px-2 py-3 text-center text-default-700">
@@ -1543,7 +1543,17 @@ function SortableTableRow({
           </span>
         </div>
       </TableCell>
-      <TableCell className={`w-[100px] min-w-[100px] max-w-[100px] ${rowBg}`} aria-label="流量限额占位" style={{ width: "100px" }} />
+      <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] ${rowBg}`} aria-label="流量限额" style={{ width: "110px" }}>
+        <div className="flex w-full justify-center">
+          <span className="text-sm text-default-700 whitespace-nowrap">
+            {node.isRemote === 1
+              ? (node.trafficLimit ?? 0) > 0
+                ? `${node.trafficLimit} GB`
+                : "不限"
+              : "不限"}
+          </span>
+        </div>
+      </TableCell>
       <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap text-center ${rowBg}`}>
         {remoteExpiryChipProps ? (
             <span
@@ -2056,7 +2066,9 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[110px] max-w-[110px] text-right">
             下行流量
           </TableColumn>
-          <TableColumn className="w-[100px] min-w-[100px] max-w-[100px]" aria-label="流量限额占位" style={{ width: "100px" }} />
+          <TableColumn className="w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap px-1 py-2 text-center">
+            流量限额
+          </TableColumn>
           <TableColumn className="w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap px-1 py-2 text-center">
             <Select
               aria-label="按到期状态筛选"

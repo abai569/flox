@@ -1224,12 +1224,17 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 			"expiryReminderDismissedUntil": nearestDismissedUntil,
 			"flowResetTime":                nearestFlowResetTime,
 			"groupId":                      nullableInt64(n.GroupID),
-			"trafficLimit":                 nearestTrafficLimit,
-			"totalInFlow":                  n.TotalInFlow,
-			"totalOutFlow":                 n.TotalOutFlow,
-			"trafficNotifiedMask":          nearestTrafficNotifiedMask,
-			"paused":                       n.Paused,
-			"weight":                       n.Weight,
+			"trafficLimit": func() int64 {
+				if n.IsRemote == 1 {
+					return n.TrafficLimit
+				}
+				return nearestTrafficLimit
+			}(),
+			"totalInFlow":         n.TotalInFlow,
+			"totalOutFlow":        n.TotalOutFlow,
+			"trafficNotifiedMask": nearestTrafficNotifiedMask,
+			"paused":              n.Paused,
+			"weight":              n.Weight,
 			"onlineCount": func() int64 {
 				if m, ok := metricMap[n.ID]; ok {
 					return m.TCPConns + m.UDPConns
@@ -2387,6 +2392,10 @@ func (r *Repository) ResetPeerShareCurrentFlow(shareID int64, updatedTime int64)
 		updatedTime = unixMilliNow()
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		var share model.PeerShare
+		if err := tx.Where("id = ?", shareID).First(&share).Error; err != nil {
+			return err
+		}
 		if err := tx.Model(&model.PeerShare{}).Where("id = ?", shareID).Updates(map[string]interface{}{
 			"current_flow": 0, "updated_time": updatedTime,
 		}).Error; err != nil {
@@ -2395,9 +2404,20 @@ func (r *Repository) ResetPeerShareCurrentFlow(shareID int64, updatedTime int64)
 		if err := tx.Where("share_id = ?", shareID).Delete(&model.PeerShareFlow{}).Error; err != nil {
 			return err
 		}
-		return tx.Model(&model.PeerShareRuntimeInstance{}).Where("share_id = ?", shareID).Updates(map[string]interface{}{
+		if err := tx.Model(&model.PeerShareRuntimeInstance{}).Where("share_id = ?", shareID).Updates(map[string]interface{}{
 			"current_flow": 0, "updated_time": updatedTime,
-		}).Error
+		}).Error; err != nil {
+			return err
+		}
+		if share.NodeID > 0 {
+			if err := tx.Model(&model.Node{}).Where("id = ?", share.NodeID).Updates(map[string]interface{}{
+				"total_in_flow":  0,
+				"total_out_flow": 0,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
