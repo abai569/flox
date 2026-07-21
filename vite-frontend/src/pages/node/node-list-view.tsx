@@ -386,7 +386,7 @@ function RemoteNodeInstanceRows({
   formatTraffic: (bytes: number) => string;
 }) {
   return (
-    <div className="my-2 bg-secondary-50/50 shadow-[inset_2px_0_0_rgba(168,85,247,0.7)] dark:bg-secondary-100/10">
+    <div className="my-2 bg-default-100/70 shadow-[inset_2px_0_0_rgba(148,163,184,0.8)] dark:bg-default-100/10">
       <div className="w-full max-w-full overflow-x-auto pb-2">
         <table className="w-full min-w-[1654px] table-fixed text-[13px]">
           <RemoteNodeTableColGroup />
@@ -400,7 +400,7 @@ function RemoteNodeInstanceRows({
               </th>
               <th className="px-1 py-2 text-left font-medium">
                 实例名称
-                <span className="font-normal text-secondary-500">
+                <span className="font-normal text-default-500">
                   ^{instances.length}个
                 </span>
               </th>
