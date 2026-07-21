@@ -438,13 +438,13 @@ function RemoteNodeInstanceRows({
               const parentMeta = getRemoteDisplayMeta(parentState);
               const instanceFlows = flows.filter(
                 (flow) =>
-                  flow.runtimeId > 0 &&
+                  flow.runtimeId === 0 &&
                   flow.instanceId === instanceId &&
                   flow.periodType.toLowerCase() === "total",
               );
               const hasInstanceFlows = flows.some(
                 (flow) =>
-                  flow.runtimeId > 0 &&
+                  flow.runtimeId === 0 &&
                   Boolean(flow.instanceId) &&
                   flow.periodType.toLowerCase() === "total",
               );

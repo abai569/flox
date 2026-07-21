@@ -140,6 +140,11 @@ func (h *relayHandler) Handle(ctx context.Context, conn net.Conn, opts ...handle
 		ro.InputBytes = pStats.Get(stats.KindInputBytes)
 		ro.OutputBytes = pStats.Get(stats.KindOutputBytes)
 		ro.Duration = time.Since(start)
+		xservice.GetGlobalTrafficManager().AddTraffic(
+			h.options.Service,
+			int64(ro.InputBytes),
+			int64(ro.OutputBytes),
+		)
 		if err := ro.Record(ctx, h.recorder.Recorder); err != nil {
 			log.Errorf("record: %v", err)
 		}
