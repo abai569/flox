@@ -397,11 +397,16 @@ func (r *Repository) ResetUserQuotaUsage(userID int64, scope string, now time.Ti
 // UserQuotaHistoryItem 用户流量历史项
 type UserQuotaHistoryItem struct {
 	ID            int64  `json:"id"`
-	PeriodType    string `json:"periodType"`    // daily/monthly
-	PeriodKey     int64  `json:"periodKey"`     // YYYYMMDD 或 YYYYMM
+	PeriodType    string `json:"periodType"`    // daily/monthly/user-adjust
+	PeriodKey     int64  `json:"periodKey"`     // YYYYMMDD 或 YYYYMM 或 0
 	InFlowBefore  int64  `json:"inFlowBefore"`  // 上行流量 (bytes)
 	OutFlowBefore int64  `json:"outFlowBefore"` // 下行流量 (bytes)
+	InFlowAfter   int64  `json:"inFlowAfter"`   // 调整后上行流量
+	OutFlowAfter  int64  `json:"outFlowAfter"`  // 调整后下行流量
 	UsedBytes     int64  `json:"usedBytes"`
+	ActionType    string `json:"actionType"`    // reset/adjust/auto_reset
+	OperatorID    int64  `json:"operatorId"`
+	OperatorName  string `json:"operatorName"`
 	InFlowGB      string `json:"inFlowGB"`  // 上行流量 (GB)
 	OutFlowGB     string `json:"outFlowGB"` // 下行流量 (GB)
 	UsedGB        string `json:"usedGB"`    // 格式化后的 GB 值
@@ -438,13 +443,24 @@ func (r *Repository) GetUserQuotaHistory(userID int64, limit int) ([]UserQuotaHi
 		inFlowGB := fmt.Sprintf("%.2f", float64(h.InFlowBefore)/float64(bytesPerGB))
 		outFlowGB := fmt.Sprintf("%.2f", float64(h.OutFlowBefore)/float64(bytesPerGB))
 		usedGB := fmt.Sprintf("%.2f", float64(h.UsedBytes)/float64(bytesPerGB))
+		actionType := "reset"
+		if h.PeriodType == "user-adjust" {
+			actionType = "adjust"
+		} else if h.ResetReason == "自动周期归零" || h.ResetReason == "到期归零" {
+			actionType = "auto_reset"
+		}
 		items = append(items, UserQuotaHistoryItem{
 			ID:            h.ID,
 			PeriodType:    h.PeriodType,
 			PeriodKey:     h.PeriodKey,
 			InFlowBefore:  h.InFlowBefore,
 			OutFlowBefore: h.OutFlowBefore,
+			InFlowAfter:   h.InFlowAfter,
+			OutFlowAfter:  h.OutFlowAfter,
 			UsedBytes:     h.UsedBytes,
+			ActionType:    actionType,
+			OperatorID:    h.OperatorID,
+			OperatorName:  h.OperatorName,
 			InFlowGB:      inFlowGB,
 			OutFlowGB:     outFlowGB,
 			UsedGB:        usedGB,

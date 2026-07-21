@@ -266,6 +266,7 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.PeerShareRuntime{},
 		&model.PeerShareRuntimeInstance{},
 		&model.PeerShareFlow{},
+		&model.PeerShareTrafficResetLog{},
 		&model.FederationTunnelBinding{},
 		&model.Announcement{},
 		&model.SchemaVersion{},
@@ -2311,6 +2312,8 @@ func (r *Repository) updatePeerShareWithInstances(share *model.PeerShare, instan
 			"traffic_ratio":              share.TrafficRatio,
 			"auto_include_new_instances": share.AutoIncludeNewInstances,
 			"min_healthy_instances":      share.MinHealthyInstances,
+			"consumer_panel_url":         share.ConsumerPanelURL,
+			"consumer_panel_token":       share.ConsumerPanelToken,
 		}
 		if currentFlow != nil {
 			updates["current_flow"] = *currentFlow
@@ -2402,6 +2405,60 @@ func (r *Repository) AddPeerShareCurrentFlow(shareID int64, delta int64) error {
 		}).Error
 }
 
+func (r *Repository) ResetPeerShareCurrentFlowWithLog(shareID int64, operatorID int64, operatorName string, reason string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if shareID <= 0 {
+		return nil
+	}
+	now := unixMilliNow()
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var share model.PeerShare
+		if err := tx.Where("id = ?", shareID).First(&share).Error; err != nil {
+			return err
+		}
+		var totalIn, totalOut int64
+		_ = tx.Model(&model.PeerShareFlow{}).
+			Where("share_id = ? AND runtime_id = 0 AND instance_id = '' AND period_type = ?", shareID, "total").
+			Select("SUM(in_flow), SUM(out_flow)").
+			Row().Scan(&totalIn, &totalOut)
+		history := &model.PeerShareTrafficResetLog{
+			ShareID:       shareID,
+			ShareName:     share.Name,
+			NodeID:        share.NodeID,
+			NodeName:      share.NodeName,
+			InFlowBefore:  totalIn,
+			OutFlowBefore: totalOut,
+			CurrentBefore: share.CurrentFlow,
+			TrafficRatio:  share.TrafficRatio,
+			ChargedBefore: totalIn + totalOut,
+			ResetTime:     now,
+			OperatorID:    operatorID,
+			OperatorName:  operatorName,
+			Reason:        reason,
+			CreatedTime:   now,
+		}
+		if err := tx.Create(history).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.PeerShare{}).Where("id = ?", shareID).Updates(map[string]interface{}{
+			"current_flow": 0, "updated_time": now,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("share_id = ?", shareID).Delete(&model.PeerShareFlow{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.PeerShareRuntimeInstance{}).Where("share_id = ?", shareID).Updates(map[string]interface{}{
+			"current_flow": 0, "updated_time": now,
+		}).Error; err != nil {
+			return err
+		}
+		return r.cleanupPeerShareTrafficResetLogsTx(tx, shareID)
+	})
+}
+
 func (r *Repository) ResetPeerShareCurrentFlow(shareID int64, updatedTime int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
@@ -2430,16 +2487,23 @@ func (r *Repository) ResetPeerShareCurrentFlow(shareID int64, updatedTime int64)
 		}).Error; err != nil {
 			return err
 		}
-		if share.NodeID > 0 {
-			if err := tx.Model(&model.Node{}).Where("id = ?", share.NodeID).Updates(map[string]interface{}{
-				"total_in_flow":  0,
-				"total_out_flow": 0,
-			}).Error; err != nil {
-				return err
-			}
-		}
 		return nil
 	})
+}
+
+func (r *Repository) cleanupPeerShareTrafficResetLogsTx(tx *gorm.DB, shareID int64) error {
+	var logs []model.PeerShareTrafficResetLog
+	if err := tx.Where("share_id = ?", shareID).Order("created_time DESC").Find(&logs).Error; err != nil {
+		return err
+	}
+	if len(logs) <= 30 {
+		return nil
+	}
+	ids := make([]int64, 0, len(logs)-30)
+	for i := 30; i < len(logs); i++ {
+		ids = append(ids, logs[i].ID)
+	}
+	return tx.Where("id IN ?", ids).Delete(&model.PeerShareTrafficResetLog{}).Error
 }
 
 // ─── PeerShareRuntime CRUD ───────────────────────────────────────────
@@ -2927,6 +2991,7 @@ var coreTables = []string{
 	"user_quota_history",
 	"node_traffic_reset_log",
 	"forward_traffic_reset_log",
+	"peer_share_traffic_reset_log",
 	"service_monitor",
 }
 

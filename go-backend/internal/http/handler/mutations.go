@@ -669,7 +669,15 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	h.repo.PropagateUserFlowToTunnels(id, flow, num, expTime, flowResetTime, status)
 	if hasInFlow || hasOutFlow {
-		h.repo.UpdateUserUsedFlow(id, inFlowVal, outFlowVal)
+		actorUserID, actorRole, _ := userRoleFromRequest(r)
+		actorUserName := h.repo.GetUsernameByID(actorUserID)
+		actionTitle := "管理员编辑已用流量"
+		if actorRole == 0 {
+			actionTitle = "管理员编辑已用流量"
+		}
+		if err := h.repo.UpdateUserUsedFlowWithLog(id, inFlowVal, outFlowVal, oldUser.InFlow, oldUser.OutFlow, actorUserID, actorUserName, actionTitle); err != nil {
+			log.Printf("WARN: update user used flow log failed for user %d: %v", id, err)
+		}
 	}
 	// 根据用户状态同步 Forward 规则状态
 	_ = h.repo.UpdateUserForwardsStatus(id, status, now)

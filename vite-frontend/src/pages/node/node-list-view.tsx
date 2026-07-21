@@ -663,7 +663,7 @@ function NodeInstanceRows({
 
   return (
     <div
-      className="my-2 overflow-visible bg-primary-50/70 shadow-[inset_2px_0_0_rgba(59,130,246,0.7)] dark:bg-primary-100/10"
+      className="my-2 overflow-visible bg-default-100/70 shadow-[inset_2px_0_0_rgba(148,163,184,0.8)] dark:bg-default-100/10"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="w-full max-w-full overflow-x-auto pb-2">
@@ -1765,7 +1765,7 @@ function SortableTableRow({
           {node.isRemote !== 1 && (
             <Button
               className="min-h-7 shrink-0 px-2"
-              color={shareCounts[node.id] ? "success" : "primary"}
+              color={shareCounts[node.id] ? "success" : "default"}
               size="sm"
               variant="flat"
               onPress={() => onShareNode(node)}

@@ -9,6 +9,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -54,8 +55,8 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 			return err
 		}
 		h.publishPeerShareEvent(shareID, "flow_changed")
-		// Relay traffic to Consumer panel if entry node is remote
-		h.relayFlowToConsumer(shareID, item.U, item.D)
+		// Relay the original namespaced resource so Consumer can identify its Forward.
+		h.relayFlowToConsumer(serviceName, instanceID, item.U, item.D)
 		return nil
 	}
 
@@ -119,6 +120,24 @@ func parseRemShareServiceName(serviceName string) (int64, bool) {
 		return 0, false
 	}
 	return shareID, true
+}
+
+func parseRelayedForwardServiceName(serviceName string) (int64, int64, int64, int64, bool) {
+	shareID, ok := parseRemShareServiceName(serviceName)
+	if !ok {
+		return 0, 0, 0, 0, false
+	}
+	parts := strings.Split(strings.TrimPrefix(serviceName, fmt.Sprintf("rem_s%d_", shareID)), "_")
+	if len(parts) < 3 {
+		return 0, 0, 0, 0, false
+	}
+	forwardID, err1 := strconv.ParseInt(parts[0], 10, 64)
+	userID, err2 := strconv.ParseInt(parts[1], 10, 64)
+	userTunnelID, err3 := strconv.ParseInt(parts[2], 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil || forwardID <= 0 || userID <= 0 {
+		return 0, 0, 0, 0, false
+	}
+	return shareID, forwardID, userID, userTunnelID, true
 }
 
 func parseFlowServiceIDs(serviceName string) (int64, int64, int64, bool) {
@@ -822,28 +841,29 @@ func (h *Handler) pauseForward(forwardID int64, reason string) error {
 }
 
 // relayFlowToConsumer relays traffic to Consumer panel when entry node is remote.
-func (h *Handler) relayFlowToConsumer(shareID int64, up, down int64) {
-	if h == nil || h.repo == nil || shareID <= 0 {
+func (h *Handler) relayFlowToConsumer(serviceName, instanceID string, up, down int64) {
+	shareID, ok := parseRemShareServiceName(serviceName)
+	if h == nil || h.repo == nil || !ok {
 		return
 	}
 	if up+down <= 0 {
 		return
 	}
 
-	var share model.PeerShare
-	if err := h.repo.DB().Where("id = ?", shareID).First(&share).Error; err != nil {
+	share, err := h.repo.GetPeerShare(shareID)
+	if err != nil || share == nil {
 		return
 	}
 
 	consumerURL := strings.TrimSpace(share.ConsumerPanelURL)
-	consumerToken := strings.TrimSpace(share.ConsumerPanelToken)
+	consumerToken := strings.TrimSpace(share.Token)
 	if consumerURL == "" || consumerToken == "" {
 		return
 	}
 
 	// Build flow item for Consumer
 	items := []map[string]interface{}{
-		{"n": fmt.Sprintf("relay_s%d", shareID), "u": up, "d": down},
+		{"n": serviceName, "u": up, "d": down, "i": strings.TrimSpace(instanceID)},
 	}
 
 	payload, err := json.Marshal(items)
@@ -857,7 +877,7 @@ func (h *Handler) relayFlowToConsumer(shareID int64, up, down int64) {
 	if !strings.HasPrefix(targetURL, "http://") && !strings.HasPrefix(targetURL, "https://") {
 		targetURL = "https://" + targetURL
 	}
-	targetURL = strings.TrimRight(targetURL, "/") + "/flow/upload?secret=" + consumerToken
+	targetURL = strings.TrimRight(targetURL, "/") + "/flow/relay?secret=" + url.QueryEscape(consumerToken)
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Post(targetURL, "application/json", bytes.NewReader(payload))

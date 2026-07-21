@@ -717,8 +717,15 @@ export const updatePeerShare = (
 ) => Network.post("/federation/share/update", data);
 export const deletePeerShare = (id: number) =>
   Network.post("/federation/share/delete", { id });
-export const resetPeerShareFlow = (id: number) =>
-  Network.post("/federation/share/reset-flow", { id });
+export const resetPeerShareFlow = (id: number, reason?: string) =>
+  Network.post("/federation/share/reset-flow", { id, reason });
+export const getPeerShareTrafficResetLogs = (shareId: number, limit?: number) =>
+  Network.post<PeerShareTrafficResetLogApiItem[]>(
+    "/federation/share/traffic-reset-logs",
+    { shareId, limit },
+  );
+export const deletePeerShareTrafficResetLog = (id: number) =>
+  Network.post("/federation/share/traffic-reset-log/delete", { id });
 export const updatePeerShareStatus = (id: number, isActive: number) =>
   Network.post("/federation/share/update-status", { id, isActive });
 export const getPeerRemoteUsageList = (nodeId?: number) =>

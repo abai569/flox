@@ -269,14 +269,18 @@ func (UserQuota) TableName() string { return "user_quota" }
 type UserQuotaHistory struct {
 	ID            int64  `gorm:"primaryKey;autoIncrement"`
 	UserID        int64  `gorm:"column:user_id;not null;index:idx_user_period"`
-	PeriodType    string `gorm:"column:period_type;type:varchar(10);not null;index:idx_user_period"` // daily/monthly
-	PeriodKey     int64  `gorm:"column:period_key;not null;index:idx_user_period"`                   // YYYYMMDD 或 YYYYMM
+	PeriodType    string `gorm:"column:period_type;type:varchar(20);not null;index:idx_user_period"` // daily/monthly/tunnel/user-adjust
+	PeriodKey     int64  `gorm:"column:period_key;not null;index:idx_user_period"`                   // YYYYMMDD 或 YYYYMM 或 0
 	InFlowBefore  int64  `gorm:"column:in_flow_before;not null;default:0"`
 	OutFlowBefore int64  `gorm:"column:out_flow_before;not null;default:0"`
+	InFlowAfter   int64  `gorm:"column:in_flow_after;not null;default:0"`
+	OutFlowAfter  int64  `gorm:"column:out_flow_after;not null;default:0"`
 	UsedBytes     int64  `gorm:"column:used_bytes;not null;default:0"`
+	OperatorID    int64  `gorm:"column:operator_id;not null;default:0"`
+	OperatorName  string `gorm:"column:operator_name;type:varchar(100);not null;default:''"`
 	ResetTime     int64  `gorm:"column:reset_time;not null"`
 	CreatedTime   int64  `gorm:"column:created_time;not null"`
-	ResetReason   string `gorm:"column:reset_reason;type:varchar(50)"` // 归零原因：管理员手动归零/自动周期归零
+	ResetReason   string `gorm:"column:reset_reason;type:varchar(100)"` // 归零/调整原因
 }
 
 func (UserQuotaHistory) TableName() string { return "user_quota_history" }
@@ -549,6 +553,26 @@ type PeerShareFlow struct {
 }
 
 func (PeerShareFlow) TableName() string { return "peer_share_flow" }
+
+type PeerShareTrafficResetLog struct {
+	ID              int64  `gorm:"primaryKey;autoIncrement"`
+	ShareID         int64  `gorm:"column:share_id;not null;index:idx_peer_share_reset_share"`
+	ShareName       string `gorm:"column:share_name;type:varchar(100);not null"`
+	NodeID          int64  `gorm:"column:node_id;not null;index:idx_peer_share_reset_node"`
+	NodeName        string `gorm:"column:node_name;type:varchar(100);not null"`
+	InFlowBefore    int64  `gorm:"column:in_flow_before;not null;default:0"`
+	OutFlowBefore   int64  `gorm:"column:out_flow_before;not null;default:0"`
+	CurrentBefore   int64  `gorm:"column:current_before;not null;default:0"`
+	TrafficRatio    int64  `gorm:"column:traffic_ratio;not null;default:0"`
+	ChargedBefore   int64  `gorm:"column:charged_before;not null;default:0"`
+	ResetTime       int64  `gorm:"column:reset_time;not null"`
+	OperatorID      int64  `gorm:"column:operator_id;not null"`
+	OperatorName    string `gorm:"column:operator_name;type:varchar(100);not null"`
+	Reason          string `gorm:"column:reason;type:varchar(100)"`
+	CreatedTime     int64  `gorm:"column:created_time;not null"`
+}
+
+func (PeerShareTrafficResetLog) TableName() string { return "peer_share_traffic_reset_log" }
 
 type FederationTunnelBinding struct {
 	ID              int64  `gorm:"primaryKey;autoIncrement"`

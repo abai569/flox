@@ -167,6 +167,7 @@ export interface PeerShareApiItem {
   minHealthyInstances?: number;
   instances?: PeerShareInstanceApiItem[];
   flows?: PeerShareFlowApiItem[];
+  consumerPanelUrl?: string;
 }
 
 export interface PeerShareInstanceApiItem {
@@ -239,6 +240,8 @@ export interface PeerShareMutationPayload {
   currentFlow?: number;
   trafficRatio: number;
   minHealthyInstances?: number;
+  consumerPanelUrl?: string;
+  consumerPanelToken?: string;
 }
 
 export interface PeerRemoteUsageBindingApiItem {
@@ -995,17 +998,40 @@ export interface OfflineDeployPayload {
 // 用户流量历史项
 export interface UserQuotaHistoryItem {
   id: number;
-  periodType: "daily" | "monthly" | "tunnel";
-  periodKey: number; // YYYYMMDD 或 YYYYMM
+  periodType: "daily" | "monthly" | "tunnel" | "user-adjust";
+  periodKey: number;
   usedBytes: number;
   inFlowBefore: number;
   outFlowBefore: number;
+  inFlowAfter: number;
+  outFlowAfter: number;
   inFlowGB: string;
   outFlowGB: string;
   usedGB: string;
+  actionType: "reset" | "adjust" | "auto_reset";
+  operatorId: number;
+  operatorName: string;
   resetTime: number;
   createdTime: number;
   resetReason?: string;
+}
+
+export interface PeerShareTrafficResetLogApiItem {
+  id: number;
+  shareId: number;
+  shareName: string;
+  nodeId: number;
+  nodeName: string;
+  inFlowBefore: number;
+  outFlowBefore: number;
+  currentBefore: number;
+  trafficRatio: number;
+  chargedBefore: number;
+  resetTime: number;
+  operatorId: number;
+  operatorName: string;
+  reason: string;
+  createdTime: number;
 }
 
 // 续费记录

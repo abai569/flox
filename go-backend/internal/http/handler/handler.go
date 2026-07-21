@@ -23,7 +23,6 @@ import (
 	"go-backend/internal/http/response"
 	"go-backend/internal/metrics"
 	"go-backend/internal/security"
-	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 	"go-backend/internal/telegram"
 	"go-backend/internal/ws"
@@ -262,6 +261,7 @@ type flowItem struct {
 	N string `json:"n"`
 	U int64  `json:"u"`
 	D int64  `json:"d"`
+	I string `json:"i,omitempty"`
 }
 
 const (
@@ -518,6 +518,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/federation/share/update", h.federationShareUpdate)
 	mux.HandleFunc("/api/v1/federation/share/delete", h.federationShareDelete)
 	mux.HandleFunc("/api/v1/federation/share/reset-flow", h.federationShareResetFlow)
+	mux.HandleFunc("/api/v1/federation/share/traffic-reset-logs", h.federationShareTrafficResetLogs)
+	mux.HandleFunc("/api/v1/federation/share/traffic-reset-log/delete", h.deletePeerShareTrafficResetLog)
 	mux.HandleFunc("/api/v1/federation/share/update-status", h.federationShareUpdateStatus)
 	mux.HandleFunc("/api/v1/federation/share/remote-usage/list", h.federationRemoteUsageList)
 	mux.HandleFunc("/api/v1/federation/connect", h.authPeer(h.federationConnect))
@@ -1455,8 +1457,8 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 // flowRelay handles traffic relayed from Provider panels when entry node is remote.
-// Provider sends: [{"n":"relay_s<shareID>","u":up,"d":down}]
-// Consumer attributes this to the correct forward/node based on share mapping.
+// Provider sends the original rem_s<shareID>_<forwardID>_<userID>_<tunnelID> service.
+// Consumer attributes the item to the matching forward and its full topology.
 func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1472,93 +1474,53 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find share by consumer_panel_token
-	var share model.PeerShare
-	if err := h.repo.DB().Where("consumer_panel_token = ?", secret).First(&share).Error; err != nil {
-		log.Printf("[flowRelay] share not found by token: %v", err)
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	raw, err := readAndDecryptFlowBody(r.Body, secret)
 	if err != nil {
 		log.Printf("[flowRelay] readAndDecryptFlowBody error: %v", err)
 	} else if strings.TrimSpace(raw) == "" {
-		log.Printf("[flowRelay] empty body from provider for share %d", share.ID)
+		log.Printf("[flowRelay] empty body from provider")
 	} else {
 		var items []flowItem
 		if json.Unmarshal([]byte(raw), &items) != nil {
-			log.Printf("[flowRelay] json unmarshal failed share=%d raw=%.200s", share.ID, raw)
+			log.Printf("[flowRelay] json unmarshal failed raw=%.200s", raw)
 		} else {
 			for _, item := range items {
-				// Parse relay_s<shareID> service name
 				serviceName := strings.TrimSpace(item.N)
-				if !strings.HasPrefix(serviceName, "relay_s") {
+				shareID, forwardID, userID, userTunnelID, ok := parseRelayedForwardServiceName(serviceName)
+				if !ok {
 					continue
 				}
-				rawID := strings.TrimPrefix(serviceName, "relay_s")
-				idx := strings.IndexByte(rawID, '_')
-				if idx > 0 {
-					rawID = rawID[:idx]
-				}
-				relayShareID, err := strconv.ParseInt(rawID, 10, 64)
-				if err != nil || relayShareID != share.ID {
+				nodes, err := h.repo.FindRemoteNodesByShareIDAndToken(shareID, secret)
+				if err != nil || len(nodes) == 0 {
 					continue
 				}
-
-				// Find the forward that uses this share
-				// Look up tunnel -> node -> remote_config.shareId mapping
-				var node model.Node
-				if err := h.repo.DB().Where("id = ?", share.NodeID).First(&node).Error; err != nil {
-					continue
-				}
-
-				// Find tunnels that use this remote node
-				var tunnelIDs []int64
-				if err := h.repo.DB().Table("chain_tunnel").
-					Where("node_id = ? AND chain_type IN ?", node.ID, []string{"1", "2", "3"}).
-					Pluck("tunnel_id", &tunnelIDs).Error; err != nil {
-					continue
-				}
-
-				for _, tunnelID := range tunnelIDs {
-					// Find forwards for this tunnel
-					var forwards []model.Forward
-					if err := h.repo.DB().Where("tunnel_id = ? AND status = 1", tunnelID).Find(&forwards).Error; err != nil {
+				for _, node := range nodes {
+					forward, err := h.repo.GetActiveForwardByEntryNode(forwardID, node.ID, userID, userTunnelID)
+					if err != nil || forward == nil {
 						continue
 					}
-
-					for _, forward := range forwards {
-						// Find entry node for this forward
-						var entryNodeID int64
-						if err := h.repo.DB().Table("forward_port").
-							Where("forward_id = ?", forward.ID).
-							Pluck("node_id", &entryNodeID).Error; err != nil || entryNodeID == 0 {
-							continue
-						}
-
-						// Check if entry node is this remote node
-						if entryNodeID != node.ID {
-							continue
-						}
-
-						// Attribute traffic to this forward
-						inFlow := int64(math.Round(float64(item.D) * node.TrafficRatio))
-						outFlow := int64(math.Round(float64(item.U) * node.TrafficRatio))
-
-						if err := h.repo.AddAuthoritativeForwardTraffic(
-							forward.ID, forward.UserID, 0,
-							inFlow, outFlow,
-							item.D, item.U, "",
-							[]repo.ForwardTrafficNodeDelta{
-								{NodeID: node.ID, InFlow: inFlow, OutFlow: outFlow, IsEntry: true},
-							},
-						); err != nil {
-							log.Printf("[flowRelay] add forward traffic failed forward=%d: %v", forward.ID, err)
-						} else {
-							log.Printf("[flowRelay] attributed %d up + %d down to forward %d (node %d)", item.U, item.D, forward.ID, node.ID)
-						}
+					topology, err := h.repo.GetForwardTrafficTopology(forward.ID, node.ID)
+					if err != nil {
+						continue
 					}
+					inFlow := int64(math.Round(float64(item.D) * topology.TotalRatio))
+					outFlow := int64(math.Round(float64(item.U) * topology.TotalRatio))
+					deltas := make([]repo.ForwardTrafficNodeDelta, 0, len(topology.Nodes))
+					for _, trafficNode := range topology.Nodes {
+						deltas = append(deltas, repo.ForwardTrafficNodeDelta{NodeID: trafficNode.NodeID, InFlow: int64(math.Round(float64(item.D) * trafficNode.TrafficRatio)), OutFlow: int64(math.Round(float64(item.U) * trafficNode.TrafficRatio)), IsEntry: trafficNode.IsEntry})
+					}
+					if err := h.repo.AddAuthoritativeForwardTraffic(forward.ID, userID, userTunnelID, inFlow, outFlow, item.D, item.U, item.I, deltas); err != nil {
+						log.Printf("[flowRelay] add forward traffic failed forward=%d: %v", forward.ID, err)
+						continue
+					}
+					if quota, quotaErr := h.repo.AddUserQuotaUsage(userID, inFlow+outFlow, time.Now()); quotaErr == nil {
+						h.enforceUserQuotaIfNeeded(userID, quota)
+					}
+					h.enforceForwardTrafficLimit(forward.ID)
+					if userTunnelID > 0 {
+						h.enforceFlowPolicies(userID, userTunnelID)
+					}
+					log.Printf("[flowRelay] attributed share=%d raw=%d/%d total=%d/%d forward=%d node=%d", shareID, item.U, item.D, outFlow, inFlow, forward.ID, node.ID)
 				}
 			}
 		}

@@ -130,6 +130,49 @@ func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, 
 		}).Error
 }
 
+func (r *Repository) UpdateUserUsedFlowWithLog(userID int64, inFlow, outFlow int64, oldInFlow, oldOutFlow int64, operatorID int64, operatorName string, reason string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if oldInFlow == inFlow && oldOutFlow == outFlow {
+		return nil
+	}
+	now := time.Now().UnixMilli()
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&model.User{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+			"in_flow":      inFlow,
+			"out_flow":     outFlow,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.UserTunnel{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
+			"in_flow":  inFlow,
+			"out_flow": outFlow,
+		}).Error; err != nil {
+			return nil
+		}
+		history := &model.UserQuotaHistory{
+			UserID:        userID,
+			PeriodType:    "user-adjust",
+			PeriodKey:     0,
+			InFlowBefore:  oldInFlow,
+			OutFlowBefore: oldOutFlow,
+			InFlowAfter:   inFlow,
+			OutFlowAfter:  outFlow,
+			UsedBytes:     oldInFlow + oldOutFlow,
+			OperatorID:    operatorID,
+			OperatorName:  operatorName,
+			ResetTime:     now,
+			CreatedTime:   now,
+			ResetReason:   reason,
+		}
+		return tx.Create(history).Error
+	})
+}
+
 func (r *Repository) UpdateUserUsedFlow(userID int64, inFlow, outFlow int64) {
 	if r == nil || r.db == nil {
 		return
