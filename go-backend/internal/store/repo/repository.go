@@ -229,6 +229,10 @@ func autoMigrateAll(db *gorm.DB) error {
 	if err := migratePeerShareSpeedLimitColumns(db); err != nil {
 		return fmt.Errorf("migrate peer share speed limit columns: %w", err)
 	}
+
+	if err := migratePeerShareConsumerPanelColumns(db); err != nil {
+		return fmt.Errorf("migrate peer share consumer panel columns: %w", err)
+	}
 	models := []interface{}{
 		&model.User{},
 		&model.UserQuota{},
@@ -424,6 +428,21 @@ func migratePeerShareSpeedLimitColumns(db *gorm.DB) error {
 		return nil
 	}
 	for _, field := range []string{"RemSpeedLimit", "RemForwardSpeedLimit"} {
+		if db.Migrator().HasColumn(&model.PeerShare{}, field) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(&model.PeerShare{}, field); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migratePeerShareConsumerPanelColumns(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&model.PeerShare{}) {
+		return nil
+	}
+	for _, field := range []string{"ConsumerPanelURL", "ConsumerPanelToken"} {
 		if db.Migrator().HasColumn(&model.PeerShare{}, field) {
 			continue
 		}
@@ -2233,6 +2252,8 @@ func (r *Repository) UpdatePeerShare(share *model.PeerShare) error {
 		"traffic_ratio":              share.TrafficRatio,
 		"auto_include_new_instances": share.AutoIncludeNewInstances,
 		"min_healthy_instances":      share.MinHealthyInstances,
+		"consumer_panel_url":         share.ConsumerPanelURL,
+		"consumer_panel_token":       share.ConsumerPanelToken,
 	}).Error
 }
 

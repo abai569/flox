@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"math"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -52,6 +54,8 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 			return err
 		}
 		h.publishPeerShareEvent(shareID, "flow_changed")
+		// Relay traffic to Consumer panel if entry node is remote
+		h.relayFlowToConsumer(shareID, item.U, item.D)
 		return nil
 	}
 
@@ -815,4 +819,58 @@ func (h *Handler) pauseForward(forwardID int64, reason string) error {
 
 	log.Printf("Forward %d paused: %s", forwardID, reason)
 	return nil
+}
+
+// relayFlowToConsumer relays traffic to Consumer panel when entry node is remote.
+func (h *Handler) relayFlowToConsumer(shareID int64, up, down int64) {
+	if h == nil || h.repo == nil || shareID <= 0 {
+		return
+	}
+	if up+down <= 0 {
+		return
+	}
+
+	var share model.PeerShare
+	if err := h.repo.DB().Where("id = ?", shareID).First(&share).Error; err != nil {
+		return
+	}
+
+	consumerURL := strings.TrimSpace(share.ConsumerPanelURL)
+	consumerToken := strings.TrimSpace(share.ConsumerPanelToken)
+	if consumerURL == "" || consumerToken == "" {
+		return
+	}
+
+	// Build flow item for Consumer
+	items := []map[string]interface{}{
+		{"n": fmt.Sprintf("relay_s%d", shareID), "u": up, "d": down},
+	}
+
+	payload, err := json.Marshal(items)
+	if err != nil {
+		log.Printf("[flow relay] marshal failed for share %d: %v", shareID, err)
+		return
+	}
+
+	// Determine URL
+	targetURL := consumerURL
+	if !strings.HasPrefix(targetURL, "http://") && !strings.HasPrefix(targetURL, "https://") {
+		targetURL = "https://" + targetURL
+	}
+	targetURL = strings.TrimRight(targetURL, "/") + "/flow/upload?secret=" + consumerToken
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Post(targetURL, "application/json", bytes.NewReader(payload))
+	if err != nil {
+		log.Printf("[flow relay] post failed for share %d: %v", shareID, err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[flow relay] bad status for share %d: %d", shareID, resp.StatusCode)
+		return
+	}
+
+	log.Printf("[flow relay] relayed %d up + %d down to consumer for share %d", up, down, shareID)
 }

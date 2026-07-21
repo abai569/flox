@@ -477,6 +477,8 @@ type PeerShare struct {
 	UpdatedTime             int64   `gorm:"column:updated_time;not null" json:"updatedTime"`
 	AllowedDomains          string  `gorm:"column:allowed_domains;type:text;default:''" json:"allowedDomains"`
 	AllowedIPs              string  `gorm:"column:allowed_ips;type:text;default:''" json:"allowedIps"`
+	ConsumerPanelURL        string  `gorm:"column:consumer_panel_url;type:text;default:''" json:"consumerPanelUrl"`
+	ConsumerPanelToken      string  `gorm:"column:consumer_panel_token;type:text;default:''" json:"consumerPanelToken"`
 }
 
 func (PeerShare) TableName() string { return "peer_share" }
