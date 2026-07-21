@@ -52,9 +52,6 @@ function useModalContext() {
 type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "5xl" |  "6xl" |  "7xl" |  "full";
 
 function mapSize(size: ModalSize | undefined) {
-  if (size === "xs") {
-    return "max-w-xs";
-  }
   if (size === "sm") {
     return "max-w-md";
   }
@@ -69,9 +66,6 @@ function mapSize(size: ModalSize | undefined) {
   }
   if (size === "2xl") {
     return "max-w-4xl";
-  }
-  if (size === "3xl") {
-    return "max-w-5xl";
   }
   if (size === "4xl") {
     return "max-w-6xl";
