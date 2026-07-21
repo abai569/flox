@@ -404,7 +404,7 @@ type UserQuotaHistoryItem struct {
 	InFlowAfter   int64  `json:"inFlowAfter"`   // 调整后上行流量
 	OutFlowAfter  int64  `json:"outFlowAfter"`  // 调整后下行流量
 	UsedBytes     int64  `json:"usedBytes"`
-	ActionType    string `json:"actionType"`    // reset/adjust/auto_reset
+	ActionType    string `json:"actionType"` // reset/adjust/auto_reset
 	OperatorID    int64  `json:"operatorId"`
 	OperatorName  string `json:"operatorName"`
 	InFlowGB      string `json:"inFlowGB"`  // 上行流量 (GB)
@@ -429,7 +429,7 @@ func (r *Repository) GetUserQuotaHistory(userID int64, limit int) ([]UserQuotaHi
 
 	var histories []model.UserQuotaHistory
 	err := r.db.Where("user_id = ?", userID).
-		Order("created_time DESC").
+		Order("created_time DESC, id DESC").
 		Limit(limit).
 		Find(&histories).Error
 	if err != nil {

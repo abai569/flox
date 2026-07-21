@@ -635,7 +635,11 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		status = 1
 	}
 
-	oldUser, _ := h.repo.GetUserByID(id)
+	oldUser, err := h.repo.GetUserByID(id)
+	if err != nil || oldUser == nil {
+		response.WriteJSON(w, response.ErrDefault("用户不存在"))
+		return
+	}
 
 	forwardSpeedLimitChanged := false
 	newForwardSpeedLimit := asInt(req["forwardSpeedLimit"], 0)
@@ -645,14 +649,18 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 
 	name := asString(req["name"]) // 解析前端传来的备注名称
 	pwd := asString(req["pwd"])
+	updateInFlow, updateOutFlow := inFlowVal, outFlowVal
+	if (hasInFlow || hasOutFlow) && oldUser != nil {
+		updateInFlow, updateOutFlow = oldUser.InFlow, oldUser.OutFlow
+	}
 
 	if strings.TrimSpace(pwd) == "" {
-		if err := h.repo.UpdateUserWithoutPassword(id, username, name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew), newRoleID, inFlowVal, outFlowVal); err != nil {
+		if err := h.repo.UpdateUserWithoutPassword(id, username, name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew), newRoleID, updateInFlow, updateOutFlow); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
 	} else {
-		if err := h.repo.UpdateUserWithPassword(id, username, security.MD5(pwd), name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew), newRoleID, inFlowVal, outFlowVal); err != nil {
+		if err := h.repo.UpdateUserWithPassword(id, username, security.MD5(pwd), name, flow, num, expTime, flowResetTime, status, now, renewalAmount, balance, int64(autoRenew), newRoleID, updateInFlow, updateOutFlow); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
@@ -669,14 +677,13 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	h.repo.PropagateUserFlowToTunnels(id, flow, num, expTime, flowResetTime, status)
 	if hasInFlow || hasOutFlow {
-		actorUserID, actorRole, _ := userRoleFromRequest(r)
+		actorUserID, _, _ := userRoleFromRequest(r)
 		actorUserName := h.repo.GetUsernameByID(actorUserID)
-		actionTitle := "管理员编辑已用流量"
-		if actorRole == 0 {
-			actionTitle = "管理员编辑已用流量"
-		}
-		if err := h.repo.UpdateUserUsedFlowWithLog(id, inFlowVal, outFlowVal, oldUser.InFlow, oldUser.OutFlow, actorUserID, actorUserName, actionTitle); err != nil {
-			log.Printf("WARN: update user used flow log failed for user %d: %v", id, err)
+		if oldUser != nil {
+			if err := h.repo.UpdateUserUsedFlowWithLog(id, inFlowVal, outFlowVal, actorUserID, actorUserName, "管理员编辑已用流量"); err != nil {
+				response.WriteJSON(w, response.Err(-2, err.Error()))
+				return
+			}
 		}
 	}
 	// 根据用户状态同步 Forward 规则状态

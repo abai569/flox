@@ -2140,7 +2140,7 @@ export default function UserPage() {
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
                     流量限制
                   </TableColumn>
-                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[150px] text-left">
+                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[150px] text-right">
                     已用流量
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
@@ -2152,7 +2152,7 @@ export default function UserPage() {
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[120px] text-left">
                     到期时间
                   </TableColumn>
-                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
+                  <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-right">
                     续费金额
                   </TableColumn>
                   <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
@@ -2249,40 +2249,45 @@ export default function UserPage() {
                               : formatFlow(user.flow, "gb")}
                           </span>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              isIconOnly
-                              className="w-6 h-6 min-w-6"
-                              size="sm"
-                              variant="flat"
-                              onPress={() =>
-                                openHistoryModal(user as UserWithHistory)
-                              }
-                            >
-                              <svg
-                                aria-hidden="true"
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  d="M19 9l-7 7-7-7"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </Button>
-                            <span className="text-sm font-medium text-primary">
+                        <TableCell
+                          className="whitespace-nowrap"
+                          title={`已用流量：${formatFlow(usedFlow)}\n剩余流量：${user.flow === 99999 ? "不限" : formatFlow(Math.max(user.flow * 1024 * 1024 * 1024 - usedFlow, 0))}\n总流量：${user.flow === 99999 ? "不限" : formatFlow(user.flow * 1024 * 1024 * 1024)}`}
+                        >
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="cursor-pointer text-sm font-medium text-primary">
                               {formatFlow(usedFlow)}
-                            </span>
+                              </span>
+                              <Button
+                                isIconOnly
+                                className="h-6 min-w-6"
+                                size="sm"
+                                variant="flat"
+                                onPress={() =>
+                                  openHistoryModal(user as UserWithHistory)
+                                }
+                              >
+                                <svg
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    d="M19 9l-7 7-7-7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </Button>
+                            </div>
                           </div>
                           {user.flow !== 99999 && (
                             <Progress
                               aria-label="已用流量比例"
-                              className="w-24 mt-1"
+                              className="mt-1 ml-auto w-24 cursor-pointer"
                               color={
                                 usedFlow / (user.flow * 1024 * 1024 * 1024) >
                                   0.8
@@ -2345,11 +2350,16 @@ export default function UserPage() {
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <div className="flex items-center gap-1">
+                        <TableCell className="whitespace-nowrap text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <span className="text-sm text-default-600">
+                              {user.renewalAmount && user.renewalAmount > 0
+                                ? `${user.renewalAmount}元`
+                                : "-"}
+                            </span>
                             <Button
                               isIconOnly
-                              className="w-6 h-6 min-w-6"
+                              className="h-6 min-w-6"
                               size="sm"
                               variant="flat"
                               onPress={() => handleOpenRenewalLogModal(user)}
@@ -2369,11 +2379,6 @@ export default function UserPage() {
                                 />
                               </svg>
                             </Button>
-                            <span className="text-sm text-default-600">
-                              {user.renewalAmount && user.renewalAmount > 0
-                                ? `${user.renewalAmount}元`
-                                : "-"}
-                            </span>
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -4994,7 +4999,7 @@ export default function UserPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-      {/* 流量归零日志弹窗 */}
+      {/* 流量变更日志弹窗 */}
       <Modal
         backdrop="blur"
         classNames={{
@@ -5007,7 +5012,7 @@ export default function UserPage() {
         <ModalContent>
           <ModalHeader className="flex items-center justify-between">
             <span className="text-base font-semibold">
-              流量归零日志 - {historyModalUser?.name || historyModalUser?.user}
+              流量变更日志 - {historyModalUser?.name || historyModalUser?.user}
             </span>
             <Button
               isIconOnly
@@ -5044,9 +5049,8 @@ export default function UserPage() {
                   >
                     <div className="flex items-center justify-between w-full mb-2">
                       <span className="text-sm font-medium text-default-600">
-                        {item.resetReason === "管理员手动归零"
-                          ? "管理员手动"
-                          : "系统自动"}
+                        {item.operatorName ||
+                          (item.actionType === "auto_reset" ? "系统自动" : "管理员")}
                       </span>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs text-default-500">
@@ -5079,7 +5083,7 @@ export default function UserPage() {
                     <div className="flex flex-col gap-1 w-full">
                       <div className="w-full">
                         <span className="text-default-500 text-sm block mb-1">
-                          归零前流量
+                          {item.actionType === "adjust" ? "修改前流量" : "归零前流量"}
                         </span>
                         <div className="flex items-center justify-end gap-2 flex-wrap">
                           <span className="text-primary-600 text-sm whitespace-nowrap dark:text-primary-400">
@@ -5089,14 +5093,32 @@ export default function UserPage() {
                             ↓{formatFlow(item.outFlowBefore)}
                           </span>
                           <span className="text-default-600 text-sm whitespace-nowrap font-medium">
-                            总 {formatFlow(item.usedBytes)}
+                            总 {formatFlow(item.inFlowBefore + item.outFlowBefore)}
                           </span>
                         </div>
                       </div>
+                      {item.actionType === "adjust" && (
+                        <div className="w-full">
+                          <span className="text-default-500 text-sm block mb-1">
+                            修改后流量
+                          </span>
+                          <div className="flex items-center justify-end gap-2 flex-wrap">
+                            <span className="text-primary-600 text-sm whitespace-nowrap dark:text-primary-400">
+                              ↑{formatFlow(item.inFlowAfter)}
+                            </span>
+                            <span className="text-success-600 text-sm whitespace-nowrap dark:text-success-400">
+                              ↓{formatFlow(item.outFlowAfter)}
+                            </span>
+                            <span className="text-default-600 text-sm whitespace-nowrap font-medium">
+                              总 {formatFlow(item.inFlowAfter + item.outFlowAfter)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       {item.resetReason && (
                         <div className="flex items-center justify-between w-full">
                           <span className="text-default-500 text-sm">
-                            归零原因
+                            {item.actionType === "adjust" ? "修改原因" : "归零原因"}
                           </span>
                           <span className="text-red-500 text-sm">
                             {item.resetReason}

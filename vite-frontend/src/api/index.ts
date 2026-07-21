@@ -74,6 +74,7 @@ import type {
   SubscriptionPackageApiItem,
   PeerShareApiItem,
   PeerShareMutationPayload,
+  PeerShareTrafficResetLogApiItem,
   PeerRemoteUsageNodeApiItem,
   NodeInstanceOrderUpdatePayload,
 } from "./types";

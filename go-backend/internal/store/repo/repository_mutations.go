@@ -85,7 +85,7 @@ func (r *Repository) UpdateUserWithPassword(id int64, username, pwdHash, name st
 	}
 	return r.db.Model(&model.User{}).
 		Where("id = ?", id).
-		Select("user", "name", "pwd", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew", "role_id", "in_flow", "out_flow").
+		Select("user", "name", "pwd", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew", "role_id").
 		Updates(map[string]interface{}{
 			"user":            username,
 			"name":            name,
@@ -100,8 +100,6 @@ func (r *Repository) UpdateUserWithPassword(id int64, username, pwdHash, name st
 			"balance":         balance,
 			"auto_renew":      autoRenew,
 			"role_id":         roleID,
-			"in_flow":         inFlow,
-			"out_flow":        outFlow,
 		}).Error
 }
 
@@ -111,7 +109,7 @@ func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, 
 	}
 	return r.db.Model(&model.User{}).
 		Where("id = ?", id).
-		Select("user", "name", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew", "role_id", "in_flow", "out_flow").
+		Select("user", "name", "flow", "num", "exp_time", "flow_reset_time", "status", "updated_time", "renewal_amount", "balance", "auto_renew", "role_id").
 		Updates(map[string]interface{}{
 			"user":            username,
 			"name":            name,
@@ -125,26 +123,25 @@ func (r *Repository) UpdateUserWithoutPassword(id int64, username, name string, 
 			"balance":         balance,
 			"auto_renew":      autoRenew,
 			"role_id":         roleID,
-			"in_flow":         inFlow,
-			"out_flow":        outFlow,
 		}).Error
 }
 
-func (r *Repository) UpdateUserUsedFlowWithLog(userID int64, inFlow, outFlow int64, oldInFlow, oldOutFlow int64, operatorID int64, operatorName string, reason string) error {
+func (r *Repository) UpdateUserUsedFlowWithLog(userID int64, inFlow, outFlow int64, operatorID int64, operatorName string, reason string) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	if oldInFlow == inFlow && oldOutFlow == outFlow {
-		return nil
-	}
 	now := time.Now().UnixMilli()
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&model.User{}).Error; err != nil {
+		var current model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&current).Error; err != nil {
 			return err
 		}
+		if current.InFlow == inFlow && current.OutFlow == outFlow {
+			return nil
+		}
 		if err := tx.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
-			"in_flow":      inFlow,
-			"out_flow":     outFlow,
+			"in_flow":  inFlow,
+			"out_flow": outFlow,
 		}).Error; err != nil {
 			return err
 		}
@@ -152,17 +149,17 @@ func (r *Repository) UpdateUserUsedFlowWithLog(userID int64, inFlow, outFlow int
 			"in_flow":  inFlow,
 			"out_flow": outFlow,
 		}).Error; err != nil {
-			return nil
+			return err
 		}
 		history := &model.UserQuotaHistory{
 			UserID:        userID,
 			PeriodType:    "user-adjust",
 			PeriodKey:     0,
-			InFlowBefore:  oldInFlow,
-			OutFlowBefore: oldOutFlow,
+			InFlowBefore:  current.InFlow,
+			OutFlowBefore: current.OutFlow,
 			InFlowAfter:   inFlow,
 			OutFlowAfter:  outFlow,
-			UsedBytes:     oldInFlow + oldOutFlow,
+			UsedBytes:     inFlow + outFlow,
 			OperatorID:    operatorID,
 			OperatorName:  operatorName,
 			ResetTime:     now,
@@ -234,6 +231,9 @@ func (r *Repository) DeleteUserCascade(userID int64) error {
 		return errors.New("repository not initialized")
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", userID).Delete(&model.UserQuotaHistory{}).Error; err != nil {
+			return err
+		}
 		forwardIDs := tx.Model(&model.Forward{}).Select("id").Where("user_id = ?", userID)
 		if err := tx.Where("forward_id IN (?)", forwardIDs).Delete(&model.ForwardTrafficResetLog{}).Error; err != nil {
 			return err
