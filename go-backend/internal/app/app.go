@@ -68,7 +68,7 @@ func (a *App) Run() error {
 
 func (a *App) Shutdown(ctx context.Context) error {
 	if a.h != nil {
-		a.h.StopBackgroundJobs()
+		a.h.Close()
 	}
 	shutdownErr := a.server.Shutdown(ctx)
 	closeErr := a.repo.Close()

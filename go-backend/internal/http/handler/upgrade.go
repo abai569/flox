@@ -415,7 +415,7 @@ var notifyStates = make(map[int64]*nodeNotifyState)
 
 func (h *Handler) onNodeOnline(nodeID int64) {
 	h.redeployNodeRuntime(nodeID)
-	go h.notifyNodeOnline(nodeID)
+	h.notifyNodeOnline(nodeID)
 }
 
 func (h *Handler) onNodeInstanceOnline(nodeID int64, instanceID string) {
@@ -423,7 +423,7 @@ func (h *Handler) onNodeInstanceOnline(nodeID int64, instanceID string) {
 }
 
 func (h *Handler) onNodeOffline(nodeID int64) {
-	go h.notifyNodeOffline(nodeID)
+	h.notifyNodeOffline(nodeID)
 }
 
 func (h *Handler) onNodeInstanceOffline(nodeID int64, instanceID string) {

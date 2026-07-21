@@ -77,6 +77,18 @@ func (r *Repository) ListActiveForwardsByUser(userID int64) ([]model.ForwardReco
 	return rows, nil
 }
 
+func (r *Repository) CountActiveForwardsByUser(userID int64) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Forward{}).Where("user_id = ? AND status = 1", userID).Count(&count).Error
+	return count, err
+}
+
+func (r *Repository) CountActiveForwardsByUserTunnel(userID, tunnelID int64) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Forward{}).Where("user_id = ? AND tunnel_id = ? AND status = 1", userID, tunnelID).Count(&count).Error
+	return count, err
+}
+
 func (r *Repository) ListPausedForwardsByUser(userID int64) ([]model.ForwardRecord, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")

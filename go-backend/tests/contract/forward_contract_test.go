@@ -100,9 +100,13 @@ func TestForwardOwnershipAndScopeContracts(t *testing.T) {
 		if out.Code != 0 {
 			t.Fatalf("expected code 0, got %d (%s)", out.Code, out.Msg)
 		}
-		arr, ok := out.Data.([]interface{})
+		payload, ok := out.Data.(map[string]interface{})
 		if !ok {
-			t.Fatalf("expected array data, got %T", out.Data)
+			t.Fatalf("expected paginated data, got %T", out.Data)
+		}
+		arr, ok := payload["items"].([]interface{})
+		if !ok {
+			t.Fatalf("expected items array, got %T", payload["items"])
 		}
 		if len(arr) != 1 {
 			t.Fatalf("expected 1 forward, got %d", len(arr))

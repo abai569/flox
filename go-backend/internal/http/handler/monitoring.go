@@ -1431,7 +1431,7 @@ func (h *Handler) monitorServiceRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if m == nil {
-		response.WriteJSON(w, response.ErrDefault("监控不存在"))
+		response.WriteJSON(w, response.OK([]model.ServiceMonitorResult{}))
 		return
 	}
 
@@ -1470,7 +1470,7 @@ func (h *Handler) monitorServiceResultsHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if m == nil {
-		response.WriteJSON(w, response.ErrDefault("监控不存在"))
+		response.WriteJSON(w, response.OK([]model.ServiceMonitorResult{}))
 		return
 	}
 	if !scope.fullAccess && !h.checkNodeAccess(scope, m.NodeID) {

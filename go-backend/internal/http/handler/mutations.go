@@ -2231,6 +2231,19 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	oldEntryNodeIDs, _ := h.tunnelEntryNodeIDs(id)
 	oldTunnel, _ := h.getTunnelRecord(id)
+	oldTunnelData := map[string]interface{}{}
+	if items, listErr := h.repo.ListTunnelsIncludingManual(); listErr == nil {
+		for _, item := range items {
+			if asInt64(item["id"], 0) == id {
+				oldTunnelData = item
+				break
+			}
+		}
+	}
+	if asInt64(oldTunnelData["id"], 0) != id {
+		response.WriteJSON(w, response.Err(-2, "failed to snapshot tunnel before update"))
+		return
+	}
 	oldChainRows := make([]chainNodeRecord, 0)
 	if oldTunnel != nil && oldTunnel.Type == 2 {
 		if rows, err := h.listChainNodesForTunnel(id); err == nil {
@@ -2330,11 +2343,28 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	newEntryNodeIDs, _ = h.tunnelEntryNodeIDs(id)
+	oldForwardPorts := make(map[int64][]forwardPortRecord)
+	if forwards, listErr := h.listForwardsByTunnel(id); listErr == nil {
+		for i := range forwards {
+			if ports, portsErr := h.listForwardPorts(forwards[i].ID); portsErr == nil {
+				oldForwardPorts[forwards[i].ID] = ports
+			}
+		}
+	}
 	httpVal := asInt(req["http"], 0)
 	tlsVal := asInt(req["tls"], 0)
 	socksVal := asInt(req["socks"], 0)
 	blockOtherVal := asInt(req["blockOther"], 0)
-	go h.redeployTunnelRuntimeAfterUpdate(id, typeVal, asInt(req["status"], 1), now, oldChainRows, oldEntryNodeIDs, newEntryNodeIDs, runtimeState, httpVal, tlsVal, socksVal, blockOtherVal)
+	if err := h.redeployTunnelRuntimeAfterUpdate(id, typeVal, asInt(req["status"], 1), now, oldChainRows, oldEntryNodeIDs, newEntryNodeIDs, runtimeState, httpVal, tlsVal, socksVal, blockOtherVal); err != nil {
+		h.cleanupTunnelForwardRuntimesOnRemovedEntryNodes(id, newEntryNodeIDs, oldEntryNodeIDs)
+		h.cleanupTunnelRuntime(id)
+		if rollbackErr := h.rollbackTunnelUpdate(id, oldTunnelData, oldChainRows, oldForwardPorts); rollbackErr != nil {
+			response.WriteJSON(w, response.Err(-2, fmt.Sprintf("隧道下发失败且回滚失败：%v; 回滚错误：%v", err, rollbackErr)))
+			return
+		}
+		response.WriteJSON(w, response.Err(-2, fmt.Sprintf("隧道下发失败，已回滚：%v", err)))
+		return
+	}
 
 	items, err := h.repo.ListTunnelsIncludingManual()
 	if err != nil {
@@ -2370,20 +2400,20 @@ func (h *Handler) tunnelUpdate(w http.ResponseWriter, r *http.Request) {
 	response.WriteJSON(w, response.OK(updatedTunnel))
 }
 
-func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, status int, expectedUpdatedTime int64, oldChainRows []chainNodeRecord, oldEntryNodeIDs, newEntryNodeIDs []int64, runtimeState *tunnelCreateState, httpVal, tlsVal, socksVal, blockOtherVal int) {
+func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, status int, expectedUpdatedTime int64, oldChainRows []chainNodeRecord, oldEntryNodeIDs, newEntryNodeIDs []int64, runtimeState *tunnelCreateState, httpVal, tlsVal, socksVal, blockOtherVal int) (err error) {
 	if h == nil || tunnelID <= 0 {
-		return
+		return errors.New("invalid tunnel runtime context")
 	}
 	lock := tunnelRedeployLock(tunnelID)
 	lock.Lock()
 	defer lock.Unlock()
 	defer func() {
 		if v := recover(); v != nil {
-			log.Printf("redeploy tunnel %d panic: %v", tunnelID, v)
+			err = fmt.Errorf("tunnel runtime deployment panic: %v", v)
 		}
 	}()
 	if !h.isTunnelRuntimeUpdateCurrent(tunnelID, expectedUpdatedTime) {
-		return
+		return errors.New("tunnel update was superseded by another update")
 	}
 	if len(oldChainRows) > 0 {
 		h.cleanupTunnelRuntimeRows(tunnelID, oldChainRows, 1)
@@ -2393,40 +2423,42 @@ func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, 
 		h.syncTunnelForwardsEntryPorts(tunnelID, newEntryNodeIDs)
 	}
 	if status == 0 {
-		return
+		return nil
 	}
 	if !h.isTunnelRuntimeUpdateCurrent(tunnelID, expectedUpdatedTime) {
-		return
+		return errors.New("tunnel update was superseded by another update")
 	}
 	if typeVal == 2 {
 		if runtimeState == nil {
-			log.Printf("redeploy tunnel %d runtime skipped: empty runtime state", tunnelID)
-			return
+			return errors.New("tunnel runtime state is empty")
 		}
 		relayMode, resolveErr := h.resolveTunnelRelayMode(tunnelID)
 		if resolveErr != nil {
-			log.Printf("redeploy tunnel %d resolve mode failed: %v", tunnelID, resolveErr)
-			return
+			return resolveErr
 		}
 		runtimeState.Mode = relayMode
 		createdChains, createdServices, applyErr := h.applyTunnelRuntime(runtimeState)
 		if applyErr != nil {
 			h.rollbackTunnelRuntime(createdChains, createdServices, tunnelID)
-			log.Printf("redeploy tunnel %d runtime failed: %v", tunnelID, applyErr)
-			return
+			if isNodeOfflineOrTimeoutError(applyErr) {
+				log.Printf("tunnel %d runtime deployment deferred until nodes reconnect: %v", tunnelID, applyErr)
+				return nil
+			}
+			return applyErr
 		}
 	}
 	if !h.isTunnelRuntimeUpdateCurrent(tunnelID, expectedUpdatedTime) {
-		return
+		return errors.New("tunnel update was superseded by another update")
 	}
+	entryNodesChanged := !sameInt64Set(oldEntryNodeIDs, newEntryNodeIDs)
 	if forwards, fwdErr := h.listForwardsByTunnel(tunnelID); fwdErr == nil {
 		for i := range forwards {
-			if err := h.syncForwardServices(&forwards[i], "UpdateService", true); err != nil {
-				log.Printf("redeploy tunnel %d forward %d failed: %v", tunnelID, forwards[i].ID, err)
+			if _, err := h.syncForwardServicesWithWarningsStrict(&forwards[i], "UpdateService", true, entryNodesChanged); err != nil {
+				return fmt.Errorf("转发 %d 下发失败: %w", forwards[i].ID, err)
 			}
 		}
 	} else {
-		log.Printf("redeploy tunnel %d list forwards failed: %v", tunnelID, fwdErr)
+		return fwdErr
 	}
 	for _, nodeID := range newEntryNodeIDs {
 		if nodeID > 0 {
@@ -2437,6 +2469,48 @@ func (h *Handler) redeployTunnelRuntimeAfterUpdate(tunnelID int64, typeVal int, 
 			}
 		}
 	}
+	return nil
+}
+
+func (h *Handler) rollbackTunnelUpdate(tunnelID int64, oldData map[string]interface{}, oldChainRows []chainNodeRecord, oldForwardPorts map[int64][]forwardPortRecord) error {
+	if h == nil || h.repo == nil || tunnelID <= 0 {
+		return errors.New("invalid tunnel rollback context")
+	}
+	tx := h.repo.BeginTx()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer tx.Rollback()
+	if err := h.repo.UpdateTunnelTx(tx, tunnelID, asString(oldData["name"]), asInt(oldData["type"], 1), asInt64(oldData["flow"], 1), asFloat(oldData["trafficRatio"], 1), asInt(oldData["status"], 1), asString(oldData["inIp"]), asString(oldData["ipPreference"]), asInt64(oldData["listId"], 0), nil, asString(oldData["remark"]), time.Now().UnixMilli(), asInt(oldData["http"], 0), asInt(oldData["tls"], 0), asInt(oldData["socks"], 0), asInt(oldData["blockOther"], 0), asString(oldData["mode"])); err != nil {
+		return err
+	}
+	if err := h.repo.DeleteChainTunnelsByTunnelTx(tx, tunnelID); err != nil {
+		return err
+	}
+	rollbackReq := map[string]interface{}{"inNodeId": []interface{}{}, "chainNodes": []interface{}{}, "outNodeId": []interface{}{}}
+	for _, row := range oldChainRows {
+		item := map[string]interface{}{"nodeId": row.NodeID, "strategy": row.Strategy, "protocol": row.Protocol, "port": row.Port, "connectIp": row.ConnectIP, "connectIpType": row.ConnectIPType}
+		switch row.ChainType {
+		case 1:
+			rollbackReq["inNodeId"] = append(rollbackReq["inNodeId"].([]interface{}), item)
+		case 2:
+			rollbackReq["chainNodes"] = append(rollbackReq["chainNodes"].([]interface{}), []interface{}{item})
+		case 3:
+			rollbackReq["outNodeId"] = append(rollbackReq["outNodeId"].([]interface{}), item)
+		}
+	}
+	if err := h.replaceTunnelChainsTx(tx, tunnelID, rollbackReq); err != nil {
+		return err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	for forwardID, ports := range oldForwardPorts {
+		if err := h.replaceForwardPortsWithRecords(forwardID, ports); err != nil {
+			return err
+		}
+	}
+	return h.redeployTunnelAndForwards(tunnelID)
 }
 
 func (h *Handler) isTunnelRuntimeUpdateCurrent(tunnelID int64, expectedUpdatedTime int64) bool {
@@ -3563,6 +3637,10 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
+	if err := h.ensureForwardCountAvailable(userID, tunnelID); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
+	}
 	name := asString(req["name"])
 	remoteAddr := asString(req["remoteAddr"])
 	if name == "" || remoteAddr == "" {
@@ -3941,7 +4019,7 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(tunnelServiceBindRetryDelay)
 	}
 
-	syncWarnings, err := h.syncForwardServicesWithWarnings(updatedForward, "UpdateService", true)
+	syncWarnings, err := h.syncForwardServicesWithWarningsStrict(updatedForward, "UpdateService", true, tunnelChanged)
 	if err != nil {
 		h.rollbackForwardMutation(forward, oldPorts)
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
@@ -4162,6 +4240,12 @@ func (h *Handler) forwardResume(w http.ResponseWriter, r *http.Request) {
 	if err := h.ensureUserTunnelForwardAllowed(forward.UserID, forward.TunnelID, now); err != nil {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
+	}
+	if forward.Status != 1 {
+		if err := h.ensureForwardCountAvailable(forward.UserID, forward.TunnelID); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
 	}
 
 	// nftables mode: re-sync rules to resume traffic
@@ -5350,6 +5434,7 @@ type tunnelRuntimeNode struct {
 	Inx           int
 	ChainType     int
 	Port          int
+	ConnectIP     string
 	ConnectIPType string
 	Endpoints     []client.RuntimeEndpoint
 }
@@ -5424,6 +5509,7 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 				Strategy:      normalizeTunnelStrategy(asString(item["strategy"])),
 				ChainType:     3,
 				Port:          port,
+				ConnectIP:     asString(item["connectIp"]),
 				ConnectIPType: asString(item["connectIpType"]),
 			})
 		}
@@ -5454,6 +5540,7 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 					Inx:           hopIdx + 1,
 					ChainType:     2,
 					Port:          port,
+					ConnectIP:     asString(item["connectIp"]),
 					ConnectIPType: asString(item["connectIpType"]),
 				})
 			}
@@ -6469,9 +6556,13 @@ func buildTunnelChainServiceConfig(tunnelID int64, chainNode tunnelRuntimeNode, 
 		handlerCfg["metadata"].(map[string]interface{})["kernel"] = "floxcore"
 	}
 	metadata := map[string]interface{}{"nodeId": node.ID}
+	listenAddr := strings.TrimSpace(chainNode.ConnectIP)
+	if listenAddr == "" {
+		listenAddr = node.TCPListenAddr
+	}
 	service := map[string]interface{}{
 		"name":     fmt.Sprintf("%d_tls", tunnelID),
-		"addr":     processServerAddress(fmt.Sprintf("%s:%d", node.TCPListenAddr, chainNode.Port)),
+		"addr":     processServerAddress(net.JoinHostPort(strings.Trim(listenAddr, "[]"), strconv.Itoa(chainNode.Port))),
 		"handler":  handlerCfg,
 		"metadata": metadata,
 		"listener": map[string]interface{}{

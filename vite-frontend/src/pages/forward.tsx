@@ -88,10 +88,12 @@ import {
 } from "@/api";
 import {
   type ForwardAddressItem,
+  formatAddressHost,
   formatInAddress,
   formatRemoteAddress,
   hasMultipleAddresses,
   resolveForwardAddressAction,
+  splitAddressHostPort,
 } from "@/pages/forward/address";
 import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
@@ -867,15 +869,33 @@ const SortableForwardCard = ({ forward, renderCard }: any) => {
 };
 
 function extractAddressHost(address: string): string {
-  const value = address.trim();
+	return formatAddressHost(address);
+}
 
-  if (value.startsWith("[")) {
-    const closingBracket = value.indexOf("]");
+function getIngressDisplayAddresses(inIp: string, fallbackPort: number) {
+  const entries = (inIp || "")
+    .replace(/\s/g, "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 
-    if (closingBracket > 0) return value.slice(1, closingBracket);
+  if (entries.length === 0) {
+    return {
+      hosts: "默认IP",
+      endpoints: `默认IP:${fallbackPort}`,
+    };
   }
 
-  return value.replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+  return {
+    hosts: entries.map(formatAddressHost).join(","),
+    endpoints: entries
+      .map((entry) => {
+        const parsed = splitAddressHostPort(entry);
+
+        return parsed.port ? entry : formatInAddress(entry, fallbackPort);
+      })
+      .join(","),
+  };
 }
 
 // 地址脱敏：IPv4/域名显示 a.b.*，IPv6 保留最后3段
@@ -940,24 +960,8 @@ const SortableTableRow = ({
   const rowBg = selectedIds.has(forward.id)
     ? "bg-primary-50/70 dark:bg-primary-900/40"
     : "";
-  const rawInIp = forward.inIp ? forward.inIp.replace(/\s/g, "") : "默认 IP";
-  const inAddrNoPorts =
-    rawInIp === "默认 IP"
-      ? rawInIp
-      : rawInIp
-        .split(",")
-        .map((ip: string) => ip.trim().replace(/:\d+$/, ""))
-        .join(",");
-  const inAddrWithPorts =
-    rawInIp === "默认 IP"
-      ? `默认 IP:${forward.inPort}`
-      : rawInIp
-        .split(",")
-        .map(
-          (ip: string) =>
-            `${ip.trim().replace(/:\d+$/, "")}:${forward.inPort}`,
-        )
-        .join(",");
+	const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
+		getIngressDisplayAddresses(forward.inIp, forward.inPort);
   const remoteAddrOnly = extractAddressHost(
     forward.remoteAddr.split(",")[0] || "",
   );
@@ -1267,24 +1271,8 @@ const SortableCompactTableRow = ({
   const rowBg = selectedIds.has(forward.id)
     ? "bg-primary-50/70 dark:bg-primary-900/40"
     : "";
-  const rawInIp = forward.inIp ? forward.inIp.replace(/\s/g, "") : "默认IP";
-  const inAddrNoPorts =
-    rawInIp === "默认IP"
-      ? rawInIp
-      : rawInIp
-        .split(",")
-        .map((ip: string) => ip.trim().replace(/:\d+$/, ""))
-        .join(",");
-  const inAddrWithPorts =
-    rawInIp === "默认IP"
-      ? `默认IP:${forward.inPort}`
-      : rawInIp
-        .split(",")
-        .map(
-          (ip: string) =>
-            `${ip.trim().replace(/:\d+$/, "")}:${forward.inPort}`,
-        )
-        .join(",");
+	const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
+		getIngressDisplayAddresses(forward.inIp, forward.inPort);
   const remoteAddrOnly = extractAddressHost(
     forward.remoteAddr.split(",")[0] || "",
   );
@@ -5014,24 +5002,8 @@ export default function ForwardPage() {
   }, [tunnels, forwards, searchParams.userId]);
   // 渲染规则卡片
   const renderForwardCard = (forward: Forward, listeners?: any) => {
-    const rawInIp = forward.inIp ? forward.inIp.replace(/\s/g, "") : "默认IP";
-    const inAddrNoPorts =
-      rawInIp === "默认IP"
-        ? rawInIp
-        : rawInIp
-          .split(",")
-          .map((ip: string) => ip.trim().replace(/:\d+$/, ""))
-          .join(",");
-    const inAddrWithPorts =
-      rawInIp === "默认IP"
-        ? `默认IP:${forward.inPort}`
-        : rawInIp
-          .split(",")
-          .map(
-            (ip: string) =>
-              `${ip.trim().replace(/:\d+$/, "")}:${forward.inPort}`,
-          )
-          .join(",");
+		const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
+			getIngressDisplayAddresses(forward.inIp, forward.inPort);
     const statusDisplay = getStatusDisplay(forward.status);
     const strategyDisplay = getStrategyDisplay(forward.strategy);
 
@@ -5170,7 +5142,7 @@ export default function ForwardPage() {
                       >
                         {maskAddress(inAddrNoPorts.split(",").length > 1
                           ? inAddrNoPorts.split(",")[0].trim()
-                          : (forward.inIp || "").replace(/:\d+$/, "") ||
+							: formatAddressHost(forward.inIp || "") ||
                           "默认IP")}
                       </code>
                       {inAddrNoPorts.split(",").length > 1 && (
@@ -7010,13 +6982,7 @@ export default function ForwardPage() {
           <ModalBody className="pb-2">
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {addressList.map((item) => {
-                const lastColon = item.address.lastIndexOf(":");
-                const host =
-                  lastColon > 0
-                    ? item.address.substring(0, lastColon)
-                    : item.address;
-                const port =
-                  lastColon > 0 ? item.address.substring(lastColon + 1) : "";
+				const { host, port } = splitAddressHostPort(item.address);
 
                 return (
                   <div

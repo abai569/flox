@@ -16,12 +16,48 @@ const splitAddressEntries = (value: string): string[] => {
     .filter((item) => item);
 };
 
-const formatAddressWithPort = (ip: string, port: number): string => {
-  if ((ip.includes("::") || /^[\da-fA-F:]+$/.test(ip)) && !ip.startsWith("[")) {
-    return `[${ip}]:${port}`;
+export const splitAddressHostPort = (
+  value: string,
+): { host: string; port: string } => {
+  const item = value.trim();
+
+  if (item.startsWith("[")) {
+    const closingBracket = item.indexOf("]");
+
+    if (closingBracket > 0) {
+      const suffix = item.slice(closingBracket + 1);
+
+      return {
+        host: item.slice(1, closingBracket),
+        port: suffix.startsWith(":") ? suffix.slice(1) : "",
+      };
+    }
+  }
+  const colonCount = (item.match(/:/g) || []).length;
+
+  if (colonCount === 1) {
+    const separator = item.lastIndexOf(":");
+    const port = item.slice(separator + 1);
+
+    if (/^\d+$/.test(port)) {
+      return { host: item.slice(0, separator), port };
+    }
   }
 
-  return `${ip}:${port}`;
+  return { host: item.replace(/^\[|\]$/g, ""), port: "" };
+};
+
+export const formatAddressHost = (value: string): string =>
+  splitAddressHostPort(value).host;
+
+const formatAddressWithPort = (ip: string, port: number): string => {
+	const host = formatAddressHost(ip);
+
+	if (host.includes(":")) {
+		return `[${host}]:${port}`;
+	}
+
+	return `${host}:${port}`;
 };
 
 export const formatInAddress = (ipString: string, port: number): string => {
@@ -35,7 +71,7 @@ export const formatInAddress = (ipString: string, port: number): string => {
     return "";
   }
 
-  const hasPort = /:\d+$/.test(items[0]);
+	const hasPort = splitAddressHostPort(items[0]).port !== "";
 
   if (hasPort) {
     if (items.length === 1) {
@@ -104,7 +140,7 @@ export const resolveForwardAddressAction = (
       };
     }
 
-    const hasPort = /:\d+$/.test(items[0]);
+		const hasPort = splitAddressHostPort(items[0]).port !== "";
 
     addresses = hasPort
       ? items

@@ -17,6 +17,7 @@ import (
 	httpserver "go-backend/internal/http"
 	"go-backend/internal/http/handler"
 	"go-backend/internal/http/response"
+	"go-backend/internal/security"
 	"go-backend/internal/store/repo"
 
 	"gorm.io/gorm"
@@ -623,11 +624,16 @@ func setupContractRouter(t *testing.T, jwtSecret string) (http.Handler, *repo.Re
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	t.Cleanup(func() {
-		_ = r.Close()
-	})
+	if err := r.DB().Exec(`UPDATE user SET user = ?, pwd = ? WHERE id = 1`,
+		"admin_user", security.MD5("admin_user")).Error; err != nil {
+		t.Fatalf("seed contract admin credentials: %v", err)
+	}
 
 	h := handler.New(r, jwtSecret, "test")
+	t.Cleanup(func() {
+		h.Close()
+		_ = r.Close()
+	})
 	return httpserver.NewRouter(h, jwtSecret, r), r
 }
 

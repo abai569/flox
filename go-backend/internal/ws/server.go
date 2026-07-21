@@ -106,6 +106,12 @@ type Server struct {
 	forwardMetrics        map[int64]map[int64]map[string]*ForwardMetric // forwardID -> nodeID -> serviceName -> metric
 	forwardMetricsMu      sync.RWMutex
 	nodeOfflineTime       map[int64]int64 // nodeID -> offline timestamp (seconds)
+	cleanupStop           chan struct{}
+	cleanupWG             sync.WaitGroup
+	connectionWG          sync.WaitGroup
+	hookWG                sync.WaitGroup
+	closing               bool
+	closeOnce             sync.Once
 }
 
 type SystemInfo struct {
@@ -326,10 +332,76 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		serviceConnUpdateTime: make(map[int64]int64),
 		forwardMetrics:        make(map[int64]map[int64]map[string]*ForwardMetric), // forwardID -> nodeID -> serviceName -> metric
 		nodeOfflineTime:       make(map[int64]int64),                               // nodeID -> offline timestamp
+		cleanupStop:           make(chan struct{}),
 	}
 	// 启动后台清理任务（每 2 分钟清理一次过期数据）
+	s.cleanupWG.Add(1)
 	go s.cleanupStaleMetrics(2 * time.Minute)
 	return s
+}
+
+// Close stops the cleanup loop and waits for connection handlers to finish.
+func (s *Server) Close() {
+	if s == nil {
+		return
+	}
+	s.closeOnce.Do(func() {
+		close(s.cleanupStop)
+		s.mu.Lock()
+		s.closing = true
+		connections := make([]*websocket.Conn, 0, len(s.byConn)+len(s.admins)+len(s.publics))
+		for conn := range s.byConn {
+			connections = append(connections, conn)
+		}
+		for wrapper := range s.admins {
+			connections = append(connections, wrapper.conn)
+		}
+		for wrapper := range s.publics {
+			connections = append(connections, wrapper.conn)
+		}
+		s.mu.Unlock()
+		seen := make(map[*websocket.Conn]struct{}, len(connections))
+		for _, conn := range connections {
+			if conn != nil {
+				if _, ok := seen[conn]; ok {
+					continue
+				}
+				seen[conn] = struct{}{}
+				_ = conn.Close()
+			}
+		}
+		s.connectionWG.Wait()
+		s.hookWG.Wait()
+		s.cleanupWG.Wait()
+	})
+}
+
+func (s *Server) registerConnection(conn *websocket.Conn) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closing {
+		_ = conn.Close()
+		return false
+	}
+	s.connectionWG.Add(1)
+	return true
+}
+
+func (s *Server) runHook(fn func()) {
+	if fn == nil {
+		return
+	}
+	s.mu.Lock()
+	if s.closing {
+		s.mu.Unlock()
+		return
+	}
+	s.hookWG.Add(1)
+	s.mu.Unlock()
+	go func() {
+		defer s.hookWG.Done()
+		fn()
+	}()
 }
 
 func (s *Server) SubscribeNodeMessages(buffer int) (<-chan NodeMessage, func()) {
@@ -435,6 +507,10 @@ func (s *Server) handleAdmin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	if !s.registerConnection(conn) {
+		return
+	}
+	defer s.connectionWG.Done()
 	cw := &connWrap{conn: conn}
 	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
 	conn.SetPongHandler(func(string) error {
@@ -467,6 +543,10 @@ func (s *Server) handlePublic(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	if !s.registerConnection(conn) {
+		return
+	}
+	defer s.connectionWG.Done()
 	cw := &connWrap{conn: conn}
 	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
 	conn.SetPongHandler(func(string) error {
@@ -499,6 +579,10 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	if err != nil {
 		return
 	}
+	if !s.registerConnection(conn) {
+		return
+	}
+	defer s.connectionWG.Done()
 	cw := &connWrap{conn: conn}
 	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
 	conn.SetPongHandler(func(string) error {
@@ -549,10 +633,10 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	instanceOnlineHook := s.onNodeInstanceOnline
 	s.mu.RUnlock()
 	if onlineHook != nil {
-		go onlineHook(nodeID)
+		s.runHook(func() { onlineHook(nodeID) })
 	}
 	if instanceOnlineHook != nil {
-		go instanceOnlineHook(nodeID, instanceID)
+		s.runHook(func() { instanceOnlineHook(nodeID, instanceID) })
 	}
 
 	defer func() {
@@ -593,11 +677,11 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 			offlineHook := s.onNodeOffline
 			s.mu.RUnlock()
 			if offlineHook != nil {
-				go offlineHook(nodeID)
+				s.runHook(func() { offlineHook(nodeID) })
 			}
 		}
 		if removedCurrentInstance && instanceOfflineHook != nil {
-			go instanceOfflineHook(nodeID, instanceID)
+			s.runHook(func() { instanceOfflineHook(nodeID, instanceID) })
 		}
 		_ = conn.Close()
 	}()
@@ -697,7 +781,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 						onMetric := s.onNodeMetric
 						s.mu.RUnlock()
 						if onMetric != nil {
-							go onMetric(nodeID, sysInfo)
+							s.runHook(func() { onMetric(nodeID, sysInfo) })
 						}
 					}
 					// 广播内层 data 给前端（保持平坦结构兼容性）
@@ -835,7 +919,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 				onMetric := s.onNodeMetric
 				s.mu.RUnlock()
 				if onMetric != nil {
-					go onMetric(nodeID, sysInfo)
+					s.runHook(func() { onMetric(nodeID, sysInfo) })
 				}
 				s.broadcastTyped(nodeID, "metric", msg)
 				continue
@@ -1313,7 +1397,8 @@ func (s *Server) DisconnectNode(nodeID int64) {
 
 	if instanceOfflineHook != nil {
 		for _, instanceID := range offlineInstanceIDs {
-			go instanceOfflineHook(nodeID, instanceID)
+			instanceID := instanceID
+			s.runHook(func() { instanceOfflineHook(nodeID, instanceID) })
 		}
 	}
 
@@ -1321,7 +1406,7 @@ func (s *Server) DisconnectNode(nodeID int64) {
 	offlineHook := s.onNodeOffline
 	s.mu.RUnlock()
 	if offlineHook != nil {
-		go offlineHook(nodeID)
+		s.runHook(func() { offlineHook(nodeID) })
 	}
 }
 
@@ -1495,34 +1580,40 @@ func startKeepalive(cw *connWrap, done <-chan struct{}) {
 
 // cleanupStaleMetrics 定期清理过期节点的指标数据（离线超过 10 分钟）
 func (s *Server) cleanupStaleMetrics(interval time.Duration) {
+	defer s.cleanupWG.Done()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		s.mu.Lock()
-		now := time.Now().Unix()
-		offlineTimeout := int64(10 * 60) // 10 分钟
+	for {
+		select {
+		case <-s.cleanupStop:
+			return
+		case <-ticker.C:
+			s.mu.Lock()
+			now := time.Now().Unix()
+			offlineTimeout := int64(10 * 60) // 10 分钟
 
-		// 清理离线超过 10 分钟的节点的 forwardMetrics
-		for nodeID, offlineTime := range s.nodeOfflineTime {
-			if now-offlineTime > offlineTimeout {
-				// 清理该节点的所有 forward 指标
-				s.forwardMetricsMu.Lock()
-				for forwardID, nodeMetrics := range s.forwardMetrics {
-					if _, exists := nodeMetrics[nodeID]; exists {
-						delete(nodeMetrics, nodeID)
-						// 如果该 forward 没有其他节点的指标了，删除整个 entry
-						if len(nodeMetrics) == 0 {
-							delete(s.forwardMetrics, forwardID)
+			// 清理离线超过 10 分钟的节点的 forwardMetrics
+			for nodeID, offlineTime := range s.nodeOfflineTime {
+				if now-offlineTime > offlineTimeout {
+					// 清理该节点的所有 forward 指标
+					s.forwardMetricsMu.Lock()
+					for forwardID, nodeMetrics := range s.forwardMetrics {
+						if _, exists := nodeMetrics[nodeID]; exists {
+							delete(nodeMetrics, nodeID)
+							// 如果该 forward 没有其他节点的指标了，删除整个 entry
+							if len(nodeMetrics) == 0 {
+								delete(s.forwardMetrics, forwardID)
+							}
 						}
 					}
-				}
-				s.forwardMetricsMu.Unlock()
+					s.forwardMetricsMu.Unlock()
 
-				// 清理离线时间记录
-				delete(s.nodeOfflineTime, nodeID)
+					// 清理离线时间记录
+					delete(s.nodeOfflineTime, nodeID)
+				}
 			}
+			s.mu.Unlock()
 		}
-		s.mu.Unlock()
 	}
 }

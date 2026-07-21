@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
+	"gorm.io/gorm"
 )
 
 const bytesPerGB int64 = 1024 * 1024 * 1024
@@ -420,6 +422,39 @@ func (h *Handler) ensureUserTunnelForwardAllowed(userID int64, tunnelID int64, n
 		}
 	}
 
+	return nil
+}
+
+func (h *Handler) ensureForwardCountAvailable(userID, tunnelID int64) error {
+	user, err := h.repo.GetUserByID(userID)
+	if err != nil {
+		return err
+	}
+	if user != nil && user.Num > 0 {
+		count, err := h.repo.CountActiveForwardsByUser(userID)
+		if err != nil {
+			return err
+		}
+		if count >= int64(user.Num) {
+			return errors.New("转发数量已达上限")
+		}
+	}
+	_, _, num, _, _, _, _, _, status, err := h.repo.GetExistingUserTunnel(userID, tunnelID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if status == 1 && num > 0 {
+		count, err := h.repo.CountActiveForwardsByUserTunnel(userID, tunnelID)
+		if err != nil {
+			return err
+		}
+		if count >= num {
+			return errors.New("隧道转发数量已达上限")
+		}
+	}
 	return nil
 }
 

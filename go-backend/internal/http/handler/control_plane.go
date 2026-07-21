@@ -301,6 +301,10 @@ func (h *Handler) syncForwardServices(forward *forwardRecord, method string, all
 }
 
 func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method string, allowFallbackAdd bool) ([]string, error) {
+	return h.syncForwardServicesWithWarningsStrict(forward, method, allowFallbackAdd, false)
+}
+
+func (h *Handler) syncForwardServicesWithWarningsStrict(forward *forwardRecord, method string, allowFallbackAdd, failOnOffline bool) ([]string, error) {
 	if h == nil || forward == nil {
 		return nil, errors.New("invalid forward sync context")
 	}
@@ -434,6 +438,9 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 			}
 		}
 		if nodeOffline {
+			if failOnOffline {
+				return warnings, fmt.Errorf("node %s is offline; forward deployment did not complete", node.Name)
+			}
 			continue
 		}
 		if shouldManageLimiterOnNode(node) && strings.TrimSpace(perForwardLimiterName) == "" {
@@ -445,6 +452,9 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 			warnings = append(warnings, instanceWarnings...)
 			if instanceErr != nil {
 				return warnings, instanceErr
+			}
+			if failOnOffline && len(instanceWarnings) > 0 {
+				return warnings, fmt.Errorf("node %s is offline; forward deployment did not complete", node.Name)
 			}
 			continue
 		}
@@ -473,6 +483,9 @@ func (h *Handler) syncForwardServicesWithWarnings(forward *forwardRecord, method
 		// When a node is offline, skip it with a warning instead of failing.
 		// This lets users modify forward rules even when some entry nodes are down.
 		if err != nil && isNodeOfflineOrTimeoutError(err) {
+			if failOnOffline {
+				return warnings, fmt.Errorf("node %s is offline; forward deployment did not complete", node.Name)
+			}
 			warnings = append(warnings, fmt.Sprintf("节点 %s 不在线，已跳过下发", node.Name))
 			continue
 		}

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -216,6 +217,8 @@ func (r *Repository) Close() error {
 }
 
 func autoMigrateAll(db *gorm.DB) error {
+	hadNode := db.Migrator().HasTable(&model.Node{})
+	hadTunnel := db.Migrator().HasTable(&model.Tunnel{})
 	hadPeerShare := db.Migrator().HasTable(&model.PeerShare{})
 	if err := migratePeerShareInstanceScopeColumns(db); err != nil {
 		return fmt.Errorf("migrate peer share instance scope columns: %w", err)
@@ -295,6 +298,16 @@ func autoMigrateAll(db *gorm.DB) error {
 		}
 	} else {
 		for _, item := range models {
+			if hadNode {
+				if _, ok := item.(*model.Node); ok {
+					continue
+				}
+			}
+			if hadTunnel {
+				if _, ok := item.(*model.Tunnel); ok {
+					continue
+				}
+			}
 			if hadPeerShare {
 				if _, ok := item.(*model.PeerShare); ok {
 					continue
@@ -559,7 +572,14 @@ func prepareSQLiteLegacyColumns(db *gorm.DB) error {
 	m := db.Migrator()
 
 	if m.HasTable(&model.Node{}) {
-		for _, field := range []string{"ServerIPV4", "ServerIPV6", "ExtraIPs", "TCPListenAddr", "UDPListenAddr", "Inx", "IsRemote", "RemoteURL", "RemoteToken", "RemoteConfig", "Remark", "ExpiryTime", "RenewalCycle", "ExpiryReminderDismissed", "GroupID"} {
+		for _, field := range []string{
+			"Remark", "ExpiryTime", "RenewalCycle", "TrafficRatio", "IntranetIP",
+			"ServerIPV4", "ServerIPV6", "ExtraIPs", "BlockOther", "TCPListenAddr",
+			"UDPListenAddr", "Inx", "IsRemote", "RemoteURL", "RemoteToken", "RemoteConfig",
+			"RemoteInstancesUpdatedTime", "ExpiryReminderDismissed", "ExpiryReminderDismissedUntil",
+			"GroupID", "ServiceName", "TrafficLimit", "TotalInFlow", "TotalOutFlow", "Paused",
+			"Weight", "TrafficNotifiedMask", "FlowResetTime", "MimicStatus", "MimicError", "MimicUpdatedAt",
+		} {
 			if m.HasColumn(&model.Node{}, field) {
 				continue
 			}
@@ -570,13 +590,18 @@ func prepareSQLiteLegacyColumns(db *gorm.DB) error {
 	}
 
 	if m.HasTable(&model.Tunnel{}) {
-		for _, field := range []string{"Inx", "IPPreference"} {
+		for _, field := range []string{
+			"Inx", "IPPreference", "ListID", "TunnelGroupID", "Remark", "HTTP", "TLS", "Socks", "BlockOther", "Mode",
+		} {
 			if m.HasColumn(&model.Tunnel{}, field) {
 				continue
 			}
 			if err := m.AddColumn(&model.Tunnel{}, field); err != nil {
 				return fmt.Errorf("add tunnel.%s: %w", field, err)
 			}
+		}
+		if err := db.Exec("UPDATE tunnel SET tunnel_group_id = list_id WHERE tunnel_group_id IS NULL AND list_id IS NOT NULL").Error; err != nil {
+			return fmt.Errorf("migrate tunnel.list_id: %w", err)
 		}
 	}
 
@@ -596,21 +621,6 @@ func prepareSQLiteLegacyColumns(db *gorm.DB) error {
 			if err := m.AddColumn(&model.TunnelGroup{}, "inx"); err != nil {
 				return fmt.Errorf("add tunnel_group.inx: %w", err)
 			}
-		}
-	}
-
-	if m.HasTable(&model.Tunnel{}) {
-		if !m.HasColumn(&model.Tunnel{}, "remark") {
-			if err := m.AddColumn(&model.Tunnel{}, "remark"); err != nil {
-				return fmt.Errorf("add tunnel.remark: %w", err)
-			}
-		}
-		if !m.HasColumn(&model.Tunnel{}, "tunnel_group_id") {
-			if err := m.AddColumn(&model.Tunnel{}, "tunnel_group_id"); err != nil {
-				return fmt.Errorf("add tunnel.tunnel_group_id: %w", err)
-			}
-			// 迁移现有 list_id 数据�?tunnel_group_id
-			db.Exec("UPDATE tunnel SET tunnel_group_id = list_id WHERE list_id IS NOT NULL")
 		}
 	}
 
@@ -2950,12 +2960,37 @@ func (r *Repository) ImportRaw(data map[string]interface{}, types []string) (int
 		now := unixMilliNow()
 
 		for _, tableName := range types {
-			if tableName == "version" || tableName == "exported_at" || tableName == "types" {
+			if tableName == "version" || tableName == "exported_at" || tableName == "types" || tableName == "mode" {
 				continue
 			}
 
-			tableData, ok := data[tableName].([]interface{})
-			if !ok || len(tableData) == 0 {
+			rawTableData, exists := data[tableName]
+			if !exists || rawTableData == nil {
+				return fmt.Errorf("missing %s backup data", tableName)
+			}
+			if tableName == "configs" {
+				raw, err := json.Marshal(rawTableData)
+				if err != nil {
+					return fmt.Errorf("encode configs backup: %w", err)
+				}
+				var configs map[string]string
+				if err := json.Unmarshal(raw, &configs); err != nil || configs == nil {
+					return fmt.Errorf("invalid configs backup: expected object with string values")
+				}
+				count, err := importConfigs(tx, configs, now)
+				if err != nil {
+					return err
+				}
+				result[tableName] = count
+				continue
+			}
+
+			tableData, ok := rawTableData.([]interface{})
+			if !ok {
+				return fmt.Errorf("invalid %s backup: expected array", tableName)
+			}
+			if len(tableData) == 0 {
+				result[tableName] = 0
 				continue
 			}
 			if tableName == "forwards" {
@@ -2977,8 +3012,7 @@ func (r *Repository) ImportRaw(data map[string]interface{}, types []string) (int
 
 			count, err := r.importTable(tx, tableName, tableData, now)
 			if err != nil {
-				log.Printf("import table %s failed: %v", tableName, err)
-				continue
+				return fmt.Errorf("import table %s failed: %w", tableName, err)
 			}
 			result[tableName] = count
 		}
@@ -3001,13 +3035,12 @@ func (r *Repository) importTable(tx *gorm.DB, tableName string, data []interface
 	for _, item := range data {
 		itemMap, ok := item.(map[string]interface{})
 		if !ok {
-			continue
+			return 0, fmt.Errorf("expected array items to be objects")
 		}
 
 		err := tx.Table(tableName).Create(itemMap).Error
 		if err != nil {
-			log.Printf("insert into %s failed: %v", tableName, err)
-			continue
+			return count, err
 		}
 		count++
 	}
@@ -4586,10 +4619,10 @@ func resolveForwardIngress(db *gorm.DB, forwardID int64, tunnelID int64) (string
 		}
 
 		if ip != "" {
-			cleanIP := stripEmbeddedPort(ip)
+			cleanIP := ingressHost(ip)
 			if _, exists := seenIPs[cleanIP]; !exists {
 				seenIPs[cleanIP] = struct{}{}
-				pair := fmt.Sprintf("%s:%d", cleanIP, row.Port.Int64)
+				pair := net.JoinHostPort(cleanIP, strconv.FormatInt(row.Port.Int64, 10))
 				entries = append(entries, pair)
 			}
 		}
@@ -4605,13 +4638,21 @@ func resolveForwardIngress(db *gorm.DB, forwardID int64, tunnelID int64) (string
 }
 
 func stripEmbeddedPort(ip string) string {
-	if idx := strings.LastIndex(ip, ":"); idx > 0 {
-		suffix := ip[idx+1:]
-		if _, err := strconv.Atoi(suffix); err == nil {
-			return ip[:idx]
-		}
+	return ingressHost(ip)
+}
+
+func ingressHost(value string) string {
+	host := strings.TrimSpace(value)
+	if host == "" {
+		return ""
 	}
-	return ip
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		return strings.Trim(parsedHost, "[]")
+	}
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		return strings.Trim(host, "[]")
+	}
+	return host
 }
 
 func nullableString(v sql.NullString) interface{} {

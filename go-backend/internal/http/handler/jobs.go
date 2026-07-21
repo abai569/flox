@@ -276,6 +276,17 @@ func (h *Handler) StopBackgroundJobs() {
 	h.jobsWG.Wait()
 }
 
+// Close releases handler-owned workers and transport resources before the repository closes.
+func (h *Handler) Close() {
+	if h == nil {
+		return
+	}
+	h.StopBackgroundJobs()
+	if h.wsServer != nil {
+		h.wsServer.Close()
+	}
+}
+
 func (h *Handler) runMetricsIngestion(ctx context.Context) {
 	defer h.jobsWG.Done()
 	if h.metrics != nil {
