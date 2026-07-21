@@ -1008,3 +1008,18 @@ func firstFreeDisplayIndex(used map[int]struct{}) int {
 		}
 	}
 }
+
+// UpdateRemoteNodeInstanceAuthoritativeFlow synchronizes the consumer's authoritative flow
+// to all valid node instances for a remote node, ensuring the instance rows reflect the
+// computed original flow instead of provider metrics.
+func (r *Repository) UpdateRemoteNodeInstanceAuthoritativeFlow(nodeID int64, rawIn, rawOut int64) error {
+	if r == nil || r.db == nil || nodeID <= 0 {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ?", nodeID).
+		Updates(map[string]interface{}{
+			"total_in_flow":  rawIn,
+			"total_out_flow": rawOut,
+		}).Error
+}
