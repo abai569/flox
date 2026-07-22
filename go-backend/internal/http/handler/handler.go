@@ -1649,7 +1649,7 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			sourceID := fmt.Sprintf("node:%d", node.ID)
+			sourceID := fmt.Sprintf("node:%d:instance:%s", node.ID, instanceID)
 			for itemIndex, item := range payload.Items {
 				_, err := h.processReportedFlowItem("upload", sourceID, payload.ReportID, itemIndex, func(itemHandler *Handler) error {
 					if err := itemHandler.persistTunnelMetricsFromFlowItems(node.ID, []flowItem{item}, time.Now().UnixMilli()); err != nil {
@@ -1753,11 +1753,20 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "flow topology rejected", http.StatusConflict)
 				return
 			}
+			authoritySource := false
+			for _, trafficNode := range topology.Nodes {
+				if trafficNode.NodeID == node.ID {
+					authoritySource = trafficNode.AuthoritySource
+					break
+				}
+			}
+			if !authoritySource {
+				continue
+			}
 			match = &relayMatch{item: item, shareID: shareID, userID: userID, userTunnelID: userTunnelID, nodeID: node.ID, forwardID: forward.ID, topology: topology}
 		}
 		if match == nil {
-			http.Error(w, "flow forward not found", http.StatusUnprocessableEntity)
-			return
+			continue
 		}
 		matches = append(matches, *match)
 	}
@@ -1767,7 +1776,7 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 		deltas := forwardTrafficNodeDeltas(match.topology, match.item.D, match.item.U)
 		sourceID := fmt.Sprintf("share:%d", match.shareID)
 		processed, err := h.processReportedFlowItem("relay", sourceID, payload.ReportID, itemIndex, func(itemHandler *Handler) error {
-			if err := itemHandler.repo.AddAuthoritativeForwardTraffic(match.forwardID, match.userID, match.userTunnelID, inFlow, outFlow, match.item.D, match.item.U, match.item.I, deltas); err != nil {
+			if err := itemHandler.repo.AddAuthoritativeForwardTraffic(match.forwardID, match.userID, match.userTunnelID, inFlow, outFlow, match.item.D, match.item.U, match.nodeID, match.item.I, deltas); err != nil {
 				return err
 			}
 			quota, quotaErr := itemHandler.repo.AddUserQuotaUsage(match.userID, inFlow+outFlow, time.Now())

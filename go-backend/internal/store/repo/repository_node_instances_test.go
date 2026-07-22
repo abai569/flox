@@ -9,50 +9,6 @@ import (
 	"go-backend/internal/store/model"
 )
 
-func TestUpdateRemoteNodeInstanceAuthoritativeFlowRequiresSingleInstance(t *testing.T) {
-	r, err := Open(":memory:")
-	if err != nil {
-		t.Fatalf("open repo: %v", err)
-	}
-	defer r.Close()
-
-	node := model.Node{Name: "remote-node", Secret: "secret", CreatedTime: 1, Status: 1, IsRemote: 1}
-	if err := r.db.Create(&node).Error; err != nil {
-		t.Fatalf("create node: %v", err)
-	}
-	first := model.NodeInstance{NodeID: node.ID, InstanceID: "instance-a", Status: 1, Weight: 1, CreatedTime: 1, UpdatedTime: 1}
-	if err := r.db.Create(&first).Error; err != nil {
-		t.Fatalf("create first instance: %v", err)
-	}
-
-	instanceID, err := r.UpdateRemoteNodeInstanceAuthoritativeFlow(node.ID, 300, 600)
-	if err != nil || instanceID != first.InstanceID {
-		t.Fatalf("update single instance: id=%q err=%v", instanceID, err)
-	}
-	var stored model.NodeInstance
-	if err := r.db.Where("id = ?", first.ID).First(&stored).Error; err != nil {
-		t.Fatalf("load first instance: %v", err)
-	}
-	if stored.TotalInFlow != 300 || stored.TotalOutFlow != 600 {
-		t.Fatalf("unexpected single instance flow: %+v", stored)
-	}
-
-	second := model.NodeInstance{NodeID: node.ID, InstanceID: "instance-b", Status: 1, Weight: 1, CreatedTime: 1, UpdatedTime: 1}
-	if err := r.db.Create(&second).Error; err != nil {
-		t.Fatalf("create second instance: %v", err)
-	}
-	instanceID, err = r.UpdateRemoteNodeInstanceAuthoritativeFlow(node.ID, 900, 1200)
-	if err != nil || instanceID != "" {
-		t.Fatalf("multi-instance update should be skipped: id=%q err=%v", instanceID, err)
-	}
-	if err := r.db.Where("id = ?", first.ID).First(&stored).Error; err != nil {
-		t.Fatalf("reload first instance: %v", err)
-	}
-	if stored.TotalInFlow != 300 || stored.TotalOutFlow != 600 {
-		t.Fatalf("multi-instance update overwrote existing flow: %+v", stored)
-	}
-}
-
 func TestUpdateNodeInstanceOrderPersistsCompleteOrder(t *testing.T) {
 	r, err := Open(":memory:")
 	if err != nil {

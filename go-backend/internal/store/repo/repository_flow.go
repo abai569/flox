@@ -14,13 +14,11 @@ import (
 )
 
 type ForwardTrafficNode struct {
-	NodeID       int64
-	TrafficRatio float64
-	FlowShare    float64
-	RawShare     float64
-	IsRemote     bool
-	IsEntry      bool
-	Layer        string
+	NodeID          int64
+	TrafficRatio    float64
+	IsRemote        bool
+	AuthoritySource bool
+	Layer           string
 }
 
 type ForwardTrafficTopology struct {
@@ -30,10 +28,10 @@ type ForwardTrafficTopology struct {
 }
 
 type ForwardTrafficNodeDelta struct {
-	NodeID  int64
-	InFlow  int64
-	OutFlow int64
-	IsEntry bool
+	NodeID   int64
+	InFlow   int64
+	OutFlow  int64
+	IsRemote bool
 }
 
 type AuthoritativeNodeFlowSnapshot struct {
@@ -72,22 +70,17 @@ func (r *Repository) GetAuthoritativeNodeFlowSnapshot(nodeID int64) (*Authoritat
 		IsRemote               int
 		RemoteURL              string
 		RemoteToken            string
-		TrafficRatio           float64
 		TotalInFlow            int64
 		TotalOutFlow           int64
 		AuthoritativeFlowEpoch int64
 	}
 	if err := r.db.Model(&model.Node{}).
-		Select("id, is_remote, COALESCE(remote_url, '') AS remote_url, COALESCE(remote_token, '') AS remote_token, traffic_ratio, total_in_flow, total_out_flow, authoritative_flow_epoch").
+		Select("id, is_remote, COALESCE(remote_url, '') AS remote_url, COALESCE(remote_token, '') AS remote_token, total_in_flow, total_out_flow, authoritative_flow_epoch").
 		Where("id = ?", nodeID).Scan(&node).Error; err != nil {
 		return nil, err
 	}
 	if node.ID == 0 {
 		return nil, nil
-	}
-	ratio := node.TrafficRatio
-	if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio <= 0 {
-		ratio = 1
 	}
 	epoch := node.AuthoritativeFlowEpoch
 	if epoch <= 0 {
@@ -97,8 +90,8 @@ func (r *Repository) GetAuthoritativeNodeFlowSnapshot(nodeID int64) (*Authoritat
 		NodeID:       node.ID,
 		RemoteURL:    strings.TrimSpace(node.RemoteURL),
 		RemoteToken:  strings.TrimSpace(node.RemoteToken),
-		TotalInFlow:  int64(math.Round(float64(node.TotalInFlow) / ratio)),
-		TotalOutFlow: int64(math.Round(float64(node.TotalOutFlow) / ratio)),
+		TotalInFlow:  node.TotalInFlow,
+		TotalOutFlow: node.TotalOutFlow,
 		Epoch:        epoch,
 	}, nil
 }
@@ -172,9 +165,9 @@ func (r *Repository) GetTunnelLocalTrafficAuthorityLayer(tunnelID int64) (string
 		return "", err
 	}
 	type layerState struct {
-		name      string
-		hasNode   bool
-		hasRemote bool
+		name     string
+		hasNode  bool
+		hasLocal bool
 	}
 	layers := make([]layerState, 0)
 	layerIndex := make(map[string]int)
@@ -192,19 +185,23 @@ func (r *Repository) GetTunnelLocalTrafficAuthorityLayer(tunnelID int64) (string
 			layers = append(layers, layerState{name: layer})
 		}
 		layers[idx].hasNode = true
-		layers[idx].hasRemote = layers[idx].hasRemote || item.IsRemote == 1
+		layers[idx].hasLocal = layers[idx].hasLocal || item.IsRemote != 1
 	}
 	for _, layer := range layers {
-		if layer.hasNode && !layer.hasRemote {
+		if layer.hasNode && layer.hasLocal {
 			return layer.name, nil
 		}
 	}
-	return "", errors.New("tunnel has no fully local traffic authority layer")
+	return "", errors.New("tunnel has no local traffic authority layer")
 }
 
-func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID int64, inFlow, outFlow int64, rawIn, rawOut int64, entryInstanceID string, nodes []ForwardTrafficNodeDelta) error {
+func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID int64, inFlow, outFlow, rawIn, rawOut, sourceNodeID int64, sourceInstanceID string, nodes []ForwardTrafficNodeDelta) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
+	}
+	sourceInstanceID = strings.TrimSpace(sourceInstanceID)
+	if sourceNodeID <= 0 {
+		return errors.New("authoritative source node is required")
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&model.Forward{}).Where("id = ?", forwardID).
@@ -242,30 +239,93 @@ func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunne
 				}).Error; err != nil {
 				return err
 			}
-			instanceID := ""
-			if node.IsEntry {
-				instanceID = strings.TrimSpace(entryInstanceID)
-			} else {
+			if node.IsRemote {
 				var instances []model.NodeInstance
 				where, args := validNodeInstanceWhere()
 				if err := tx.Where("node_id = ? AND status = 1 AND weight > 0", node.NodeID).
-					Where(where, args...).Limit(2).Find(&instances).Error; err != nil {
+					Where("(expiry_time IS NULL OR expiry_time <= 0 OR expiry_time > ?)", time.Now().UnixMilli()).
+					Where(where, args...).Order("display_index ASC, instance_id ASC").Find(&instances).Error; err != nil {
 					return err
 				}
-				if len(instances) == 1 {
-					instanceID = instances[0].InstanceID
-				}
-			}
-			if instanceID != "" {
-				if err := tx.Model(&model.NodeInstance{}).
-					Where("node_id = ? AND instance_id = ?", node.NodeID, instanceID).
-					Updates(map[string]interface{}{
-						"total_in_flow":  gorm.Expr("total_in_flow + ?", node.InFlow),
-						"total_out_flow": gorm.Expr("total_out_flow + ?", node.OutFlow),
+				for index, instance := range instances {
+					instanceIn := rawIn / int64(len(instances))
+					instanceOut := rawOut / int64(len(instances))
+					if int64(index) < rawIn%int64(len(instances)) {
+						instanceIn++
+					}
+					if int64(index) < rawOut%int64(len(instances)) {
+						instanceOut++
+					}
+					if err := tx.Model(&model.NodeInstance{}).Where("id = ?", instance.ID).Updates(map[string]interface{}{
+						"total_in_flow":  gorm.Expr("total_in_flow + ?", instanceIn),
+						"total_out_flow": gorm.Expr("total_out_flow + ?", instanceOut),
 					}).Error; err != nil {
-					return err
+						return err
+					}
 				}
+				continue
 			}
+			if node.NodeID != sourceNodeID || sourceInstanceID == "" {
+				continue
+			}
+			result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", sourceNodeID, sourceInstanceID).
+				Updates(map[string]interface{}{
+					"total_in_flow":  gorm.Expr("total_in_flow + ?", node.InFlow),
+					"total_out_flow": gorm.Expr("total_out_flow + ?", node.OutFlow),
+				})
+			if result.Error != nil {
+				return result.Error
+			}
+		}
+		return nil
+	})
+}
+
+func (r *Repository) AddNonAuthoritativeLocalForwardInstanceTraffic(forwardID, nodeID int64, instanceID string, inFlow, outFlow int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = strings.TrimSpace(instanceID)
+	if forwardID <= 0 || nodeID <= 0 || instanceID == "" {
+		return errors.New("forward, node, and instance are required")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var count int64
+		if err := tx.Table("forward_port").Where("forward_id = ? AND node_id = ?", forwardID, nodeID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			var tunnelID int64
+			if err := tx.Model(&model.Forward{}).Where("id = ?", forwardID).Pluck("tunnel_id", &tunnelID).Error; err != nil {
+				return err
+			}
+			if tunnelID <= 0 {
+				return errors.New("forward not found")
+			}
+			if err := tx.Table("chain_tunnel").Where("tunnel_id = ? AND node_id = ?", tunnelID, nodeID).Count(&count).Error; err != nil {
+				return err
+			}
+		}
+		if count == 0 {
+			return errors.New("node is not in forward topology")
+		}
+		var isRemote int
+		if err := tx.Model(&model.Node{}).Where("id = ?", nodeID).Pluck("is_remote", &isRemote).Error; err != nil {
+			return err
+		}
+		if isRemote == 1 {
+			return errors.New("node is not local")
+		}
+		result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+			Updates(map[string]interface{}{
+				"total_in_flow":  gorm.Expr("total_in_flow + ?", inFlow),
+				"total_out_flow": gorm.Expr("total_out_flow + ?", outFlow),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("node instance not found")
 		}
 		return nil
 	})
@@ -851,18 +911,17 @@ func (r *Repository) ListNodeIDsByTunnelIDs(tunnelIDs []int64) ([]int64, error) 
 	return result, nil
 }
 
-// GetForwardTrafficTopology resolves the same per-layer topology used by the
-// tunnel ratio shown in the UI and accepts traffic only from the first local layer.
+// GetForwardTrafficTopology resolves all tunnel members and identifies whether the
+// reporting node belongs to the local layer that owns user traffic accounting.
 func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*ForwardTrafficTopology, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
 	var forward struct {
 		TunnelID int64
-		Mode     string
 	}
 	if err := r.db.Table("forward").
-		Select("tunnel_id, COALESCE(mode, 'gost') AS mode").
+		Select("tunnel_id").
 		Where("forward.id = ?", forwardID).
 		First(&forward).Error; err != nil {
 		return nil, err
@@ -870,7 +929,6 @@ func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*F
 	type trafficNodeRow struct {
 		NodeID       int64
 		TrafficRatio float64
-		Weight       float64
 		IsRemote     int
 		ChainType    string
 		Inx          int
@@ -878,7 +936,7 @@ func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*F
 	}
 	var entries []trafficNodeRow
 	if err := r.db.Table("forward_port").
-		Select("forward_port.id, forward_port.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.weight, 1) AS weight, COALESCE(node.is_remote, 0) AS is_remote").
+		Select("forward_port.id, forward_port.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
 		Joins("JOIN node ON node.id = forward_port.node_id").
 		Where("forward_port.forward_id = ? AND forward_port.chain_type IN ?", forwardID, []int{0, 1}).
 		Order("forward_port.id ASC").
@@ -887,78 +945,13 @@ func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*F
 	}
 	var chainNodes []trafficNodeRow
 	if err := r.db.Table("chain_tunnel").
-		Select("chain_tunnel.id, chain_tunnel.node_id, chain_tunnel.chain_type, COALESCE(chain_tunnel.inx, 0) AS inx, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.weight, 1) AS weight, COALESCE(node.is_remote, 0) AS is_remote").
+		Select("chain_tunnel.id, chain_tunnel.node_id, chain_tunnel.chain_type, COALESCE(chain_tunnel.inx, 0) AS inx, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
 		Joins("JOIN node ON node.id = chain_tunnel.node_id").
 		Where("chain_tunnel.tunnel_id = ? AND chain_tunnel.chain_type IN ?", forward.TunnelID, []string{"2", "3"}).
 		Order("chain_tunnel.chain_type ASC, chain_tunnel.inx ASC, chain_tunnel.id ASC").
 		Find(&chainNodes).Error; err != nil {
 		return nil, err
 	}
-	entryFound := false
-	allEntriesLocal := len(entries) > 0
-	for _, entry := range entries {
-		allEntriesLocal = allEntriesLocal && entry.IsRemote != 1
-		if entry.NodeID == entryNodeID {
-			entryFound = true
-		}
-	}
-	authorityLayer := ""
-	if allEntriesLocal {
-		authorityLayer = "entry"
-	} else if strings.EqualFold(forward.Mode, "sdwan") || strings.EqualFold(forward.Mode, "nftables") {
-		layerRemote := make(map[string]bool)
-		layerOrder := make([]string, 0)
-		for _, node := range chainNodes {
-			layer := node.ChainType
-			if node.ChainType == "2" {
-				layer = fmt.Sprintf("middle:%d", node.Inx)
-			}
-			if _, ok := layerRemote[layer]; !ok {
-				layerOrder = append(layerOrder, layer)
-			}
-			layerRemote[layer] = layerRemote[layer] || node.IsRemote == 1
-		}
-		for _, layer := range layerOrder {
-			if !layerRemote[layer] {
-				authorityLayer = layer
-				break
-			}
-		}
-	}
-	authorityFound := false
-	hasLocalNode := false
-	for _, entry := range entries {
-		hasLocalNode = hasLocalNode || entry.IsRemote != 1
-	}
-	for _, node := range chainNodes {
-		hasLocalNode = hasLocalNode || node.IsRemote != 1
-	}
-	if authorityLayer == "entry" {
-		for _, entry := range entries {
-			if entry.NodeID == entryNodeID && entry.IsRemote != 1 {
-				authorityFound = true
-				break
-			}
-		}
-	} else if authorityLayer != "" {
-		for _, node := range chainNodes {
-			layer := node.ChainType
-			if node.ChainType == "2" {
-				layer = fmt.Sprintf("middle:%d", node.Inx)
-			}
-			if layer == authorityLayer && node.NodeID == entryNodeID && node.IsRemote != 1 {
-				authorityFound = true
-				break
-			}
-		}
-	} else if entryFound && !hasLocalNode {
-		// Compatibility for historical all-remote tunnels.
-		authorityFound = true
-	}
-	if !authorityFound {
-		return nil, fmt.Errorf("node %d is not an authoritative traffic source for forward %d", entryNodeID, forwardID)
-	}
-
 	normalizeRatio := func(ratio float64) float64 {
 		if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio <= 0 {
 			return 1
@@ -1007,49 +1000,37 @@ func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*F
 			uniqueNodes = append(uniqueNodes, node)
 		}
 		result.TotalRatio += maxRatio
-		isAuthorityLayer := layer.name == authorityLayer || (authorityLayer == "" && layer.name == "entry")
-		if isAuthorityLayer {
-			for _, node := range uniqueNodes {
-				if node.NodeID != entryNodeID {
-					continue
-				}
-				result.Nodes = append(result.Nodes, ForwardTrafficNode{
-					NodeID:       node.NodeID,
-					TrafficRatio: normalizeRatio(node.TrafficRatio),
-					FlowShare:    1,
-					RawShare:     1,
-					IsRemote:     node.IsRemote == 1,
-					IsEntry:      true,
-					Layer:        layer.name,
-				})
-				break
-			}
-			continue
-		}
-		weightTotal := 0.0
 		for _, node := range uniqueNodes {
-			if !math.IsNaN(node.Weight) && !math.IsInf(node.Weight, 0) && node.Weight > 0 {
-				weightTotal += node.Weight
-			}
-		}
-		for _, node := range uniqueNodes {
-			share := 0.0
-			if weightTotal > 0 {
-				if !math.IsNaN(node.Weight) && !math.IsInf(node.Weight, 0) && node.Weight > 0 {
-					share = node.Weight / weightTotal
-				}
-			} else if len(uniqueNodes) > 0 {
-				share = 1 / float64(len(uniqueNodes))
-			}
 			result.Nodes = append(result.Nodes, ForwardTrafficNode{
 				NodeID:       node.NodeID,
 				TrafficRatio: normalizeRatio(node.TrafficRatio),
-				FlowShare:    share,
-				RawShare:     share,
 				IsRemote:     node.IsRemote == 1,
 				Layer:        layer.name,
 			})
 		}
+	}
+	authorityLayer := ""
+	for _, layer := range layers {
+		for _, node := range layer.nodes {
+			if node.IsRemote != 1 {
+				authorityLayer = layer.name
+				break
+			}
+		}
+		if authorityLayer != "" {
+			break
+		}
+	}
+	foundMember := false
+	for i := range result.Nodes {
+		if result.Nodes[i].NodeID != entryNodeID {
+			continue
+		}
+		foundMember = true
+		result.Nodes[i].AuthoritySource = result.Nodes[i].Layer == authorityLayer && !result.Nodes[i].IsRemote
+	}
+	if !foundMember {
+		return nil, fmt.Errorf("node %d is not in forward %d topology", entryNodeID, forwardID)
 	}
 	if result.TotalRatio <= 0 {
 		result.TotalRatio = 1

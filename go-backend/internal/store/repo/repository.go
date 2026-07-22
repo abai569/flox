@@ -2443,7 +2443,7 @@ func (r *Repository) UpdatePeerShareWithInstancesAndResetFlow(share *model.PeerS
 		if err := tx.Create(&model.PeerShareTrafficResetLog{
 			ShareID: share.ID, ShareName: current.Name, NodeID: current.NodeID, NodeName: nodeName,
 			InFlowBefore: totalIn, OutFlowBefore: totalOut, CurrentBefore: current.CurrentFlow,
-			TrafficRatio: current.TrafficRatio, ChargedBefore: int64(float64(current.CurrentFlow) * current.TrafficRatio),
+			TrafficRatio: current.TrafficRatio, ChargedBefore: current.CurrentFlow,
 			ResetTime: now, OperatorID: operatorID, OperatorName: operatorName,
 			Reason: "编辑分享时归零", CreatedTime: now,
 		}).Error; err != nil {
@@ -2648,7 +2648,7 @@ func (r *Repository) ResetPeerShareCurrentFlowWithLog(shareID int64, operatorID 
 			OutFlowBefore: totalOut,
 			CurrentBefore: share.CurrentFlow,
 			TrafficRatio:  share.TrafficRatio,
-			ChargedBefore: int64(float64(share.CurrentFlow) * share.TrafficRatio),
+			ChargedBefore: share.CurrentFlow,
 			ResetTime:     now,
 			OperatorID:    operatorID,
 			OperatorName:  operatorName,

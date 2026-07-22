@@ -384,14 +384,12 @@ function InstanceIPRegionCell({
 
 function RemoteNodeInstanceRows({
   instances,
-  flows,
   parentOnline,
   parentState,
   formatTraffic,
   copyToClipboard,
 }: {
   instances: RemoteInstance[];
-  flows: NonNullable<Node["remoteFlows"]>;
   parentOnline: boolean;
   parentState: RemoteDisplayState;
   formatTraffic: (bytes: number) => string;
@@ -448,35 +446,8 @@ function RemoteNodeInstanceRows({
               const disabled = instance.weight != null && instance.weight <= 0;
               const online = parentOnline && instance.status === 1;
               const parentMeta = getRemoteDisplayMeta(parentState);
-              const instanceFlows = flows.filter(
-                (flow) =>
-                  flow.runtimeId === 0 &&
-                  flow.instanceId === instanceId &&
-                  flow.periodType.toLowerCase() === "total",
-              );
-              const hasInstanceFlows = flows.some(
-                (flow) =>
-                  flow.runtimeId === 0 &&
-                  Boolean(flow.instanceId) &&
-                  flow.periodType.toLowerCase() === "total",
-              );
-              const aggregateFlows =
-                instances.length === 1 && !hasInstanceFlows
-                  ? flows.filter(
-                      (flow) =>
-                        flow.runtimeId === 0 &&
-                        !flow.instanceId &&
-                        flow.periodType.toLowerCase() === "total",
-                    )
-                  : [];
-              const upFlow = instanceFlows.reduce(
-                (total, flow) => total + flow.inFlow,
-                aggregateFlows.reduce((total, flow) => total + flow.inFlow, 0),
-              );
-              const downFlow = instanceFlows.reduce(
-                (total, flow) => total + flow.outFlow,
-                aggregateFlows.reduce((total, flow) => total + flow.outFlow, 0),
-              );
+              const upFlow = instance.totalOutFlow ?? 0;
+              const downFlow = instance.totalInFlow ?? 0;
               const periodFlow = upFlow + downFlow;
               return (
                 <tr
@@ -1836,7 +1807,6 @@ function SortableTableRow({
             >
               <RemoteNodeInstanceRows
                 copyToClipboard={copyToClipboard}
-                flows={node.remoteFlows || []}
                 formatTraffic={formatTraffic}
                  instances={remoteInstances}
                  parentOnline={remoteOnline}

@@ -1033,30 +1033,3 @@ func firstFreeDisplayIndex(used map[int]struct{}) int {
 		}
 	}
 }
-
-// UpdateRemoteNodeInstanceAuthoritativeFlow updates a remote instance only when
-// the node has a single eligible instance. Multi-instance routing cannot be
-// attributed accurately from a node-level authoritative counter.
-func (r *Repository) UpdateRemoteNodeInstanceAuthoritativeFlow(nodeID int64, inFlow, outFlow int64) (string, error) {
-	if r == nil || r.db == nil || nodeID <= 0 {
-		return "", nil
-	}
-	where, args := validNodeInstanceWhere()
-	var instances []model.NodeInstance
-	if err := r.db.Where("node_id = ? AND status = 1 AND weight > 0", nodeID).
-		Where(where, args...).Limit(2).Find(&instances).Error; err != nil {
-		return "", err
-	}
-	if len(instances) != 1 {
-		return "", nil
-	}
-	if err := r.db.Model(&model.NodeInstance{}).
-		Where("node_id = ? AND instance_id = ?", nodeID, instances[0].InstanceID).
-		Updates(map[string]interface{}{
-			"total_in_flow":  inFlow,
-			"total_out_flow": outFlow,
-		}).Error; err != nil {
-		return "", err
-	}
-	return instances[0].InstanceID, nil
-}

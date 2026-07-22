@@ -88,10 +88,25 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 
 	forwardID, userID, userTunnelID, ok := parseFlowServiceIDs(serviceName)
 	if ok {
+		runtimes, runtimeErr := h.repo.ListActiveForwardPeerShareRuntimesByNodeAndServiceName(nodeID, normalizeForwardRuntimeServiceName(serviceName))
+		if runtimeErr != nil {
+			return runtimeErr
+		}
+		if len(runtimes) > 0 {
+			return h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
+		}
+		if forward, forwardErr := h.getForwardRecord(forwardID); forwardErr == nil && forward != nil {
+			if tunnelName, nameErr := h.repo.GetTunnelName(forward.TunnelID); nameErr == nil {
+				if shareID, _, federationTunnel := parsePeerShareInfoFromFederationTunnelName(tunnelName); federationTunnel {
+					if share, shareErr := h.repo.GetPeerShare(shareID); shareErr == nil && share != nil && share.NodeID == nodeID {
+						return h.processPeerShareFlowFromForward(forwardID, nodeID, instanceID, serviceName, item)
+					}
+				}
+			}
+		}
 		topology, topologyErr := h.repo.GetForwardTrafficTopology(forwardID, nodeID)
 		if topologyErr != nil {
-			log.Printf("[flow] ignore non-entry or invalid topology forward=%d node=%d: %v", forwardID, nodeID, topologyErr)
-			return h.processPeerShareFlowFromForward(forwardID, nodeID, instanceID, serviceName, item)
+			return topologyErr
 		}
 		actualUserID, actualUserTunnelID, ownershipErr := h.repo.GetForwardTrafficOwnership(forwardID)
 		if ownershipErr != nil {
@@ -100,10 +115,28 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		if userID != actualUserID || userTunnelID != actualUserTunnelID {
 			return fmt.Errorf("flow service ownership mismatch for forward %d", forwardID)
 		}
+		var source *repo.ForwardTrafficNode
+		for i := range topology.Nodes {
+			if topology.Nodes[i].NodeID == nodeID {
+				source = &topology.Nodes[i]
+				break
+			}
+		}
+		if source == nil {
+			return fmt.Errorf("node %d is not in forward %d topology", nodeID, forwardID)
+		}
+		if !source.AuthoritySource {
+			if source.IsRemote {
+				return nil
+			}
+			inFlow := int64(math.Round(float64(item.D) * source.TrafficRatio))
+			outFlow := int64(math.Round(float64(item.U) * source.TrafficRatio))
+			return h.repo.AddNonAuthoritativeLocalForwardInstanceTraffic(forwardID, nodeID, instanceID, inFlow, outFlow)
+		}
 		inFlow := int64(math.Round(float64(item.D) * topology.TotalRatio))
 		outFlow := int64(math.Round(float64(item.U) * topology.TotalRatio))
 		nodeDeltas := forwardTrafficNodeDeltas(topology, item.D, item.U)
-		if err := h.repo.AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID, inFlow, outFlow, item.D, item.U, instanceID, nodeDeltas); err != nil {
+		if err := h.repo.AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID, inFlow, outFlow, item.D, item.U, nodeID, instanceID, nodeDeltas); err != nil {
 			return err
 		}
 		h.afterFlowCommit(func() { h.reportAuthoritativeFlowToProviders(topology, item) })
@@ -139,10 +172,10 @@ func forwardTrafficNodeDeltas(topology *repo.ForwardTrafficTopology, rawIn, rawO
 	deltas := make([]repo.ForwardTrafficNodeDelta, 0, len(topology.Nodes))
 	for _, trafficNode := range topology.Nodes {
 		deltas = append(deltas, repo.ForwardTrafficNodeDelta{
-			NodeID:  trafficNode.NodeID,
-			InFlow:  int64(math.Round(float64(rawIn) * trafficNode.FlowShare * trafficNode.TrafficRatio)),
-			OutFlow: int64(math.Round(float64(rawOut) * trafficNode.FlowShare * trafficNode.TrafficRatio)),
-			IsEntry: trafficNode.IsEntry,
+			NodeID:   trafficNode.NodeID,
+			InFlow:   int64(math.Round(float64(rawIn) * trafficNode.TrafficRatio)),
+			OutFlow:  int64(math.Round(float64(rawOut) * trafficNode.TrafficRatio)),
+			IsRemote: trafficNode.IsRemote,
 		})
 	}
 	return deltas
@@ -152,32 +185,35 @@ func (h *Handler) reportAuthoritativeFlowToProviders(topology *repo.ForwardTraff
 	if h == nil || topology == nil || item.D+item.U <= 0 {
 		return
 	}
-	remoteShares := make(map[int64]float64)
-	remoteNodeIDs := make([]int64, 0, len(topology.Nodes))
+	type remoteNodeFlow struct {
+		nodeID  int64
+		inFlow  int64
+		outFlow int64
+	}
+	remoteNodes := make([]remoteNodeFlow, 0, len(topology.Nodes))
 	for _, trafficNode := range topology.Nodes {
 		if !trafficNode.IsRemote || trafficNode.NodeID <= 0 {
 			continue
 		}
-		if _, exists := remoteShares[trafficNode.NodeID]; !exists {
-			remoteNodeIDs = append(remoteNodeIDs, trafficNode.NodeID)
-		}
-		remoteShares[trafficNode.NodeID] += trafficNode.FlowShare
+		remoteNodes = append(remoteNodes, remoteNodeFlow{
+			nodeID:  trafficNode.NodeID,
+			inFlow:  int64(math.Round(float64(item.D) * trafficNode.TrafficRatio)),
+			outFlow: int64(math.Round(float64(item.U) * trafficNode.TrafficRatio)),
+		})
 	}
 	var wg sync.WaitGroup
-	for _, nodeID := range remoteNodeIDs {
-		snapshot, err := h.repo.GetAuthoritativeNodeFlowSnapshot(nodeID)
+	for _, node := range remoteNodes {
+		snapshot, err := h.repo.GetAuthoritativeNodeFlowSnapshot(node.nodeID)
 		if err != nil || snapshot == nil || snapshot.RemoteURL == "" || snapshot.RemoteToken == "" {
 			continue
 		}
 		wg.Add(1)
-		allocatedIn := int64(math.Round(float64(item.D) * remoteShares[nodeID]))
-		allocatedOut := int64(math.Round(float64(item.U) * remoteShares[nodeID]))
 		go func(current repo.AuthoritativeNodeFlowSnapshot, inFlow, outFlow int64) {
 			defer wg.Done()
 			if err := h.reportAuthoritativeNodeFlowSnapshot(current, inFlow, outFlow); err != nil {
 				log.Printf("[flow] report authoritative share flow failed node=%d: %v", current.NodeID, err)
 			}
-		}(*snapshot, allocatedIn, allocatedOut)
+		}(*snapshot, node.inFlow, node.outFlow)
 	}
 	wg.Wait()
 }

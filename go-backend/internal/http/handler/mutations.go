@@ -38,6 +38,16 @@ const legacyManualTunnelRemark = "手动组建隧道"
 
 var tunnelRedeployLocks sync.Map
 
+func (h *Handler) ensureTunnelHasLocalTrafficAuthority(tunnelID int64) error {
+	if h == nil || h.repo == nil {
+		return errors.New("invalid traffic authority context")
+	}
+	if _, err := h.repo.GetTunnelLocalTrafficAuthorityLayer(tunnelID); err != nil {
+		return errors.New("tunnel must contain at least one local node for authoritative traffic accounting")
+	}
+	return nil
+}
+
 func isManualTunnelNameRemark(name, remark string) bool {
 	name = strings.TrimSpace(name)
 	remark = strings.TrimSpace(remark)
@@ -3760,7 +3770,7 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
-	if err := h.ensureForwardTrafficAuthority(mode, tunnelID); err != nil {
+	if err := h.ensureTunnelHasLocalTrafficAuthority(tunnelID); err != nil {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
@@ -3977,7 +3987,7 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
-	if err := h.ensureForwardTrafficAuthority(mode, tunnelID); err != nil {
+	if err := h.ensureTunnelHasLocalTrafficAuthority(tunnelID); err != nil {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
@@ -4730,7 +4740,7 @@ func (h *Handler) forwardBatchChangeTunnel(w http.ResponseWriter, r *http.Reques
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
 		}
-		if err := h.ensureForwardTrafficAuthority(forward.Mode, req.TargetTunnelID); err != nil {
+		if err := h.ensureTunnelHasLocalTrafficAuthority(req.TargetTunnelID); err != nil {
 			fail++
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
@@ -4902,7 +4912,7 @@ func (h *Handler) forwardBatchChangeMode(w http.ResponseWriter, r *http.Request)
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
 		}
-		if err := h.ensureForwardTrafficAuthority(req.Mode, forward.TunnelID); err != nil {
+		if err := h.ensureTunnelHasLocalTrafficAuthority(forward.TunnelID); err != nil {
 			fail++
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
@@ -5623,29 +5633,13 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		state.Nodes[nodeID] = node
 	}
 	hasLocalNode := false
-	allEntriesLocal := len(state.InNodes) > 0
 	for _, node := range state.Nodes {
 		if node != nil && node.IsRemote != 1 {
 			hasLocalNode = true
 		}
 	}
-	for _, entry := range state.InNodes {
-		node := state.Nodes[entry.NodeID]
-		allEntriesLocal = allEntriesLocal && node != nil && node.IsRemote != 1
-	}
 	if !hasLocalNode {
-		return nil, errors.New("隧道必须至少包含一个本地节点用于权威流量统计")
-	}
-	if !allEntriesLocal && excludeTunnelID > 0 {
-		var incompatibleForwards int64
-		if err := tx.Model(&model.Forward{}).
-			Where("tunnel_id = ? AND LOWER(COALESCE(mode, 'gost')) NOT IN ?", excludeTunnelID, []string{forwardModeSDWAN, forwardModeNftables}).
-			Count(&incompatibleForwards).Error; err != nil {
-			return nil, err
-		}
-		if incompatibleForwards > 0 {
-			return nil, errors.New("当前隧道包含需要本地入口节点统计流量的规则")
-		}
+		return nil, errors.New("tunnel must contain at least one local node for authoritative traffic accounting")
 	}
 	instances, err := h.repo.ListOnlineNodeInstancesByNodeIDsTx(tx, state.NodeIDList)
 	if err != nil {

@@ -30,6 +30,10 @@ func TestFlowUploadInsertsTunnelMetrics(t *testing.T) {
 	if err := repo.DB().Create(node).Error; err != nil {
 		t.Fatalf("seed node: %v", err)
 	}
+	user := &model.User{User: "user-123", Pwd: "x", RoleID: 1, ExpTime: now + 60_000, Flow: 1_000_000, FlowResetTime: now, Num: 1, CreatedTime: now, Status: 1}
+	if err := repo.DB().Create(user).Error; err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
 
 	tunnel := &model.Tunnel{
 		Name:         "tunnel-1",
@@ -46,7 +50,7 @@ func TestFlowUploadInsertsTunnelMetrics(t *testing.T) {
 	}
 
 	forward := &model.Forward{
-		UserID:      123,
+		UserID:      user.ID,
 		UserName:    "user-123",
 		Name:        "forward-1",
 		TunnelID:    tunnel.ID,
@@ -58,8 +62,15 @@ func TestFlowUploadInsertsTunnelMetrics(t *testing.T) {
 	if err := repo.DB().Create(forward).Error; err != nil {
 		t.Fatalf("seed forward: %v", err)
 	}
+	userTunnel := &model.UserTunnel{UserID: user.ID, TunnelID: tunnel.ID, Num: 1, Flow: 1_000_000, ExpTime: now + 60_000, Status: 1}
+	if err := repo.DB().Create(userTunnel).Error; err != nil {
+		t.Fatalf("seed user tunnel: %v", err)
+	}
+	if err := repo.DB().Create(&model.ForwardPort{ForwardID: forward.ID, NodeID: node.ID, Port: 10000, ChainType: 1}).Error; err != nil {
+		t.Fatalf("seed forward port: %v", err)
+	}
 
-	serviceName := jsonNumber(forward.ID) + "_123_0"
+	serviceName := jsonNumber(forward.ID) + "_" + jsonNumber(user.ID) + "_" + jsonNumber(userTunnel.ID)
 	body, _ := json.Marshal([]map[string]interface{}{{
 		"n": serviceName,
 		"u": 200,

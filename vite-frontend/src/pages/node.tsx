@@ -1122,7 +1122,32 @@ export default function NodePage() {
                   const usage = usageByNode[node.id];
                   if (!usage || node.isRemote !== 1) return node;
 
-                  const instances = usage.instances || node.remoteInstances || [];
+                  const existingInstances = new Map(
+                    (node.remoteInstances || []).map((instance) => [
+                      instance.instanceId.trim(),
+                      instance,
+                    ]),
+                  );
+                  const instances = (usage.instances || node.remoteInstances || []).map(
+                    (instance) => {
+                      const existing = existingInstances.get(instance.instanceId.trim());
+
+                      return {
+                        ...existing,
+                        ...instance,
+                        periodRx: existing?.periodRx,
+                        periodTx: existing?.periodTx,
+                        totalInFlow:
+                          instance.totalInFlow !== undefined
+                            ? instance.totalInFlow
+                            : existing?.totalInFlow,
+                        totalOutFlow:
+                          instance.totalOutFlow !== undefined
+                            ? instance.totalOutFlow
+                            : existing?.totalOutFlow,
+                      };
+                    },
+                  );
                   const healthyInstances = instances.filter(
                     (instance) =>
                       instance.inScope &&
@@ -1142,12 +1167,9 @@ export default function NodePage() {
                     syncError: usage.syncError || undefined,
                     trafficRatio: usage.trafficRatio && usage.trafficRatio > 0 ? usage.trafficRatio : node.trafficRatio,
                     remoteCurrentFlow: usage.remoteCurrentFlow ?? usage.currentFlow ?? node.remoteCurrentFlow,
-                    remoteInFlow: usage.remoteInFlow ?? node.remoteInFlow,
-                    remoteOutFlow: usage.remoteOutFlow ?? node.remoteOutFlow,
                     remoteMaxBandwidth: usage.maxBandwidth ?? node.remoteMaxBandwidth,
                     remoteExpiryTime: usage.expiryTime ?? node.remoteExpiryTime,
                     remoteInstances: instances,
-                    remoteFlows: usage.flows || node.remoteFlows,
                   };
                 }),
               );
@@ -3127,9 +3149,9 @@ export default function NodePage() {
     const remoteVisualMeta = remoteVisualMembers.length
       ? deriveNodeVisualState(remoteVisualMembers)
       : null;
-    const remoteScaledRx = node.totalInFlow ?? 0;
-    const remoteScaledTx = node.totalOutFlow ?? 0;
-    const remotePeriodFlow = remoteScaledRx + remoteScaledTx;
+    const remoteTotalInFlow = node.totalInFlow ?? 0;
+    const remoteTotalOutFlow = node.totalOutFlow ?? 0;
+    const remoteTotalFlow = remoteTotalInFlow + remoteTotalOutFlow;
     const remoteOnline = node.connectionStatus === "online" && !node.syncError;
     const remoteDisplayMeta = remoteOnline ? remoteVisualMeta : null;
     const remoteDisplayState = getRemoteDisplayState(node, remoteVisualMeta);
@@ -3409,7 +3431,7 @@ export default function NodePage() {
               <span className="text-default-600">周期流量</span>
               <span className="font-medium text-sm text-danger-600 dark:text-danger-400">
                 {node.isRemote === 1
-                   ? formatTraffic(remotePeriodFlow)
+                   ? formatTraffic(remoteTotalFlow)
                   : realtimeNodeMetrics[node.id]
                   ? formatTraffic(
                     (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
@@ -3423,13 +3445,13 @@ export default function NodePage() {
                 <div className="flex justify-between items-center">
                   <span>↑ 上行</span>
                   <span className="font-medium text-success-600 dark:text-success-400">
-                    {formatTraffic(remoteScaledTx)}
+                    {formatTraffic(remoteTotalOutFlow)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span>↓ 下行</span>
                   <span className="font-medium text-primary-600 dark:text-primary-400">
-                    {formatTraffic(remoteScaledRx)}
+                    {formatTraffic(remoteTotalInFlow)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
