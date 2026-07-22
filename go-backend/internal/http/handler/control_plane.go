@@ -65,6 +65,7 @@ type diagnosisNodeEndpoint struct {
 	instanceID    string
 	displayName   string
 	displayIndex  int
+	publicIP      string
 	targetHost    string
 	precheckError string
 }
@@ -114,6 +115,14 @@ func (h *Handler) buildDiagnosisStreamStartItems(workItems []diagnosisWorkItem) 
 		if targetIP == "" && workItem.metadata["exitTest"] == true && len(exitTestTargets) > 0 {
 			targetIP = exitTestTargets[0].host
 		}
+		if targetIP == "" && (workItem.metadata["serviceCheck"] == true || workItem.metadata["entryConnectivity"] == true) {
+			targetIP = strings.Trim(strings.TrimSpace(asString(workItem.metadata["fromInstanceIp"])), "[]")
+			if targetIP == "" {
+				if node, err := h.cachedNode(nodeCache, workItem.fromNodeID); err == nil {
+					targetIP = strings.Trim(strings.TrimSpace(node.ServerIP), "[]")
+				}
+			}
+		}
 
 		nodeName := fmt.Sprintf("node_%d", workItem.fromNodeID)
 		if node, err := h.cachedNode(nodeCache, workItem.fromNodeID); err == nil && strings.TrimSpace(node.Name) != "" {
@@ -152,14 +161,28 @@ const (
 const exitTestCommandTimeout = 18 * time.Second
 const exitTestPingCount = 3
 
-var exitTestTargets = []struct {
+type diagnosisProbeTarget struct {
 	name string
 	host string
 	port int
-}{
+}
+
+var exitTestTargets = []diagnosisProbeTarget{
 	{"www.google.com", "www.google.com", 443},
 	{"www.bing.com", "www.bing.com", 443},
 	{"www.cloudflare.com", "www.cloudflare.com", 443},
+}
+
+var mainlandEntryTestTargets = []diagnosisProbeTarget{
+	{"www.baidu.com", "www.baidu.com", 443},
+	{"www.aliyun.com", "www.aliyun.com", 443},
+	{"www.qq.com", "www.qq.com", 443},
+}
+
+var overseasEntryTestTargets = []diagnosisProbeTarget{
+	{"www.cloudflare.com", "www.cloudflare.com", 443},
+	{"www.google.com", "www.google.com", 443},
+	{"www.bing.com", "www.bing.com", 443},
 }
 
 func (h *Handler) resolveForwardAccess(r *http.Request, forwardID int64) (*forwardRecord, int64, int, error) {
@@ -1256,6 +1279,15 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 				},
 			})
 		}
+		workItems = append(workItems, diagnosisWorkItem{
+			fromNodeID:  inNode.NodeID,
+			targetPort:  443,
+			description: fmt.Sprintf("入口实例公网连通性[%s]", formatDiagnosisNodeName(inNode.NodeName)),
+			metadata: map[string]interface{}{
+				"entryConnectivity": true,
+				"fromChainType":     1,
+			},
+		})
 	}
 
 	switch tunnel.Type {
@@ -1696,9 +1728,17 @@ func diagnosisSourceEndpoints(nodeID int64, instancesByNode map[int64][]model.No
 			instanceID:   strings.TrimSpace(inst.InstanceID),
 			displayName:  strings.TrimSpace(inst.DisplayName),
 			displayIndex: inst.DisplayIndex,
+			publicIP:     pickDiagnosisInstancePublicIP(inst),
 		})
 	}
 	return endpoints
+}
+
+func pickDiagnosisInstancePublicIP(inst model.NodeInstance) string {
+	if ip := strings.Trim(strings.TrimSpace(inst.PublicIPV4), "[]"); ip != "" {
+		return ip
+	}
+	return strings.Trim(strings.TrimSpace(inst.PublicIPV6), "[]")
 }
 
 func diagnosisTargetEndpoints(node chainNodeRecord, targetNode *nodeRecord, ipPreference string, connectIPType string, instancesByNode map[int64][]model.NodeInstance) []diagnosisNodeEndpoint {
@@ -1766,6 +1806,9 @@ func enrichDiagnosisWorkItem(item diagnosisWorkItem, from diagnosisNodeEndpoint,
 	}
 	if next.fromInstanceDisplayIndex > 0 {
 		next.metadata["fromInstanceDisplayIndex"] = next.fromInstanceDisplayIndex
+	}
+	if strings.TrimSpace(from.publicIP) != "" {
+		next.metadata["fromInstanceIp"] = strings.TrimSpace(from.publicIP)
 	}
 	if next.toInstanceID != "" {
 		next.metadata["toInstanceId"] = next.toInstanceID
@@ -1914,6 +1957,12 @@ func (h *Handler) executeDiagnosisWorkItem(workItem diagnosisWorkItem, options d
 		exitOptions.pingTimeoutMS = int(exitTestCommandTimeout / time.Millisecond)
 		exitOptions.pingCount = exitTestPingCount
 		h.appendExitTestRotation(&single, workItem.fromNodeID, workItem.description, workItem.metadata, exitOptions)
+	} else if workItem.metadata["entryConnectivity"] == true {
+		exitOptions := options
+		exitOptions.commandTimeout = exitTestCommandTimeout
+		exitOptions.pingTimeoutMS = int(exitTestCommandTimeout / time.Millisecond)
+		exitOptions.pingCount = exitTestPingCount
+		h.appendEntryConnectivityDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.description, workItem.metadata, exitOptions)
 	} else if workItem.metadata["serviceCheck"] == true {
 		h.appendServiceCheckDiagnosis(&single, nodeCache, workItem.fromNodeID, workItem.targetPort, workItem.description, workItem.metadata, options)
 	} else {
@@ -2066,7 +2115,7 @@ func (h *Handler) appendPathDiagnosis(results *[]map[string]interface{}, nodeCac
 		pingErr  error
 	)
 	if fromNode.IsRemote == 1 {
-		pingData, pingErr = h.tcpPingViaRemoteNode(fromNode, targetIP, targetPort, options)
+		pingData, pingErr = h.tcpPingViaRemoteNode(fromNode, asString(metadata["fromInstanceId"]), targetIP, targetPort, options)
 	} else {
 		pingData, pingErr = h.tcpPingViaNode(fromNodeID, asString(metadata["fromInstanceId"]), targetIP, targetPort, options)
 	}
@@ -2109,8 +2158,18 @@ func (h *Handler) appendServiceCheckDiagnosis(results *[]map[string]interface{},
 		return
 	}
 	item["nodeName"] = fromNode.Name
+	item["targetIp"] = diagnosisSourcePublicIP(fromNode, metadata)
+	item["serviceCheck"] = true
+	delete(item, "averageTime")
+	delete(item, "packetLoss")
 
-	svcState, svcErr := h.checkServiceStatusViaNode(nodeID, asString(metadata["fromInstanceId"]), port, options)
+	var svcState string
+	var svcErr error
+	if fromNode.IsRemote == 1 {
+		svcState, svcErr = h.checkServiceStatusViaRemoteNode(fromNode, asString(metadata["fromInstanceId"]), port, options)
+	} else {
+		svcState, svcErr = h.checkServiceStatusViaNode(nodeID, asString(metadata["fromInstanceId"]), port, options)
+	}
 	if svcErr != nil {
 		item["success"] = false
 		item["message"] = fmt.Sprintf("入口端口 %d 服务检查失败: %v", port, svcErr)
@@ -2200,7 +2259,7 @@ func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nod
 	var pingData map[string]interface{}
 	var pingErr error
 	if fromNode != nil && fromNode.IsRemote == 1 {
-		pingData, pingErr = h.tcpPingViaRemoteNode(fromNode, targetIP, targetPort, options)
+		pingData, pingErr = h.tcpPingViaRemoteNode(fromNode, asString(metadata["fromInstanceId"]), targetIP, targetPort, options)
 	} else {
 		pingData, pingErr = h.tcpPingViaNode(fromNodeID, asString(metadata["fromInstanceId"]), targetIP, targetPort, options)
 	}
@@ -2248,24 +2307,59 @@ func (h *Handler) appendChainHopDiagnosis(results *[]map[string]interface{}, nod
 }
 
 func (h *Handler) appendExitTestRotation(results *[]map[string]interface{}, fromNodeID int64, description string, metadata map[string]interface{}, options diagnosisExecOptions) {
+	h.appendDiagnosisTargetRotation(results, fromNodeID, description, metadata, exitTestTargets, options)
+}
+
+func (h *Handler) appendEntryConnectivityDiagnosis(results *[]map[string]interface{}, nodeCache map[int64]*nodeRecord, fromNodeID int64, description string, metadata map[string]interface{}, options diagnosisExecOptions) {
+	node, err := h.cachedNode(nodeCache, fromNodeID)
+	if err != nil {
+		h.appendFailedDiagnosis(results, nodeCache, fromNodeID, "", 443, description, metadata, err.Error())
+		return
+	}
+	instanceIP := diagnosisSourcePublicIP(node, metadata)
+	region := lookupMonitorIPRegion(instanceIP)
+	targets := overseasEntryTestTargets
+	regionScope := "overseas"
+	if region.CountryCode == "cn" {
+		targets = mainlandEntryTestTargets
+		regionScope = "mainland"
+	} else if region.CountryCode == "" {
+		targets = append(append([]diagnosisProbeTarget{}, mainlandEntryTestTargets...), overseasEntryTestTargets...)
+		regionScope = "unknown"
+	}
+	nextMetadata := cloneDiagnosisMetadata(metadata)
+	nextMetadata["entryConnectivity"] = true
+	nextMetadata["instanceRegion"] = region.Region
+	nextMetadata["instanceRegionScope"] = regionScope
+	h.appendDiagnosisTargetRotation(results, fromNodeID, description, nextMetadata, targets, options)
+}
+
+func diagnosisSourcePublicIP(node *nodeRecord, metadata map[string]interface{}) string {
+	if ip := strings.Trim(strings.TrimSpace(asString(metadata["fromInstanceIp"])), "[]"); ip != "" {
+		return ip
+	}
+	if node == nil {
+		return ""
+	}
+	return strings.Trim(strings.TrimSpace(node.ServerIP), "[]")
+}
+
+func (h *Handler) appendDiagnosisTargetRotation(results *[]map[string]interface{}, fromNodeID int64, description string, metadata map[string]interface{}, targets []diagnosisProbeTarget, options diagnosisExecOptions) {
 	var mu sync.Mutex
-	allFailedTargets := make([]string, len(exitTestTargets))
-	resultCh := make(chan map[string]interface{}, len(exitTestTargets))
+	allFailedTargets := make([]string, len(targets))
+	resultCh := make(chan map[string]interface{}, len(targets))
 	var wg sync.WaitGroup
 
-	for i, t := range exitTestTargets {
+	for i, t := range targets {
 		wg.Add(1)
-		go func(idx int, target struct {
-			name, host string
-			port       int
-		}) {
+		go func(idx int, target diagnosisProbeTarget) {
 			defer wg.Done()
 			single := make([]map[string]interface{}, 0, 1)
 			h.appendPathDiagnosis(&single, map[int64]*nodeRecord{}, fromNodeID, target.host, target.port, description, metadata, options)
 			if len(single) > 0 && asBool(single[0]["success"], false) {
 				item := single[0]
 				if hide, _ := metadata["hideTargetAddress"].(bool); !hide {
-					item["targetIp"] = exitTestTargets[0].host
+					item["targetIp"] = target.host
 				}
 				if idx > 0 {
 					item["actualTarget"] = target.name
@@ -2414,7 +2508,14 @@ func (h *Handler) checkServiceStatusViaNode(nodeID int64, instanceID string, por
 	if res.Data == nil {
 		return "", errors.New("节点未返回服务列表")
 	}
-	servicesRaw, ok := res.Data["services"].([]interface{})
+	return serviceStateFromCommandData(res.Data, port)
+}
+
+func serviceStateFromCommandData(data map[string]interface{}, port int) (string, error) {
+	if data == nil {
+		return "", errors.New("节点未返回服务列表")
+	}
+	servicesRaw, ok := data["services"].([]interface{})
 	if !ok || len(servicesRaw) == 0 {
 		return "", errors.New("节点服务列表为空")
 	}
@@ -2441,6 +2542,25 @@ func (h *Handler) checkServiceStatusViaNode(nodeID int64, instanceID string, por
 		return state, fmt.Errorf("服务状态异常: %s", state)
 	}
 	return "", fmt.Errorf("端口 %d 无监听服务", port)
+}
+
+func (h *Handler) checkServiceStatusViaRemoteNode(node *nodeRecord, instanceID string, port int, options diagnosisExecOptions) (string, error) {
+	if node == nil || strings.TrimSpace(node.RemoteURL) == "" || strings.TrimSpace(node.RemoteToken) == "" {
+		return "", errors.New("远程节点缺少共享配置")
+	}
+	if options.commandTimeout <= 0 {
+		options.commandTimeout = diagnosisCommandTimeout
+	}
+	fc := client.NewFederationClientWithTimeout(options.commandTimeout)
+	data, err := fc.ServiceStatus(node.RemoteURL, node.RemoteToken, h.federationLocalDomain(), client.RuntimeServiceStatusRequest{Port: port, InstanceID: instanceID})
+	if err != nil {
+		return "", err
+	}
+	state := strings.ToLower(strings.TrimSpace(asString(data["state"])))
+	if state != "running" && state != "ready" {
+		return state, fmt.Errorf("服务状态异常: %s", state)
+	}
+	return state, nil
 }
 
 func (h *Handler) tcpPingViaNode(nodeID int64, instanceID string, ip string, port int, options diagnosisExecOptions) (map[string]interface{}, error) {
@@ -2482,7 +2602,7 @@ func (h *Handler) sdwanDiagViaNode(nodeID int64, instanceID string, options diag
 	return res.Data, nil
 }
 
-func (h *Handler) tcpPingViaRemoteNode(node *nodeRecord, ip string, port int, options diagnosisExecOptions) (map[string]interface{}, error) {
+func (h *Handler) tcpPingViaRemoteNode(node *nodeRecord, instanceID string, ip string, port int, options diagnosisExecOptions) (map[string]interface{}, error) {
 	if node == nil {
 		return nil, errors.New("节点不存在")
 	}
@@ -2500,10 +2620,11 @@ func (h *Handler) tcpPingViaRemoteNode(node *nodeRecord, ip string, port int, op
 
 	fc := client.NewFederationClientWithTimeout(options.commandTimeout)
 	return fc.Diagnose(remoteURL, remoteToken, h.federationLocalDomain(), client.RuntimeDiagnoseRequest{
-		IP:      strings.TrimSpace(ip),
-		Port:    port,
-		Count:   4,
-		Timeout: options.pingTimeoutMS,
+		IP:         strings.TrimSpace(ip),
+		Port:       port,
+		Count:      4,
+		Timeout:    options.pingTimeoutMS,
+		InstanceID: strings.TrimSpace(instanceID),
 	})
 }
 

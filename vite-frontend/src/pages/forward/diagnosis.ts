@@ -11,6 +11,11 @@ export interface ForwardDiagnosisEntry {
   message?: string;
   averageTime?: number;
   packetLoss?: number;
+  serviceCheck?: boolean;
+  serviceState?: string;
+  entryConnectivity?: boolean;
+  instanceRegion?: string;
+  instanceRegionScope?: "mainland" | "overseas" | "unknown";
   fromChainType?: number;
   fromInx?: number;
   toChainType?: number;

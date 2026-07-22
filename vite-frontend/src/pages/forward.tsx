@@ -3675,6 +3675,9 @@ export default function ForwardPage() {
     const parts = [
       from ? `来源实例: ${from}` : "",
       to ? `目标实例: ${to}` : "",
+      result.instanceRegion && result.instanceRegion !== "-"
+        ? `地区: ${result.instanceRegion}`
+        : "",
     ];
 
     return parts.filter(Boolean).join(" / ");
@@ -7519,8 +7522,18 @@ export default function ForwardPage() {
                       {(() => {
                         // 使用后端返回的 chainType 和 inx 字段进行分组
                         const groupedResults = {
+                          entryService: diagnosisResult.results.filter(
+                            (r) => r.fromChainType === 1 && r.serviceCheck,
+                          ),
+                          entryConnectivity: diagnosisResult.results.filter(
+                            (r) =>
+                              r.fromChainType === 1 && r.entryConnectivity,
+                          ),
                           entry: diagnosisResult.results.filter(
-                            (r) => r.fromChainType === 1,
+                            (r) =>
+                              r.fromChainType === 1 &&
+                              !r.serviceCheck &&
+                              !r.entryConnectivity,
                           ),
                           chains: {} as Record<
                             number,
@@ -7582,6 +7595,7 @@ export default function ForwardPage() {
                                       result.diagnosing,
                                     );
                                     const isSuccess = result.success === true;
+                                    const isServiceCheck = result.serviceCheck === true;
                                     const instanceLine =
                                       getDiagnosisInstanceLine(result);
                                     const quality =
@@ -7643,7 +7657,7 @@ export default function ForwardPage() {
                                           </div>
                                         </td>
                                         <td className="px-3 py-2 text-center">
-                                          {isSuccess ? (
+                                          {isSuccess && !isServiceCheck ? (
                                             <span className="font-semibold text-primary">
                                               {result.averageTime?.toFixed(0)}
                                             </span>
@@ -7654,7 +7668,7 @@ export default function ForwardPage() {
                                           )}
                                         </td>
                                         <td className="px-3 py-2 text-center">
-                                          {isSuccess ? (
+                                          {isSuccess && !isServiceCheck ? (
                                             <span
                                               className={`font-semibold ${(result.packetLoss || 0) > 0
                                                   ? "text-warning"
@@ -7670,7 +7684,7 @@ export default function ForwardPage() {
                                           )}
                                         </td>
                                         <td className="px-3 py-2 text-center">
-                                          {isSuccess && quality ? (
+                                          {isSuccess && !isServiceCheck && quality ? (
                                             <div
                                               className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${quality.color === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : quality.color === "warning" ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
                                             >
@@ -7693,9 +7707,17 @@ export default function ForwardPage() {
 
                         return (
                           <>
-                            {/* 入口测试 */}
                             {renderTableSection(
-                              "🚪 入口测试",
+                              "入口规则服务",
+                              groupedResults.entryService,
+                            )}
+                            {renderTableSection(
+                              "入口实例公网连通性",
+                              groupedResults.entryConnectivity,
+                            )}
+                            {/* 入口链路测试 */}
+                            {renderTableSection(
+                              "入口链路测试",
                               groupedResults.entry,
                             )}
                             {/* 链路测试（按跳数排序） */}
@@ -7805,8 +7827,18 @@ export default function ForwardPage() {
                       {(() => {
                         // 使用后端返回的 chainType 和 inx 字段进行分组
                         const groupedResults = {
+                          entryService: diagnosisResult.results.filter(
+                            (r) => r.fromChainType === 1 && r.serviceCheck,
+                          ),
+                          entryConnectivity: diagnosisResult.results.filter(
+                            (r) =>
+                              r.fromChainType === 1 && r.entryConnectivity,
+                          ),
                           entry: diagnosisResult.results.filter(
-                            (r) => r.fromChainType === 1,
+                            (r) =>
+                              r.fromChainType === 1 &&
+                              !r.serviceCheck &&
+                              !r.entryConnectivity,
                           ),
                           chains: {} as Record<
                             number,
@@ -7842,6 +7874,7 @@ export default function ForwardPage() {
                               {results.map((result, index) => {
                                 const isDiagnosing = Boolean(result.diagnosing);
                                 const isSuccess = result.success === true;
+                                const isServiceCheck = result.serviceCheck === true;
                                 const instanceLine =
                                   getDiagnosisInstanceLine(result);
                                 const quality =
@@ -7898,7 +7931,7 @@ export default function ForwardPage() {
                                             : "失败"}
                                       </div>
                                     </div>
-                                    {isSuccess ? (
+                                    {isSuccess && !isServiceCheck ? (
                                       <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-divider">
                                         <div className="text-center">
                                           <div className="text-lg font-bold text-primary">
@@ -7936,6 +7969,10 @@ export default function ForwardPage() {
                                           )}
                                         </div>
                                       </div>
+                                    ) : isServiceCheck && isSuccess ? (
+                                      <div className="mt-2 border-t border-divider pt-2 text-xs text-success">
+                                        {result.message || `入口服务状态正常 (${result.serviceState || "running"})`}
+                                      </div>
                                     ) : (
                                       <div className="mt-2 pt-2 border-t border-divider">
                                         <div
@@ -7959,9 +7996,17 @@ export default function ForwardPage() {
 
                         return (
                           <>
-                            {/* 入口测试 */}
                             {renderCardSection(
-                              "🚪 入口测试",
+                              "入口规则服务",
+                              groupedResults.entryService,
+                            )}
+                            {renderCardSection(
+                              "入口实例公网连通性",
+                              groupedResults.entryConnectivity,
+                            )}
+                            {/* 入口链路测试 */}
+                            {renderCardSection(
+                              "入口链路测试",
                               groupedResults.entry,
                             )}
                             {/* 链路测试（按跳数排序） */}

@@ -313,11 +313,21 @@ const formatCountryCity = (region?: string): string => {
   return city ? `${country} ${city}` : country;
 };
 
+type InstanceIPRegionMember = Pick<
+  MonitorNodeInstanceGroupMemberApiItem,
+  | "publicIpV4"
+  | "publicIpV6"
+  | "publicIpV4Region"
+  | "publicIpV4CountryCode"
+  | "publicIpV6Region"
+  | "publicIpV6CountryCode"
+>;
+
 function InstanceIPRegionCell({
   member,
   copyToClipboard,
 }: {
-  member: MonitorNodeInstanceGroupMemberApiItem;
+  member: InstanceIPRegionMember;
   copyToClipboard: (text: string, label: string) => void;
 }) {
   const rows = [
@@ -378,12 +388,14 @@ function RemoteNodeInstanceRows({
   parentOnline,
   parentState,
   formatTraffic,
+  copyToClipboard,
 }: {
   instances: RemoteInstance[];
   flows: NonNullable<Node["remoteFlows"]>;
   parentOnline: boolean;
   parentState: RemoteDisplayState;
   formatTraffic: (bytes: number) => string;
+  copyToClipboard: (text: string, label: string) => void;
 }) {
   return (
     <div className="my-2 bg-default-100/70 shadow-[inset_2px_0_0_rgba(148,163,184,0.8)] dark:bg-default-100/10">
@@ -511,20 +523,10 @@ function RemoteNodeInstanceRows({
                   </td>
                   <td />
                   <td />
-                  <td className="px-1 py-2.5 text-left align-middle text-xs text-default-600">
-                    {instance.publicIpV4?.trim() || instance.publicIpV6?.trim() ? (
-                      <div className="space-y-0.5 font-mono leading-5">
-                        {instance.publicIpV4?.trim() ? (
-                          <div>{formatInstanceIPForCell(instance.publicIpV4)}</div>
-                        ) : null}
-                        {instance.publicIpV6?.trim() ? (
-                          <div>{formatInstanceIPForCell(instance.publicIpV6)}</div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <span className="text-default-300">-</span>
-                    )}
-                  </td>
+                  <InstanceIPRegionCell
+                    copyToClipboard={copyToClipboard}
+                    member={instance}
+                  />
                   <td className="px-1 py-2.5 text-center font-mono text-default-700">
                     {instance.onlineCount ?? 0}
                   </td>
@@ -1209,9 +1211,30 @@ function SortableTableRow({
   const remoteDisplayMeta = remoteOnline ? remoteVisualMeta : null;
   const remoteDisplayState = getRemoteDisplayState(node, remoteVisualMeta);
   const remoteStatusMeta = getRemoteDisplayMeta(remoteDisplayState);
-  const remoteInstances = (node.remoteInstances || []).filter(
-    (instance: RemoteInstance) => instance.inScope,
+  const instanceMemberById = new Map<
+    string,
+    MonitorNodeInstanceGroupMemberApiItem
+  >(
+    instanceMembers.map((member: MonitorNodeInstanceGroupMemberApiItem) => [
+      (member.instanceId || "").trim(),
+      member,
+    ]),
   );
+  const remoteInstances = (node.remoteInstances || [])
+    .filter((instance: RemoteInstance) => instance.inScope)
+    .map((instance: RemoteInstance) => {
+      const member = instanceMemberById.get(instance.instanceId?.trim() || "");
+
+      return member
+        ? {
+            ...instance,
+            publicIpV4Region: member.publicIpV4Region,
+            publicIpV4CountryCode: member.publicIpV4CountryCode,
+            publicIpV6Region: member.publicIpV6Region,
+            publicIpV6CountryCode: member.publicIpV6CountryCode,
+          }
+        : instance;
+    });
   const remoteConnectionCount = remoteInstances.reduce(
     (total: number, instance: RemoteInstance) =>
       total + (instance.onlineCount ?? 0),
@@ -1812,6 +1835,7 @@ function SortableTableRow({
               colSpan={16}
             >
               <RemoteNodeInstanceRows
+                copyToClipboard={copyToClipboard}
                 flows={node.remoteFlows || []}
                 formatTraffic={formatTraffic}
                  instances={remoteInstances}
