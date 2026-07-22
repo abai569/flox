@@ -245,13 +245,23 @@ func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunne
 			instanceID := ""
 			if node.IsEntry {
 				instanceID = strings.TrimSpace(entryInstanceID)
+			} else {
+				var instances []model.NodeInstance
+				where, args := validNodeInstanceWhere()
+				if err := tx.Where("node_id = ? AND status = 1 AND weight > 0", node.NodeID).
+					Where(where, args...).Limit(2).Find(&instances).Error; err != nil {
+					return err
+				}
+				if len(instances) == 1 {
+					instanceID = instances[0].InstanceID
+				}
 			}
 			if instanceID != "" {
 				if err := tx.Model(&model.NodeInstance{}).
 					Where("node_id = ? AND instance_id = ?", node.NodeID, instanceID).
 					Updates(map[string]interface{}{
-						"total_in_flow":  gorm.Expr("total_in_flow + ?", rawIn),
-						"total_out_flow": gorm.Expr("total_out_flow + ?", rawOut),
+						"total_in_flow":  gorm.Expr("total_in_flow + ?", node.InFlow),
+						"total_out_flow": gorm.Expr("total_out_flow + ?", node.OutFlow),
 					}).Error; err != nil {
 					return err
 				}

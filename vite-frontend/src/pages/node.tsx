@@ -3127,25 +3127,9 @@ export default function NodePage() {
     const remoteVisualMeta = remoteVisualMembers.length
       ? deriveNodeVisualState(remoteVisualMembers)
       : null;
-    const remoteShareFlows = (node.remoteFlows || []).filter(
-      (flow) =>
-        flow.runtimeId === 0 &&
-        !flow.instanceId &&
-        flow.periodType.toLowerCase() === "total" &&
-        (node.remoteInstances || []).some((instance) => instance.inScope),
-    );
-    const remotePeriodRx = remoteShareFlows.reduce(
-      (total, flow) => total + flow.outFlow,
-      0,
-    );
-    const remotePeriodTx = remoteShareFlows.reduce(
-      (total, flow) => total + flow.inFlow,
-      0,
-    );
-    const remoteScaledRx = node.remoteOutFlow ?? remotePeriodRx;
-    const remoteScaledTx = node.remoteInFlow ?? remotePeriodTx;
-    const remotePeriodFlow =
-      node.remoteCurrentFlow ?? remoteScaledRx + remoteScaledTx;
+    const remoteScaledRx = node.totalInFlow ?? 0;
+    const remoteScaledTx = node.totalOutFlow ?? 0;
+    const remotePeriodFlow = remoteScaledRx + remoteScaledTx;
     const remoteOnline = node.connectionStatus === "online" && !node.syncError;
     const remoteDisplayMeta = remoteOnline ? remoteVisualMeta : null;
     const remoteDisplayState = getRemoteDisplayState(node, remoteVisualMeta);
