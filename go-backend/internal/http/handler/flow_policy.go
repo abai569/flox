@@ -12,8 +12,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	federationclient "go-backend/internal/http/client"
 	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 	"gorm.io/gorm"
@@ -51,11 +53,16 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		if item.D+item.U <= 0 {
 			return nil
 		}
-		if err := h.repo.AddPeerShareFlow(shareID, 0, instanceID, item.D, item.U, time.Now()); err != nil {
-			return err
+		if share, err := h.repo.GetPeerShare(shareID); err == nil && share != nil && share.ConsumerFlowAuthority == 0 {
+			if err := h.repo.AddPeerShareFlow(shareID, 0, instanceID, item.D, item.U, time.Now()); err != nil {
+				return err
+			}
+			if updated, err := h.repo.GetPeerShare(shareID); err == nil && updated != nil && isPeerShareFlowExceeded(updated) {
+				h.enforcePeerShareFlowLimit(updated.ID)
+			}
 		}
-		h.publishPeerShareEvent(shareID, "flow_changed")
-		// Relay the original namespaced resource so Consumer can identify its Forward.
+		// Once Consumer authority is established, relay remains only for user flow
+		// compatibility and cannot mutate the Provider share ledger.
 		h.relayFlowToConsumer(serviceName, instanceID, item.U, item.D)
 		return nil
 	}
@@ -81,6 +88,7 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		if err := h.repo.AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID, inFlow, outFlow, item.D, item.U, instanceID, nodeDeltas); err != nil {
 			return err
 		}
+		h.reportAuthoritativeFlowToProviders(topology, item)
 		if quota, quotaErr := h.repo.AddUserQuotaUsage(userID, inFlow+outFlow, time.Now()); quotaErr == nil {
 			h.enforceUserQuotaIfNeeded(userID, quota)
 		}
@@ -102,6 +110,47 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		return nil
 	}
 	return h.processPeerShareFlow(runtimeID, instanceID, item)
+}
+
+func (h *Handler) reportAuthoritativeFlowToProviders(topology *repo.ForwardTrafficTopology, item flowItem) {
+	if h == nil || topology == nil || item.D+item.U <= 0 {
+		return
+	}
+	seen := make(map[int64]struct{})
+	var wg sync.WaitGroup
+	for _, trafficNode := range topology.Nodes {
+		if !trafficNode.IsRemote || trafficNode.NodeID <= 0 {
+			continue
+		}
+		if _, ok := seen[trafficNode.NodeID]; ok {
+			continue
+		}
+		seen[trafficNode.NodeID] = struct{}{}
+		node, err := h.getNodeRecord(trafficNode.NodeID)
+		if err != nil || node == nil || strings.TrimSpace(node.RemoteURL) == "" || strings.TrimSpace(node.RemoteToken) == "" {
+			continue
+		}
+		totalIn, totalOut, err := h.repo.GetNodeFlowTotals(trafficNode.NodeID)
+		if err != nil {
+			continue
+		}
+		ratio := trafficNode.TrafficRatio
+		if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio <= 0 {
+			ratio = 1
+		}
+		rawTotalIn := int64(math.Round(float64(totalIn) / ratio))
+		rawTotalOut := int64(math.Round(float64(totalOut) / ratio))
+		wg.Add(1)
+		go func(remoteNode *nodeRecord, initialIn, initialOut int64) {
+			defer wg.Done()
+			fc := federationclient.NewFederationClientWithTimeout(5 * time.Second)
+			err := fc.ReportAuthoritativeFlow(remoteNode.RemoteURL, remoteNode.RemoteToken, h.federationLocalDomain(), federationclient.RuntimeAuthoritativeFlowRequest{InFlow: item.D, OutFlow: item.U, TotalInFlow: initialIn, TotalOutFlow: initialOut})
+			if err != nil {
+				log.Printf("[flow] report authoritative share flow failed node=%d: %v", remoteNode.ID, err)
+			}
+		}(node, rawTotalIn, rawTotalOut)
+	}
+	wg.Wait()
 }
 
 func parseRemShareServiceName(serviceName string) (int64, bool) {
@@ -225,13 +274,20 @@ func (h *Handler) processPeerShareFlow(runtimeID int64, instanceID string, item 
 	if delta <= 0 {
 		return nil
 	}
+	share, err := h.repo.GetPeerShare(runtime.ShareID)
+	if err != nil || share == nil {
+		return err
+	}
+	if share.ConsumerFlowAuthority == 1 {
+		return nil
+	}
 
 	if err := h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now()); err != nil {
 		return err
 	}
 	h.publishPeerShareEvent(runtime.ShareID, "flow_changed")
 
-	share, err := h.repo.GetPeerShare(runtime.ShareID)
+	share, err = h.repo.GetPeerShare(runtime.ShareID)
 	if err != nil || share == nil {
 		return err
 	}
@@ -266,6 +322,13 @@ func (h *Handler) processPeerShareFlowFromForward(forwardID int64, nodeID int64,
 	if !ok {
 		return h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
 	}
+	share, err := h.repo.GetPeerShare(shareID)
+	if err != nil || share == nil || share.NodeID != nodeID {
+		return h.processPeerShareFlowByServiceName(nodeID, instanceID, serviceName, item)
+	}
+	if share.ConsumerFlowAuthority == 1 {
+		return nil
+	}
 	runtimeID := int64(0)
 	if runtime, runtimeErr := h.repo.GetActiveForwardPeerShareRuntimeByPort(shareID, port); runtimeErr == nil && runtime != nil {
 		runtimeID = runtime.ID
@@ -275,14 +338,14 @@ func (h *Handler) processPeerShareFlowFromForward(forwardID int64, nodeID int64,
 	}
 	h.publishPeerShareEvent(shareID, "flow_changed")
 
-	share, err := h.repo.GetPeerShare(shareID)
-	if err != nil || share == nil {
+	updatedShare, err := h.repo.GetPeerShare(shareID)
+	if err != nil || updatedShare == nil {
 		return err
 	}
-	if !isPeerShareFlowExceeded(share) {
+	if !isPeerShareFlowExceeded(updatedShare) {
 		return nil
 	}
-	h.enforcePeerShareFlowLimit(share.ID)
+	h.enforcePeerShareFlowLimit(updatedShare.ID)
 	return nil
 }
 
@@ -346,13 +409,20 @@ func (h *Handler) processPeerShareFlowByServiceName(nodeID int64, instanceID str
 		return nil
 	}
 	runtime := runtimes[0]
+	matchedShare, err := h.repo.GetPeerShare(runtime.ShareID)
+	if err != nil || matchedShare == nil {
+		return err
+	}
+	if matchedShare.ConsumerFlowAuthority == 1 {
+		return nil
+	}
 
 	if err := h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now()); err != nil {
 		return err
 	}
 	h.publishPeerShareEvent(runtime.ShareID, "flow_changed")
 
-	matchedShare, err := h.repo.GetPeerShare(runtime.ShareID)
+	matchedShare, err = h.repo.GetPeerShare(runtime.ShareID)
 	if err != nil || matchedShare == nil {
 		return err
 	}

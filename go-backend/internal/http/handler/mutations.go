@@ -3760,6 +3760,10 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
+	if err := h.ensureForwardTrafficAuthority(mode, tunnelID); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
+	}
 	forwardID, err := h.repo.CreateForwardTx(userID, userName, name, tunnelID, remoteAddr, normalizeForwardStrategy(asString(req["strategy"])), now, inx, entryNodes, port, inIp, nullableInt(speedID), asInt(req["maxConnections"], 0), trafficLimit, expiryTime, speedLimitEnabled, speedLimit, mode)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
@@ -3970,6 +3974,10 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := ensureForwardModeCompatibleWithTunnel(mode, tunnel); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
+	}
+	if err := h.ensureForwardTrafficAuthority(mode, tunnelID); err != nil {
 		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
@@ -4722,6 +4730,11 @@ func (h *Handler) forwardBatchChangeTunnel(w http.ResponseWriter, r *http.Reques
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
 		}
+		if err := h.ensureForwardTrafficAuthority(forward.Mode, req.TargetTunnelID); err != nil {
+			fail++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
+			continue
+		}
 		oldPorts, listPortsErr := h.listForwardPorts(id)
 		if listPortsErr != nil {
 			fail++
@@ -4885,6 +4898,11 @@ func (h *Handler) forwardBatchChangeMode(w http.ResponseWriter, r *http.Request)
 			continue
 		}
 		if err := ensureForwardModeCompatibleWithTunnel(req.Mode, tunnel); err != nil {
+			fail++
+			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
+			continue
+		}
+		if err := h.ensureForwardTrafficAuthority(req.Mode, forward.TunnelID); err != nil {
 			fail++
 			failures = appendBatchFailureReason(failures, id, forward.Name, err.Error())
 			continue
@@ -5603,6 +5621,33 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 			return nil, fmt.Errorf("节点 %s 不在线", nodeDisplayName(node))
 		}
 		state.Nodes[nodeID] = node
+	}
+	hasLocalNode := false
+	hasLocalEntry := false
+	for _, node := range state.Nodes {
+		if node != nil && node.IsRemote != 1 {
+			hasLocalNode = true
+		}
+	}
+	for _, entry := range state.InNodes {
+		if node := state.Nodes[entry.NodeID]; node != nil && node.IsRemote != 1 {
+			hasLocalEntry = true
+			break
+		}
+	}
+	if !hasLocalNode {
+		return nil, errors.New("隧道必须至少包含一个本地节点用于权威流量统计")
+	}
+	if !hasLocalEntry && excludeTunnelID > 0 {
+		var incompatibleForwards int64
+		if err := tx.Model(&model.Forward{}).
+			Where("tunnel_id = ? AND LOWER(COALESCE(mode, 'gost')) NOT IN ?", excludeTunnelID, []string{forwardModeSDWAN, forwardModeNftables}).
+			Count(&incompatibleForwards).Error; err != nil {
+			return nil, err
+		}
+		if incompatibleForwards > 0 {
+			return nil, errors.New("当前隧道包含需要本地入口节点统计流量的规则")
+		}
 	}
 	instances, err := h.repo.ListOnlineNodeInstancesByNodeIDsTx(tx, state.NodeIDList)
 	if err != nil {

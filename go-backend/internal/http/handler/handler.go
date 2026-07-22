@@ -600,6 +600,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/federation/runtime/release-role", h.authPeer(h.federationRuntimeReleaseRole))
 	mux.HandleFunc("/api/v1/federation/runtime/diagnose", h.authPeer(h.federationRuntimeDiagnose))
 	mux.HandleFunc("/api/v1/federation/runtime/service-status", h.authPeer(h.federationRuntimeServiceStatus))
+	mux.HandleFunc("/api/v1/federation/runtime/authoritative-flow", h.authPeer(h.federationRuntimeAuthoritativeFlow))
 	mux.HandleFunc("/api/v1/federation/runtime/command", h.authPeer(h.federationRuntimeCommand))
 	mux.HandleFunc("/api/v1/federation/node/import", h.nodeImport)
 	mux.HandleFunc("/api/v1/announcement/get", h.getAnnouncement)
