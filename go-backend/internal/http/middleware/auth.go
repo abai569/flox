@@ -109,6 +109,10 @@ func shouldSkip(path string) bool {
 		return true
 	case path == "/api/v1/federation/runtime/diagnose":
 		return true
+	case path == "/api/v1/federation/runtime/service-status":
+		return true
+	case path == "/api/v1/federation/runtime/authoritative-flow":
+		return true
 	case path == "/api/v1/federation/runtime/command":
 		return true
 	default:
