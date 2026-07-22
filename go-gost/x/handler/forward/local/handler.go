@@ -371,6 +371,14 @@ func parseServiceName(serviceName string) (forwardID, userID, tunnelID int64) {
 	if serviceName == "" {
 		return 0, 0, 0
 	}
+	if strings.HasPrefix(serviceName, "rem_s") {
+		namespaced := strings.TrimPrefix(serviceName, "rem_s")
+		index := strings.IndexByte(namespaced, '_')
+		if index <= 0 {
+			return 0, 0, 0
+		}
+		serviceName = namespaced[index+1:]
+	}
 
 	// 去除 _tcp 或 _udp 后缀
 	name := strings.TrimSuffix(serviceName, "_tcp")

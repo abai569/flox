@@ -308,6 +308,42 @@ func (s *Server) GetForwardMetric(forwardID int64) *ForwardMetric {
 	}
 }
 
+// GetForwardMetricsByShareID returns metrics for services namespaced by a peer share.
+func (s *Server) GetForwardMetricsByShareID(shareID int64) []ForwardMetric {
+	if s == nil || shareID <= 0 {
+		return nil
+	}
+	prefix := fmt.Sprintf("rem_s%d_", shareID)
+	connections := make(map[string]int)
+	s.mu.RLock()
+	for _, instances := range s.serviceConnections {
+		for _, services := range instances {
+			for serviceName, count := range services {
+				if strings.HasPrefix(serviceName, prefix) {
+					connections[serviceName] += count
+				}
+			}
+		}
+	}
+	s.mu.RUnlock()
+	s.forwardMetricsMu.RLock()
+	defer s.forwardMetricsMu.RUnlock()
+	result := make([]ForwardMetric, 0)
+	for _, nodeMetrics := range s.forwardMetrics {
+		for _, serviceMetrics := range nodeMetrics {
+			for serviceName, metric := range serviceMetrics {
+				if !strings.HasPrefix(serviceName, prefix) || metric == nil {
+					continue
+				}
+				item := *metric
+				item.Connections = connections[serviceName]
+				result = append(result, item)
+			}
+		}
+	}
+	return result
+}
+
 // ClearForwardMetrics 清除指定转发的实时指标缓存，用于暂停/删除后立即清理前端展示
 func (s *Server) ClearForwardMetrics(forwardID int64) {
 	s.forwardMetricsMu.Lock()

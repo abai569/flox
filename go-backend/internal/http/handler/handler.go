@@ -19,6 +19,7 @@ import (
 
 	"go-backend/internal/auth"
 	"go-backend/internal/health"
+	"go-backend/internal/http/client"
 	"go-backend/internal/http/middleware"
 	"go-backend/internal/http/response"
 	"go-backend/internal/metrics"
@@ -66,11 +67,56 @@ type Handler struct {
 	remoteRuntimeMu           sync.Mutex
 	remoteRuntimeApplied      map[int64]string
 	remoteRuntimeRedeploying  map[int64]bool
+	remoteForwardMetricsMu    sync.RWMutex
+	remoteForwardMetrics      map[int64]remoteForwardMetric
 }
 
 type remoteEventWorker struct {
 	cancel      context.CancelFunc
 	fingerprint string
+}
+
+type remoteForwardMetric struct {
+	InSpeed     uint64
+	OutSpeed    uint64
+	Connections int
+	UpdatedAt   time.Time
+}
+
+func (h *Handler) replaceRemoteForwardMetrics(metrics []client.RemoteForwardMetric) {
+	if h == nil {
+		return
+	}
+	now := time.Now()
+	h.remoteForwardMetricsMu.Lock()
+	defer h.remoteForwardMetricsMu.Unlock()
+	for forwardID, metric := range h.remoteForwardMetrics {
+		if now.Sub(metric.UpdatedAt) > 30*time.Second {
+			delete(h.remoteForwardMetrics, forwardID)
+		}
+	}
+	for _, metric := range metrics {
+		if metric.ForwardID <= 0 {
+			continue
+		}
+		h.remoteForwardMetrics[metric.ForwardID] = remoteForwardMetric{
+			InSpeed: metric.InSpeed, OutSpeed: metric.OutSpeed,
+			Connections: metric.Connections, UpdatedAt: now,
+		}
+	}
+}
+
+func (h *Handler) getRemoteForwardMetric(forwardID int64) (remoteForwardMetric, bool) {
+	if h == nil || forwardID <= 0 {
+		return remoteForwardMetric{}, false
+	}
+	h.remoteForwardMetricsMu.RLock()
+	metric, ok := h.remoteForwardMetrics[forwardID]
+	h.remoteForwardMetricsMu.RUnlock()
+	if !ok || time.Since(metric.UpdatedAt) > 30*time.Second {
+		return remoteForwardMetric{}, false
+	}
+	return metric, true
 }
 
 func (h *Handler) broadcastRemoteUsageChanged(nodeID, revision int64) {
@@ -286,6 +332,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		nftablesDomainCache:      make(map[int64]string),
 		remoteRuntimeApplied:     make(map[int64]string),
 		remoteRuntimeRedeploying: make(map[int64]bool),
+		remoteForwardMetrics:     make(map[int64]remoteForwardMetric),
 	}
 	h.healthCheck = health.NewChecker(repo, h.wsServer)
 	h.healthCheck.SetOnResult(h.onServiceMonitorResult)
@@ -1088,9 +1135,26 @@ func (h *Handler) forwardList(w http.ResponseWriter, r *http.Request) {
 			if err == nil && len(ports) > 0 {
 				// 使用第一个入口节点的连接数
 				nodeID := ports[0].NodeID
+				isRemoteEntry := false
+				if isRemote, _, _, remoteErr := h.repo.GetNodeRemoteFields(nodeID); remoteErr == nil {
+					isRemoteEntry = isRemote == 1
+				}
 				items[i]["currentConnections"] = h.GetForwardConnections(nodeID, forwardID)
 				// 获取实时带宽数据
-				if metric := h.wsServer.GetForwardMetric(forwardID); metric != nil {
+				if isRemoteEntry {
+					if metric, ok := h.getRemoteForwardMetric(forwardID); ok {
+						items[i]["currentConnections"] = metric.Connections
+						items[i]["inSpeed"] = metric.InSpeed
+						items[i]["outSpeed"] = metric.OutSpeed
+					} else {
+						items[i]["inSpeed"] = 0
+						items[i]["outSpeed"] = 0
+					}
+				} else if metric := h.wsServer.GetForwardMetric(forwardID); metric != nil {
+					items[i]["inSpeed"] = metric.InSpeed
+					items[i]["outSpeed"] = metric.OutSpeed
+				} else if metric, ok := h.getRemoteForwardMetric(forwardID); ok {
+					items[i]["currentConnections"] = metric.Connections
 					items[i]["inSpeed"] = metric.InSpeed
 					items[i]["outSpeed"] = metric.OutSpeed
 				} else {

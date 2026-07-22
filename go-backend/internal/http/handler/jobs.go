@@ -153,6 +153,30 @@ func (h *Handler) runRemoteShareEventManager(ctx context.Context) {
 func (h *Handler) runRemoteShareEventWorker(ctx context.Context, nodeID int64, remoteURL, token string) {
 	federationClient := client.NewFederationClient()
 	backoff := time.Second
+	refreshMetrics := func() {
+		info, err := federationClient.Connect(remoteURL, token, h.federationLocalDomain())
+		if err != nil || info == nil {
+			return
+		}
+		h.replaceRemoteForwardMetrics(info.ForwardMetrics)
+		h.invalidateRemoteNodeRuntimeReconcile(nodeID)
+		h.scheduleRemoteNodeRuntimeReconcile(nodeID, info.Instances)
+	}
+	metricsDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		defer close(metricsDone)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				refreshMetrics()
+			}
+		}
+	}()
+	defer func() { <-metricsDone }()
 	var debounceMu sync.Mutex
 	var debounceTimer *time.Timer
 	var pendingRevision int64
@@ -164,10 +188,7 @@ func (h *Handler) runRemoteShareEventWorker(ctx context.Context, nodeID int64, r
 		debounceMu.Unlock()
 	}()
 	for {
-		if info, connectErr := federationClient.Connect(remoteURL, token, h.federationLocalDomain()); connectErr == nil && info != nil {
-			h.invalidateRemoteNodeRuntimeReconcile(nodeID)
-			h.scheduleRemoteNodeRuntimeReconcile(nodeID, info.Instances)
-		}
+		refreshMetrics()
 		err := federationClient.WatchEvents(ctx, remoteURL, token, h.federationLocalDomain(), func(event client.PeerShareEvent) {
 			if event.Type != "flow_changed" {
 				h.invalidateRemoteNodeRuntimeReconcile(nodeID)
