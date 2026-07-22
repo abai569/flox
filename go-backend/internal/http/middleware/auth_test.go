@@ -10,6 +10,7 @@ func TestShouldSkipFederationRuntimePeerEndpoints(t *testing.T) {
 		"/api/v1/federation/runtime/diagnose",
 		"/api/v1/federation/runtime/service-status",
 		"/api/v1/federation/runtime/authoritative-flow",
+		"/api/v1/federation/runtime/reset-flow",
 		"/api/v1/federation/runtime/command",
 	}
 

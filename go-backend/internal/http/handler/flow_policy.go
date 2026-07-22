@@ -129,12 +129,7 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 			return fmt.Errorf("node %d is not in forward %d topology", nodeID, forwardID)
 		}
 		if !source.AuthoritySource {
-			if source.IsRemote {
-				return nil
-			}
-			inFlow := int64(math.Round(float64(item.D) * source.TrafficRatio))
-			outFlow := int64(math.Round(float64(item.U) * source.TrafficRatio))
-			return h.repo.AddNonAuthoritativeLocalForwardInstanceTraffic(forwardID, nodeID, instanceID, inFlow, outFlow)
+			return nil
 		}
 		inFlow := int64(math.Round(float64(item.D) * topology.TotalRatio))
 		outFlow := int64(math.Round(float64(item.U) * topology.TotalRatio))

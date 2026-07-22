@@ -113,6 +113,8 @@ func shouldSkip(path string) bool {
 		return true
 	case path == "/api/v1/federation/runtime/authoritative-flow":
 		return true
+	case path == "/api/v1/federation/runtime/reset-flow":
+		return true
 	case path == "/api/v1/federation/runtime/command":
 		return true
 	default:
