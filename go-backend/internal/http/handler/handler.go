@@ -119,6 +119,29 @@ func (h *Handler) getRemoteForwardMetric(forwardID int64) (remoteForwardMetric, 
 	return metric, true
 }
 
+func (h *Handler) refreshRemoteForwardMetrics(nodeID int64) {
+	if h == nil || h.repo == nil || nodeID <= 0 {
+		return
+	}
+	node, err := h.getNodeRecord(nodeID)
+	if err != nil || node == nil || node.IsRemote != 1 {
+		return
+	}
+	remoteURL := strings.TrimSpace(node.RemoteURL)
+	remoteToken := strings.TrimSpace(node.RemoteToken)
+	if remoteURL == "" || remoteToken == "" {
+		return
+	}
+	info, err := client.NewFederationClientWithTimeout(defaultNodeCommandTimeout).Connect(
+		remoteURL,
+		remoteToken,
+		h.federationLocalDomain(),
+	)
+	if err == nil && info != nil {
+		h.replaceRemoteForwardMetrics(info.ForwardMetrics)
+	}
+}
+
 func (h *Handler) broadcastRemoteUsageChanged(nodeID, revision int64) {
 	if h == nil || h.wsServer == nil || nodeID <= 0 {
 		return
@@ -1120,6 +1143,7 @@ func (h *Handler) forwardList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 补充当前连接数和实时带宽
+	refreshedRemoteNodes := make(map[int64]struct{})
 	for i := range items {
 		forwardID := asInt64(items[i]["id"], 0)
 		status := asInt(items[i]["status"], 1)
@@ -1148,8 +1172,19 @@ func (h *Handler) forwardList(w http.ResponseWriter, r *http.Request) {
 						items[i]["inSpeed"] = metric.InSpeed
 						items[i]["outSpeed"] = metric.OutSpeed
 					} else {
-						items[i]["inSpeed"] = 0
-						items[i]["outSpeed"] = 0
+						if _, refreshed := refreshedRemoteNodes[nodeID]; !refreshed {
+							h.refreshRemoteForwardMetrics(nodeID)
+							refreshedRemoteNodes[nodeID] = struct{}{}
+						}
+						if metric, ok := h.getRemoteForwardMetric(forwardID); ok {
+							items[i]["currentConnections"] = metric.Connections
+							items[i]["inSpeed"] = metric.InSpeed
+							items[i]["outSpeed"] = metric.OutSpeed
+						} else {
+							items[i]["currentConnections"] = 0
+							items[i]["inSpeed"] = 0
+							items[i]["outSpeed"] = 0
+						}
 					}
 				} else if metric := h.wsServer.GetForwardMetric(forwardID); metric != nil {
 					items[i]["inSpeed"] = metric.InSpeed
