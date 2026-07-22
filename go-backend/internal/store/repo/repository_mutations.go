@@ -4072,8 +4072,21 @@ func (r *Repository) ResetNodeTotalFlow(nodeID int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	return r.db.Model(&model.Node{}).Where("id = ?", nodeID).
-		Updates(map[string]interface{}{"total_in_flow": 0, "total_out_flow": 0}).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&model.Node{}).Where("id = ?", nodeID).
+			Updates(map[string]interface{}{
+				"total_in_flow":            0,
+				"total_out_flow":           0,
+				"authoritative_flow_epoch": gorm.Expr("authoritative_flow_epoch + 1"),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("node not found")
+		}
+		return nil
+	})
 }
 
 func (r *Repository) ResetNodeTotalFlowWithLog(nodeID int64, params *NodeTrafficResetLogCreateParams) error {
@@ -4089,7 +4102,9 @@ func (r *Repository) ResetNodeTotalFlowWithLog(nodeID int64, params *NodeTraffic
 			return err
 		}
 		if err := tx.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
-			"total_in_flow": 0, "total_out_flow": 0,
+			"total_in_flow":            0,
+			"total_out_flow":           0,
+			"authoritative_flow_epoch": gorm.Expr("authoritative_flow_epoch + 1"),
 		}).Error; err != nil {
 			return err
 		}

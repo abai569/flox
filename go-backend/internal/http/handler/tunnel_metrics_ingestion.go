@@ -22,16 +22,22 @@ func unixMilliBucketMinute(nowMs int64) int64 {
 }
 
 func (h *Handler) recordTunnelMetricsFromFlowItems(nodeID int64, items []flowItem, nowMs int64) {
+	if err := h.persistTunnelMetricsFromFlowItems(nodeID, items, nowMs); err != nil {
+		log.Printf("monitoring write failed op=tunnel_metric.persist node_id=%d err=%v", nodeID, err)
+	}
+}
+
+func (h *Handler) persistTunnelMetricsFromFlowItems(nodeID int64, items []flowItem, nowMs int64) error {
 	if h == nil || h.repo == nil {
-		return
+		return nil
 	}
 	if nodeID <= 0 || len(items) == 0 {
-		return
+		return nil
 	}
 
 	bucketTs := unixMilliBucketMinute(nowMs)
 	if bucketTs <= 0 {
-		return
+		return nil
 	}
 
 	forwardDeltas := make(map[int64]tunnelTrafficDelta)
@@ -53,7 +59,7 @@ func (h *Handler) recordTunnelMetricsFromFlowItems(nodeID int64, items []flowIte
 		forwardDeltas[forwardID] = d
 	}
 	if len(forwardDeltas) == 0 {
-		return
+		return nil
 	}
 
 	forwardIDs := make([]int64, 0, len(forwardDeltas))
@@ -63,11 +69,10 @@ func (h *Handler) recordTunnelMetricsFromFlowItems(nodeID int64, items []flowIte
 
 	forwardTunnelMap, err := h.repo.MapForwardIDsToTunnelIDs(forwardIDs)
 	if err != nil {
-		log.Printf("monitoring write skipped op=tunnel_metric.map_forward_to_tunnel node_id=%d err=%v", nodeID, err)
-		return
+		return err
 	}
 	if len(forwardTunnelMap) == 0 {
-		return
+		return nil
 	}
 
 	tunnelAgg := make(map[int64]tunnelTrafficDelta)
@@ -82,7 +87,7 @@ func (h *Handler) recordTunnelMetricsFromFlowItems(nodeID int64, items []flowIte
 		tunnelAgg[tunnelID] = a
 	}
 	if len(tunnelAgg) == 0 {
-		return
+		return nil
 	}
 
 	metrics := make([]*model.TunnelMetric, 0, len(tunnelAgg))
@@ -102,10 +107,8 @@ func (h *Handler) recordTunnelMetricsFromFlowItems(nodeID int64, items []flowIte
 		})
 	}
 	if len(metrics) == 0 {
-		return
+		return nil
 	}
 
-	if err := h.repo.UpsertTunnelMetricBuckets(metrics); err != nil {
-		log.Printf("monitoring write failed op=tunnel_metric.upsert_buckets node_id=%d bucket_ts=%d count=%d err=%v", nodeID, bucketTs, len(metrics), err)
-	}
+	return h.repo.UpsertTunnelMetricBuckets(metrics)
 }

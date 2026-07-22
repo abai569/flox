@@ -58,12 +58,31 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 				return err
 			}
 			if updated, err := h.repo.GetPeerShare(shareID); err == nil && updated != nil && isPeerShareFlowExceeded(updated) {
-				h.enforcePeerShareFlowLimit(updated.ID)
+				h.afterFlowCommit(func() { h.enforcePeerShareFlowLimit(updated.ID) })
 			}
 		}
 		// Once Consumer authority is established, relay remains only for user flow
 		// compatibility and cannot mutate the Provider share ledger.
-		h.relayFlowToConsumer(serviceName, instanceID, item.U, item.D)
+		eventID := h.flowRelayReportID
+		if eventID == "" {
+			var err error
+			eventID, err = newFlowRelayEventID()
+			if err != nil {
+				return fmt.Errorf("generate flow relay event id: %w", err)
+			}
+		}
+		nowMs := time.Now().UnixMilli()
+		created, err := h.repo.UpsertFlowRelayOutbox(&model.FlowRelayOutbox{
+			EventID: eventID, ShareID: shareID, ServiceName: serviceName,
+			InstanceID: strings.TrimSpace(instanceID), Up: item.U, Down: item.D,
+			NextRetryTime: nowMs, CreatedTime: nowMs,
+		})
+		if err != nil {
+			return err
+		}
+		if created {
+			h.afterFlowCommit(func() { h.tryFlowRelayOutbox(eventID) })
+		}
 		return nil
 	}
 
@@ -74,33 +93,34 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 			log.Printf("[flow] ignore non-entry or invalid topology forward=%d node=%d: %v", forwardID, nodeID, topologyErr)
 			return h.processPeerShareFlowFromForward(forwardID, nodeID, instanceID, serviceName, item)
 		}
+		actualUserID, actualUserTunnelID, ownershipErr := h.repo.GetForwardTrafficOwnership(forwardID)
+		if ownershipErr != nil {
+			return ownershipErr
+		}
+		if userID != actualUserID || userTunnelID != actualUserTunnelID {
+			return fmt.Errorf("flow service ownership mismatch for forward %d", forwardID)
+		}
 		inFlow := int64(math.Round(float64(item.D) * topology.TotalRatio))
 		outFlow := int64(math.Round(float64(item.U) * topology.TotalRatio))
-		nodeDeltas := make([]repo.ForwardTrafficNodeDelta, 0, len(topology.Nodes))
-		for _, trafficNode := range topology.Nodes {
-			nodeDeltas = append(nodeDeltas, repo.ForwardTrafficNodeDelta{
-				NodeID:  trafficNode.NodeID,
-				InFlow:  int64(math.Round(float64(item.D) * trafficNode.TrafficRatio)),
-				OutFlow: int64(math.Round(float64(item.U) * trafficNode.TrafficRatio)),
-				IsEntry: trafficNode.IsEntry,
-			})
-		}
+		nodeDeltas := forwardTrafficNodeDeltas(topology, item.D, item.U)
 		if err := h.repo.AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID, inFlow, outFlow, item.D, item.U, instanceID, nodeDeltas); err != nil {
 			return err
 		}
-		h.reportAuthoritativeFlowToProviders(topology, item)
+		h.afterFlowCommit(func() { h.reportAuthoritativeFlowToProviders(topology, item) })
 		if quota, quotaErr := h.repo.AddUserQuotaUsage(userID, inFlow+outFlow, time.Now()); quotaErr == nil {
-			h.enforceUserQuotaIfNeeded(userID, quota)
+			h.afterFlowCommit(func() { h.enforceUserQuotaIfNeeded(userID, quota) })
+		} else {
+			return quotaErr
 		}
 		if err := h.processPeerShareFlowFromForward(forwardID, nodeID, instanceID, serviceName, item); err != nil {
 			return err
 		}
 
 		// ✅ 新增：检查 Forward 流量限制
-		h.enforceForwardTrafficLimit(forwardID)
+		h.afterFlowCommit(func() { h.enforceForwardTrafficLimit(forwardID) })
 
 		if userTunnelID > 0 {
-			h.enforceFlowPolicies(userID, userTunnelID)
+			h.afterFlowCommit(func() { h.enforceFlowPolicies(userID, userTunnelID) })
 		}
 		return nil
 	}
@@ -112,45 +132,68 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 	return h.processPeerShareFlow(runtimeID, instanceID, item)
 }
 
+func forwardTrafficNodeDeltas(topology *repo.ForwardTrafficTopology, rawIn, rawOut int64) []repo.ForwardTrafficNodeDelta {
+	if topology == nil {
+		return nil
+	}
+	deltas := make([]repo.ForwardTrafficNodeDelta, 0, len(topology.Nodes))
+	for _, trafficNode := range topology.Nodes {
+		deltas = append(deltas, repo.ForwardTrafficNodeDelta{
+			NodeID:  trafficNode.NodeID,
+			InFlow:  int64(math.Round(float64(rawIn) * trafficNode.FlowShare * trafficNode.TrafficRatio)),
+			OutFlow: int64(math.Round(float64(rawOut) * trafficNode.FlowShare * trafficNode.TrafficRatio)),
+			IsEntry: trafficNode.IsEntry,
+		})
+	}
+	return deltas
+}
+
 func (h *Handler) reportAuthoritativeFlowToProviders(topology *repo.ForwardTrafficTopology, item flowItem) {
 	if h == nil || topology == nil || item.D+item.U <= 0 {
 		return
 	}
-	seen := make(map[int64]struct{})
-	var wg sync.WaitGroup
+	remoteShares := make(map[int64]float64)
+	remoteNodeIDs := make([]int64, 0, len(topology.Nodes))
 	for _, trafficNode := range topology.Nodes {
 		if !trafficNode.IsRemote || trafficNode.NodeID <= 0 {
 			continue
 		}
-		if _, ok := seen[trafficNode.NodeID]; ok {
+		if _, exists := remoteShares[trafficNode.NodeID]; !exists {
+			remoteNodeIDs = append(remoteNodeIDs, trafficNode.NodeID)
+		}
+		remoteShares[trafficNode.NodeID] += trafficNode.FlowShare
+	}
+	var wg sync.WaitGroup
+	for _, nodeID := range remoteNodeIDs {
+		snapshot, err := h.repo.GetAuthoritativeNodeFlowSnapshot(nodeID)
+		if err != nil || snapshot == nil || snapshot.RemoteURL == "" || snapshot.RemoteToken == "" {
 			continue
 		}
-		seen[trafficNode.NodeID] = struct{}{}
-		node, err := h.getNodeRecord(trafficNode.NodeID)
-		if err != nil || node == nil || strings.TrimSpace(node.RemoteURL) == "" || strings.TrimSpace(node.RemoteToken) == "" {
-			continue
-		}
-		totalIn, totalOut, err := h.repo.GetNodeFlowTotals(trafficNode.NodeID)
-		if err != nil {
-			continue
-		}
-		ratio := trafficNode.TrafficRatio
-		if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio <= 0 {
-			ratio = 1
-		}
-		rawTotalIn := int64(math.Round(float64(totalIn) / ratio))
-		rawTotalOut := int64(math.Round(float64(totalOut) / ratio))
 		wg.Add(1)
-		go func(remoteNode *nodeRecord, initialIn, initialOut int64) {
+		allocatedIn := int64(math.Round(float64(item.D) * remoteShares[nodeID]))
+		allocatedOut := int64(math.Round(float64(item.U) * remoteShares[nodeID]))
+		go func(current repo.AuthoritativeNodeFlowSnapshot, inFlow, outFlow int64) {
 			defer wg.Done()
-			fc := federationclient.NewFederationClientWithTimeout(5 * time.Second)
-			err := fc.ReportAuthoritativeFlow(remoteNode.RemoteURL, remoteNode.RemoteToken, h.federationLocalDomain(), federationclient.RuntimeAuthoritativeFlowRequest{InFlow: item.D, OutFlow: item.U, TotalInFlow: initialIn, TotalOutFlow: initialOut})
-			if err != nil {
-				log.Printf("[flow] report authoritative share flow failed node=%d: %v", remoteNode.ID, err)
+			if err := h.reportAuthoritativeNodeFlowSnapshot(current, inFlow, outFlow); err != nil {
+				log.Printf("[flow] report authoritative share flow failed node=%d: %v", current.NodeID, err)
 			}
-		}(node, rawTotalIn, rawTotalOut)
+		}(*snapshot, allocatedIn, allocatedOut)
 	}
 	wg.Wait()
+}
+
+func (h *Handler) reportAuthoritativeNodeFlowSnapshot(snapshot repo.AuthoritativeNodeFlowSnapshot, inFlow, outFlow int64) error {
+	if h == nil || snapshot.NodeID <= 0 || snapshot.RemoteURL == "" || snapshot.RemoteToken == "" {
+		return errors.New("invalid authoritative flow snapshot")
+	}
+	fc := federationclient.NewFederationClientWithTimeout(5 * time.Second)
+	return fc.ReportAuthoritativeFlow(snapshot.RemoteURL, snapshot.RemoteToken, h.federationLocalDomain(), federationclient.RuntimeAuthoritativeFlowRequest{
+		InFlow:       inFlow,
+		OutFlow:      outFlow,
+		TotalInFlow:  snapshot.TotalInFlow,
+		TotalOutFlow: snapshot.TotalOutFlow,
+		Epoch:        snapshot.Epoch,
+	})
 }
 
 func parseRemShareServiceName(serviceName string) (int64, bool) {
@@ -285,7 +328,7 @@ func (h *Handler) processPeerShareFlow(runtimeID int64, instanceID string, item 
 	if err := h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now()); err != nil {
 		return err
 	}
-	h.publishPeerShareEvent(runtime.ShareID, "flow_changed")
+	h.afterFlowCommit(func() { h.publishPeerShareEvent(runtime.ShareID, "flow_changed") })
 
 	share, err = h.repo.GetPeerShare(runtime.ShareID)
 	if err != nil || share == nil {
@@ -294,7 +337,7 @@ func (h *Handler) processPeerShareFlow(runtimeID int64, instanceID string, item 
 	if !isPeerShareFlowExceeded(share) {
 		return nil
 	}
-	h.enforcePeerShareFlowLimit(share.ID)
+	h.afterFlowCommit(func() { h.enforcePeerShareFlowLimit(share.ID) })
 	return nil
 }
 
@@ -336,7 +379,7 @@ func (h *Handler) processPeerShareFlowFromForward(forwardID int64, nodeID int64,
 	if err := h.repo.AddPeerShareFlow(shareID, runtimeID, instanceID, item.D, item.U, time.Now()); err != nil {
 		return err
 	}
-	h.publishPeerShareEvent(shareID, "flow_changed")
+	h.afterFlowCommit(func() { h.publishPeerShareEvent(shareID, "flow_changed") })
 
 	updatedShare, err := h.repo.GetPeerShare(shareID)
 	if err != nil || updatedShare == nil {
@@ -345,7 +388,7 @@ func (h *Handler) processPeerShareFlowFromForward(forwardID int64, nodeID int64,
 	if !isPeerShareFlowExceeded(updatedShare) {
 		return nil
 	}
-	h.enforcePeerShareFlowLimit(updatedShare.ID)
+	h.afterFlowCommit(func() { h.enforcePeerShareFlowLimit(updatedShare.ID) })
 	return nil
 }
 
@@ -420,14 +463,14 @@ func (h *Handler) processPeerShareFlowByServiceName(nodeID int64, instanceID str
 	if err := h.repo.AddPeerShareFlow(runtime.ShareID, runtime.ID, instanceID, item.D, item.U, time.Now()); err != nil {
 		return err
 	}
-	h.publishPeerShareEvent(runtime.ShareID, "flow_changed")
+	h.afterFlowCommit(func() { h.publishPeerShareEvent(runtime.ShareID, "flow_changed") })
 
 	matchedShare, err = h.repo.GetPeerShare(runtime.ShareID)
 	if err != nil || matchedShare == nil {
 		return err
 	}
 	if isPeerShareFlowExceeded(matchedShare) {
-		h.enforcePeerShareFlowLimit(matchedShare.ID)
+		h.afterFlowCommit(func() { h.enforcePeerShareFlowLimit(matchedShare.ID) })
 	}
 	return nil
 }
@@ -910,57 +953,65 @@ func (h *Handler) pauseForward(forwardID int64, reason string) error {
 	return nil
 }
 
-// relayFlowToConsumer relays traffic to Consumer panel when entry node is remote.
-func (h *Handler) relayFlowToConsumer(serviceName, instanceID string, up, down int64) {
-	shareID, ok := parseRemShareServiceName(serviceName)
-	if h == nil || h.repo == nil || !ok {
-		return
+func (h *Handler) sendFlowRelayOutbox(item *model.FlowRelayOutbox) error {
+	if h == nil || h.repo == nil || item == nil {
+		return errors.New("invalid flow relay context")
 	}
-	if up+down <= 0 {
-		return
-	}
-
-	share, err := h.repo.GetPeerShare(shareID)
-	if err != nil || share == nil {
-		return
-	}
-
-	consumerURL := strings.TrimSpace(share.ConsumerPanelURL)
-	consumerToken := strings.TrimSpace(share.Token)
-	if consumerURL == "" || consumerToken == "" {
-		return
-	}
-
-	// Build flow item for Consumer
-	items := []map[string]interface{}{
-		{"n": serviceName, "u": up, "d": down, "i": strings.TrimSpace(instanceID)},
-	}
-
-	payload, err := json.Marshal(items)
+	target, err := h.repo.GetFlowRelayTarget(item.ShareID)
 	if err != nil {
-		log.Printf("[flow relay] marshal failed for share %d: %v", shareID, err)
-		return
+		return err
 	}
-
-	// Determine URL
-	targetURL := consumerURL
+	if target == nil || target.URL == "" || target.Token == "" {
+		return errors.New("flow relay target is unavailable")
+	}
+	items := []map[string]interface{}{{"n": item.ServiceName, "u": item.Up, "d": item.Down, "i": item.InstanceID}}
+	payload, err := json.Marshal(map[string]interface{}{"reportId": item.EventID, "items": items})
+	if err != nil {
+		return err
+	}
+	targetURL := target.URL
 	if !strings.HasPrefix(targetURL, "http://") && !strings.HasPrefix(targetURL, "https://") {
 		targetURL = "https://" + targetURL
 	}
-	targetURL = strings.TrimRight(targetURL, "/") + "/flow/relay?secret=" + url.QueryEscape(consumerToken)
+	targetURL = strings.TrimRight(targetURL, "/") + "/flow/relay?secret=" + url.QueryEscape(target.Token)
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Post(targetURL, "application/json", bytes.NewReader(payload))
 	if err != nil {
-		log.Printf("[flow relay] post failed for share %d: %v", shareID, err)
-		return
+		return err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("[flow relay] bad status for share %d: %d", shareID, resp.StatusCode)
+		return fmt.Errorf("flow relay returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (h *Handler) tryFlowRelayOutbox(eventID string) {
+	item, err := h.repo.GetFlowRelayOutbox(eventID)
+	if err != nil || item == nil {
+		if err != nil {
+			log.Printf("[flow relay] load outbox failed event=%s: %v", eventID, err)
+		}
 		return
 	}
-
-	log.Printf("[flow relay] relayed %d up + %d down to consumer for share %d", up, down, shareID)
+	if err := h.sendFlowRelayOutbox(item); err == nil {
+		if deleteErr := h.repo.DeleteFlowRelayOutbox(item.EventID); deleteErr != nil {
+			log.Printf("[flow relay] delete outbox failed event=%s: %v", item.EventID, deleteErr)
+		}
+		return
+	} else {
+		attempt := item.Attempt + 1
+		delay := 10 * time.Second
+		for i := 1; i < attempt && delay < time.Hour; i++ {
+			delay *= 2
+		}
+		if delay > time.Hour {
+			delay = time.Hour
+		}
+		if retryErr := h.repo.RescheduleFlowRelayOutbox(item.EventID, attempt, time.Now().Add(delay).UnixMilli()); retryErr != nil {
+			log.Printf("[flow relay] reschedule failed event=%s: %v", item.EventID, retryErr)
+		}
+		log.Printf("[flow relay] delivery failed event=%s share=%d attempt=%d: %v", item.EventID, item.ShareID, attempt, err)
+	}
 }

@@ -22,6 +22,7 @@ type GlobalTrafficManager struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
 	reportTicker      *time.Ticker
+	pendingReport     *pendingTrafficReport
 }
 
 // ServiceTraffic 单个服务的流量累积
@@ -38,12 +39,20 @@ type businessTrafficState struct {
 	BaselineUpBytes   uint64                    `json:"baseline_up_bytes"`
 	BaselineDownBytes uint64                    `json:"baseline_down_bytes"`
 	Pending           map[string]pendingTraffic `json:"pending"`
+	PendingReport     *pendingTrafficReport     `json:"pending_report,omitempty"`
 }
 
 type pendingTraffic struct {
 	UpBytes   int64 `json:"up_bytes"`
 	DownBytes int64 `json:"down_bytes"`
 }
+
+type pendingTrafficReport struct {
+	ReportID string              `json:"report_id"`
+	Items    []TrafficReportItem `json:"items"`
+}
+
+var sendTrafficReport = sendBatchTrafficReport
 
 var (
 	globalManager     *GlobalTrafficManager
@@ -69,7 +78,10 @@ func GetGlobalTrafficManager() *GlobalTrafficManager {
 // ConfigureBusinessTrafficState restores and persists business counters and
 // pending reports across agent restarts.
 func ConfigureBusinessTrafficState(path string) error {
-	m := GetGlobalTrafficManager()
+	return GetGlobalTrafficManager().configureBusinessTrafficState(path)
+}
+
+func (m *GlobalTrafficManager) configureBusinessTrafficState(path string) error {
 	path = filepath.Clean(path)
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -88,6 +100,12 @@ func ConfigureBusinessTrafficState(path string) error {
 		m.totalDownBytes = state.TotalDownBytes
 		m.baselineUpBytes = state.BaselineUpBytes
 		m.baselineDownBytes = state.BaselineDownBytes
+		if state.PendingReport != nil && state.PendingReport.ReportID != "" && len(state.PendingReport.Items) > 0 {
+			m.pendingReport = &pendingTrafficReport{
+				ReportID: state.PendingReport.ReportID,
+				Items:    append([]TrafficReportItem(nil), state.PendingReport.Items...),
+			}
+		}
 		for name, pending := range state.Pending {
 			if pending.UpBytes == 0 && pending.DownBytes == 0 {
 				continue
@@ -185,70 +203,88 @@ func (m *GlobalTrafficManager) startReporting() {
 // collectAndReport 收集所有服务流量并合并上报
 func (m *GlobalTrafficManager) collectAndReport() {
 	defer m.persistState()
-	m.mu.Lock()
 
-	// 如果没有流量，直接返回
-	if len(m.serviceTraffic) == 0 {
-		m.mu.Unlock()
+	report, created, err := m.pendingTrafficBatch()
+	if err != nil {
+		fmt.Printf("Failed to freeze traffic report: %v\n", err)
 		return
 	}
-
-	// 复制当前所有流量数据（避免长时间持锁）
-	trafficSnapshot := make(map[string]*ServiceTraffic)
-	reportData := make(map[string]struct {
-		up   int64
-		down int64
-	})
-
-	for name, traffic := range m.serviceTraffic {
-		traffic.mu.Lock()
-		if traffic.UpBytes > 0 || traffic.DownBytes > 0 {
-			trafficSnapshot[name] = traffic
-			reportData[name] = struct {
-				up   int64
-				down int64
-			}{
-				up:   traffic.UpBytes,
-				down: traffic.DownBytes,
-			}
-		}
-		traffic.mu.Unlock()
-	}
-	m.mu.Unlock()
-
-	// 如果没有需要上报的流量，返回
-	if len(reportData) == 0 {
+	if report == nil {
 		return
 	}
+	if created {
+		m.persistState()
+	}
 
-	// 构建上报数据数组（保持每个服务独立）
-	reportItems := make([]TrafficReportItem, 0, len(reportData))
 	var totalUp, totalDown int64
-
-	for serviceName, data := range reportData {
-		reportItems = append(reportItems, TrafficReportItem{
-			N: serviceName, // 保持服务名不变
-			U: data.up,
-			D: data.down,
-		})
-		totalUp += data.up
-		totalDown += data.down
+	for _, item := range report.Items {
+		totalUp += item.U
+		totalDown += item.D
 	}
 
 	// 批量发送上报请求（一次HTTP请求包含所有服务）
-	success, err := sendBatchTrafficReport(m.ctx, reportItems)
+	success, err := sendTrafficReport(m.ctx, report.ReportID, report.Items)
 	if err != nil {
-		fmt.Printf("❌ 全局流量上报失败: %v (总流量: ↑%d ↓%d, %d个服务)\n", err, totalUp, totalDown, len(reportItems))
+		fmt.Printf("❌ 全局流量上报失败: %v (总流量: ↑%d ↓%d, %d个服务)\n", err, totalUp, totalDown, len(report.Items))
 		return
 	}
 
 	if !success {
-		fmt.Printf("⚠️ 全局流量上报未成功 (总流量: ↑%d ↓%d, %d个服务)\n", totalUp, totalDown, len(reportItems))
+		fmt.Printf("⚠️ 全局流量上报未成功 (总流量: ↑%d ↓%d, %d个服务)\n", totalUp, totalDown, len(report.Items))
 		return
 	}
 
-	// 上报成功，清空已上报的流量
-	m.clearReportedTraffic(reportData)
+	m.mu.Lock()
+	if m.pendingReport != nil && m.pendingReport.ReportID == report.ReportID {
+		m.pendingReport = nil
+	}
+	m.mu.Unlock()
+}
+
+func (m *GlobalTrafficManager) pendingTrafficBatch() (*pendingTrafficReport, bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.pendingReport != nil {
+		return &pendingTrafficReport{
+			ReportID: m.pendingReport.ReportID,
+			Items:    append([]TrafficReportItem(nil), m.pendingReport.Items...),
+		}, false, nil
+	}
+
+	items := make([]TrafficReportItem, 0, len(m.serviceTraffic))
+	for name, traffic := range m.serviceTraffic {
+		traffic.mu.Lock()
+		if traffic.UpBytes > 0 || traffic.DownBytes > 0 {
+			items = append(items, TrafficReportItem{N: name, U: traffic.UpBytes, D: traffic.DownBytes})
+			traffic.UpBytes = 0
+			traffic.DownBytes = 0
+		}
+		traffic.mu.Unlock()
+		if traffic.UpBytes == 0 && traffic.DownBytes == 0 {
+			delete(m.serviceTraffic, name)
+		}
+	}
+	if len(items) == 0 {
+		return nil, false, nil
+	}
+
+	reportID, err := newTrafficReportID()
+	if err != nil {
+		for _, item := range items {
+			traffic := m.serviceTraffic[item.N]
+			if traffic == nil {
+				traffic = &ServiceTraffic{ServiceName: item.N}
+				m.serviceTraffic[item.N] = traffic
+			}
+			traffic.UpBytes += item.U
+			traffic.DownBytes += item.D
+		}
+		return nil, false, err
+	}
+
+	m.pendingReport = &pendingTrafficReport{ReportID: reportID, Items: items}
+	return &pendingTrafficReport{ReportID: reportID, Items: append([]TrafficReportItem(nil), items...)}, true, nil
 }
 
 func (m *GlobalTrafficManager) persistState() {
@@ -263,6 +299,12 @@ func (m *GlobalTrafficManager) persistState() {
 		BaselineUpBytes:   m.baselineUpBytes,
 		BaselineDownBytes: m.baselineDownBytes,
 		Pending:           make(map[string]pendingTraffic, len(m.serviceTraffic)),
+	}
+	if m.pendingReport != nil {
+		state.PendingReport = &pendingTrafficReport{
+			ReportID: m.pendingReport.ReportID,
+			Items:    append([]TrafficReportItem(nil), m.pendingReport.Items...),
+		}
 	}
 	for name, traffic := range m.serviceTraffic {
 		traffic.mu.Lock()
@@ -281,32 +323,6 @@ func (m *GlobalTrafficManager) persistState() {
 		return
 	}
 	_ = os.WriteFile(path, data, 0600)
-}
-
-// clearReportedTraffic 清空已成功上报的流量
-func (m *GlobalTrafficManager) clearReportedTraffic(reportedData map[string]struct {
-	up   int64
-	down int64
-}) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	for serviceName, reported := range reportedData {
-		if traffic, exists := m.serviceTraffic[serviceName]; exists {
-			traffic.mu.Lock()
-			// 减去已上报的流量
-			traffic.UpBytes -= reported.up
-			traffic.DownBytes -= reported.down
-
-			// 如果流量归零，从map中删除该服务记录（避免内存泄漏）
-			if traffic.UpBytes <= 0 && traffic.DownBytes <= 0 {
-				traffic.mu.Unlock()
-				delete(m.serviceTraffic, serviceName)
-			} else {
-				traffic.mu.Unlock()
-			}
-		}
-	}
 }
 
 // Stop 停止全局流量管理器

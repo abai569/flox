@@ -112,6 +112,107 @@ type Repository struct {
 	db *gorm.DB
 }
 
+type FlowRelayTarget struct {
+	URL   string
+	Token string
+}
+
+func (r *Repository) WithTransaction(fn func(*Repository) error) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	if fn == nil {
+		return errors.New("transaction callback is required")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		return fn(&Repository{db: tx})
+	})
+}
+
+func (r *Repository) UpsertFlowRelayOutbox(item *model.FlowRelayOutbox) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	if item == nil || strings.TrimSpace(item.EventID) == "" || item.ShareID <= 0 {
+		return false, errors.New("invalid flow relay outbox item")
+	}
+	result := r.db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "event_id"}}, DoNothing: true}).Create(item)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func (r *Repository) GetFlowRelayOutbox(eventID string) (*model.FlowRelayOutbox, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var item model.FlowRelayOutbox
+	err := r.db.Where("event_id = ?", strings.TrimSpace(eventID)).First(&item).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *Repository) ListDueFlowRelayOutbox(nowMs int64, limit int) ([]model.FlowRelayOutbox, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	var items []model.FlowRelayOutbox
+	err := r.db.Where("next_retry_time <= ?", nowMs).Order("next_retry_time ASC, id ASC").Limit(limit).Find(&items).Error
+	return items, err
+}
+
+func (r *Repository) GetFlowRelayTarget(shareID int64) (*FlowRelayTarget, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var share struct {
+		ID               int64
+		ConsumerPanelURL string
+		Token            string
+	}
+	if err := r.db.Model(&model.PeerShare{}).
+		Select("id, consumer_panel_url, token").Where("id = ?", shareID).Scan(&share).Error; err != nil {
+		return nil, err
+	}
+	if share.ID == 0 {
+		return nil, nil
+	}
+	return &FlowRelayTarget{URL: strings.TrimSpace(share.ConsumerPanelURL), Token: strings.TrimSpace(share.Token)}, nil
+}
+
+func (r *Repository) DeleteFlowRelayOutbox(eventID string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Where("event_id = ?", strings.TrimSpace(eventID)).Delete(&model.FlowRelayOutbox{}).Error
+}
+
+func (r *Repository) RescheduleFlowRelayOutbox(eventID string, attempt int, nextRetryTime int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	return r.db.Model(&model.FlowRelayOutbox{}).Where("event_id = ?", strings.TrimSpace(eventID)).Updates(map[string]interface{}{
+		"attempt": attempt, "next_retry_time": nextRetryTime,
+	}).Error
+}
+
+func (r *Repository) DeleteFlowReportItemsBefore(createdBefore int64) (int64, error) {
+	if r == nil || r.db == nil {
+		return 0, errors.New("repository not initialized")
+	}
+	result := r.db.Where("created_time < ?", createdBefore).Delete(&model.FlowReportItem{})
+	return result.RowsAffected, result.Error
+}
+
 func (r *Repository) DB() *gorm.DB {
 	if r == nil {
 		return nil
@@ -247,6 +348,8 @@ func autoMigrateAll(db *gorm.DB) error {
 		&model.DNSFailoverGlobalConfig{},
 		&model.SpeedLimit{},
 		&model.StatisticsFlow{},
+		&model.FlowReportItem{},
+		&model.FlowRelayOutbox{},
 		&model.Tunnel{},
 		&model.ChainTunnel{},
 		&model.UserTunnel{},

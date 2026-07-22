@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -35,6 +37,19 @@ type TrafficReportItem struct {
 	N string `json:"n"` // 服务名（name缩写）
 	U int64  `json:"u"` // 上行流量（up缩写）
 	D int64  `json:"d"` // 下行流量（down缩写）
+}
+
+type trafficReportEnvelope struct {
+	ReportID string              `json:"reportId"`
+	Items    []TrafficReportItem `json:"items"`
+}
+
+func newTrafficReportID() (string, error) {
+	var id [16]byte
+	if _, err := rand.Read(id[:]); err != nil {
+		return "", fmt.Errorf("generate traffic report ID: %w", err)
+	}
+	return hex.EncodeToString(id[:]), nil
 }
 
 // NftablesFlowDelta nftables 流量增量
@@ -250,12 +265,15 @@ func postJSONWithFallback(ctx context.Context, urls []string, requestBody []byte
 }
 
 // sendBatchTrafficReport 批量发送多个服务的流量报告到HTTP接口
-func sendBatchTrafficReport(ctx context.Context, reportItems []TrafficReportItem) (bool, error) {
+func sendBatchTrafficReport(ctx context.Context, reportID string, reportItems []TrafficReportItem) (bool, error) {
 	if httpReportURL == "" {
 		return false, fmt.Errorf("流量上报URL未设置")
 	}
 
-	jsonData, err := json.Marshal(reportItems)
+	jsonData, err := json.Marshal(trafficReportEnvelope{
+		ReportID: reportID,
+		Items:    reportItems,
+	})
 	if err != nil {
 		return false, fmt.Errorf("序列化报告数据失败: %v", err)
 	}

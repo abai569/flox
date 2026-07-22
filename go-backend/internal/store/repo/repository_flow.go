@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"go-backend/internal/store/model"
 )
@@ -14,6 +16,8 @@ import (
 type ForwardTrafficNode struct {
 	NodeID       int64
 	TrafficRatio float64
+	FlowShare    float64
+	RawShare     float64
 	IsRemote     bool
 	IsEntry      bool
 	Layer        string
@@ -32,18 +36,118 @@ type ForwardTrafficNodeDelta struct {
 	IsEntry bool
 }
 
-func (r *Repository) GetNodeFlowTotals(nodeID int64) (int64, int64, error) {
+type AuthoritativeNodeFlowSnapshot struct {
+	NodeID       int64
+	RemoteURL    string
+	RemoteToken  string
+	TotalInFlow  int64
+	TotalOutFlow int64
+	Epoch        int64
+}
+
+func (r *Repository) ClaimFlowReportItem(scope, sourceID, reportID string, itemIndex int) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	item := model.FlowReportItem{
+		Scope:       strings.TrimSpace(scope),
+		SourceID:    strings.TrimSpace(sourceID),
+		ReportID:    strings.TrimSpace(reportID),
+		ItemIndex:   itemIndex,
+		CreatedTime: time.Now().UnixMilli(),
+	}
+	result := r.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&item)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func (r *Repository) GetAuthoritativeNodeFlowSnapshot(nodeID int64) (*AuthoritativeNodeFlowSnapshot, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var node struct {
+		ID                     int64
+		IsRemote               int
+		RemoteURL              string
+		RemoteToken            string
+		TrafficRatio           float64
+		TotalInFlow            int64
+		TotalOutFlow           int64
+		AuthoritativeFlowEpoch int64
+	}
+	if err := r.db.Model(&model.Node{}).
+		Select("id, is_remote, COALESCE(remote_url, '') AS remote_url, COALESCE(remote_token, '') AS remote_token, traffic_ratio, total_in_flow, total_out_flow, authoritative_flow_epoch").
+		Where("id = ?", nodeID).Scan(&node).Error; err != nil {
+		return nil, err
+	}
+	if node.ID == 0 {
+		return nil, nil
+	}
+	ratio := node.TrafficRatio
+	if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio <= 0 {
+		ratio = 1
+	}
+	epoch := node.AuthoritativeFlowEpoch
+	if epoch <= 0 {
+		epoch = 1
+	}
+	return &AuthoritativeNodeFlowSnapshot{
+		NodeID:       node.ID,
+		RemoteURL:    strings.TrimSpace(node.RemoteURL),
+		RemoteToken:  strings.TrimSpace(node.RemoteToken),
+		TotalInFlow:  int64(math.Round(float64(node.TotalInFlow) / ratio)),
+		TotalOutFlow: int64(math.Round(float64(node.TotalOutFlow) / ratio)),
+		Epoch:        epoch,
+	}, nil
+}
+
+func (r *Repository) ListRemoteAuthoritativeNodeFlowSnapshots() ([]AuthoritativeNodeFlowSnapshot, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	var ids []int64
+	if err := r.db.Model(&model.Node{}).Where("is_remote = 1").Order("id ASC").Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	items := make([]AuthoritativeNodeFlowSnapshot, 0, len(ids))
+	for _, id := range ids {
+		snapshot, err := r.GetAuthoritativeNodeFlowSnapshot(id)
+		if err != nil {
+			return nil, err
+		}
+		if snapshot != nil {
+			items = append(items, *snapshot)
+		}
+	}
+	return items, nil
+}
+
+func (r *Repository) GetForwardTrafficOwnership(forwardID int64) (int64, int64, error) {
 	if r == nil || r.db == nil {
 		return 0, 0, errors.New("repository not initialized")
 	}
-	var node struct {
-		TotalInFlow  int64
-		TotalOutFlow int64
+	var forward struct {
+		ID       int64
+		UserID   int64
+		TunnelID int64
 	}
-	if err := r.db.Model(&model.Node{}).Select("total_in_flow, total_out_flow").Where("id = ?", nodeID).Scan(&node).Error; err != nil {
+	if err := r.db.Model(&model.Forward{}).Select("id, user_id, tunnel_id").Where("id = ?", forwardID).Scan(&forward).Error; err != nil {
 		return 0, 0, err
 	}
-	return node.TotalInFlow, node.TotalOutFlow, nil
+	if forward.ID == 0 || forward.UserID <= 0 {
+		return 0, 0, errors.New("forward not found")
+	}
+	var userTunnel struct {
+		ID int64
+	}
+	if err := r.db.Model(&model.UserTunnel{}).
+		Where("user_id = ? AND tunnel_id = ?", forward.UserID, forward.TunnelID).
+		Select("id").Order("id ASC").Limit(1).Scan(&userTunnel).Error; err != nil {
+		return 0, 0, err
+	}
+	return forward.UserID, userTunnel.ID, nil
 }
 
 func (r *Repository) GetTunnelLocalTrafficAuthorityLayer(tunnelID int64) (string, error) {
@@ -141,16 +245,6 @@ func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunne
 			instanceID := ""
 			if node.IsEntry {
 				instanceID = strings.TrimSpace(entryInstanceID)
-			} else {
-				var instances []model.NodeInstance
-				where, args := validNodeInstanceWhere()
-				if err := tx.Where("node_id = ? AND status = 1 AND weight > 0", node.NodeID).
-					Where(where, args...).Limit(2).Find(&instances).Error; err != nil {
-					return err
-				}
-				if len(instances) == 1 {
-					instanceID = instances[0].InstanceID
-				}
 			}
 			if instanceID != "" {
 				if err := tx.Model(&model.NodeInstance{}).
@@ -766,6 +860,7 @@ func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*F
 	type trafficNodeRow struct {
 		NodeID       int64
 		TrafficRatio float64
+		Weight       float64
 		IsRemote     int
 		ChainType    string
 		Inx          int
@@ -773,7 +868,7 @@ func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*F
 	}
 	var entries []trafficNodeRow
 	if err := r.db.Table("forward_port").
-		Select("forward_port.id, forward_port.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
+		Select("forward_port.id, forward_port.node_id, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.weight, 1) AS weight, COALESCE(node.is_remote, 0) AS is_remote").
 		Joins("JOIN node ON node.id = forward_port.node_id").
 		Where("forward_port.forward_id = ? AND forward_port.chain_type IN ?", forwardID, []int{0, 1}).
 		Order("forward_port.id ASC").
@@ -782,7 +877,7 @@ func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*F
 	}
 	var chainNodes []trafficNodeRow
 	if err := r.db.Table("chain_tunnel").
-		Select("chain_tunnel.id, chain_tunnel.node_id, chain_tunnel.chain_type, COALESCE(chain_tunnel.inx, 0) AS inx, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.is_remote, 0) AS is_remote").
+		Select("chain_tunnel.id, chain_tunnel.node_id, chain_tunnel.chain_type, COALESCE(chain_tunnel.inx, 0) AS inx, COALESCE(node.traffic_ratio, 1.0) AS traffic_ratio, COALESCE(node.weight, 1) AS weight, COALESCE(node.is_remote, 0) AS is_remote").
 		Joins("JOIN node ON node.id = chain_tunnel.node_id").
 		Where("chain_tunnel.tunnel_id = ? AND chain_tunnel.chain_type IN ?", forward.TunnelID, []string{"2", "3"}).
 		Order("chain_tunnel.chain_type ASC, chain_tunnel.inx ASC, chain_tunnel.id ASC").
@@ -861,91 +956,90 @@ func (r *Repository) GetForwardTrafficTopology(forwardID, entryNodeID int64) (*F
 		return ratio
 	}
 	result := &ForwardTrafficTopology{TunnelID: forward.TunnelID}
-	entryMax := 0.0
-	var entryLayerNode trafficNodeRow
-	var actualAuthority trafficNodeRow
-	for _, entry := range entries {
-		ratio := normalizeRatio(entry.TrafficRatio)
-		if ratio > entryMax {
-			entryMax = ratio
-			entryLayerNode = entry
-		}
-		if authorityLayer == "entry" && entry.NodeID == entryNodeID {
-			actualAuthority = entry
-		}
+	type trafficLayer struct {
+		name  string
+		nodes []trafficNodeRow
 	}
-	result.TotalRatio += entryMax
-	if authorityLayer == "entry" || authorityLayer == "" {
-		if actualAuthority.NodeID == 0 {
-			for _, entry := range entries {
-				if entry.NodeID == entryNodeID {
-					actualAuthority = entry
-					break
-				}
+	layers := make([]trafficLayer, 0, len(chainNodes)+1)
+	if len(entries) > 0 {
+		layers = append(layers, trafficLayer{name: "entry", nodes: entries})
+	}
+	layerIndexes := make(map[string]int)
+	for _, node := range chainNodes {
+		layer := node.ChainType
+		if node.ChainType == "2" {
+			layer = fmt.Sprintf("middle:%d", node.Inx)
+		}
+		idx, exists := layerIndexes[layer]
+		if !exists {
+			idx = len(layers)
+			layerIndexes[layer] = idx
+			layers = append(layers, trafficLayer{name: layer})
+		}
+		layers[idx].nodes = append(layers[idx].nodes, node)
+	}
+	for _, layer := range layers {
+		uniqueNodes := make([]trafficNodeRow, 0, len(layer.nodes))
+		seenNodeIDs := make(map[int64]struct{}, len(layer.nodes))
+		maxRatio := 0.0
+		for _, node := range layer.nodes {
+			if node.NodeID <= 0 {
+				continue
 			}
+			ratio := normalizeRatio(node.TrafficRatio)
+			if ratio > maxRatio {
+				maxRatio = ratio
+			}
+			if _, seen := seenNodeIDs[node.NodeID]; seen {
+				continue
+			}
+			seenNodeIDs[node.NodeID] = struct{}{}
+			uniqueNodes = append(uniqueNodes, node)
 		}
-		result.Nodes = append(result.Nodes, ForwardTrafficNode{
-			NodeID: actualAuthority.NodeID, TrafficRatio: normalizeRatio(actualAuthority.TrafficRatio),
-			IsRemote: actualAuthority.IsRemote == 1, IsEntry: true, Layer: "entry",
-		})
-	} else if entryLayerNode.NodeID > 0 {
-		result.Nodes = append(result.Nodes, ForwardTrafficNode{
-			NodeID: entryLayerNode.NodeID, TrafficRatio: normalizeRatio(entryLayerNode.TrafficRatio),
-			IsRemote: entryLayerNode.IsRemote == 1, Layer: "entry",
-		})
-	}
-
-	layers := make(map[string]trafficNodeRow)
-	for _, node := range chainNodes {
-		layer := node.ChainType
-		if node.ChainType == "2" {
-			layer = fmt.Sprintf("middle:%d", node.Inx)
-		}
-		current, exists := layers[layer]
-		if !exists || normalizeRatio(node.TrafficRatio) > normalizeRatio(current.TrafficRatio) {
-			layers[layer] = node
-		}
-	}
-	orderedLayers := make([]string, 0, len(layers))
-	for _, node := range chainNodes {
-		layer := node.ChainType
-		if node.ChainType == "2" {
-			layer = fmt.Sprintf("middle:%d", node.Inx)
-		}
-		if _, seen := layers[layer]; !seen {
-			continue
-		}
-		alreadyAdded := false
-		for _, existing := range orderedLayers {
-			if existing == layer {
-				alreadyAdded = true
+		result.TotalRatio += maxRatio
+		isAuthorityLayer := layer.name == authorityLayer || (authorityLayer == "" && layer.name == "entry")
+		if isAuthorityLayer {
+			for _, node := range uniqueNodes {
+				if node.NodeID != entryNodeID {
+					continue
+				}
+				result.Nodes = append(result.Nodes, ForwardTrafficNode{
+					NodeID:       node.NodeID,
+					TrafficRatio: normalizeRatio(node.TrafficRatio),
+					FlowShare:    1,
+					RawShare:     1,
+					IsRemote:     node.IsRemote == 1,
+					IsEntry:      true,
+					Layer:        layer.name,
+				})
 				break
 			}
+			continue
 		}
-		if !alreadyAdded {
-			orderedLayers = append(orderedLayers, layer)
-		}
-	}
-	for _, layer := range orderedLayers {
-		layerNode := layers[layer]
-		node := layerNode
-		if layer == authorityLayer && authorityLayer != "entry" {
-			for _, candidate := range chainNodes {
-				candidateLayer := candidate.ChainType
-				if candidate.ChainType == "2" {
-					candidateLayer = fmt.Sprintf("middle:%d", candidate.Inx)
-				}
-				if candidateLayer == layer && candidate.NodeID == entryNodeID {
-					node = candidate
-					break
-				}
+		weightTotal := 0.0
+		for _, node := range uniqueNodes {
+			if !math.IsNaN(node.Weight) && !math.IsInf(node.Weight, 0) && node.Weight > 0 {
+				weightTotal += node.Weight
 			}
 		}
-		result.TotalRatio += normalizeRatio(layerNode.TrafficRatio)
-		result.Nodes = append(result.Nodes, ForwardTrafficNode{
-			NodeID: node.NodeID, TrafficRatio: normalizeRatio(node.TrafficRatio), IsRemote: node.IsRemote == 1,
-			IsEntry: layer == authorityLayer, Layer: layer,
-		})
+		for _, node := range uniqueNodes {
+			share := 0.0
+			if weightTotal > 0 {
+				if !math.IsNaN(node.Weight) && !math.IsInf(node.Weight, 0) && node.Weight > 0 {
+					share = node.Weight / weightTotal
+				}
+			} else if len(uniqueNodes) > 0 {
+				share = 1 / float64(len(uniqueNodes))
+			}
+			result.Nodes = append(result.Nodes, ForwardTrafficNode{
+				NodeID:       node.NodeID,
+				TrafficRatio: normalizeRatio(node.TrafficRatio),
+				FlowShare:    share,
+				RawShare:     share,
+				IsRemote:     node.IsRemote == 1,
+				Layer:        layer.name,
+			})
+		}
 	}
 	if result.TotalRatio <= 0 {
 		result.TotalRatio = 1

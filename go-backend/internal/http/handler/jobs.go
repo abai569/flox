@@ -27,7 +27,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(18)
+	h.jobsWG.Add(20)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -48,12 +48,77 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runPeerShareExpiryLoop(ctx)
 	go h.runRemoteShareEventManager(ctx)
 	go h.runFederationTunnelReleaseRetryLoop(ctx)
+	go h.runAuthoritativeFlowResendLoop(ctx)
+	go h.runFlowRelayOutboxLoop(ctx)
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier != middleware.TierFree {
 		bot := h.TelegramBot()
 		if bot != nil && bot.Enabled() {
 			bot.SendSystemStartup(h.floxVersion)
+		}
+	}
+}
+
+func (h *Handler) runFlowRelayOutboxLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	lastCleanup := time.Time{}
+	process := func() {
+		now := time.Now()
+		items, err := h.repo.ListDueFlowRelayOutbox(now.UnixMilli(), 100)
+		if err != nil {
+			log.Printf("list due flow relay outbox failed: %v", err)
+		} else {
+			for i := range items {
+				h.tryFlowRelayOutbox(items[i].EventID)
+			}
+		}
+		if lastCleanup.IsZero() || now.Sub(lastCleanup) >= time.Hour {
+			if _, err := h.repo.DeleteFlowReportItemsBefore(now.Add(-7 * 24 * time.Hour).UnixMilli()); err != nil {
+				log.Printf("cleanup flow report items failed: %v", err)
+			}
+			lastCleanup = now
+		}
+	}
+	process()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			process()
+		}
+	}
+}
+
+func (h *Handler) runAuthoritativeFlowResendLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	resend := func() {
+		snapshots, err := h.repo.ListRemoteAuthoritativeNodeFlowSnapshots()
+		if err != nil {
+			log.Printf("list authoritative flow snapshots failed: %v", err)
+			return
+		}
+		for _, snapshot := range snapshots {
+			if snapshot.RemoteURL == "" || snapshot.RemoteToken == "" {
+				continue
+			}
+			if err := h.reportAuthoritativeNodeFlowSnapshot(snapshot, snapshot.TotalInFlow, snapshot.TotalOutFlow); err != nil {
+				log.Printf("resend authoritative flow snapshot failed node=%d: %v", snapshot.NodeID, err)
+			}
+		}
+	}
+	resend()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			resend()
 		}
 	}
 }

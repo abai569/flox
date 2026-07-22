@@ -5623,22 +5623,20 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		state.Nodes[nodeID] = node
 	}
 	hasLocalNode := false
-	hasLocalEntry := false
+	allEntriesLocal := len(state.InNodes) > 0
 	for _, node := range state.Nodes {
 		if node != nil && node.IsRemote != 1 {
 			hasLocalNode = true
 		}
 	}
 	for _, entry := range state.InNodes {
-		if node := state.Nodes[entry.NodeID]; node != nil && node.IsRemote != 1 {
-			hasLocalEntry = true
-			break
-		}
+		node := state.Nodes[entry.NodeID]
+		allEntriesLocal = allEntriesLocal && node != nil && node.IsRemote != 1
 	}
 	if !hasLocalNode {
 		return nil, errors.New("隧道必须至少包含一个本地节点用于权威流量统计")
 	}
-	if !hasLocalEntry && excludeTunnelID > 0 {
+	if !allEntriesLocal && excludeTunnelID > 0 {
 		var incompatibleForwards int64
 		if err := tx.Model(&model.Forward{}).
 			Where("tunnel_id = ? AND LOWER(COALESCE(mode, 'gost')) NOT IN ?", excludeTunnelID, []string{forwardModeSDWAN, forwardModeNftables}).

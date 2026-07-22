@@ -2,15 +2,19 @@ package handler
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,6 +73,8 @@ type Handler struct {
 	remoteRuntimeRedeploying  map[int64]bool
 	remoteForwardMetricsMu    sync.RWMutex
 	remoteForwardMetrics      map[int64]map[int64]remoteForwardMetric
+	flowEffects               *[]func()
+	flowRelayReportID         string
 }
 
 type remoteEventWorker struct {
@@ -334,6 +340,106 @@ type flowItem struct {
 	U int64  `json:"u"`
 	D int64  `json:"d"`
 	I string `json:"i,omitempty"`
+}
+
+type flowReportPayload struct {
+	ReportID string     `json:"reportId"`
+	Items    []flowItem `json:"items"`
+}
+
+var flowReportIDPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]+$`)
+
+func newFlowRelayEventID() (string, error) {
+	var randomID [32]byte
+	if _, err := rand.Read(randomID[:]); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", randomID[:]), nil
+}
+
+func parseFlowReportPayload(raw string) (flowReportPayload, bool, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return flowReportPayload{}, false, errors.New("empty flow payload")
+	}
+	if strings.HasPrefix(trimmed, "[") {
+		var items []flowItem
+		if err := json.Unmarshal([]byte(trimmed), &items); err != nil {
+			return flowReportPayload{}, false, errors.New("invalid flow payload")
+		}
+		return flowReportPayload{Items: items}, false, nil
+	}
+	var payload flowReportPayload
+	if err := json.Unmarshal([]byte(trimmed), &payload); err != nil {
+		return flowReportPayload{}, true, errors.New("invalid flow payload")
+	}
+	payload.ReportID = strings.TrimSpace(payload.ReportID)
+	if len(payload.ReportID) == 0 || len(payload.ReportID) > 128 || !flowReportIDPattern.MatchString(payload.ReportID) {
+		return flowReportPayload{}, true, errors.New("invalid reportId")
+	}
+	if len(payload.Items) == 0 {
+		return flowReportPayload{}, true, errors.New("flow items are required")
+	}
+	return payload, true, nil
+}
+
+func (h *Handler) afterFlowCommit(effect func()) {
+	if effect == nil {
+		return
+	}
+	if h != nil && h.flowEffects != nil {
+		*h.flowEffects = append(*h.flowEffects, effect)
+		return
+	}
+	effect()
+}
+
+func (h *Handler) processReportedFlowItem(scope, sourceID, reportID string, itemIndex int, persist func(*Handler) error) (bool, error) {
+	if h == nil || h.repo == nil {
+		return false, errors.New("invalid flow handler context")
+	}
+	eventID := ""
+	if reportID == "" {
+		var err error
+		eventID, err = newFlowRelayEventID()
+		if err != nil {
+			return false, fmt.Errorf("generate flow relay event id: %w", err)
+		}
+	} else {
+		eventID = fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%s\x00%s\x00%s\x00%d", scope, sourceID, reportID, itemIndex))))
+	}
+	effects := make([]func(), 0, 4)
+	processed := false
+	var txHandler *Handler
+	err := h.repo.WithTransaction(func(txRepo *repo.Repository) error {
+		if reportID != "" {
+			claimed, err := txRepo.ClaimFlowReportItem(scope, sourceID, reportID, itemIndex)
+			if err != nil || !claimed {
+				return err
+			}
+		}
+		cloned := *h
+		cloned.repo = txRepo
+		cloned.flowEffects = &effects
+		cloned.flowRelayReportID = eventID
+		txHandler = &cloned
+		if err := persist(txHandler); err != nil {
+			return err
+		}
+		processed = true
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	if processed {
+		txHandler.repo = h.repo
+		txHandler.flowEffects = nil
+		for _, effect := range effects {
+			effect()
+		}
+	}
+	return processed, nil
 }
 
 const (
@@ -1523,12 +1629,14 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 	} else if strings.TrimSpace(raw) == "" {
 		log.Printf("[flowUpload] empty body from node %d", node.ID)
 	} else {
-		var items []flowItem
-		if json.Unmarshal([]byte(raw), &items) != nil {
+		payload, envelope, parseErr := parseFlowReportPayload(raw)
+		if parseErr != nil {
 			log.Printf("[flowUpload] json unmarshal failed node=%d raw=%.200s", node.ID, raw)
+			if envelope {
+				http.Error(w, parseErr.Error(), http.StatusBadRequest)
+				return
+			}
 		} else {
-			nowMs := time.Now().UnixMilli()
-			h.recordTunnelMetricsFromFlowItems(node.ID, items, nowMs)
 			instanceID := strings.TrimSpace(r.URL.Query().Get("instance_id"))
 			if instanceID == "" {
 				instanceID = strings.TrimSpace(r.URL.Query().Get("instanceId"))
@@ -1541,8 +1649,15 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
-			for _, item := range items {
-				if err := h.processFlowItem(node.ID, instanceID, item); err != nil {
+			sourceID := fmt.Sprintf("node:%d", node.ID)
+			for itemIndex, item := range payload.Items {
+				_, err := h.processReportedFlowItem("upload", sourceID, payload.ReportID, itemIndex, func(itemHandler *Handler) error {
+					if err := itemHandler.persistTunnelMetricsFromFlowItems(node.ID, []flowItem{item}, time.Now().UnixMilli()); err != nil {
+						return err
+					}
+					return itemHandler.processFlowItem(node.ID, instanceID, item)
+				})
+				if err != nil {
 					log.Printf("[flowUpload] persist peer share flow failed node=%d: %v", node.ID, err)
 					http.Error(w, "flow persistence failed", http.StatusServiceUnavailable)
 					return
@@ -1576,52 +1691,103 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 	raw, err := readAndDecryptFlowBody(r.Body, secret)
 	if err != nil {
 		log.Printf("[flowRelay] readAndDecryptFlowBody error: %v", err)
-	} else if strings.TrimSpace(raw) == "" {
+		http.Error(w, "invalid flow payload", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(raw) == "" {
 		log.Printf("[flowRelay] empty body from provider")
-	} else {
-		var items []flowItem
-		if json.Unmarshal([]byte(raw), &items) != nil {
-			log.Printf("[flowRelay] json unmarshal failed raw=%.200s", raw)
-		} else {
-			for _, item := range items {
-				serviceName := strings.TrimSpace(item.N)
-				shareID, forwardID, userID, userTunnelID, ok := parseRelayedForwardServiceName(serviceName)
-				if !ok {
-					continue
-				}
-				nodes, err := h.repo.FindRemoteNodesByShareIDAndToken(shareID, secret)
-				if err != nil || len(nodes) == 0 {
-					continue
-				}
-				for _, node := range nodes {
-					forward, err := h.repo.GetActiveForwardByEntryNode(forwardID, node.ID, userID, userTunnelID)
-					if err != nil || forward == nil {
-						continue
-					}
-					topology, err := h.repo.GetForwardTrafficTopology(forward.ID, node.ID)
-					if err != nil {
-						continue
-					}
-					inFlow := int64(math.Round(float64(item.D) * topology.TotalRatio))
-					outFlow := int64(math.Round(float64(item.U) * topology.TotalRatio))
-					deltas := make([]repo.ForwardTrafficNodeDelta, 0, len(topology.Nodes))
-					for _, trafficNode := range topology.Nodes {
-						deltas = append(deltas, repo.ForwardTrafficNodeDelta{NodeID: trafficNode.NodeID, InFlow: int64(math.Round(float64(item.D) * trafficNode.TrafficRatio)), OutFlow: int64(math.Round(float64(item.U) * trafficNode.TrafficRatio)), IsEntry: trafficNode.IsEntry})
-					}
-					if err := h.repo.AddAuthoritativeForwardTraffic(forward.ID, userID, userTunnelID, inFlow, outFlow, item.D, item.U, item.I, deltas); err != nil {
-						log.Printf("[flowRelay] add forward traffic failed forward=%d: %v", forward.ID, err)
-						continue
-					}
-					if quota, quotaErr := h.repo.AddUserQuotaUsage(userID, inFlow+outFlow, time.Now()); quotaErr == nil {
-						h.enforceUserQuotaIfNeeded(userID, quota)
-					}
-					h.enforceForwardTrafficLimit(forward.ID)
-					if userTunnelID > 0 {
-						h.enforceFlowPolicies(userID, userTunnelID)
-					}
-					log.Printf("[flowRelay] attributed share=%d raw=%d/%d total=%d/%d forward=%d node=%d", shareID, item.U, item.D, outFlow, inFlow, forward.ID, node.ID)
-				}
+		http.Error(w, "empty flow payload", http.StatusBadRequest)
+		return
+	}
+	payload, _, parseErr := parseFlowReportPayload(raw)
+	if parseErr != nil || len(payload.Items) == 0 {
+		log.Printf("[flowRelay] json unmarshal failed raw=%.200s", raw)
+		http.Error(w, "invalid flow payload", http.StatusBadRequest)
+		return
+	}
+	type relayMatch struct {
+		item         flowItem
+		shareID      int64
+		userID       int64
+		userTunnelID int64
+		nodeID       int64
+		forwardID    int64
+		topology     *repo.ForwardTrafficTopology
+	}
+	matches := make([]relayMatch, 0, len(payload.Items))
+	for _, item := range payload.Items {
+		serviceName := strings.TrimSpace(item.N)
+		shareID, forwardID, userID, userTunnelID, ok := parseRelayedForwardServiceName(serviceName)
+		if !ok {
+			http.Error(w, "invalid flow service", http.StatusBadRequest)
+			return
+		}
+		nodes, err := h.repo.FindRemoteNodesByShareIDAndToken(shareID, secret)
+		if err != nil {
+			log.Printf("[flowRelay] resolve share failed share=%d: %v", shareID, err)
+			http.Error(w, "flow match failed", http.StatusServiceUnavailable)
+			return
+		}
+		if len(nodes) == 0 {
+			http.Error(w, "flow share not found", http.StatusUnauthorized)
+			return
+		}
+		var match *relayMatch
+		for _, node := range nodes {
+			forward, err := h.repo.GetActiveForwardByEntryNode(forwardID, node.ID, userID, userTunnelID)
+			if err != nil {
+				log.Printf("[flowRelay] resolve forward failed forward=%d node=%d: %v", forwardID, node.ID, err)
+				http.Error(w, "flow match failed", http.StatusServiceUnavailable)
+				return
 			}
+			if forward == nil {
+				continue
+			}
+			if match != nil {
+				http.Error(w, "ambiguous flow match", http.StatusConflict)
+				return
+			}
+			topology, err := h.repo.GetForwardTrafficTopology(forward.ID, node.ID)
+			if err != nil {
+				log.Printf("[flowRelay] resolve topology failed forward=%d node=%d: %v", forward.ID, node.ID, err)
+				http.Error(w, "flow topology rejected", http.StatusConflict)
+				return
+			}
+			match = &relayMatch{item: item, shareID: shareID, userID: userID, userTunnelID: userTunnelID, nodeID: node.ID, forwardID: forward.ID, topology: topology}
+		}
+		if match == nil {
+			http.Error(w, "flow forward not found", http.StatusUnprocessableEntity)
+			return
+		}
+		matches = append(matches, *match)
+	}
+	for itemIndex, match := range matches {
+		inFlow := int64(math.Round(float64(match.item.D) * match.topology.TotalRatio))
+		outFlow := int64(math.Round(float64(match.item.U) * match.topology.TotalRatio))
+		deltas := forwardTrafficNodeDeltas(match.topology, match.item.D, match.item.U)
+		sourceID := fmt.Sprintf("share:%d", match.shareID)
+		processed, err := h.processReportedFlowItem("relay", sourceID, payload.ReportID, itemIndex, func(itemHandler *Handler) error {
+			if err := itemHandler.repo.AddAuthoritativeForwardTraffic(match.forwardID, match.userID, match.userTunnelID, inFlow, outFlow, match.item.D, match.item.U, match.item.I, deltas); err != nil {
+				return err
+			}
+			quota, quotaErr := itemHandler.repo.AddUserQuotaUsage(match.userID, inFlow+outFlow, time.Now())
+			if quotaErr != nil {
+				return quotaErr
+			}
+			itemHandler.afterFlowCommit(func() { itemHandler.enforceUserQuotaIfNeeded(match.userID, quota) })
+			itemHandler.afterFlowCommit(func() { itemHandler.enforceForwardTrafficLimit(match.forwardID) })
+			if match.userTunnelID > 0 {
+				itemHandler.afterFlowCommit(func() { itemHandler.enforceFlowPolicies(match.userID, match.userTunnelID) })
+			}
+			return nil
+		})
+		if err != nil {
+			log.Printf("[flowRelay] add forward traffic failed forward=%d: %v", match.forwardID, err)
+			http.Error(w, "flow persistence failed", http.StatusServiceUnavailable)
+			return
+		}
+		if processed {
+			log.Printf("[flowRelay] attributed share=%d raw=%d/%d total=%d/%d forward=%d node=%d", match.shareID, match.item.U, match.item.D, outFlow, inFlow, match.forwardID, match.nodeID)
 		}
 	}
 

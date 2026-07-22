@@ -136,6 +136,7 @@ type Node struct {
 	TrafficLimit                 int64          `gorm:"column:traffic_limit;default:0"`
 	TotalInFlow                  int64          `gorm:"column:total_in_flow;default:0"`
 	TotalOutFlow                 int64          `gorm:"column:total_out_flow;default:0"`
+	AuthoritativeFlowEpoch       int64          `gorm:"column:authoritative_flow_epoch;not null;default:1"`
 	Paused                       int            `gorm:"column:paused;default:0"`
 	Weight                       int            `gorm:"column:weight;not null;default:1"`
 	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
@@ -222,6 +223,32 @@ type StatisticsFlow struct {
 }
 
 func (StatisticsFlow) TableName() string { return "statistics_flow" }
+
+type FlowReportItem struct {
+	ID          int64  `gorm:"primaryKey;autoIncrement"`
+	Scope       string `gorm:"column:scope;type:varchar(16);not null;uniqueIndex:idx_flow_report_item"`
+	SourceID    string `gorm:"column:source_id;type:varchar(200);not null;uniqueIndex:idx_flow_report_item"`
+	ReportID    string `gorm:"column:report_id;type:varchar(128);not null;uniqueIndex:idx_flow_report_item"`
+	ItemIndex   int    `gorm:"column:item_index;not null;uniqueIndex:idx_flow_report_item"`
+	CreatedTime int64  `gorm:"column:created_time;not null"`
+}
+
+func (FlowReportItem) TableName() string { return "flow_report_item" }
+
+type FlowRelayOutbox struct {
+	ID            int64  `gorm:"primaryKey;autoIncrement"`
+	EventID       string `gorm:"column:event_id;type:varchar(128);not null;uniqueIndex"`
+	ShareID       int64  `gorm:"column:share_id;not null;index"`
+	ServiceName   string `gorm:"column:service_name;type:text;not null"`
+	InstanceID    string `gorm:"column:instance_id;type:varchar(200);not null;default:''"`
+	Up            int64  `gorm:"column:up;not null"`
+	Down          int64  `gorm:"column:down;not null"`
+	Attempt       int    `gorm:"column:attempt;not null;default:0"`
+	NextRetryTime int64  `gorm:"column:next_retry_time;not null;index"`
+	CreatedTime   int64  `gorm:"column:created_time;not null"`
+}
+
+func (FlowRelayOutbox) TableName() string { return "flow_relay_outbox" }
 
 type Tunnel struct {
 	ID            int64          `gorm:"primaryKey;autoIncrement"`
@@ -484,6 +511,9 @@ type PeerShare struct {
 	ConsumerPanelURL        string  `gorm:"column:consumer_panel_url;type:text;default:''" json:"consumerPanelUrl"`
 	ConsumerPanelToken      string  `gorm:"column:consumer_panel_token;type:text;default:''" json:"consumerPanelToken"`
 	ConsumerFlowAuthority   int     `gorm:"column:consumer_flow_authority;not null;default:0" json:"-"`
+	ConsumerFlowEpoch       int64   `gorm:"column:consumer_flow_epoch;not null;default:0" json:"-"`
+	ConsumerTotalInFlow     int64   `gorm:"column:consumer_total_in_flow;not null;default:0" json:"-"`
+	ConsumerTotalOutFlow    int64   `gorm:"column:consumer_total_out_flow;not null;default:0" json:"-"`
 }
 
 func (PeerShare) TableName() string { return "peer_share" }
