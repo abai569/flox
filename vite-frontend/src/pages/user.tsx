@@ -2143,7 +2143,7 @@ export default function UserPage() {
                 aria-label="用户列表"
                 classNames={{
                   th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
-                  td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
+                  td: "py-3 text-sm border-b border-divider/50 group-data-[last=true]:border-b-0",
                   tr: "hover:bg-default-50/50 transition-colors",
                 }}
               >
@@ -2247,20 +2247,15 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
                             <span
-                              className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
+                              className={`font-medium truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
                               title={user.user}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 copyToClipboard(user.user, "用户名");
                               }}
                             >
-                              @{user.user}
+                              {user.user}
                             </span>
-                            {user.roleId === 0 ? (
-                              <Chip color="warning" size="sm" variant="flat">
-                                管理员
-                              </Chip>
-                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -2594,20 +2589,15 @@ export default function UserPage() {
                           <div className="flex justify-between items-center w-full mt-1">
                             <div className="flex min-w-0 items-center gap-1.5">
                               <span
-                                className="font-medium text-sm text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
+                                className={`font-medium text-sm truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
                                 title={user.user}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   copyToClipboard(user.user, "用户名");
                                 }}
                               >
-                                @{user.user}
+                                {user.user}
                               </span>
-                              {user.roleId === 0 ? (
-                                <Chip color="warning" size="sm" variant="flat">
-                                  管理员
-                                </Chip>
-                              ) : null}
                             </div>
                             <span
                               className="text-sm text-default-500 truncate ml-2 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
@@ -4947,7 +4937,7 @@ export default function UserPage() {
                       {user.name || user.user}
                     </span>
                     <span className="text-xs text-default-500 ml-2">
-                      @{user.user}
+                      {user.user}
                     </span>
                   </div>
                   <div
@@ -5018,7 +5008,7 @@ export default function UserPage() {
                       {user.name || user.user}
                     </span>
                     <span className="text-xs text-default-500 ml-2">
-                      @{user.user}
+                      {user.user}
                     </span>
                   </div>
                   <div
