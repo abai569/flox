@@ -329,6 +329,7 @@ func (s *Server) GetForwardMetricsByShareID(shareID int64) []ForwardMetric {
 	s.forwardMetricsMu.RLock()
 	defer s.forwardMetricsMu.RUnlock()
 	result := make([]ForwardMetric, 0)
+	seenServices := make(map[string]struct{})
 	for _, nodeMetrics := range s.forwardMetrics {
 		for _, serviceMetrics := range nodeMetrics {
 			for serviceName, metric := range serviceMetrics {
@@ -338,10 +339,42 @@ func (s *Server) GetForwardMetricsByShareID(shareID int64) []ForwardMetric {
 				item := *metric
 				item.Connections = connections[serviceName]
 				result = append(result, item)
+				seenServices[serviceName] = struct{}{}
 			}
 		}
 	}
+	for serviceName, count := range connections {
+		if _, ok := seenServices[serviceName]; ok {
+			continue
+		}
+		forwardID, userID, tunnelID := parseRemForwardMetricServiceName(serviceName, shareID)
+		if forwardID <= 0 {
+			continue
+		}
+		result = append(result, ForwardMetric{
+			ForwardID: forwardID, UserID: userID, TunnelID: tunnelID,
+			ServiceName: serviceName, Connections: count,
+		})
+	}
 	return result
+}
+
+func parseRemForwardMetricServiceName(serviceName string, shareID int64) (forwardID, userID, tunnelID int64) {
+	prefix := fmt.Sprintf("rem_s%d_", shareID)
+	name := strings.TrimSpace(serviceName)
+	if !strings.HasPrefix(name, prefix) {
+		return 0, 0, 0
+	}
+	name = strings.TrimPrefix(name, prefix)
+	name = strings.TrimSuffix(strings.TrimSuffix(name, "_tcp"), "_udp")
+	parts := strings.Split(name, "_")
+	if len(parts) < 3 {
+		return 0, 0, 0
+	}
+	forwardID, _ = strconv.ParseInt(parts[0], 10, 64)
+	userID, _ = strconv.ParseInt(parts[1], 10, 64)
+	tunnelID, _ = strconv.ParseInt(parts[2], 10, 64)
+	return forwardID, userID, tunnelID
 }
 
 // ClearForwardMetrics 清除指定转发的实时指标缓存，用于暂停/删除后立即清理前端展示

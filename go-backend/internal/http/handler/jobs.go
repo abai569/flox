@@ -158,7 +158,7 @@ func (h *Handler) runRemoteShareEventWorker(ctx context.Context, nodeID int64, r
 		if err != nil || info == nil {
 			return
 		}
-		h.replaceRemoteForwardMetrics(info.ForwardMetrics)
+		h.replaceRemoteForwardMetrics(nodeID, info.ForwardMetrics)
 		h.invalidateRemoteNodeRuntimeReconcile(nodeID)
 		h.scheduleRemoteNodeRuntimeReconcile(nodeID, info.Instances)
 	}

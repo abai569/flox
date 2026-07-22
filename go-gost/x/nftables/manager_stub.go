@@ -10,6 +10,7 @@ type RuleState struct{}
 
 type CounterResult struct {
 	ForwardID    int64  `json:"forward_id"`
+	ShareID      int64  `json:"share_id,omitempty"`
 	UserID       int64  `json:"user_id"`
 	UserTunnelID int64  `json:"user_tunnel_id"`
 	Protocol     string `json:"protocol"`
@@ -22,6 +23,7 @@ type CounterResult struct {
 
 type RuleConnInfo struct {
 	ForwardID int64  `json:"forward_id"`
+	ShareID   int64  `json:"share_id,omitempty"`
 	UserID    int64  `json:"user_id"`
 	TunnelID  int64  `json:"tunnel_id"`
 	Protocol  string `json:"protocol"`
@@ -31,6 +33,7 @@ type RuleConnInfo struct {
 
 type ConntrackByteResult struct {
 	ForwardID    int64  `json:"forward_id"`
+	ShareID      int64  `json:"share_id,omitempty"`
 	UserID       int64  `json:"user_id"`
 	UserTunnelID int64  `json:"user_tunnel_id"`
 	Protocol     string `json:"protocol"`
@@ -52,7 +55,7 @@ func (m *Manager) initChains() error {
 	return errors.New("nftables not supported on this platform")
 }
 
-func (m *Manager) AddRule(forwardID, nodeID, userID, userTunnelID int64, protocol string, port int, target string, speedLimit, ceilingSpeed int, chainType int) error {
+func (m *Manager) AddRule(forwardID, shareID, nodeID, userID, userTunnelID int64, protocol string, port int, target string, speedLimit, ceilingSpeed int, chainType int) error {
 	return errors.New("nftables not supported on this platform")
 }
 

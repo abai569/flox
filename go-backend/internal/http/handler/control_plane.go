@@ -3216,6 +3216,7 @@ func (h *Handler) upsertNamedLimiterOnNode(nodeID int64, name string, speed int)
 // NftablesRulePayload nftables rule payload (matches agent side)
 type NftablesRulePayload struct {
 	ForwardID    int64  `json:"forward_id"`
+	ShareID      int64  `json:"share_id,omitempty"`
 	NodeID       int64  `json:"node_id"`
 	UserID       int64  `json:"user_id"`
 	UserTunnelID int64  `json:"user_tunnel_id"`
@@ -3337,6 +3338,12 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 				return
 			}
 			nodeRules := filterRulesByNodeID(rules, nid)
+			if node.IsRemote == 1 {
+				shareID := remoteShareIDFromConfig(node.RemoteConfig)
+				for i := range nodeRules {
+					nodeRules[i].ShareID = shareID
+				}
+			}
 			fmt.Printf("[nft.debug] node %s: %d rules, ports %v\n", node.Name, len(nodeRules), plist)
 			if len(nodeRules) == 0 {
 				return

@@ -127,6 +127,10 @@ func (h *forwardHandler) Handle(ctx context.Context, conn net.Conn, opts ...hand
 			port, _ = strconv.Atoi(portStr)
 		}
 	}
+	if forwardID > 0 {
+		forwardStats.AddForwardConnection(forwardID, userID, tunnelID, h.options.Service, 0, port, 1)
+		defer forwardStats.AddForwardConnection(forwardID, userID, tunnelID, h.options.Service, 0, port, -1)
+	}
 
 	// 启动后台协程定期上报流量（每 1 秒）
 	var statsTicker *time.Ticker

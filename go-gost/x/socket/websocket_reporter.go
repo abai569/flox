@@ -1198,6 +1198,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 	if bytesResults, err := w.nftablesMgr.CountConnectionBytesByRule(); err == nil && len(bytesResults) > 0 {
 		type deltaEntry struct {
 			forwardID    int64
+			shareID      int64
 			userID       int64
 			userTunnelID int64
 			port         int
@@ -1218,6 +1219,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 				if delta > 0 {
 					deltas = append(deltas, deltaEntry{
 						forwardID:    c.ForwardID,
+						shareID:      c.ShareID,
 						userID:       c.UserID,
 						userTunnelID: c.UserTunnelID,
 						port:         c.Port,
@@ -1233,7 +1235,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		if len(deltas) > 0 {
 			var flowDeltas []service.NftablesFlowDelta
 			for _, d := range deltas {
-				serviceName := fmt.Sprintf("%d_%d_%d_nft", d.forwardID, d.userID, d.userTunnelID)
+				serviceName := nftMetricServiceName(d.shareID, d.forwardID, d.userID, d.userTunnelID)
 				stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, d.nodeID, d.port, false, d.delta)
 				flowDeltas = append(flowDeltas, service.NftablesFlowDelta{
 					ServiceName: serviceName,
@@ -1255,6 +1257,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 	// 收集按 forwardID 聚合的 delta（TCP+UDP 合并）
 	type deltaEntry struct {
 		forwardID    int64
+		shareID      int64
 		userID       int64
 		userTunnelID int64
 		port         int
@@ -1282,6 +1285,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 			if delta > 0 {
 				deltas = append(deltas, deltaEntry{
 					forwardID:    c.ForwardID,
+					shareID:      c.ShareID,
 					userID:       c.UserID,
 					userTunnelID: c.UserTunnelID,
 					port:         c.Port,
@@ -1302,7 +1306,7 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 	// 注入 nftables 流量统计到 stats 系统（实时带宽）
 	var flowDeltas []service.NftablesFlowDelta
 	for _, d := range deltas {
-		serviceName := fmt.Sprintf("%d_%d_%d_nft", d.forwardID, d.userID, d.userTunnelID)
+		serviceName := nftMetricServiceName(d.shareID, d.forwardID, d.userID, d.userTunnelID)
 		// nftables DNAT 计数器统计的是客户端→目标方向的流量，从面板视角为下行
 		stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, d.nodeID, d.port, false, d.delta)
 		flowDeltas = append(flowDeltas, service.NftablesFlowDelta{
@@ -1316,7 +1320,14 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 }
 
 func nftForwardMetricServiceName(info nftables.RuleConnInfo) string {
-	return fmt.Sprintf("%d_%d_%d_nft", info.ForwardID, info.UserID, info.TunnelID)
+	return nftMetricServiceName(info.ShareID, info.ForwardID, info.UserID, info.TunnelID)
+}
+
+func nftMetricServiceName(shareID, forwardID, userID, userTunnelID int64) string {
+	if shareID > 0 {
+		return fmt.Sprintf("rem_s%d_%d_%d_%d_nft", shareID, forwardID, userID, userTunnelID)
+	}
+	return fmt.Sprintf("%d_%d_%d_nft", forwardID, userID, userTunnelID)
 }
 
 func (w *WebSocketReporter) pollNftablesConnections() {

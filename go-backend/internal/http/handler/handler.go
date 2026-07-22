@@ -68,7 +68,7 @@ type Handler struct {
 	remoteRuntimeApplied      map[int64]string
 	remoteRuntimeRedeploying  map[int64]bool
 	remoteForwardMetricsMu    sync.RWMutex
-	remoteForwardMetrics      map[int64]remoteForwardMetric
+	remoteForwardMetrics      map[int64]map[int64]remoteForwardMetric
 }
 
 type remoteEventWorker struct {
@@ -83,35 +83,38 @@ type remoteForwardMetric struct {
 	UpdatedAt   time.Time
 }
 
-func (h *Handler) replaceRemoteForwardMetrics(metrics []client.RemoteForwardMetric) {
-	if h == nil {
+func (h *Handler) replaceRemoteForwardMetrics(nodeID int64, metrics []client.RemoteForwardMetric) {
+	if h == nil || nodeID <= 0 {
 		return
 	}
 	now := time.Now()
 	h.remoteForwardMetricsMu.Lock()
 	defer h.remoteForwardMetricsMu.Unlock()
-	for forwardID, metric := range h.remoteForwardMetrics {
+	if h.remoteForwardMetrics[nodeID] == nil {
+		h.remoteForwardMetrics[nodeID] = make(map[int64]remoteForwardMetric)
+	}
+	for forwardID, metric := range h.remoteForwardMetrics[nodeID] {
 		if now.Sub(metric.UpdatedAt) > 30*time.Second {
-			delete(h.remoteForwardMetrics, forwardID)
+			delete(h.remoteForwardMetrics[nodeID], forwardID)
 		}
 	}
 	for _, metric := range metrics {
 		if metric.ForwardID <= 0 {
 			continue
 		}
-		h.remoteForwardMetrics[metric.ForwardID] = remoteForwardMetric{
+		h.remoteForwardMetrics[nodeID][metric.ForwardID] = remoteForwardMetric{
 			InSpeed: metric.InSpeed, OutSpeed: metric.OutSpeed,
 			Connections: metric.Connections, UpdatedAt: now,
 		}
 	}
 }
 
-func (h *Handler) getRemoteForwardMetric(forwardID int64) (remoteForwardMetric, bool) {
-	if h == nil || forwardID <= 0 {
+func (h *Handler) getRemoteForwardMetric(nodeID, forwardID int64) (remoteForwardMetric, bool) {
+	if h == nil || nodeID <= 0 || forwardID <= 0 {
 		return remoteForwardMetric{}, false
 	}
 	h.remoteForwardMetricsMu.RLock()
-	metric, ok := h.remoteForwardMetrics[forwardID]
+	metric, ok := h.remoteForwardMetrics[nodeID][forwardID]
 	h.remoteForwardMetricsMu.RUnlock()
 	if !ok || time.Since(metric.UpdatedAt) > 30*time.Second {
 		return remoteForwardMetric{}, false
@@ -138,7 +141,7 @@ func (h *Handler) refreshRemoteForwardMetrics(nodeID int64) {
 		h.federationLocalDomain(),
 	)
 	if err == nil && info != nil {
-		h.replaceRemoteForwardMetrics(info.ForwardMetrics)
+		h.replaceRemoteForwardMetrics(nodeID, info.ForwardMetrics)
 	}
 }
 
@@ -355,7 +358,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		nftablesDomainCache:      make(map[int64]string),
 		remoteRuntimeApplied:     make(map[int64]string),
 		remoteRuntimeRedeploying: make(map[int64]bool),
-		remoteForwardMetrics:     make(map[int64]remoteForwardMetric),
+		remoteForwardMetrics:     make(map[int64]map[int64]remoteForwardMetric),
 	}
 	h.healthCheck = health.NewChecker(repo, h.wsServer)
 	h.healthCheck.SetOnResult(h.onServiceMonitorResult)
@@ -1156,53 +1159,48 @@ func (h *Handler) forwardList(w http.ResponseWriter, r *http.Request) {
 				items[i]["outSpeed"] = 0
 				continue
 			}
-			// 获取转发的入口节点
-			ports, err := h.repo.ListForwardPorts(forwardID)
-			if err == nil && len(ports) > 0 {
-				// 使用第一个入口节点的连接数
-				nodeID := ports[0].NodeID
-				isRemoteEntry := false
-				if isRemote, _, _, remoteErr := h.repo.GetNodeRemoteFields(nodeID); remoteErr == nil {
-					isRemoteEntry = isRemote == 1
-				}
-				items[i]["currentConnections"] = h.GetForwardConnections(nodeID, forwardID)
-				// 获取实时带宽数据
-				if isRemoteEntry {
-					if metric, ok := h.getRemoteForwardMetric(forwardID); ok {
-						items[i]["currentConnections"] = metric.Connections
-						items[i]["inSpeed"] = metric.InSpeed
-						items[i]["outSpeed"] = metric.OutSpeed
-					} else {
-						if _, refreshed := refreshedRemoteNodes[nodeID]; !refreshed {
-							h.refreshRemoteForwardMetrics(nodeID)
-							refreshedRemoteNodes[nodeID] = struct{}{}
-						}
-						if metric, ok := h.getRemoteForwardMetric(forwardID); ok {
-							items[i]["currentConnections"] = metric.Connections
-							items[i]["inSpeed"] = metric.InSpeed
-							items[i]["outSpeed"] = metric.OutSpeed
-						} else {
-							items[i]["currentConnections"] = 0
-							items[i]["inSpeed"] = 0
-							items[i]["outSpeed"] = 0
-						}
-					}
-				} else if metric := h.wsServer.GetForwardMetric(forwardID); metric != nil {
-					items[i]["inSpeed"] = metric.InSpeed
-					items[i]["outSpeed"] = metric.OutSpeed
-				} else if metric, ok := h.getRemoteForwardMetric(forwardID); ok {
-					items[i]["currentConnections"] = metric.Connections
-					items[i]["inSpeed"] = metric.InSpeed
-					items[i]["outSpeed"] = metric.OutSpeed
-				} else {
-					items[i]["inSpeed"] = 0
-					items[i]["outSpeed"] = 0
-				}
-			} else {
+			tunnelID := asInt64(items[i]["tunnelId"], 0)
+			entryNodeIDs, err := h.tunnelEntryNodeIDs(tunnelID)
+			if err != nil || len(entryNodeIDs) == 0 {
 				items[i]["currentConnections"] = 0
 				items[i]["inSpeed"] = 0
 				items[i]["outSpeed"] = 0
+				continue
 			}
+			connections := 0
+			var inSpeed, outSpeed uint64
+			if metric := h.wsServer.GetForwardMetric(forwardID); metric != nil {
+				inSpeed += metric.InSpeed
+				outSpeed += metric.OutSpeed
+			}
+			seenEntryNodes := make(map[int64]struct{}, len(entryNodeIDs))
+			for _, nodeID := range entryNodeIDs {
+				if _, seen := seenEntryNodes[nodeID]; seen {
+					continue
+				}
+				seenEntryNodes[nodeID] = struct{}{}
+				isRemote, _, _, remoteErr := h.repo.GetNodeRemoteFields(nodeID)
+				if remoteErr != nil || isRemote != 1 {
+					connections += h.GetForwardConnections(nodeID, forwardID)
+					continue
+				}
+				metric, ok := h.getRemoteForwardMetric(nodeID, forwardID)
+				if !ok {
+					if _, refreshed := refreshedRemoteNodes[nodeID]; !refreshed {
+						h.refreshRemoteForwardMetrics(nodeID)
+						refreshedRemoteNodes[nodeID] = struct{}{}
+					}
+					metric, ok = h.getRemoteForwardMetric(nodeID, forwardID)
+				}
+				if ok {
+					connections += metric.Connections
+					inSpeed += metric.InSpeed
+					outSpeed += metric.OutSpeed
+				}
+			}
+			items[i]["currentConnections"] = connections
+			items[i]["inSpeed"] = inSpeed
+			items[i]["outSpeed"] = outSpeed
 		}
 	}
 
