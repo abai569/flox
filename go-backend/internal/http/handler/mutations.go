@@ -889,17 +889,8 @@ func (h *Handler) userDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roleID, err := h.repo.GetUserRoleID(id)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			response.WriteJSON(w, response.ErrDefault("用户不存在"))
-			return
-		}
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
-	}
-	if roleID == 0 {
-		response.WriteJSON(w, response.ErrDefault("请不要作死"))
+	if err := h.authorizeUserDelete(r, id); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
 		return
 	}
 
@@ -908,6 +899,31 @@ func (h *Handler) userDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.WriteJSON(w, response.OKEmpty())
+}
+
+func (h *Handler) authorizeUserDelete(r *http.Request, targetUserID int64) error {
+	actorUserID, actorRoleID, err := userRoleFromRequest(r)
+	if err != nil || actorRoleID != 0 {
+		return errors.New("无权删除用户")
+	}
+	actor, err := h.repo.GetUserByID(actorUserID)
+	if err != nil || actor == nil || actor.RoleID != 0 {
+		return errors.New("无权删除用户")
+	}
+	target, err := h.repo.GetUserByID(targetUserID)
+	if err != nil {
+		return err
+	}
+	if target == nil {
+		return errors.New("用户不存在")
+	}
+	if actorUserID == targetUserID {
+		return errors.New("不能删除当前登录账号")
+	}
+	if target.RoleID == 0 && actor.User != "admin" {
+		return errors.New("只有 admin 可以删除其他管理员账号")
+	}
+	return nil
 }
 
 func (h *Handler) userResetFlow(w http.ResponseWriter, r *http.Request) {
@@ -978,8 +994,7 @@ func (h *Handler) userBatchDelete(w http.ResponseWriter, r *http.Request) {
 	failCount := 0
 
 	for _, id := range req.IDs {
-		roleID, err := h.repo.GetUserRoleID(id)
-		if err != nil || roleID == 0 {
+		if err := h.authorizeUserDelete(r, id); err != nil {
 			failCount++
 			continue
 		}
@@ -3444,6 +3459,10 @@ func (h *Handler) userTunnelUpdate(w http.ResponseWriter, r *http.Request) {
 		v := oldForwardSpeedLimit.Int64
 		forwardSpeedLimit = &v
 	}
+	if err := validateUserTunnelSpeedLimits(ceilingSpeed, forwardSpeedLimit); err != nil {
+		response.WriteJSON(w, response.ErrDefault(err.Error()))
+		return
+	}
 
 	status := oldStatus
 	if v, ok := req["status"]; ok && v != nil {
@@ -3725,6 +3744,12 @@ func (h *Handler) forwardCreate(w http.ResponseWriter, r *http.Request) {
 	expiryTime := asAnyToInt64Ptr(req["expiryTime"])
 	speedLimitEnabled := asBool(req["speedLimitEnabled"], false)
 	speedLimit := asInt(req["speedLimit"], 0)
+	if roleID != 0 && speedLimitEnabled && speedLimit > 0 {
+		if err := h.validateForwardSpeedAgainstTunnelCeiling(userID, tunnelID, speedLimit); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
+	}
 
 	mode := normalizeForwardMode(asString(req["mode"]))
 	if !isValidForwardMode(mode) {
@@ -3928,6 +3953,12 @@ func (h *Handler) forwardUpdate(w http.ResponseWriter, r *http.Request) {
 	speedLimit := asInt(req["speedLimit"], forward.SpeedLimit)
 	if _, ok := req["speedLimit"]; !ok {
 		speedLimit = forward.SpeedLimit
+	}
+	if actorRole != 0 && speedLimitEnabled && speedLimit > 0 {
+		if err := h.validateForwardSpeedAgainstTunnelCeiling(forward.UserID, tunnelID, speedLimit); err != nil {
+			response.WriteJSON(w, response.ErrDefault(err.Error()))
+			return
+		}
 	}
 
 	mode := normalizeForwardMode(asString(req["mode"]))
@@ -7215,6 +7246,24 @@ func (h *Handler) rollbackForwardMutation(oldForward *forwardRecord, oldPorts []
 	_ = h.syncForwardServices(oldForward, "UpdateService", true)
 }
 
+func validateUserTunnelSpeedLimits(ceilingSpeed, forwardSpeedLimit *int64) error {
+	if ceilingSpeed != nil && forwardSpeedLimit != nil && *ceilingSpeed > 0 && *forwardSpeedLimit > *ceilingSpeed {
+		return errors.New("规则限速不能高于隧道限速阈值")
+	}
+	return nil
+}
+
+func (h *Handler) validateForwardSpeedAgainstTunnelCeiling(userID, tunnelID int64, speed int) error {
+	_, _, _, _, _, _, ceilingSpeed, _, _, err := h.repo.GetExistingUserTunnel(userID, tunnelID)
+	if err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if ceilingSpeed.Valid && ceilingSpeed.Int64 > 0 && int64(speed) > ceilingSpeed.Int64 {
+		return fmt.Errorf("规则限速不能高于隧道限速阈值 %d Mbps", ceilingSpeed.Int64)
+	}
+	return nil
+}
+
 func (h *Handler) upsertUserTunnel(req map[string]interface{}) error {
 	userID := asInt64(req["userId"], 0)
 	tunnelID := asInt64(req["tunnelId"], 0)
@@ -7250,6 +7299,9 @@ func (h *Handler) upsertUserTunnel(req map[string]interface{}) error {
 				forwardSpeedLimit = &val
 			}
 		}
+	}
+	if err := validateUserTunnelSpeedLimits(ceilingSpeed, forwardSpeedLimit); err != nil {
+		return err
 	}
 
 	reqFlow := asInt64(req["flow"], -1)
@@ -7362,6 +7414,9 @@ func (h *Handler) upsertUserTunnel(req map[string]interface{}) error {
 		} else {
 			newForwardSpeedLimit = sql.NullInt64{Valid: false}
 		}
+	}
+	if newCeilingSpeed.Valid && newForwardSpeedLimit.Valid && newCeilingSpeed.Int64 > 0 && newForwardSpeedLimit.Int64 > newCeilingSpeed.Int64 {
+		return errors.New("规则限速不能高于隧道限速阈值")
 	}
 
 	if err := h.repo.UpdateUserTunnelFields(existingID, newSpeedID, newCeilingSpeed, newForwardSpeedLimit, newFlow, newNum, newExpTime, newFlowReset, newStatus); err != nil {

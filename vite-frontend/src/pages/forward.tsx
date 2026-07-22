@@ -194,6 +194,7 @@ interface Tunnel {
   portRangeMax?: number;
   remark?: string;
   trafficRatio?: number;
+  ceilingSpeed?: number | null;
   forwardSpeedLimit?: number | null;
 }
 interface ChainTunnel {
@@ -1913,6 +1914,13 @@ export default function ForwardPage() {
     if (u > 0) return u;
     return 0;
   }, [allTunnels, form.tunnelId, isAdmin, userForwardSpeedLimit]);
+  const currentTunnelCeilingSpeed = useMemo(() => {
+    if (isAdmin || !form.tunnelId) return 0;
+    const ceiling = allTunnels.find((tunnel) => tunnel.id === form.tunnelId)
+      ?.ceilingSpeed;
+
+    return typeof ceiling === "number" && ceiling > 0 ? ceiling : 0;
+  }, [allTunnels, form.tunnelId, isAdmin]);
   useEffect(() => {
     if (currentEffectiveSpeedLimit <= 0) return;
 
@@ -6819,6 +6827,7 @@ export default function ForwardPage() {
                         <div className="grid grid-cols-3 gap-2 mb-2">
                           <SpeedLimitConfigField
                             speedLimit={form.speedLimit}
+                            maxSpeed={currentTunnelCeilingSpeed}
                             readOnly={currentEffectiveSpeedLimit > 0}
                             onSpeedLimitChange={(val) =>
                               setForm((prev) => ({
@@ -8700,10 +8709,12 @@ function ConnectionLimitField({
 // ─── Speed Limit Config Field ──────────────────────────────────────────────
 function SpeedLimitConfigField({
   speedLimit,
+  maxSpeed = 0,
   readOnly = false,
   onSpeedLimitChange,
 }: {
   speedLimit: number;
+  maxSpeed?: number;
   readOnly?: boolean;
   onSpeedLimitChange: (val: number) => void;
 }) {
@@ -8716,6 +8727,7 @@ function SpeedLimitConfigField({
         readOnly={readOnly}
         type="number"
         min="1"
+        max={maxSpeed > 0 ? maxSpeed : undefined}
         step="1"
         value={speedLimit > 0 ? speedLimit.toString() : ""}
         variant="bordered"
@@ -8729,8 +8741,8 @@ function SpeedLimitConfigField({
           }
           const speed = Number(raw);
 
-          if (Number.isInteger(speed) && speed > 0) {
-            onSpeedLimitChange(speed);
+           if (Number.isInteger(speed) && speed > 0) {
+             onSpeedLimitChange(maxSpeed > 0 ? Math.min(speed, maxSpeed) : speed);
           }
         }}
       />

@@ -112,6 +112,7 @@ import { PageLoadingState } from "@/components/page-state";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { removeItemsById, replaceItemById } from "@/utils/list-state";
+import { JwtUtil } from "@/utils/jwt";
 
 // 扩展 User 类型，添加流量历史相关字段
 type UserWithHistory = User & {
@@ -246,6 +247,8 @@ const normalizeUserTunnelItem = (item: Partial<UserTunnel>): UserTunnel => {
 };
 
 export default function UserPage() {
+  const authenticatedUserId = JwtUtil.getUserIdFromToken();
+  const authenticatedUsername = JwtUtil.getUsernameFromToken();
   // 视图模式状态
   const [viewMode, setViewMode] = useState<"card" | "list">(() => {
     const stored = localStorage.getItem(USER_VIEW_MODE_KEY);
@@ -329,7 +332,7 @@ export default function UserPage() {
       autoBuyTrafficThreshold: number;
       autoBuyTrafficPackageType: "" | "package" | "custom";
       roleId: number;
-      forwardSpeedLimit: number;
+      forwardSpeedLimit: number | string;
     },
   );
   const [flowInput, setFlowInput] = useState("");
@@ -1039,22 +1042,22 @@ export default function UserPage() {
           prev.map((user) =>
             user.id === historyModalUser.id
               ? {
-                  ...user,
-                  quotaHistory: user.quotaHistory?.filter(
-                    (item) => item.id !== historyToDelete,
-                  ),
-                }
+                ...user,
+                quotaHistory: user.quotaHistory?.filter(
+                  (item) => item.id !== historyToDelete,
+                ),
+              }
               : user,
           ),
         );
         setHistoryModalUser((current) =>
           current?.id === historyModalUser.id
             ? {
-                ...current,
-                quotaHistory: current.quotaHistory?.filter(
-                  (item) => item.id !== historyToDelete,
-                ),
-              }
+              ...current,
+              quotaHistory: current.quotaHistory?.filter(
+                (item) => item.id !== historyToDelete,
+              ),
+            }
             : current,
         );
         onDeleteConfirmClose();
@@ -1148,6 +1151,17 @@ export default function UserPage() {
     setUserToDelete(user);
     onDeleteModalOpen();
   };
+  const getDeleteRestriction = (user: User | null) => {
+    if (!user || authenticatedUserId === null) return "无法确认当前登录账号";
+    if (user.id === authenticatedUserId) return "不能删除当前登录账号";
+    if (user.roleId === 0 && authenticatedUsername !== "admin") {
+      return "只有 admin 可以删除其他管理员账号";
+    }
+    return "";
+  };
+  const deleteRestriction = getDeleteRestriction(userToDelete);
+  const batchDeleteRestriction =
+    batchDeleteUserList.map(getDeleteRestriction).find(Boolean) || "";
   const handleConfirmDelete = async () => {
     if (!userToDelete) return;
     try {
@@ -1413,12 +1427,21 @@ export default function UserPage() {
     setEditTunnelForm({
       ...userTunnel,
       speedId: normalizeSpeedId(userTunnel.speedId),
+      ceilingSpeed: userTunnel.ceilingSpeed ?? 0,
+      forwardSpeedLimit: userTunnel.forwardSpeedLimit ?? 0,
       expTime: userTunnel.expTime,
     });
     onEditTunnelModalOpen();
   };
   const handleUpdateTunnel = async () => {
     if (!editTunnelForm) return;
+    if (
+      Number(editTunnelForm.ceilingSpeed) > 0 &&
+      Number(editTunnelForm.forwardSpeedLimit) > Number(editTunnelForm.ceilingSpeed)
+    ) {
+      toast.error("规则限速不能高于隧道限速阈值");
+      return;
+    }
     setEditTunnelLoading(true);
     try {
       const speedLimitAutoCleared = isMissingSpeedLimit(editTunnelForm.speedId);
@@ -1486,12 +1509,21 @@ export default function UserPage() {
     setBatchEditTunnelForm({
       ...firstTunnel,
       speedId: normalizeSpeedId(firstTunnel.speedId),
+      ceilingSpeed: firstTunnel.ceilingSpeed ?? 0,
+      forwardSpeedLimit: firstTunnel.forwardSpeedLimit ?? 0,
       expTime: firstTunnel.expTime,
     });
     onBatchEditTunnelModalOpen();
   };
   const handleBatchUpdateTunnels = async () => {
     if (!batchEditTunnelForm || selectedUserTunnelIds.size === 0) return;
+    if (
+      Number(batchEditTunnelForm.ceilingSpeed) > 0 &&
+      Number(batchEditTunnelForm.forwardSpeedLimit) > Number(batchEditTunnelForm.ceilingSpeed)
+    ) {
+      toast.error("规则限速不能高于隧道限速阈值");
+      return;
+    }
     setBatchEditTunnelLoading(true);
     try {
       const ids = Array.from(selectedUserTunnelIds);
@@ -2224,6 +2256,11 @@ export default function UserPage() {
                             >
                               @{user.user}
                             </span>
+                            {user.roleId === 0 ? (
+                              <Chip color="warning" size="sm" variant="flat">
+                                管理员
+                              </Chip>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -2256,7 +2293,7 @@ export default function UserPage() {
                           <div className="flex flex-col items-end gap-1">
                             <div className="flex items-center justify-end gap-1">
                               <span className="cursor-pointer text-sm font-medium text-primary">
-                              {formatFlow(usedFlow)}
+                                {formatFlow(usedFlow)}
                               </span>
                               <Button
                                 isIconOnly
@@ -2555,16 +2592,23 @@ export default function UserPage() {
                             </div>
                           </div>
                           <div className="flex justify-between items-center w-full mt-1">
-                            <span
-                              className="font-medium text-sm text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
-                              title={user.user}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                copyToClipboard(user.user, "用户名");
-                              }}
-                            >
-                              @{user.user}
-                            </span>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <span
+                                className="font-medium text-sm text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
+                                title={user.user}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(user.user, "用户名");
+                                }}
+                              >
+                                @{user.user}
+                              </span>
+                              {user.roleId === 0 ? (
+                                <Chip color="warning" size="sm" variant="flat">
+                                  管理员
+                                </Chip>
+                              ) : null}
+                            </div>
                             <span
                               className="text-sm text-default-500 truncate ml-2 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
                               title={user.name || user.user}
@@ -2957,6 +3001,7 @@ export default function UserPage() {
                 ))}
               </Select>
               <Input
+                description="限制用户账户的总流量"
                 label="可用流量(GB)"
                 max="99999"
                 min="0"
@@ -3016,6 +3061,7 @@ export default function UserPage() {
                 />
               </DatePicker>
               <Input
+                description="限制用户所有转发规则的数量"
                 label="规则数量"
                 max="99999"
                 min="0"
@@ -3035,22 +3081,18 @@ export default function UserPage() {
                 }}
               />
               <Input
-                description=""
-                label="规则限速"
-                placeholder="正整数 Mbps，留空不限"
+                description="限制用户所有转发规则的速率"
+                label="单规则限速 (Mbps)"
+                placeholder=""
                 min="1"
                 step="1"
                 type="number"
-                value={
-                  userForm.forwardSpeedLimit > 0
-                    ? String(userForm.forwardSpeedLimit)
-                    : ""
-                }
+                value={String(userForm.forwardSpeedLimit ?? "")}
                 onChange={(e) => {
                   const raw = e.target.value.trim();
 
                   if (raw === "") {
-                    setUserForm((prev) => ({ ...prev, forwardSpeedLimit: 0 }));
+                    setUserForm((prev) => ({ ...prev, forwardSpeedLimit: "" }));
 
                     return;
                   }
@@ -3062,9 +3104,9 @@ export default function UserPage() {
                 }}
               />
               <Input
-                description=""
+                description="1-31=日期 0=不归零"
                 label="流量归零日"
-                placeholder="留空不归零 1-31=日期"
+                placeholder="例：1"
                 max={31}
                 min={0}
                 type="number"
@@ -4333,6 +4375,7 @@ export default function UserPage() {
                     placeholder="留空允许用户自定义"
                     type="number"
                     min="1"
+                    max={batchEditTunnelForm.ceilingSpeed ?? undefined}
                     step="1"
                     value={
                       batchEditTunnelForm.forwardSpeedLimit != null
@@ -4463,8 +4506,9 @@ export default function UserPage() {
                 </DatePicker>
                 <div className="grid grid-cols-2 gap-4">
                   <Input
-                    label="隧道限速阈值 (Mbps)"
-                    placeholder="不限速"
+                    description="这是该用户在当前隧道的总速率，0 表示不限速"
+                    label="隧道总限速(Mbps)"
+                    placeholder=""
                     type="number"
                     min="1"
                     step="1"
@@ -4474,7 +4518,6 @@ export default function UserPage() {
                         : ""
                     }
                     variant="bordered"
-                    description="限制该用户在当前隧道的总带宽，留空不限速"
                     onChange={(e) => {
                       const raw = e.target.value;
                       setEditTunnelForm((prev) =>
@@ -4495,10 +4538,12 @@ export default function UserPage() {
                     }}
                   />
                   <Input
-                    label="规则限速 (Mbps)"
-                    placeholder="留空允许用户自定义"
+                    description="隧道内每条转发规则的速率，0 表示不限速"
+                    label="单规则限速(Mbps)"
+                    placeholder=""
                     type="number"
                     min="1"
+                    max={editTunnelForm.ceilingSpeed ?? undefined}
                     step="1"
                     value={
                       editTunnelForm.forwardSpeedLimit != null
@@ -4506,7 +4551,6 @@ export default function UserPage() {
                         : ""
                     }
                     variant="bordered"
-                    description="管理员强制规则限速；留空则用户可自行设置"
                     onChange={(e) => {
                       const raw = e.target.value;
                       setEditTunnelForm((prev) =>
@@ -4585,7 +4629,8 @@ export default function UserPage() {
                   吗？
                 </p>
                 <p className="text-small text-default-500 mt-1">
-                  此操作不可撤销，用户的所有数据将被永久删除。
+                  {deleteRestriction ||
+                    "此操作不可撤销，用户的所有数据将被永久删除。"}
                 </p>
               </div>
             </div>
@@ -4594,7 +4639,11 @@ export default function UserPage() {
             <Button variant="flat" onPress={onDeleteModalClose}>
               取消
             </Button>
-            <Button color="danger" onPress={handleConfirmDelete}>
+            <Button
+              color="danger"
+              isDisabled={Boolean(deleteRestriction)}
+              onPress={handleConfirmDelete}
+            >
               确认
             </Button>
           </ModalFooter>
@@ -4915,7 +4964,10 @@ export default function UserPage() {
             <Alert
               className="mt-4"
               color="danger"
-              description="删除后将同时删除该用户的所有隧道权限和相关配置"
+              description={
+                batchDeleteRestriction ||
+                "删除后将同时删除该用户的所有隧道权限和相关配置"
+              }
               title="警告"
               variant="flat"
             />
@@ -4926,6 +4978,7 @@ export default function UserPage() {
             </Button>
             <Button
               color="danger"
+              isDisabled={Boolean(batchDeleteRestriction)}
               isLoading={batchOperationLoading.delete}
               onPress={handleConfirmBatchDelete}
             >

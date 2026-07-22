@@ -1286,7 +1286,7 @@ func (r *Repository) ListUsers() ([]map[string]interface{}, error) {
 		return nil, errors.New("repository not initialized")
 	}
 	var users []model.User
-	if err := r.db.Where("role_id != ?", 0).Order("id DESC").Find(&users).Error; err != nil {
+	if err := r.db.Order("id DESC").Find(&users).Error; err != nil {
 		return nil, err
 	}
 	userIDs := make([]int64, 0, len(users))
@@ -1660,11 +1660,12 @@ func (r *Repository) ListUserAccessibleTunnels(userID int64) ([]map[string]inter
 		Name              string
 		Remark            sql.NullString
 		TrafficRatio      float64
+		CeilingSpeed      sql.NullInt64
 		ForwardSpeedLimit sql.NullInt64
 	}
 	var rows []row
 	err := r.db.Model(&model.UserTunnel{}).
-		Select("tunnel.id, tunnel.name, tunnel.remark, tunnel.traffic_ratio, user_tunnel.forward_speed_limit").
+		Select("tunnel.id, tunnel.name, tunnel.remark, tunnel.traffic_ratio, user_tunnel.ceiling_speed, user_tunnel.forward_speed_limit").
 		Joins("JOIN tunnel ON tunnel.id = user_tunnel.tunnel_id").
 		Where("user_tunnel.user_id = ? AND tunnel.status = 1", userID).
 		Order("tunnel.inx ASC, tunnel.id ASC").
@@ -1686,7 +1687,11 @@ func (r *Repository) ListUserAccessibleTunnels(userID int64) ([]map[string]inter
 			"name":              rw.Name,
 			"remark":            nullableString(rw.Remark),
 			"trafficRatio":      rw.TrafficRatio,
+			"ceilingSpeed":      nil,
 			"forwardSpeedLimit": nil,
+		}
+		if rw.CeilingSpeed.Valid {
+			item["ceilingSpeed"] = rw.CeilingSpeed.Int64
 		}
 		if rw.ForwardSpeedLimit.Valid {
 			item["forwardSpeedLimit"] = rw.ForwardSpeedLimit.Int64
