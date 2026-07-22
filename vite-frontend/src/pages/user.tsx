@@ -2865,6 +2865,7 @@ export default function UserPage() {
           <ModalBody>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <Input
+                autoComplete="off"
                 isRequired
                 label="用户名"
                 value={userForm.user}
@@ -2873,6 +2874,7 @@ export default function UserPage() {
                 }
               />
               <Input
+                autoComplete="new-password"
                 isRequired={!isEdit}
                 label="密码"
                 placeholder={isEdit ? "留空则不修改密码" : "请输入密码"}
