@@ -58,6 +58,48 @@ func TestPrepareSQLiteLegacyColumnsAddsNodeMetadataColumns(t *testing.T) {
 	}
 }
 
+func TestMigratePeerShareConsumerFlowColumnsAddsLegacyColumns(t *testing.T) {
+	db, err := gorm.Open(gsqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() {
+		sqlDB, _ := db.DB()
+		if sqlDB != nil {
+			_ = sqlDB.Close()
+		}
+	})
+
+	if err := db.Exec(`
+		CREATE TABLE peer_share (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			node_id INTEGER NOT NULL,
+			token TEXT NOT NULL,
+			max_bandwidth INTEGER DEFAULT 0,
+			current_flow INTEGER DEFAULT 0
+		)
+	`).Error; err != nil {
+		t.Fatalf("create legacy peer_share table: %v", err)
+	}
+
+	if err := migratePeerShareConsumerFlowColumns(db); err != nil {
+		t.Fatalf("migrate peer share consumer flow columns: %v", err)
+	}
+	for _, field := range []string{
+		"ConsumerFlowAuthority",
+		"ConsumerFlowEpoch",
+		"ConsumerTotalInFlow",
+		"ConsumerTotalOutFlow",
+	} {
+		if !db.Migrator().HasColumn(&model.PeerShare{}, field) {
+			t.Fatalf("expected peer_share.%s column to exist", field)
+		}
+	}
+}
+
 func TestMigrateSchemaRunsPostgresIDRepairEvenAtCurrentVersion(t *testing.T) {
 	db, err := gorm.Open(gsqlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),

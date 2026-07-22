@@ -334,6 +334,9 @@ func autoMigrateAll(db *gorm.DB) error {
 	if err := migratePeerShareConsumerPanelColumns(db); err != nil {
 		return fmt.Errorf("migrate peer share consumer panel columns: %w", err)
 	}
+	if err := migratePeerShareConsumerFlowColumns(db); err != nil {
+		return fmt.Errorf("migrate peer share consumer flow columns: %w", err)
+	}
 	models := []interface{}{
 		&model.User{},
 		&model.UserQuota{},
@@ -547,6 +550,26 @@ func migratePeerShareConsumerPanelColumns(db *gorm.DB) error {
 		return nil
 	}
 	for _, field := range []string{"ConsumerPanelURL", "ConsumerPanelToken"} {
+		if db.Migrator().HasColumn(&model.PeerShare{}, field) {
+			continue
+		}
+		if err := db.Migrator().AddColumn(&model.PeerShare{}, field); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migratePeerShareConsumerFlowColumns(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&model.PeerShare{}) {
+		return nil
+	}
+	for _, field := range []string{
+		"ConsumerFlowAuthority",
+		"ConsumerFlowEpoch",
+		"ConsumerTotalInFlow",
+		"ConsumerTotalOutFlow",
+	} {
 		if db.Migrator().HasColumn(&model.PeerShare{}, field) {
 			continue
 		}
