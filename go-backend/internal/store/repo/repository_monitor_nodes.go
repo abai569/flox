@@ -70,7 +70,7 @@ func (r *Repository) ListMonitorNodesByIDs(nodeIDs []int64) ([]model.Node, error
 	return nodes, err
 }
 
-func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNodeInstanceGroupRow, error) {
+func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64, includeRemote bool) ([]MonitorNodeInstanceGroupRow, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
@@ -117,8 +117,10 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64) ([]MonitorNo
 			nsi.disk_usage AS disk_usage
 		`).
 		Joins("JOIN node_instance AS nsi ON nsi.node_id = n.id").
-		Where("n.is_remote = ?", 0).
 		Where(where, args...)
+	if !includeRemote {
+		query = query.Where("n.is_remote = ?", 0)
+	}
 
 	if len(nodeIDs) > 0 {
 		query = query.Where("n.id IN ?", nodeIDs)

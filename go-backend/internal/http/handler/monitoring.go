@@ -718,7 +718,7 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 		}
 	}
 
-	rows, err := h.repo.ListMonitorNodeInstanceGroups(nodeIDs)
+	rows, err := h.repo.ListMonitorNodeInstanceGroups(nodeIDs, true)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
@@ -807,7 +807,7 @@ func (h *Handler) monitorPublicNodeInstanceGroupsHandler(w http.ResponseWriter, 
 		return
 	}
 
-	rows, err := h.repo.ListMonitorNodeInstanceGroups(nil)
+	rows, err := h.repo.ListMonitorNodeInstanceGroups(nil, false)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
