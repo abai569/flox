@@ -192,7 +192,7 @@ func (r *Repository) GetTunnelLocalTrafficAuthorityLayer(tunnelID int64) (string
 			return layer.name, nil
 		}
 	}
-	return "", errors.New("tunnel has no local traffic authority layer")
+	return "", errors.New("隧道没有可用于权威流量统计的本地节点层")
 }
 
 func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunnelID int64, inFlow, outFlow, rawIn, rawOut, sourceNodeID int64, sourceInstanceID string, nodes []ForwardTrafficNodeDelta) error {

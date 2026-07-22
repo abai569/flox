@@ -757,3 +757,12 @@ func TestBuildNftablesRulePayloads_ChainExitIPv6Target(t *testing.T) {
 		t.Fatalf("expected IPv6 target port 26200, got %d", exitRule.NextHopPort)
 	}
 }
+
+func TestIsEntryForwardPortSupportsLegacyAndCurrentValues(t *testing.T) {
+	if !isEntryForwardPort(0) || !isEntryForwardPort(1) {
+		t.Fatal("expected chain types 0 and 1 to be treated as entry ports")
+	}
+	if isEntryForwardPort(2) || isEntryForwardPort(3) {
+		t.Fatal("expected middle and exit ports not to be treated as entry ports")
+	}
+}

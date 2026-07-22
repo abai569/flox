@@ -1261,7 +1261,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 	forwardPorts, _ := h.listForwardPorts(forward.ID)
 	inPortByNode := make(map[int64]int)
 	for _, fp := range forwardPorts {
-		if fp.ChainType == 1 && fp.Port > 0 {
+		if isEntryForwardPort(fp.ChainType) && fp.Port > 0 {
 			inPortByNode[fp.NodeID] = fp.Port
 		}
 	}
@@ -1462,6 +1462,10 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 	}
 
 	return forward.Name, h.prepareDiagnosisWorkItems(workItems), nil
+}
+
+func isEntryForwardPort(chainType int) bool {
+	return chainType == 0 || chainType == 1
 }
 
 func (h *Handler) diagnoseTunnelRuntime(ctx context.Context, tunnelID int64) (map[string]interface{}, error) {

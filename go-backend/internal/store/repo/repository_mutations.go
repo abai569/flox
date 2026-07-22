@@ -1681,9 +1681,10 @@ func (r *Repository) DeleteForwardCascade(forwardID int64) error {
 }
 
 func (r *Repository) ReplaceForwardPorts(forwardID int64, entries []struct {
-	NodeID int64
-	Port   int
-	InIP   string
+	NodeID    int64
+	Port      int
+	InIP      string
+	ChainType int
 }) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
@@ -1703,6 +1704,7 @@ func (r *Repository) ReplaceForwardPorts(forwardID int64, entries []struct {
 				NodeID:    e.NodeID,
 				Port:      e.Port,
 				InIP:      sql.NullString{String: e.InIP, Valid: e.InIP != ""},
+				ChainType: e.ChainType,
 			})
 		}
 		return tx.Create(&rows).Error

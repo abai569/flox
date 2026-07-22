@@ -40,10 +40,10 @@ var tunnelRedeployLocks sync.Map
 
 func (h *Handler) ensureTunnelHasLocalTrafficAuthority(tunnelID int64) error {
 	if h == nil || h.repo == nil {
-		return errors.New("invalid traffic authority context")
+		return errors.New("流量统计配置无效")
 	}
 	if _, err := h.repo.GetTunnelLocalTrafficAuthorityLayer(tunnelID); err != nil {
-		return errors.New("tunnel must contain at least one local node for authoritative traffic accounting")
+		return errors.New("隧道必须至少包含一个本地节点，才能进行权威流量统计")
 	}
 	return nil
 }
@@ -2809,7 +2809,7 @@ func (h *Handler) syncTunnelForwardsEntryPorts(tunnelID int64, entryNodeIDs []in
 				if !allowInIP {
 					inIP = ""
 				}
-				entries = append(entries, forwardPortReplaceEntry{NodeID: nid, Port: existing.Port, InIP: inIP})
+				entries = append(entries, forwardPortReplaceEntry{NodeID: nid, Port: existing.Port, InIP: inIP, ChainType: existing.ChainType})
 				continue
 			}
 
@@ -2825,7 +2825,7 @@ func (h *Handler) syncTunnelForwardsEntryPorts(tunnelID int64, entryNodeIDs []in
 					}
 				}
 			}
-			entries = append(entries, forwardPortReplaceEntry{NodeID: nid, Port: port, InIP: inIP})
+			entries = append(entries, forwardPortReplaceEntry{NodeID: nid, Port: port, InIP: inIP, ChainType: 1})
 		}
 		_ = h.repo.ReplaceForwardPorts(f.ID, entries)
 	}
@@ -5639,7 +5639,7 @@ func (h *Handler) prepareTunnelCreateState(tx *gorm.DB, req map[string]interface
 		}
 	}
 	if !hasLocalNode {
-		return nil, errors.New("tunnel must contain at least one local node for authoritative traffic accounting")
+		return nil, errors.New("隧道必须至少包含一个本地节点，才能进行权威流量统计")
 	}
 	instances, err := h.repo.ListOnlineNodeInstancesByNodeIDsTx(tx, state.NodeIDList)
 	if err != nil {
@@ -7225,9 +7225,10 @@ func parsePorts(portRange string) ([]int, error) {
 }
 
 type forwardPortReplaceEntry = struct {
-	NodeID int64
-	Port   int
-	InIP   string
+	NodeID    int64
+	Port      int
+	InIP      string
+	ChainType int
 }
 
 func (h *Handler) replaceForwardPorts(forwardID, tunnelID int64, port int, inIp string) error {
@@ -7237,7 +7238,7 @@ func (h *Handler) replaceForwardPorts(forwardID, tunnelID int64, port int, inIp 
 	}
 	entries := make([]forwardPortReplaceEntry, len(entryNodes))
 	for i, nid := range entryNodes {
-		entries[i] = forwardPortReplaceEntry{NodeID: nid, Port: port, InIP: inIp}
+		entries[i] = forwardPortReplaceEntry{NodeID: nid, Port: port, InIP: inIp, ChainType: 1}
 	}
 	return h.repo.ReplaceForwardPorts(forwardID, entries)
 }
@@ -7245,7 +7246,7 @@ func (h *Handler) replaceForwardPorts(forwardID, tunnelID int64, port int, inIp 
 func (h *Handler) replaceForwardPortsWithRecords(forwardID int64, ports []forwardPortRecord) error {
 	entries := make([]forwardPortReplaceEntry, len(ports))
 	for i, fp := range ports {
-		entries[i] = forwardPortReplaceEntry{NodeID: fp.NodeID, Port: fp.Port, InIP: fp.InIP}
+		entries[i] = forwardPortReplaceEntry{NodeID: fp.NodeID, Port: fp.Port, InIP: fp.InIP, ChainType: fp.ChainType}
 	}
 	return h.repo.ReplaceForwardPorts(forwardID, entries)
 }
