@@ -49,6 +49,9 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 	if serviceName == "" || serviceName == "web_api" {
 		return nil
 	}
+	if tunnelID, ok := parseTunnelTrafficServiceID(serviceName); ok {
+		return h.repo.AddLocalTunnelInstanceTraffic(tunnelID, nodeID, instanceID, item.D, item.U)
+	}
 	if shareID, ok := parseRemShareServiceName(serviceName); ok {
 		if item.D+item.U <= 0 {
 			return nil
@@ -163,6 +166,15 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		return nil
 	}
 	return h.processPeerShareFlow(runtimeID, instanceID, item)
+}
+
+func parseTunnelTrafficServiceID(serviceName string) (int64, bool) {
+	serviceName = strings.TrimSpace(serviceName)
+	if !strings.HasSuffix(serviceName, "_tls") {
+		return 0, false
+	}
+	tunnelID, err := strconv.ParseInt(strings.TrimSuffix(serviceName, "_tls"), 10, 64)
+	return tunnelID, err == nil && tunnelID > 0
 }
 
 func forwardTrafficNodeDeltas(topology *repo.ForwardTrafficTopology, rawIn, rawOut int64) []repo.ForwardTrafficNodeDelta {

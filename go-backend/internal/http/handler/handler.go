@@ -1707,6 +1707,7 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 	}
 	type relayMatch struct {
 		item         flowItem
+		itemIndex    int
 		shareID      int64
 		userID       int64
 		userTunnelID int64
@@ -1715,7 +1716,7 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 		topology     *repo.ForwardTrafficTopology
 	}
 	matches := make([]relayMatch, 0, len(payload.Items))
-	for _, item := range payload.Items {
+	for itemIndex, item := range payload.Items {
 		serviceName := strings.TrimSpace(item.N)
 		shareID, forwardID, userID, userTunnelID, ok := parseRelayedForwardServiceName(serviceName)
 		if !ok {
@@ -1753,29 +1754,19 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "flow topology rejected", http.StatusConflict)
 				return
 			}
-			authoritySource := false
-			for _, trafficNode := range topology.Nodes {
-				if trafficNode.NodeID == node.ID {
-					authoritySource = trafficNode.AuthoritySource
-					break
-				}
-			}
-			if !authoritySource {
-				continue
-			}
-			match = &relayMatch{item: item, shareID: shareID, userID: userID, userTunnelID: userTunnelID, nodeID: node.ID, forwardID: forward.ID, topology: topology}
+			match = &relayMatch{item: item, itemIndex: itemIndex, shareID: shareID, userID: userID, userTunnelID: userTunnelID, nodeID: node.ID, forwardID: forward.ID, topology: topology}
 		}
 		if match == nil {
 			continue
 		}
 		matches = append(matches, *match)
 	}
-	for itemIndex, match := range matches {
+	for _, match := range matches {
 		inFlow := int64(math.Round(float64(match.item.D) * match.topology.TotalRatio))
 		outFlow := int64(math.Round(float64(match.item.U) * match.topology.TotalRatio))
 		deltas := forwardTrafficNodeDeltas(match.topology, match.item.D, match.item.U)
 		sourceID := fmt.Sprintf("share:%d", match.shareID)
-		processed, err := h.processReportedFlowItem("relay", sourceID, payload.ReportID, itemIndex, func(itemHandler *Handler) error {
+		processed, err := h.processReportedFlowItem("relay", sourceID, payload.ReportID, match.itemIndex, func(itemHandler *Handler) error {
 			if err := itemHandler.repo.AddAuthoritativeForwardTraffic(match.forwardID, match.userID, match.userTunnelID, inFlow, outFlow, match.item.D, match.item.U, match.nodeID, match.item.I, deltas); err != nil {
 				return err
 			}

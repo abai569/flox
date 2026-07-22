@@ -370,11 +370,7 @@ func ParseService(cfg *config.ServiceConfig) (service.Service, error) {
 		return nil, err
 	}
 	var observer observer.Observer
-	// Local tunnel relay traffic is accounted by its forward services. Remote
-	// relays have no local forward observer, so they must keep this observer.
-	if strings.HasSuffix(cfg.Name, "_tls") && !strings.HasPrefix(cfg.Name, "rem_") {
-		observer = nil
-	} else if cfg.Observer != "" {
+	if cfg.Observer != "" {
 		observer = registry.ObserverRegistry().Get(cfg.Observer)
 	} else if pStats != nil {
 		observer = registry.ObserverRegistry().Get("console")

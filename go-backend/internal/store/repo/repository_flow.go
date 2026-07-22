@@ -331,6 +331,59 @@ func (r *Repository) AddNonAuthoritativeLocalForwardInstanceTraffic(forwardID, n
 	})
 }
 
+func (r *Repository) AddLocalTunnelInstanceTraffic(tunnelID, nodeID int64, instanceID string, rawIn, rawOut int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = strings.TrimSpace(instanceID)
+	if tunnelID <= 0 || nodeID <= 0 || instanceID == "" {
+		return errors.New("tunnel, node, and instance are required")
+	}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var node struct {
+			ID           int64
+			IsRemote     int
+			TrafficRatio float64
+		}
+		if err := tx.Model(&model.Node{}).Select("id, is_remote, traffic_ratio").Where("id = ?", nodeID).Scan(&node).Error; err != nil {
+			return err
+		}
+		if node.ID == 0 {
+			return errors.New("node not found")
+		}
+		if node.IsRemote == 1 {
+			return errors.New("node is not local")
+		}
+		var count int64
+		if err := tx.Model(&model.ChainTunnel{}).
+			Where("tunnel_id = ? AND node_id = ? AND chain_type IN ?", tunnelID, nodeID, []string{"2", "3"}).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return errors.New("node is not a local tunnel relay")
+		}
+		ratio := node.TrafficRatio
+		if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio <= 0 {
+			ratio = 1
+		}
+		inFlow := int64(math.Round(float64(rawIn) * ratio))
+		outFlow := int64(math.Round(float64(rawOut) * ratio))
+		result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+			Updates(map[string]interface{}{
+				"total_in_flow":  gorm.Expr("total_in_flow + ?", inFlow),
+				"total_out_flow": gorm.Expr("total_out_flow + ?", outFlow),
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return errors.New("node instance not found")
+		}
+		return nil
+	})
+}
+
 func (r *Repository) UpdateForwardStatus(forwardID int64, status int, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
