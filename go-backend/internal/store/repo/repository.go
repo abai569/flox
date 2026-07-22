@@ -724,7 +724,7 @@ func prepareSQLiteLegacyColumns(db *gorm.DB) error {
 			"UDPListenAddr", "Inx", "IsRemote", "RemoteURL", "RemoteToken", "RemoteConfig",
 			"RemoteInstancesUpdatedTime", "ExpiryReminderDismissed", "ExpiryReminderDismissedUntil",
 			"GroupID", "ServiceName", "TrafficLimit", "TotalInFlow", "TotalOutFlow", "Paused",
-			"Weight", "TrafficNotifiedMask", "FlowResetTime", "MimicStatus", "MimicError", "MimicUpdatedAt",
+			"AuthoritativeFlowEpoch", "Weight", "TrafficNotifiedMask", "FlowResetTime", "MimicStatus", "MimicError", "MimicUpdatedAt",
 		} {
 			if m.HasColumn(&model.Node{}, field) {
 				continue

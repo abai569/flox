@@ -444,7 +444,7 @@ export function VersionFooter({
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm w-full">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm w-full">
                     <div className="text-default-500 text-left">
                       当前版本：
                       <span className="font-medium text-default-900 dark:text-white">
@@ -458,9 +458,6 @@ export function VersionFooter({
                       </span>
                     </div>
                   </div>
-                  <div className="text-sm text-default-500">
-                    是否立即升级面板？
-                  </div>
                   <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 list-disc list-outside pl-4 text-xs text-danger-600/80 dark:text-danger-400/80">
                     <p className="list-item">
                       升级前自动备份配置和数据库，最近 5 次保存在
@@ -473,6 +470,9 @@ export function VersionFooter({
                     </p>
                     <p className="list-item">回滚结果需要管理员手动确认</p>
                     <p className="list-item">请确保磁盘空间和服务器网络稳定</p>
+                  </div>
+                  <div className="text-sm text-default-500">
+                    是否立即升级面板？
                   </div>
                 </div>
               </ModalBody>
@@ -587,7 +587,7 @@ export function VersionFooter({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm w-full">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm w-full">
                       <div className="text-default-500 text-left">
                         当前版本：
                         <span className="font-medium text-default-900 dark:text-white">
@@ -649,6 +649,9 @@ export function VersionFooter({
                       <p className="list-item">请确保服务器网络连接稳定</p>
                       <p className="list-item">请确保服务器磁盘空间充足</p>
                     </div>
+                    <div className="text-sm text-default-500">
+                    是否立即升级面板？
+                  </div> 
                   </div>
                 )}
               </ModalBody>
