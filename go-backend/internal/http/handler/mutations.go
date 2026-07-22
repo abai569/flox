@@ -548,20 +548,6 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roleID, err := h.repo.GetUserRoleID(id)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			response.WriteJSON(w, response.ErrDefault("用户不存在"))
-			return
-		}
-		response.WriteJSON(w, response.Err(-2, err.Error()))
-		return
-	}
-	if roleID == 0 {
-		response.WriteJSON(w, response.ErrDefault("请不要作死"))
-		return
-	}
-
 	dup, err := h.repo.UserExistsExcluding(username, id)
 	if err != nil {
 		response.WriteJSON(w, response.Err(-2, err.Error()))
