@@ -785,8 +785,19 @@ func (r *Repository) GetUserByID(id int64) (*model.User, error) {
 	if r == nil || r.db == nil {
 		return nil, errors.New("repository not initialized")
 	}
+	return getUserByID(r.db, id)
+}
+
+func (r *Repository) GetUserByIDTx(tx *gorm.DB, id int64) (*model.User, error) {
+	if tx == nil {
+		return nil, errors.New("database unavailable")
+	}
+	return getUserByID(tx, id)
+}
+
+func getUserByID(db *gorm.DB, id int64) (*model.User, error) {
 	var user model.User
-	err := r.db.Where("id = ?", id).First(&user).Error
+	err := db.Where("id = ?", id).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}

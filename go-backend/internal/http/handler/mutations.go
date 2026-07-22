@@ -1933,7 +1933,7 @@ func (h *Handler) tunnelCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if actorRoleID != 0 {
-		user, err := h.repo.GetUserByID(actorUserID)
+		user, err := h.repo.GetUserByIDTx(tx, actorUserID)
 		if err != nil || user == nil {
 			response.WriteJSON(w, response.ErrDefault("用户不存在"))
 			return
