@@ -250,8 +250,10 @@ type WebSocketReporter struct {
 	mimicDaemonsMu        sync.Mutex
 }
 
-var wsDial = func(dialer *websocket.Dialer, rawURL string) (*websocket.Conn, *http.Response, error) {
-	return dialer.Dial(rawURL, nil)
+var wsDial = func(dialer *websocket.Dialer, rawURL, secret string) (*websocket.Conn, *http.Response, error) {
+	header := http.Header{}
+	header.Set("Authorization", secret)
+	return dialer.Dial(rawURL, header)
 }
 
 // NewWebSocketReporter 创建一个新的WebSocket报告器
@@ -401,7 +403,7 @@ func (w *WebSocketReporter) connect() error {
 	dialer := websocket.DefaultDialer
 	dialer.HandshakeTimeout = 10 * time.Second
 
-	conn, usedURL, err := dialWebSocketWithFallback(dialer, candidates)
+	conn, usedURL, err := dialWebSocketWithFallback(dialer, candidates, w.secret)
 	if err != nil {
 		return err
 	}
@@ -884,26 +886,22 @@ func buildWebSocketCandidates(addr string, secret string, version string, http i
 		normalizedAddr = strings.TrimSpace(addr)
 	}
 
-	query := "/system-info?type=1&secret=" + url.QueryEscape(secret) + "&version=" + url.QueryEscape(version) +
+	_ = secret
+	query := "/system-info?type=1&version=" + url.QueryEscape(version) +
 		"&http=" + strconv.Itoa(http) + "&tls=" + strconv.Itoa(tls) + "&socks=" + strconv.Itoa(socks) +
 		"&blockOther=" + strconv.Itoa(blockOther)
 	if strings.TrimSpace(instanceID) != "" {
 		query += "&instance_id=" + url.QueryEscape(strings.TrimSpace(instanceID))
 	}
 
-	schemes := []string{"wss", "ws"}
+	scheme := "wss"
 	if mappedScheme := mapToWebSocketScheme(explicitScheme); mappedScheme != "" {
-		if mappedScheme == "ws" {
-			schemes = []string{"ws", "wss"}
-		}
+		scheme = mappedScheme
 	} else if preferredScheme == "ws" {
-		schemes = []string{"ws", "wss"}
+		scheme = "ws"
 	}
 
-	return []string{
-		schemes[0] + "://" + normalizedAddr + query,
-		schemes[1] + "://" + normalizedAddr + query,
-	}
+	return []string{scheme + "://" + normalizedAddr + query}
 }
 
 func normalizeReporterAddress(addr string) (string, string) {
@@ -950,14 +948,14 @@ func detectWebSocketScheme(rawURL string) string {
 	return ""
 }
 
-func dialWebSocketWithFallback(dialer *websocket.Dialer, candidates []string) (*websocket.Conn, string, error) {
+func dialWebSocketWithFallback(dialer *websocket.Dialer, candidates []string, secret string) (*websocket.Conn, string, error) {
 	if len(candidates) == 0 {
 		return nil, "", fmt.Errorf("WebSocket候选地址为空")
 	}
 
 	var errs []string
 	for i, targetURL := range candidates {
-		conn, resp, err := wsDial(dialer, targetURL)
+		conn, resp, err := wsDial(dialer, targetURL, secret)
 		if err == nil {
 			if i > 0 {
 				fmt.Printf("↪️ WebSocket已自动回退成功: %s\n", sanitizeWebSocketURL(targetURL))
@@ -966,14 +964,7 @@ func dialWebSocketWithFallback(dialer *websocket.Dialer, candidates []string) (*
 		}
 		errMsg := formatWebSocketDialError(err, resp)
 		errs = append(errs, fmt.Sprintf("%s => %s", sanitizeWebSocketURL(targetURL), errMsg))
-		if i < len(candidates)-1 {
-			fmt.Printf(
-				"⚠️ WebSocket连接失败，准备从 %s 回退到 %s: %s\n",
-				strings.ToUpper(detectWebSocketScheme(targetURL)),
-				strings.ToUpper(detectWebSocketScheme(candidates[i+1])),
-				errMsg,
-			)
-		}
+		_ = i
 	}
 
 	return nil, "", fmt.Errorf("连接WebSocket失败（已尝试%d种协议）: %s", len(candidates), strings.Join(errs, " | "))
@@ -1688,13 +1679,7 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 		}
 	}()
 
-	jsonBytes, errs := json.Marshal(cmd)
-	if errs != nil {
-		fmt.Println("Error marshaling JSON:", errs)
-		return
-	}
-
-	fmt.Println("🔔 收到命令: ", string(jsonBytes))
+	fmt.Printf("received command type=%s request_id=%s\n", cmd.Type, cmd.RequestId)
 	var err error
 	var response CommandResponse
 	var needSaveConfig bool // 标记是否需要保存配置（只有状态变更命令才需要）

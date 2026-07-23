@@ -13,75 +13,60 @@ import (
 func TestBuildWebSocketCandidatesSecureFirst(t *testing.T) {
 	candidates := buildWebSocketCandidates("panel.example.com:443", "abc", "2.0.2", 1, 0, 1, 0, "", "")
 
-	if len(candidates) != 2 {
-		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	if len(candidates) != 1 {
+		t.Fatalf("expected 1 candidate, got %d", len(candidates))
 	}
 	if !strings.HasPrefix(candidates[0], "wss://") {
 		t.Fatalf("expected first candidate to start with wss://, got %s", candidates[0])
-	}
-	if !strings.HasPrefix(candidates[1], "ws://") {
-		t.Fatalf("expected second candidate to start with ws://, got %s", candidates[1])
 	}
 }
 
 func TestBuildWebSocketCandidatesUsesPreferredScheme(t *testing.T) {
 	candidates := buildWebSocketCandidates("panel.example.com:443", "abc", "2.0.2", 1, 0, 1, 0, "ws", "")
 
-	if len(candidates) != 2 {
-		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	if len(candidates) != 1 {
+		t.Fatalf("expected 1 candidate, got %d", len(candidates))
 	}
 	if !strings.HasPrefix(candidates[0], "ws://") {
 		t.Fatalf("expected preferred ws:// candidate first, got %s", candidates[0])
-	}
-	if !strings.HasPrefix(candidates[1], "wss://") {
-		t.Fatalf("expected fallback wss:// candidate second, got %s", candidates[1])
 	}
 }
 
 func TestBuildWebSocketCandidatesNormalizesSchemePrefixedAddr(t *testing.T) {
 	candidates := buildWebSocketCandidates("https://panel.example.com:443/path?q=1", "abc", "2.0.2", 0, 0, 0, 0, "", "")
 
-	if len(candidates) != 2 {
-		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	if len(candidates) != 1 {
+		t.Fatalf("expected 1 candidate, got %d", len(candidates))
 	}
 	if !strings.HasPrefix(candidates[0], "wss://panel.example.com:443/") {
 		t.Fatalf("expected normalized wss candidate, got %s", candidates[0])
 	}
-	if !strings.HasPrefix(candidates[1], "ws://panel.example.com:443/") {
-		t.Fatalf("expected normalized ws fallback candidate, got %s", candidates[1])
-	}
 }
 
-func TestDialWebSocketWithFallbackTriesWSAfterWSSFailure(t *testing.T) {
+func TestDialWebSocketDoesNotFallbackToWS(t *testing.T) {
 	orig := wsDial
 	defer func() { wsDial = orig }()
 
 	var attempts []string
-	wsDial = func(_ *websocket.Dialer, rawURL string) (*websocket.Conn, *http.Response, error) {
+	wsDial = func(_ *websocket.Dialer, rawURL, _ string) (*websocket.Conn, *http.Response, error) {
 		attempts = append(attempts, rawURL)
 		if strings.HasPrefix(rawURL, "wss://") {
 			return nil, nil, errors.New("tls failed")
 		}
-		return &websocket.Conn{}, nil, nil
+		return nil, nil, errors.New("connection failed")
 	}
 
 	_, usedURL, err := dialWebSocketWithFallback(
 		&websocket.Dialer{},
-		[]string{
-			"wss://panel.example.com/system-info?type=1&secret=abc",
-			"ws://panel.example.com/system-info?type=1&secret=abc",
-		},
+		[]string{"wss://panel.example.com/system-info?type=1"}, "abc",
 	)
-	if err != nil {
-		t.Fatalf("expected fallback success, got err=%v", err)
+	if err == nil || usedURL != "" {
+		t.Fatalf("expected secure connection failure, url=%s err=%v", usedURL, err)
 	}
-	if !strings.HasPrefix(usedURL, "ws://") {
-		t.Fatalf("expected fallback ws:// url, got %s", usedURL)
+	if len(attempts) != 1 {
+		t.Fatalf("expected 1 attempt, got %d", len(attempts))
 	}
-	if len(attempts) != 2 {
-		t.Fatalf("expected 2 attempts, got %d", len(attempts))
-	}
-	if !strings.HasPrefix(attempts[0], "wss://") || !strings.HasPrefix(attempts[1], "ws://") {
+	if !strings.HasPrefix(attempts[0], "wss://") {
 		t.Fatalf("unexpected attempt order: %#v", attempts)
 	}
 }

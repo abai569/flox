@@ -520,7 +520,10 @@ func (s *Server) publishNodeMessage(msg NodeMessage) {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	typeVal := query.Get("type")
-	secret := query.Get("secret")
+	secret := strings.TrimSpace(r.Header.Get("Authorization"))
+	if secret == "" {
+		secret = query.Get("secret")
+	}
 
 	if typeVal == "1" {
 		node, err := s.repo.GetNodeBySecret(secret)

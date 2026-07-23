@@ -22,7 +22,7 @@ const defaultLicenseServerURL = "https://sq.abai.eu.org"
 func main() {
 	cfg := config.FromEnv()
 	if cfg.JWTSecret == "" {
-		log.Println("warning: JWT_SECRET is empty")
+		log.Fatal("JWT_SECRET must be configured")
 	}
 
 	// 容错逻辑 1：如果环境变量未配置授权，尝试从数据库回退读取
