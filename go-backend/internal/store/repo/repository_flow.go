@@ -268,11 +268,11 @@ func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunne
 			if node.NodeID != sourceNodeID || sourceInstanceID == "" {
 				continue
 			}
-			result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", sourceNodeID, sourceInstanceID).
-				Updates(map[string]interface{}{
-					"total_in_flow":  gorm.Expr("total_in_flow + ?", node.InFlow),
-					"total_out_flow": gorm.Expr("total_out_flow + ?", node.OutFlow),
-				})
+		result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", sourceNodeID, sourceInstanceID).
+			Updates(map[string]interface{}{
+				"total_in_flow":  gorm.Expr("total_in_flow + ?", rawIn),
+				"total_out_flow": gorm.Expr("total_out_flow + ?", rawOut),
+			})
 			if result.Error != nil {
 				return result.Error
 			}
@@ -363,16 +363,10 @@ func (r *Repository) AddLocalTunnelInstanceTraffic(tunnelID, nodeID int64, insta
 		if count == 0 {
 			return errors.New("node is not a local tunnel relay")
 		}
-		ratio := node.TrafficRatio
-		if math.IsNaN(ratio) || math.IsInf(ratio, 0) || ratio <= 0 {
-			ratio = 1
-		}
-		inFlow := int64(math.Round(float64(rawIn) * ratio))
-		outFlow := int64(math.Round(float64(rawOut) * ratio))
 		result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
 			Updates(map[string]interface{}{
-				"total_in_flow":  gorm.Expr("total_in_flow + ?", inFlow),
-				"total_out_flow": gorm.Expr("total_out_flow + ?", outFlow),
+				"total_in_flow":  gorm.Expr("total_in_flow + ?", rawIn),
+				"total_out_flow": gorm.Expr("total_out_flow + ?", rawOut),
 			})
 		if result.Error != nil {
 			return result.Error
