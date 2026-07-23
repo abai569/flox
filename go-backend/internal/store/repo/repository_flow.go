@@ -239,28 +239,42 @@ func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunne
 				}).Error; err != nil {
 				return err
 			}
-			var instances []model.NodeInstance
-			where, args := validNodeInstanceWhere()
-			if err := tx.Where("node_id = ? AND status = 1 AND weight > 0", node.NodeID).
-				Where("(expiry_time IS NULL OR expiry_time <= 0 OR expiry_time > ?)", time.Now().UnixMilli()).
-				Where(where, args...).Order("display_index ASC, instance_id ASC").Find(&instances).Error; err != nil {
-				return err
-			}
-			for index, instance := range instances {
-				instanceIn := rawIn / int64(len(instances))
-				instanceOut := rawOut / int64(len(instances))
-				if int64(index) < rawIn%int64(len(instances)) {
-					instanceIn++
-				}
-				if int64(index) < rawOut%int64(len(instances)) {
-					instanceOut++
-				}
-				if err := tx.Model(&model.NodeInstance{}).Where("id = ?", instance.ID).Updates(map[string]interface{}{
-					"total_in_flow":  gorm.Expr("total_in_flow + ?", instanceIn),
-					"total_out_flow": gorm.Expr("total_out_flow + ?", instanceOut),
-				}).Error; err != nil {
+			if node.IsRemote {
+				var instances []model.NodeInstance
+				where, args := validNodeInstanceWhere()
+				if err := tx.Where("node_id = ? AND status = 1 AND weight > 0", node.NodeID).
+					Where("(expiry_time IS NULL OR expiry_time <= 0 OR expiry_time > ?)", time.Now().UnixMilli()).
+					Where(where, args...).Order("display_index ASC, instance_id ASC").Find(&instances).Error; err != nil {
 					return err
 				}
+				for index, instance := range instances {
+					instanceIn := rawIn / int64(len(instances))
+					instanceOut := rawOut / int64(len(instances))
+					if int64(index) < rawIn%int64(len(instances)) {
+						instanceIn++
+					}
+					if int64(index) < rawOut%int64(len(instances)) {
+						instanceOut++
+					}
+					if err := tx.Model(&model.NodeInstance{}).Where("id = ?", instance.ID).Updates(map[string]interface{}{
+						"total_in_flow":  gorm.Expr("total_in_flow + ?", instanceIn),
+						"total_out_flow": gorm.Expr("total_out_flow + ?", instanceOut),
+					}).Error; err != nil {
+						return err
+					}
+				}
+				continue
+			}
+			if node.NodeID != sourceNodeID || sourceInstanceID == "" {
+				continue
+			}
+			result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", sourceNodeID, sourceInstanceID).
+				Updates(map[string]interface{}{
+					"total_in_flow":  gorm.Expr("total_in_flow + ?", rawIn),
+					"total_out_flow": gorm.Expr("total_out_flow + ?", rawOut),
+				})
+			if result.Error != nil {
+				return result.Error
 			}
 		}
 		return nil
@@ -349,31 +363,16 @@ func (r *Repository) AddLocalTunnelInstanceTraffic(tunnelID, nodeID int64, insta
 		if count == 0 {
 			return errors.New("node is not a local tunnel relay")
 		}
-		var instances []model.NodeInstance
-		where, args := validNodeInstanceWhere()
-		if err := tx.Where("node_id = ? AND status = 1 AND weight > 0", nodeID).
-			Where("(expiry_time IS NULL OR expiry_time <= 0 OR expiry_time > ?)", time.Now().UnixMilli()).
-			Where(where, args...).Order("display_index ASC, instance_id ASC").Find(&instances).Error; err != nil {
-			return err
+		result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+			Updates(map[string]interface{}{
+				"total_in_flow":  gorm.Expr("total_in_flow + ?", rawIn),
+				"total_out_flow": gorm.Expr("total_out_flow + ?", rawOut),
+			})
+		if result.Error != nil {
+			return result.Error
 		}
-		if len(instances) == 0 {
+		if result.RowsAffected != 1 {
 			return errors.New("node instance not found")
-		}
-		for index, instance := range instances {
-			instanceIn := rawIn / int64(len(instances))
-			instanceOut := rawOut / int64(len(instances))
-			if int64(index) < rawIn%int64(len(instances)) {
-				instanceIn++
-			}
-			if int64(index) < rawOut%int64(len(instances)) {
-				instanceOut++
-			}
-			if err := tx.Model(&model.NodeInstance{}).Where("id = ?", instance.ID).Updates(map[string]interface{}{
-				"total_in_flow":  gorm.Expr("total_in_flow + ?", instanceIn),
-				"total_out_flow": gorm.Expr("total_out_flow + ?", instanceOut),
-			}).Error; err != nil {
-				return err
-			}
 		}
 		return nil
 	})
