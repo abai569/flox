@@ -1970,6 +1970,20 @@ func (r *Repository) CompletePackageOrder(userID int64, userName string, order *
 					return err
 				}
 			}
+			if err := tx.Create(&model.UserTrafficBuyLog{
+				UserID:        userID,
+				UserName:      userName,
+				BuyAmount:     trafficGB,
+				BuyPrice:      order.Amount,
+				BalanceBefore: user.Balance + order.Amount,
+				BalanceAfter:  user.Balance,
+				FlowBefore:    user.Flow,
+				FlowAfter:     user.Flow + trafficGB,
+				BuyTime:       now,
+				Reason:        "余额购买流量套餐",
+			}).Error; err != nil {
+				return err
+			}
 		default: // subscription
 			// 4a. Deactivate old active subscriptions
 			if err := tx.Model(&model.PackageSubscription{}).
@@ -2211,17 +2225,26 @@ func (r *Repository) DeliverBalancePackageToUser(userID int64, amountCents int64
 		return errors.New("repository not initialized")
 	}
 	now := time.Now().UnixMilli()
-	totalAmount := amountCents
-	user, err := r.GetUserByID(userID)
-	if err != nil {
-		return err
-	}
-	if err := r.IncreaseUserBalance(userID, totalAmount); err != nil {
-		return err
-	}
-	if err := r.CreateBalanceLog(userID, user.User, totalAmount,
-		user.Balance, user.Balance+totalAmount,
-		now, "余额充值:"+pkgName); err != nil {
+	if err := r.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).
+			Update("balance", gorm.Expr("balance + ?", amountCents)).Error; err != nil {
+			return err
+		}
+		return tx.Create(&model.BalanceLog{
+			UserID:        userID,
+			UserName:      user.User,
+			Amount:        amountCents,
+			BalanceBefore: user.Balance,
+			BalanceAfter:  user.Balance + amountCents,
+			Reason:        "余额充值:" + pkgName,
+			CreatedTime:   now,
+			Signature:     SignBalanceLog(userID, amountCents, user.Balance, user.Balance+amountCents, now, "余额充值:"+pkgName),
+		}).Error
+	}); err != nil {
 		return err
 	}
 	r.TryAutoRenewForUser(userID)
@@ -2295,6 +2318,11 @@ func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, 
 		return err
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+		newFlow := user.Flow + totalGB
 		if err := tx.Model(&model.User{}).
 			Where("id = ?", userID).
 			Updates(map[string]interface{}{
@@ -2306,15 +2334,25 @@ func (r *Repository) DeliverTrafficPackageToUser(userID int64, trafficGB int64, 
 			}).Error; err != nil {
 			return err
 		}
+		if err := tx.Create(&model.UserTrafficBuyLog{
+			UserID:        userID,
+			UserName:      user.User,
+			BuyAmount:     totalGB,
+			BuyPrice:      price * quantity,
+			BalanceBefore: user.Balance,
+			BalanceAfter:  user.Balance,
+			FlowBefore:    user.Flow,
+			FlowAfter:     newFlow,
+			BuyTime:       time.Now().UnixMilli(),
+			Reason:        "购买流量套餐",
+		}).Error; err != nil {
+			return err
+		}
 		if err := addTrafficToExistingUserTunnels(tx, userID, totalGB); err != nil {
 			return err
 		}
 		if len(tunnelIDs) == 0 {
 			return nil
-		}
-		var user model.User
-		if err := tx.Select("exp_time, flow_reset_time").Where("id = ?", userID).First(&user).Error; err != nil {
-			return err
 		}
 		return addMissingTrafficUserTunnels(tx, userID, tunnelIDs, totalGB, user.ExpTime, user.FlowResetTime)
 	})
