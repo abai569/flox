@@ -644,23 +644,25 @@ type BackupData struct {
 }
 
 type UserBackup struct {
-	ID              int64  `json:"id"`
-	User            string `json:"user"`
-	Pwd             string `json:"pwd"`
-	RoleID          int    `json:"roleId"`
-	ExpTime         int64  `json:"expTime"`
-	Flow            int64  `json:"flow"`
-	InFlow          int64  `json:"inFlow"`
-	OutFlow         int64  `json:"outFlow"`
-	FlowResetTime   int64  `json:"flowResetTime"`
-	DailyQuotaGB    int64  `json:"dailyQuotaGB,omitempty"`
-	MonthlyQuotaGB  int64  `json:"monthlyQuotaGB,omitempty"`
-	DisabledByQuota int    `json:"disabledByQuota,omitempty"`
-	QuotaDisabledAt int64  `json:"quotaDisabledAt,omitempty"`
-	Num             int    `json:"num"`
-	CreatedTime     int64  `json:"createdTime"`
-	UpdatedTime     int64  `json:"updatedTime,omitempty"`
-	Status          int    `json:"status"`
+	ID                int64  `json:"id"`
+	User              string `json:"user"`
+	Pwd               string `json:"pwd"`
+	RoleID            int    `json:"roleId"`
+	ExpTime           int64  `json:"expTime"`
+	Flow              int64  `json:"flow"`
+	InFlow            int64  `json:"inFlow"`
+	OutFlow           int64  `json:"outFlow"`
+	FlowResetTime     int64  `json:"flowResetTime"`
+	DailyQuotaGB      int64  `json:"dailyQuotaGB,omitempty"`
+	MonthlyQuotaGB    int64  `json:"monthlyQuotaGB,omitempty"`
+	DisabledByQuota   int    `json:"disabledByQuota,omitempty"`
+	QuotaDisabledAt   int64  `json:"quotaDisabledAt,omitempty"`
+	Num               int    `json:"num"`
+	SpeedLimit        int    `json:"speedLimit,omitempty"`
+	ForwardSpeedLimit int    `json:"forwardSpeedLimit,omitempty"`
+	CreatedTime       int64  `json:"createdTime"`
+	UpdatedTime       int64  `json:"updatedTime,omitempty"`
+	Status            int    `json:"status"`
 }
 
 type NodeBackup struct {

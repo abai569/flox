@@ -481,7 +481,10 @@ func (h *Handler) userCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if fwdSpeedLimit := asInt(req["forwardSpeedLimit"], 0); fwdSpeedLimit > 0 {
-		_ = h.repo.UpdateUserForwardSpeedLimit(userID, fwdSpeedLimit)
+		if err := h.repo.UpdateUserForwardSpeedLimit(userID, fwdSpeedLimit); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	if dailyQuotaGB > 0 || monthlyQuotaGB > 0 {
 		tx := h.repo.BeginTx()

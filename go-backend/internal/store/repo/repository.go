@@ -3492,6 +3492,7 @@ func (r *Repository) exportUsers() ([]model.UserBackup, error) {
 			ID: u.ID, User: u.User, Pwd: u.Pwd, RoleID: u.RoleID,
 			ExpTime: u.ExpTime, Flow: u.Flow, InFlow: u.InFlow, OutFlow: u.OutFlow,
 			FlowResetTime: u.FlowResetTime, Num: u.Num,
+			SpeedLimit: u.SpeedLimit, ForwardSpeedLimit: u.ForwardSpeedLimit,
 			CreatedTime: u.CreatedTime, Status: u.Status,
 		}
 		if quota := quotaMap[u.ID]; quota != nil {
@@ -3854,25 +3855,27 @@ func importUsers(tx *gorm.DB, users []model.UserBackup, now int64) (int, error) 
 	count := 0
 	for _, u := range users {
 		item := model.User{
-			ID:            u.ID,
-			User:          u.User,
-			Pwd:           u.Pwd,
-			RoleID:        u.RoleID,
-			ExpTime:       u.ExpTime,
-			Flow:          u.Flow,
-			InFlow:        u.InFlow,
-			OutFlow:       u.OutFlow,
-			FlowResetTime: u.FlowResetTime,
-			Num:           u.Num,
-			CreatedTime:   u.CreatedTime,
-			UpdatedTime:   sql.NullInt64{Int64: now, Valid: true},
-			Status:        u.Status,
+			ID:                u.ID,
+			User:              u.User,
+			Pwd:               u.Pwd,
+			RoleID:            u.RoleID,
+			ExpTime:           u.ExpTime,
+			Flow:              u.Flow,
+			InFlow:            u.InFlow,
+			OutFlow:           u.OutFlow,
+			FlowResetTime:     u.FlowResetTime,
+			Num:               u.Num,
+			SpeedLimit:        u.SpeedLimit,
+			ForwardSpeedLimit: u.ForwardSpeedLimit,
+			CreatedTime:       u.CreatedTime,
+			UpdatedTime:       sql.NullInt64{Int64: now, Valid: true},
+			Status:            u.Status,
 		}
 		err := tx.Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"user", "pwd", "role_id", "exp_time", "flow", "in_flow", "out_flow",
-				"flow_reset_time", "num", "updated_time", "status",
+				"flow_reset_time", "num", "speed_limit", "forward_speed_limit", "updated_time", "status",
 			}),
 		}).Create(&item).Error
 		if err != nil {

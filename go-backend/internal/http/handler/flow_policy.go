@@ -925,7 +925,11 @@ func (h *Handler) speedLimiterExists(name string) bool {
 			return false
 		}
 		forward, err := h.getForwardRecord(forwardID)
-		return err == nil && forward != nil && forward.SpeedLimitEnabled && forward.SpeedLimit > 0
+		if err != nil || forward == nil {
+			return false
+		}
+		_, enabled := h.resolveEffectiveForwardSpeedLimit(forward)
+		return enabled
 	}
 	if strings.HasPrefix(name, "user_tunnel_") && strings.HasSuffix(name, "_ceiling") {
 		idText := strings.TrimSuffix(strings.TrimPrefix(name, "user_tunnel_"), "_ceiling")
@@ -935,6 +939,29 @@ func (h *Handler) speedLimiterExists(name string) bool {
 		}
 		ok, _ := h.repo.UserTunnelCeilingExists(id)
 		return ok
+	}
+	if strings.HasPrefix(name, "rem_s") {
+		value := strings.TrimPrefix(name, "rem_s")
+		separator := strings.IndexByte(value, '_')
+		if separator <= 0 {
+			return false
+		}
+		shareID, err := strconv.ParseInt(value[:separator], 10, 64)
+		if err != nil || shareID <= 0 {
+			return false
+		}
+		share, err := h.repo.GetPeerShare(shareID)
+		if err != nil || share == nil {
+			return false
+		}
+		switch value[separator+1:] {
+		case "share_speed":
+			return share.RemSpeedLimit > 0
+		case "share_forward_speed":
+			return share.RemForwardSpeedLimit > 0
+		default:
+			return false
+		}
 	}
 	id, err := strconv.ParseInt(name, 10, 64)
 	if err != nil {

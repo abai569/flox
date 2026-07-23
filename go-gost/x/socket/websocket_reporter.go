@@ -26,6 +26,7 @@ import (
 
 	"github.com/go-gost/x/adapter"
 	"github.com/go-gost/x/config"
+	floxlimiter "github.com/go-gost/x/flox-core/limiter"
 	"github.com/go-gost/x/internal/util/crypto"
 	"github.com/go-gost/x/nftables"
 	"github.com/go-gost/x/registry"
@@ -447,12 +448,29 @@ func (w *WebSocketReporter) connect() error {
 	go w.refreshPublicIPs(true)
 
 	// 重连后同步服务配置：恢复可能因崩溃/重启而缺失的服务
+	registerConfiguredFloxLimiters()
 	go syncServicesAfterReconnect()
 
 	// 连接成功后检查并安装 Mimic 依赖
 	go w.checkAndInstallMimicDeps()
 
 	return nil
+}
+
+func registerConfiguredFloxLimiters() {
+	cfg := config.Global()
+	specs := make(map[string]string, len(cfg.Limiters))
+	for _, limiterCfg := range cfg.Limiters {
+		if limiterCfg == nil {
+			continue
+		}
+		spec := ""
+		if len(limiterCfg.Limits) > 0 {
+			spec = limiterCfg.Limits[0]
+		}
+		specs[limiterCfg.Name] = spec
+	}
+	floxlimiter.ReplaceFromSpecs(specs)
 }
 
 func (w *WebSocketReporter) getCachedPublicIPs() (string, string) {

@@ -946,7 +946,11 @@ func (h *Handler) runNftablesDomainRefreshJob() {
 			continue
 		}
 
-		if err := h.syncNftablesRules(forwardRec, tunnel, ports, userTunnelID, nil, ceilingSpeed); err != nil {
+		var speedLimit *int
+		if effective, ok := h.resolveEffectiveForwardSpeedLimit(forwardRec); ok {
+			speedLimit = &effective
+		}
+		if err := h.syncNftablesRules(forwardRec, tunnel, ports, userTunnelID, speedLimit, ceilingSpeed); err != nil {
 			log.Printf("[nftables-dns] forward %d 更新失败: %v", f.ID, err)
 			continue
 		}

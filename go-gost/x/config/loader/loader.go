@@ -19,6 +19,7 @@ import (
 	router_parser "github.com/go-gost/x/config/parsing/router"
 	sd_parser "github.com/go-gost/x/config/parsing/sd"
 	service_parser "github.com/go-gost/x/config/parsing/service"
+	floxlimiter "github.com/go-gost/x/flox-core/limiter"
 	"github.com/go-gost/x/registry"
 )
 
@@ -163,11 +164,21 @@ func register(cfg *config.Config) error {
 	for name := range registry.TrafficLimiterRegistry().GetAll() {
 		registry.TrafficLimiterRegistry().Unregister(name)
 	}
+	floxLimiterSpecs := make(map[string]string, len(cfg.Limiters))
 	for _, limiterCfg := range cfg.Limiters {
+		if limiterCfg == nil {
+			continue
+		}
 		if err := registry.TrafficLimiterRegistry().Register(limiterCfg.Name, limiter_parser.ParseTrafficLimiter(limiterCfg)); err != nil {
 			return err
 		}
+		spec := ""
+		if len(limiterCfg.Limits) > 0 {
+			spec = limiterCfg.Limits[0]
+		}
+		floxLimiterSpecs[limiterCfg.Name] = spec
 	}
+	floxlimiter.ReplaceFromSpecs(floxLimiterSpecs)
 
 	for name := range registry.ConnLimiterRegistry().GetAll() {
 		registry.ConnLimiterRegistry().Unregister(name)
