@@ -1771,6 +1771,7 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 			if err := itemHandler.repo.AddAuthoritativeForwardTraffic(match.forwardID, match.userID, match.userTunnelID, inFlow, outFlow, match.item.D, match.item.U, match.nodeID, match.item.I, deltas); err != nil {
 				return err
 			}
+			itemHandler.afterFlowCommit(func() { itemHandler.reportAuthoritativeFlowToProviders(match.topology, match.item) })
 			quota, quotaErr := itemHandler.repo.AddUserQuotaUsage(match.userID, inFlow+outFlow, time.Now())
 			if quotaErr != nil {
 				return quotaErr

@@ -1211,6 +1211,13 @@ function SortableTableRow({
       total + (instance.onlineCount ?? 0),
     0,
   );
+  const remoteTrafficLimit = node.remoteMaxBandwidth ?? 0;
+  const remoteTrafficUsed = node.remoteCurrentFlow ?? 0;
+  const remoteTrafficTitle = `已用流量：${formatTraffic(remoteTrafficUsed)}\n剩余流量：${
+    remoteTrafficLimit > 0
+      ? formatTraffic(Math.max(remoteTrafficLimit - remoteTrafficUsed, 0))
+      : "不限"
+  }\n总流量：${remoteTrafficLimit > 0 ? formatTraffic(remoteTrafficLimit) : "不限"}`;
   const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
   const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
@@ -1539,10 +1546,13 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] ${rowBg}`} aria-label="流量限额" style={{ width: "110px" }}>
         <div className="flex w-full justify-center">
-          <span className="text-sm text-default-700 whitespace-nowrap">
+          <span
+            className="whitespace-nowrap text-sm text-default-700"
+            title={node.isRemote === 1 ? remoteTrafficTitle : undefined}
+          >
             {node.isRemote === 1
-              ? (node.trafficLimit ?? 0) > 0
-                ? `${node.trafficLimit} GB`
+              ? remoteTrafficLimit > 0
+                ? formatTraffic(remoteTrafficLimit)
                 : "不限"
               : "不限"}
           </span>
