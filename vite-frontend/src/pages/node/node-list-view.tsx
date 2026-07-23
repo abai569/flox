@@ -1579,7 +1579,7 @@ function SortableTableRow({
               ? remoteTrafficLimit > 0
                 ? formatTraffic(remoteTrafficLimit)
                 : "不限"
-              : "不限"}
+              : "-"}
           </span>
         </div>
       </TableCell>
