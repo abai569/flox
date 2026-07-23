@@ -637,9 +637,10 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, hasForwardSpeedLimit := req["forwardSpeedLimit"]
 	forwardSpeedLimitChanged := false
 	newForwardSpeedLimit := asInt(req["forwardSpeedLimit"], 0)
-	if _, ok := req["forwardSpeedLimit"]; ok && oldUser != nil && oldUser.ForwardSpeedLimit != newForwardSpeedLimit {
+	if hasForwardSpeedLimit && oldUser != nil && oldUser.ForwardSpeedLimit != newForwardSpeedLimit {
 		forwardSpeedLimitChanged = true
 	}
 
@@ -663,7 +664,10 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if forwardSpeedLimitChanged {
-		_ = h.repo.UpdateUserForwardSpeedLimit(id, newForwardSpeedLimit)
+		if err := h.repo.UpdateUserForwardSpeedLimit(id, newForwardSpeedLimit); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
+		}
 	}
 	if hasManualTunnelPermission {
 		if err := h.repo.UpdateUserManualTunnelPermission(id, manualTunnelEnabled); err != nil {
@@ -762,8 +766,11 @@ func (h *Handler) userUpdate(w http.ResponseWriter, r *http.Request) {
 		h.resumePausedForwardsByUser(id, now)
 	}
 
-	if forwardSpeedLimitChanged {
-		_ = h.syncUserForwardsEffectiveSpeedLimit(id)
+	if hasForwardSpeedLimit {
+		if err := h.syncUserForwardsEffectiveSpeedLimit(id); err != nil {
+			response.WriteJSON(w, response.ErrDefault(fmt.Sprintf("failed to deploy per-forward speed limit: %v", err)))
+			return
+		}
 	}
 
 	response.WriteJSON(w, response.OKEmpty())
