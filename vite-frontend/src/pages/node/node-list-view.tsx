@@ -386,15 +386,33 @@ function RemoteNodeInstanceRows({
   instances,
   parentOnline,
   parentState,
+  parentTotalInFlow,
+  parentTotalOutFlow,
+  parentTrafficRatio,
   formatTraffic,
   copyToClipboard,
 }: {
   instances: RemoteInstance[];
   parentOnline: boolean;
   parentState: RemoteDisplayState;
+  parentTotalInFlow: number;
+  parentTotalOutFlow: number;
+  parentTrafficRatio: number;
   formatTraffic: (bytes: number) => string;
   copyToClipboard: (text: string, label: string) => void;
 }) {
+  const trafficRatio = parentTrafficRatio > 0 ? parentTrafficRatio : 1;
+  const rawInFlow = Math.round(parentTotalInFlow / trafficRatio);
+  const rawOutFlow = Math.round(parentTotalOutFlow / trafficRatio);
+  const activeInstances = instances.filter(
+    (instance) => instance.status === 1 && (instance.weight ?? 1) > 0,
+  );
+  const flowInstances = activeInstances.length > 0 ? activeInstances : instances;
+  const flowIndexByID = new Map(
+    flowInstances.map((instance, index) => [instance.instanceId?.trim() || `${index}`, index]),
+  );
+  const splitFlow = (flow: number, index: number, count: number) =>
+    Math.floor(flow / count) + (index < flow % count ? 1 : 0);
   return (
     <div className="my-2 bg-default-100/70 shadow-[inset_2px_0_0_rgba(148,163,184,0.8)] dark:bg-default-100/10">
       <div className="w-full max-w-full overflow-x-auto pb-2">
@@ -446,8 +464,15 @@ function RemoteNodeInstanceRows({
               const disabled = instance.weight != null && instance.weight <= 0;
               const online = parentOnline && instance.status === 1;
               const parentMeta = getRemoteDisplayMeta(parentState);
-              const upFlow = instance.totalOutFlow ?? 0;
-              const downFlow = instance.totalInFlow ?? 0;
+              const flowIndex = flowIndexByID.get(instanceId || `${index}`);
+              const upFlow =
+                flowIndex === undefined
+                  ? 0
+                  : splitFlow(rawOutFlow, flowIndex, flowInstances.length);
+              const downFlow =
+                flowIndex === undefined
+                  ? 0
+                  : splitFlow(rawInFlow, flowIndex, flowInstances.length);
               const periodFlow = upFlow + downFlow;
               return (
                 <tr
@@ -1818,9 +1843,12 @@ function SortableTableRow({
               <RemoteNodeInstanceRows
                 copyToClipboard={copyToClipboard}
                 formatTraffic={formatTraffic}
-                 instances={remoteInstances}
-                 parentOnline={remoteOnline}
-                 parentState={remoteDisplayState}
+                instances={remoteInstances}
+                parentOnline={remoteOnline}
+                parentState={remoteDisplayState}
+                parentTotalInFlow={node.totalInFlow ?? 0}
+                parentTotalOutFlow={node.totalOutFlow ?? 0}
+                parentTrafficRatio={node.trafficRatio ?? 1}
               />
         </TableCell>
       </TableRow>
