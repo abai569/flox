@@ -3292,7 +3292,7 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 	// 为链节点填充缺失的 ConnectIP，同时收集 IPv6 地址
 	nodeIPv6Map := make(map[int64]string)
 	for i := range chainNodes {
-		connectIPSet := strings.TrimSpace(chainNodes[i].ConnectIP) != ""
+		connectIPSet := strings.TrimSpace(chainNodes[i].ConnectIP) != "" && !strings.EqualFold(strings.TrimSpace(chainNodes[i].ConnectIP), "auto")
 
 		// 如果 ConnectIP 已有值且是 IPv6，先记入 nodeIPv6Map
 		if connectIPSet && strings.Contains(chainNodes[i].ConnectIP, ":") {
@@ -3321,7 +3321,21 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 			} else if v := strings.TrimSpace(node.ServerIPv6); v != "" {
 				chainNodes[i].ConnectIP = v
 			} else if v := strings.TrimSpace(node.ServerIP); v != "" {
-				chainNodes[i].ConnectIP = v
+				if !strings.EqualFold(v, "auto") {
+					chainNodes[i].ConnectIP = v
+				}
+			}
+			if strings.TrimSpace(chainNodes[i].ConnectIP) == "" {
+				instances, _ := h.repo.ListNodeInstances(chainNodes[i].NodeID)
+				for _, instance := range instances {
+					if instance.Status != 1 || instance.Weight <= 0 {
+						continue
+					}
+					if host := pickNodeInstanceAddress(instance, chainNodes[i].ConnectIPType, h.repo.GetTunnelIPPreference(forward.TunnelID)); host != "" {
+						chainNodes[i].ConnectIP = host
+						break
+					}
+				}
 			}
 		}
 
@@ -3335,6 +3349,11 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 	}
 
 	rules := buildNftablesRulePayloads(forward, tunnel, ports, chainNodes, nodeIPv6Map, userTunnelID, speedLimit, ceilingSpeeds...)
+	if tunnel.Type == 2 {
+		if err := validateNftablesChainRules(chainNodes, rules); err != nil {
+			return err
+		}
+	}
 	fmt.Printf("[nft.debug] built %d rule payloads for forwardID=%d\n", len(rules), forward.ID)
 
 	// Group ports by node for batch operations
@@ -3561,6 +3580,21 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 		}
 	}
 	return rules
+}
+
+func validateNftablesChainRules(chainNodes []chainNodeRecord, rules []NftablesRulePayload) error {
+	ruleNodes := make(map[int64]bool)
+	for _, rule := range rules {
+		if rule.Protocol == "tcp" {
+			ruleNodes[rule.NodeID] = true
+		}
+	}
+	for _, node := range chainNodes {
+		if !ruleNodes[node.NodeID] {
+			return fmt.Errorf("节点 %s(%d) 缺少 NFT 转发规则，请检查下一跳实例地址和端口", node.NodeName, node.NodeID)
+		}
+	}
+	return nil
 }
 
 func splitNftablesIPv6Target(target string) (string, int) {

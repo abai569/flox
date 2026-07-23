@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"go-backend/internal/store/model"
@@ -800,6 +801,35 @@ func TestKernelForwardModesSkipGostServiceDiagnosis(t *testing.T) {
 	}
 	if skipsGostServiceDiagnosis(forwardModeGost) {
 		t.Fatal("expected GOST mode to retain service diagnosis")
+	}
+}
+
+func TestValidateNftablesChainRulesRejectsMissingEntryRule(t *testing.T) {
+	err := validateNftablesChainRules(
+		[]chainNodeRecord{
+			{NodeID: 1, NodeName: "entry", ChainType: 1},
+			{NodeID: 2, NodeName: "exit", ChainType: 3},
+		},
+		[]NftablesRulePayload{{NodeID: 2, Protocol: "tcp", Port: 19090}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "entry") {
+		t.Fatalf("expected missing entry rule error, got %v", err)
+	}
+}
+
+func TestValidateNftablesChainRulesAcceptsCompleteChain(t *testing.T) {
+	err := validateNftablesChainRules(
+		[]chainNodeRecord{
+			{NodeID: 1, NodeName: "entry", ChainType: 1},
+			{NodeID: 2, NodeName: "exit", ChainType: 3},
+		},
+		[]NftablesRulePayload{
+			{NodeID: 1, Protocol: "tcp", Port: 18080},
+			{NodeID: 2, Protocol: "tcp", Port: 19090},
+		},
+	)
+	if err != nil {
+		t.Fatalf("expected complete NFT chain, got %v", err)
 	}
 }
 
