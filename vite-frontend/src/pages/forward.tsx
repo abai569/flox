@@ -1944,38 +1944,6 @@ export default function ForwardPage() {
     setManualOutNodeId([]);
     setManualFocusedInputs({});
   };
-  const getAutoManualInIp = (selectedIds: number[]): string => {
-    return selectedIds
-      .map((id) => {
-        const node = nodes.find((item) => item.id === id);
-
-        return (
-          node?.serverIpV4 ||
-          node?.serverIpV6 ||
-          node?.intranetIp ||
-          node?.serverIp ||
-          ""
-        ).trim();
-      })
-      .filter(Boolean)
-      .join("\n");
-  };
-  const manualExpectedInIp = useMemo(
-    () => getAutoManualInIp(manualInNodeId.map((item) => item.nodeId)),
-    [manualInNodeId, nodes],
-  );
-  const isManualInIpOutdated = useMemo(() => {
-    if (!manualExpectedInIp.trim()) return false;
-
-    const normalize = (value: string) =>
-      value
-        .split(/[\n,]/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .join("\n");
-
-    return normalize(manualInIp) !== normalize(manualExpectedInIp);
-  }, [manualExpectedInIp, manualInIp]);
   const isManualTunnel = (tunnel?: Tunnel | null): boolean => {
     if (!tunnel) return false;
 
@@ -6349,10 +6317,21 @@ export default function ForwardPage() {
                         variant="bordered"
                         onSelectionChange={(keys) => {
                           const selectedIds = toSelectedNodeIds(keys);
+                          const autoIps = selectedIds
+                            .map((id) => {
+                              const node = nodes.find((item) => item.id === id);
 
-                          if (!manualInIp.trim()) {
-                            setManualInIp(getAutoManualInIp(selectedIds));
-                          }
+                              return (
+                                node?.serverIpV4 ||
+                                node?.serverIpV6 ||
+                                node?.intranetIp ||
+                                node?.serverIp ||
+                                ""
+                              ).trim();
+                            })
+                            .filter(Boolean);
+
+                          setManualInIp(autoIps.join("\n"));
                           setManualInNodeId((prev) =>
                             mergeOrderedManualNodes(prev, selectedIds, 1),
                           );
@@ -6366,28 +6345,12 @@ export default function ForwardPage() {
                           input: "!min-h-[20px]",
                         }}
                         label="入口地址"
-                        placeholder="支持多个地址，每行一个地址，留空则自动获取入口节点地址"
+                        placeholder="请输入入口域名或 IP，多个地址每行一个"
                         rows={2}
                         value={manualInIp}
                         variant="bordered"
                         onChange={(e) => setManualInIp(e.target.value)}
                       />
-                      {isManualInIpOutdated && (
-                        <div className="flex items-center justify-between bg-warning-50 dark:bg-warning-900/20 px-3 py-2 rounded-lg border border-warning-200 dark:border-warning-700/50">
-                          <span className="text-xs text-warning-600 dark:text-warning-400 font-medium">
-                            检测到入口节点 域名/IP 有变动
-                          </span>
-                          <Button
-                            className="h-6 min-h-0 text-xs px-2.5 rounded-md"
-                            color="warning"
-                            size="sm"
-                            variant="flat"
-                            onPress={() => setManualInIp(manualExpectedInIp)}
-                          >
-                            一键同步
-                          </Button>
-                        </div>
-                      )}
                       {manualTunnelType === 2 && <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">

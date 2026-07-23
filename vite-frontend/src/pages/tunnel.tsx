@@ -761,37 +761,6 @@ export default function TunnelPage() {
     },
     [resetBatchDeleteState],
   );
-  // 🎯 智能检测1：计算当前选中节点“理应”对应的最新域名/IP
-  const expectedInIps = useMemo(() => {
-    const ips = form.inNodeId
-      .map((ct) => {
-        const n = nodes.find((item) => item.id === ct.nodeId);
-
-        if (!n) return "";
-
-        return (
-          n.serverIpV4 ||
-          n.serverIpV6 ||
-          n.intranetIp ||
-          n.serverIp ||
-          ""
-        ).trim();
-      })
-      .filter(Boolean);
-
-    return ips.join("\n");
-  }, [form.inNodeId, nodes]);
-  // 🎯 智能检测2：判断隧道当前地址是否已经过期（与节点最新配置不符）
-  const isInIpOutdated = useMemo(() => {
-    if (!form.inIp || !expectedInIps) return false;
-    const current = form.inIp
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .join("\n");
-
-    return current !== expectedInIps;
-  }, [form.inIp, expectedInIps]);
   // 表单验证
   const validateForm = (): boolean => {
     const newErrors = validateTunnelForm(form, nodes);
@@ -3319,37 +3288,24 @@ export default function TunnelPage() {
                         variant="bordered"
                         onSelectionChange={(keys) => {
                           const selectedIds = toSelectedNodeIds(keys);
+                          const autoIps = selectedIds
+                            .map((id) => {
+                              const node = nodes.find((item) => item.id === id);
+
+                              return (
+                                node?.serverIpV4 ||
+                                node?.serverIpV6 ||
+                                node?.intranetIp ||
+                                node?.serverIp ||
+                                ""
+                              ).trim();
+                            })
+                            .filter(Boolean);
 
                           setForm((prev) => {
-                            let nextInIp = prev.inIp;
-
-                            // 🎯 终极智能逻辑：如果是新增隧道，或者用户在编辑时把“入口地址”主动清空了，就触发自动抓取
-                            if (!isEdit || !prev.inIp.trim()) {
-                              const autoIps = selectedIds
-                                .map((id) => {
-                                  const n = nodes.find(
-                                    (item) => item.id === id,
-                                  );
-
-                                  if (!n) return "";
-
-                                  // 优先级：公网IPv4 → 公网IPv6 → 内网IP → 兼容IP
-                                  return (
-                                    n.serverIpV4 ||
-                                    n.serverIpV6 ||
-                                    n.intranetIp ||
-                                    n.serverIp ||
-                                    ""
-                                  ).trim();
-                                })
-                                .filter(Boolean);
-
-                              nextInIp = autoIps.join("\n");
-                            }
-
                             return {
                               ...prev,
-                              inIp: nextInIp, // 自动填入入口地址框
+                              inIp: autoIps.join("\n"),
                               inNodeId: mergeOrderedNodes(
                                 prev.inNodeId,
                                 selectedIds,
@@ -3373,7 +3329,7 @@ export default function TunnelPage() {
                       errorMessage={errors.inIp}
                       isInvalid={!!errors.inIp}
                       label="入口地址"
-                      placeholder="支持多个地址，每行一个地址，留空则自动获取入口节点地址"
+                      placeholder="请输入入口域名或 IP，多个地址每行一个"
                       rows={2}
                       value={form.inIp}
                       variant="bordered"
@@ -3381,42 +3337,6 @@ export default function TunnelPage() {
                         setForm((prev) => ({ ...prev, inIp: e.target.value }))
                       }
                     />
-                    {/* 🎯 预警 UI：只要发现地址过期，立刻显示同步按钮 */}
-                    {isEdit && isInIpOutdated && (
-                      <div className="flex items-center justify-between bg-warning-50 dark:bg-warning-900/20 px-3 py-2 rounded-lg border border-warning-200 dark:border-warning-700/50 transition-all animate-appearance-in">
-                        <span className="text-xs text-warning-600 dark:text-warning-400 font-medium flex items-center gap-1.5">
-                          <svg
-                            aria-hidden="true"
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                            />
-                          </svg>
-                          检测到隧道入口 域名/IP 有变动
-                        </span>
-                        <Button
-                          className="h-6 min-h-0 text-xs px-2.5 rounded-md"
-                          color="warning"
-                          size="sm"
-                          variant="flat"
-                          onPress={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              inIp: expectedInIps,
-                            }))
-                          }
-                        >
-                          一键同步
-                        </Button>
-                      </div>
-                    )}
                   </div>
                   {/* 隧道转发时显示转发链配置 */}
                   {form.type === 2 && (
