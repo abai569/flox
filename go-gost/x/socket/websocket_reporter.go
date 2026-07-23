@@ -894,14 +894,19 @@ func buildWebSocketCandidates(addr string, secret string, version string, http i
 		query += "&instance_id=" + url.QueryEscape(strings.TrimSpace(instanceID))
 	}
 
-	scheme := "wss"
+	schemes := []string{"wss", "ws"}
 	if mappedScheme := mapToWebSocketScheme(explicitScheme); mappedScheme != "" {
-		scheme = mappedScheme
+		if mappedScheme == "ws" {
+			schemes = []string{"ws", "wss"}
+		}
 	} else if preferredScheme == "ws" {
-		scheme = "ws"
+		schemes = []string{"ws", "wss"}
 	}
 
-	return []string{scheme + "://" + normalizedAddr + query}
+	return []string{
+		schemes[0] + "://" + normalizedAddr + query,
+		schemes[1] + "://" + normalizedAddr + query,
+	}
 }
 
 func normalizeReporterAddress(addr string) (string, string) {
@@ -964,7 +969,14 @@ func dialWebSocketWithFallback(dialer *websocket.Dialer, candidates []string, se
 		}
 		errMsg := formatWebSocketDialError(err, resp)
 		errs = append(errs, fmt.Sprintf("%s => %s", sanitizeWebSocketURL(targetURL), errMsg))
-		_ = i
+		if i < len(candidates)-1 {
+			fmt.Printf(
+				"⚠️ WebSocket连接失败，准备从 %s 回退到 %s: %s\n",
+				strings.ToUpper(detectWebSocketScheme(targetURL)),
+				strings.ToUpper(detectWebSocketScheme(candidates[i+1])),
+				errMsg,
+			)
+		}
 	}
 
 	return nil, "", fmt.Errorf("连接WebSocket失败（已尝试%d种协议）: %s", len(candidates), strings.Join(errs, " | "))
