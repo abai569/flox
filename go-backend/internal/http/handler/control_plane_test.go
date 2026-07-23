@@ -758,6 +758,51 @@ func TestBuildNftablesRulePayloads_ChainExitIPv6Target(t *testing.T) {
 	}
 }
 
+func TestBuildNftablesRulePayloadsPreservesDualStackDomainTargets(t *testing.T) {
+	originalLookup := lookupTargetHost
+	lookupTargetHost = func(host string) ([]string, error) {
+		if host != "dual.example" {
+			t.Fatalf("unexpected lookup host %q", host)
+		}
+		return []string{"198.51.100.10", "2001:db8::10"}, nil
+	}
+	defer func() { lookupTargetHost = originalLookup }()
+
+	rules := buildNftablesRulePayloads(
+		&forwardRecord{ID: 12, UserID: 22, RemoteAddr: "dual.example:443"},
+		&tunnelRecord{Type: 1},
+		[]forwardPortRecord{{NodeID: 1, Port: 18080}},
+		nil,
+		nil,
+		0,
+		nil,
+	)
+
+	var ipv4, ipv6 bool
+	for _, rule := range rules {
+		if rule.Protocol != "tcp" {
+			continue
+		}
+		ipv4 = ipv4 || rule.Target == "198.51.100.10:443"
+		ipv6 = ipv6 || rule.NextHopIPv6 == "2001:db8::10" && rule.NextHopPort == 443
+	}
+	if !ipv4 || !ipv6 {
+		t.Fatalf("expected both IPv4 and IPv6 rules, got %+v", rules)
+	}
+}
+
+func TestKernelForwardModesSkipGostServiceDiagnosis(t *testing.T) {
+	if !skipsGostServiceDiagnosis(forwardModeFloxcore) {
+		t.Fatal("expected FloxCore mode to skip GOST service diagnosis")
+	}
+	if !skipsGostServiceDiagnosis(forwardModeNftables) {
+		t.Fatal("expected nftables mode to skip GOST service diagnosis")
+	}
+	if skipsGostServiceDiagnosis(forwardModeGost) {
+		t.Fatal("expected GOST mode to retain service diagnosis")
+	}
+}
+
 func TestIsEntryForwardPortSupportsLegacyAndCurrentValues(t *testing.T) {
 	if !isEntryForwardPort(0) || !isEntryForwardPort(1) {
 		t.Fatal("expected chain types 0 and 1 to be treated as entry ports")

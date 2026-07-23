@@ -26,6 +26,7 @@ import (
 )
 
 var errForwardNotFound = errors.New("forward not found")
+var lookupTargetHost = net.LookupHost
 
 type forwardRecord = model.ForwardRecord
 type tunnelRecord = model.TunnelRecord
@@ -1275,6 +1276,7 @@ func (h *Handler) prepareForwardDiagnosis(forward *forwardRecord) (string, []dia
 					"serviceCheck":  true,
 					"servicePort":   port,
 					"serviceNodeId": inNode.NodeID,
+					"forwardMode":   normalizeForwardMode(forward.Mode),
 					"fromChainType": 1,
 				},
 			})
@@ -2166,6 +2168,14 @@ func (h *Handler) appendServiceCheckDiagnosis(results *[]map[string]interface{},
 	item["serviceCheck"] = true
 	delete(item, "averageTime")
 	delete(item, "packetLoss")
+	mode := normalizeForwardMode(asString(metadata["forwardMode"]))
+	if skipsGostServiceDiagnosis(mode) {
+		item["success"] = true
+		item["serviceState"] = mode
+		item["message"] = fmt.Sprintf("入口端口 %d 使用 %s 内核转发，跳过 GOST 服务检查", port, mode)
+		*results = append(*results, item)
+		return
+	}
 
 	var svcState string
 	var svcErr error
@@ -2183,6 +2193,11 @@ func (h *Handler) appendServiceCheckDiagnosis(results *[]map[string]interface{},
 		item["message"] = fmt.Sprintf("入口端口 %d 服务正常(%s)", port, svcState)
 	}
 	*results = append(*results, item)
+}
+
+func skipsGostServiceDiagnosis(mode string) bool {
+	mode = normalizeForwardMode(mode)
+	return mode == forwardModeFloxcore || mode == forwardModeNftables
 }
 
 func (h *Handler) appendSdwanDiagnosis(results *[]map[string]interface{}, nodeCache map[int64]*nodeRecord, nodeID int64, description string, metadata map[string]interface{}, options diagnosisExecOptions) {
@@ -2993,7 +3008,7 @@ func resolveTargetIP(target string) string {
 	if net.ParseIP(host) != nil {
 		return target
 	}
-	ips, err := net.LookupHost(host)
+	ips, err := lookupTargetHost(host)
 	if err != nil || len(ips) == 0 {
 		return target
 	}
@@ -3021,7 +3036,7 @@ func resolveTargetDualStack(target string) (string, string) {
 		return host + ":" + port, ""
 	}
 
-	ips, err := net.LookupHost(host)
+	ips, err := lookupTargetHost(host)
 	if err != nil || len(ips) == 0 {
 		return target, ""
 	}
@@ -3407,9 +3422,6 @@ func buildNftablesRulePayloads(forward *forwardRecord, tunnel *tunnelRecord, por
 	var rules []NftablesRulePayload
 	protocols := []string{"tcp", "udp"}
 	targets := splitRemoteTargets(forward.RemoteAddr)
-	for i, t := range targets {
-		targets[i] = resolveTargetIP(t)
-	}
 
 	spdLimit := 0
 	if forward.SpeedLimitEnabled && forward.SpeedLimit > 0 {
