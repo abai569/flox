@@ -59,7 +59,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 
 	instanceID := strings.TrimSpace(req.InstanceID)
 	portRange := strings.TrimSpace(req.PortRange)
-	trafficLimitMode := 0
+	trafficLimitMode := 1
 	if req.TrafficLimitMode != nil {
 		trafficLimitMode = *req.TrafficLimitMode
 		if trafficLimitMode < 0 || trafficLimitMode > 1 {

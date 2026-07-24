@@ -169,7 +169,7 @@ type NodeInstance struct {
 	ExpiryReminderDismissedUntil sql.NullInt64  `gorm:"column:expiry_reminder_dismissed_until"`
 	FlowResetTime                int            `gorm:"column:flow_reset_time;not null;default:0"`
 	TrafficLimit                 int64          `gorm:"column:traffic_limit;default:0"`
-	TrafficLimitMode             int            `gorm:"column:traffic_limit_mode;not null;default:0"`
+	TrafficLimitMode             int            `gorm:"column:traffic_limit_mode;not null;default:1"`
 	TotalInFlow                  int64          `gorm:"column:total_in_flow;default:0"`
 	TotalOutFlow                 int64          `gorm:"column:total_out_flow;default:0"`
 	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`

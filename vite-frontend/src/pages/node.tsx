@@ -826,7 +826,7 @@ export default function NodePage() {
     expiryDate: "",
     flowResetTime: "",
     trafficLimit: "0",
-    trafficLimitMode: 0,
+    trafficLimitMode: 1,
   });
   const [instanceDeleteTarget, setInstanceDeleteTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [instanceDeleteSaving, setInstanceDeleteSaving] = useState(false);
