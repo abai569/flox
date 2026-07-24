@@ -4113,19 +4113,17 @@ func (r *Repository) ResetNodeTotalFlow(nodeID int64) error {
 		return errors.New("repository not initialized")
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&model.Node{}).Where("id = ?", nodeID).
+		// 重置该节点下所有实例的流量
+		if err := tx.Model(&model.NodeInstance{}).Where("node_id = ?", nodeID).
 			Updates(map[string]interface{}{
-				"total_in_flow":            0,
-				"total_out_flow":           0,
-				"authoritative_flow_epoch": gorm.Expr("authoritative_flow_epoch + 1"),
-			})
-		if result.Error != nil {
-			return result.Error
+				"total_in_flow":  0,
+				"total_out_flow": 0,
+			}).Error; err != nil {
+			return err
 		}
-		if result.RowsAffected != 1 {
-			return errors.New("node not found")
-		}
-		return nil
+		// 同时更新节点的 authoritative_flow_epoch
+		return tx.Model(&model.Node{}).Where("id = ?", nodeID).
+			Update("authoritative_flow_epoch", gorm.Expr("authoritative_flow_epoch + 1")).Error
 	})
 }
 
@@ -4141,11 +4139,17 @@ func (r *Repository) ResetNodeTotalFlowWithLog(nodeID int64, params *NodeTraffic
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", nodeID).First(&node).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
-			"total_in_flow":            0,
-			"total_out_flow":           0,
-			"authoritative_flow_epoch": gorm.Expr("authoritative_flow_epoch + 1"),
-		}).Error; err != nil {
+		// 重置该节点下所有实例的流量
+		if err := tx.Model(&model.NodeInstance{}).Where("node_id = ?", nodeID).
+			Updates(map[string]interface{}{
+				"total_in_flow":  0,
+				"total_out_flow": 0,
+			}).Error; err != nil {
+			return err
+		}
+		// 同时更新节点的 authoritative_flow_epoch
+		if err := tx.Model(&model.Node{}).Where("id = ?", nodeID).
+			Update("authoritative_flow_epoch", gorm.Expr("authoritative_flow_epoch + 1")).Error; err != nil {
 			return err
 		}
 		log := &model.NodeTrafficResetLog{

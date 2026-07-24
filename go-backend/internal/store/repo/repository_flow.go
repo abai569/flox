@@ -70,18 +70,34 @@ func (r *Repository) GetAuthoritativeNodeFlowSnapshot(nodeID int64) (*Authoritat
 		IsRemote               int
 		RemoteURL              string
 		RemoteToken            string
-		TotalInFlow            int64
-		TotalOutFlow           int64
+		TrafficRatio           float64
 		AuthoritativeFlowEpoch int64
 	}
 	if err := r.db.Model(&model.Node{}).
-		Select("id, is_remote, COALESCE(remote_url, '') AS remote_url, COALESCE(remote_token, '') AS remote_token, total_in_flow, total_out_flow, authoritative_flow_epoch").
+		Select("id, is_remote, COALESCE(remote_url, '') AS remote_url, COALESCE(remote_token, '') AS remote_token, traffic_ratio, authoritative_flow_epoch").
 		Where("id = ?", nodeID).Scan(&node).Error; err != nil {
 		return nil, err
 	}
 	if node.ID == 0 {
 		return nil, nil
 	}
+
+	// 实时计算节点流量 = 所有实例流量之和 × 节点倍率
+	var instanceInFlow, instanceOutFlow int64
+	var instances []model.NodeInstance
+	where, args := validNodeInstanceWhere()
+	if err := r.db.Where("node_id = ?", nodeID).
+		Where(where, args...).
+		Find(&instances).Error; err != nil {
+		return nil, err
+	}
+	for _, inst := range instances {
+		instanceInFlow += inst.TotalInFlow
+		instanceOutFlow += inst.TotalOutFlow
+	}
+	parentInFlow := int64(float64(instanceInFlow) * node.TrafficRatio)
+	parentOutFlow := int64(float64(instanceOutFlow) * node.TrafficRatio)
+
 	epoch := node.AuthoritativeFlowEpoch
 	if epoch <= 0 {
 		epoch = 1
@@ -90,8 +106,8 @@ func (r *Repository) GetAuthoritativeNodeFlowSnapshot(nodeID int64) (*Authoritat
 		NodeID:       node.ID,
 		RemoteURL:    strings.TrimSpace(node.RemoteURL),
 		RemoteToken:  strings.TrimSpace(node.RemoteToken),
-		TotalInFlow:  node.TotalInFlow,
-		TotalOutFlow: node.TotalOutFlow,
+		TotalInFlow:  parentInFlow,
+		TotalOutFlow: parentOutFlow,
 		Epoch:        epoch,
 	}, nil
 }
@@ -232,13 +248,6 @@ func (r *Repository) AddAuthoritativeForwardTraffic(forwardID, userID, userTunne
 			}
 		}
 		for _, node := range nodes {
-			if err := tx.Model(&model.Node{}).Where("id = ?", node.NodeID).
-				Updates(map[string]interface{}{
-					"total_in_flow":  gorm.Expr("total_in_flow + ?", node.InFlow),
-					"total_out_flow": gorm.Expr("total_out_flow + ?", node.OutFlow),
-				}).Error; err != nil {
-				return err
-			}
 			if node.IsRemote {
 				var instances []model.NodeInstance
 				where, args := validNodeInstanceWhere()

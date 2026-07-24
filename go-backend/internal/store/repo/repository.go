@@ -1347,9 +1347,19 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 		if m, ok := metricMap[n.ID]; ok {
 			periodSince = m.Timestamp
 		}
+
+		// 实时计算父节点流量 = 所有实例流量之和 × 节点倍率
+		var instanceInFlow, instanceOutFlow int64
+		for _, inst := range instancesByNode[n.ID] {
+			instanceInFlow += inst.TotalInFlow
+			instanceOutFlow += inst.TotalOutFlow
+		}
+		parentInFlow := int64(float64(instanceInFlow) * n.TrafficRatio)
+		parentOutFlow := int64(float64(instanceOutFlow) * n.TrafficRatio)
+
 		pt := map[string]interface{}{
-			"rx":    n.TotalInFlow,
-			"tx":    n.TotalOutFlow,
+			"rx":    parentInFlow,
+			"tx":    parentOutFlow,
 			"since": periodSince,
 		}
 
@@ -1387,8 +1397,8 @@ func (r *Repository) ListNodes(opts *ListNodesOptions) ([]map[string]interface{}
 				}
 				return nearestTrafficLimit
 			}(),
-			"totalInFlow":         n.TotalInFlow,
-			"totalOutFlow":        n.TotalOutFlow,
+			"totalInFlow":         parentInFlow,
+			"totalOutFlow":        parentOutFlow,
 			"trafficNotifiedMask": nearestTrafficNotifiedMask,
 			"paused":              n.Paused,
 			"weight":              n.Weight,
