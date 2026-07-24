@@ -4113,11 +4113,13 @@ func (r *Repository) ResetNodeTotalFlow(nodeID int64) error {
 		return errors.New("repository not initialized")
 	}
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// 重置该节点下所有实例的流量
+		// 重置该节点下所有实例的流量和网卡同步值
 		if err := tx.Model(&model.NodeInstance{}).Where("node_id = ?", nodeID).
 			Updates(map[string]interface{}{
-				"total_in_flow":  0,
-				"total_out_flow": 0,
+				"total_in_flow":            0,
+				"total_out_flow":           0,
+				"last_sync_net_in_bytes":   0,
+				"last_sync_net_out_bytes":  0,
 			}).Error; err != nil {
 			return err
 		}
@@ -4139,11 +4141,13 @@ func (r *Repository) ResetNodeTotalFlowWithLog(nodeID int64, params *NodeTraffic
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", nodeID).First(&node).Error; err != nil {
 			return err
 		}
-		// 重置该节点下所有实例的流量
+		// 重置该节点下所有实例的流量和网卡同步值
 		if err := tx.Model(&model.NodeInstance{}).Where("node_id = ?", nodeID).
 			Updates(map[string]interface{}{
-				"total_in_flow":  0,
-				"total_out_flow": 0,
+				"total_in_flow":           0,
+				"total_out_flow":          0,
+				"last_sync_net_in_bytes":  0,
+				"last_sync_net_out_bytes": 0,
 			}).Error; err != nil {
 			return err
 		}

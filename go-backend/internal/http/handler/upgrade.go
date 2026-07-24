@@ -422,43 +422,89 @@ func (h *Handler) onNodeOnline(nodeID int64) {
 
 func (h *Handler) onNodeInstanceOnline(nodeID int64, instanceID string) {
 	h.syncPeerShareRuntimesToInstance(nodeID, instanceID)
-	h.syncNodeInstanceNetTraffic(nodeID, instanceID)
+	// 上线时从数据库加载缓存，不立即同步（等下次指标上报）
+	h.loadNodeNetTrafficCache(nodeID, instanceID)
 }
 
-func (h *Handler) syncNodeInstanceNetTraffic(nodeID int64, instanceID string) {
-	if h == nil || h.repo == nil {
-		return
-	}
-	// 获取实例当前上报的网卡流量
-	info, err := h.repo.GetNodeInstanceTrafficLimitInfo(nodeID, instanceID)
-	if err != nil || info == nil {
+// syncNodeInstanceNetTrafficRealtime 实时同步网卡流量（每 2 秒调用一次）
+func (h *Handler) syncNodeInstanceNetTrafficRealtime(nodeID int64, instanceID string, currentNetIn, currentNetOut int64) {
+	if h == nil || h.repo == nil || nodeID <= 0 || instanceID == "" {
 		return
 	}
 
-	// 获取实例记录的上次同步的网卡流量
-	var instance model.NodeInstance
-	if err := h.repo.DB().Where("node_id = ? AND instance_id = ?", nodeID, instanceID).First(&instance).Error; err != nil {
-		return
+	cacheKey := fmt.Sprintf("%d:%s", nodeID, instanceID)
+
+	// 从内存缓存获取上次同步值
+	cached, ok := h.nodeNetTrafficCache.Load(cacheKey)
+	var lastIn, lastOut int64
+	if ok {
+		cache := cached.(*nodeNetTrafficCacheEntry)
+		lastIn = cache.LastSyncNetInBytes
+		lastOut = cache.LastSyncNetOutBytes
+	} else {
+		// 首次：从数据库加载
+		var instance model.NodeInstance
+		if err := h.repo.DB().Select("last_sync_net_in_bytes, last_sync_net_out_bytes").
+			Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+			First(&instance).Error; err == nil {
+			lastIn = instance.LastSyncNetInBytes
+			lastOut = instance.LastSyncNetOutBytes
+		}
+		// 加载到缓存
+		h.nodeNetTrafficCache.Store(cacheKey, &nodeNetTrafficCacheEntry{
+			LastSyncNetInBytes:  lastIn,
+			LastSyncNetOutBytes: lastOut,
+			LastSyncTime:        time.Now(),
+		})
 	}
 
-	// 计算差值
-	inDiff := info.NetInBytes - instance.LastSyncNetInBytes
-	outDiff := info.NetOutBytes - instance.LastSyncNetOutBytes
+	// 检测网卡归零（节点重启）
+	var inDiff, outDiff int64
+	if currentNetIn < lastIn {
+		inDiff = currentNetIn // 从 0 重新开始
+	} else {
+		inDiff = currentNetIn - lastIn
+	}
+	if currentNetOut < lastOut {
+		outDiff = currentNetOut
+	} else {
+		outDiff = currentNetOut - lastOut
+	}
 
-	// 如果差值为正，说明有新增流量，累加到累计流量
+	// 累加到实例流量
 	if inDiff > 0 || outDiff > 0 {
 		if err := h.repo.AdjustNodeInstanceTraffic(nodeID, instanceID, inDiff, outDiff); err != nil {
-			log.Printf("WARN: sync node %d instance %s net traffic failed: %v", nodeID, instanceID, err)
+			log.Printf("WARN: realtime sync node %d instance %s net traffic failed: %v", nodeID, instanceID, err)
 			return
 		}
-		// 更新上次同步的网卡流量
-		h.repo.DB().Model(&model.NodeInstance{}).
-			Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
-			Updates(map[string]interface{}{
-				"last_sync_net_in_bytes":  info.NetInBytes,
-				"last_sync_net_out_bytes": info.NetOutBytes,
-			})
-		log.Printf("sync node %d instance %s net traffic: in=%d out=%d", nodeID, instanceID, inDiff, outDiff)
+	}
+
+	// 更新内存缓存
+	h.nodeNetTrafficCache.Store(cacheKey, &nodeNetTrafficCacheEntry{
+		LastSyncNetInBytes:  currentNetIn,
+		LastSyncNetOutBytes: currentNetOut,
+		LastSyncTime:        time.Now(),
+	})
+}
+
+// loadNodeNetTrafficCache 从数据库加载缓存（上线时调用）
+func (h *Handler) loadNodeNetTrafficCache(nodeID int64, instanceID string) {
+	if h == nil || h.repo == nil || nodeID <= 0 || instanceID == "" {
+		return
+	}
+	cacheKey := fmt.Sprintf("%d:%s", nodeID, instanceID)
+	if _, ok := h.nodeNetTrafficCache.Load(cacheKey); ok {
+		return // 已存在
+	}
+	var instance model.NodeInstance
+	if err := h.repo.DB().Select("last_sync_net_in_bytes, last_sync_net_out_bytes").
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		First(&instance).Error; err == nil {
+		h.nodeNetTrafficCache.Store(cacheKey, &nodeNetTrafficCacheEntry{
+			LastSyncNetInBytes:  instance.LastSyncNetInBytes,
+			LastSyncNetOutBytes: instance.LastSyncNetOutBytes,
+			LastSyncTime:        time.Now(),
+		})
 	}
 }
 

@@ -63,6 +63,9 @@ type Handler struct {
 	telegramBot      *telegram.Bot
 	nodeTrafficCache sync.Map // map[int64]*nodeTrafficCacheEntry
 
+	// 网卡流量实时同步缓存
+	nodeNetTrafficCache sync.Map // key: "nodeID:instanceID", value: *nodeNetTrafficCacheEntry
+
 	peerShareEventMu          sync.Mutex
 	peerShareEventSubscribers map[int64]map[chan peerShareEvent]struct{}
 	peerShareEventRevisions   map[int64]int64
@@ -87,6 +90,12 @@ type remoteForwardMetric struct {
 	OutSpeed    uint64
 	Connections int
 	UpdatedAt   time.Time
+}
+
+type nodeNetTrafficCacheEntry struct {
+	LastSyncNetInBytes  int64
+	LastSyncNetOutBytes int64
+	LastSyncTime        time.Time
 }
 
 func (h *Handler) replaceRemoteForwardMetrics(nodeID int64, metrics []client.RemoteForwardMetric) {
@@ -191,6 +200,19 @@ func (h *Handler) deleteNodeInstanceTrafficCacheEntry(nodeID int64, instanceID s
 		return
 	}
 	h.nodeTrafficCache.Delete(fmt.Sprintf("%d:%s", nodeID, instanceID))
+}
+
+func (h *Handler) deleteNodeNetTrafficCacheEntries(nodeID int64) {
+	if h == nil {
+		return
+	}
+	prefix := fmt.Sprintf("%d:", nodeID)
+	h.nodeNetTrafficCache.Range(func(key, value any) bool {
+		if k, ok := key.(string); ok && strings.HasPrefix(k, prefix) {
+			h.nodeNetTrafficCache.Delete(k)
+		}
+		return true
+	})
 }
 
 type nodeTrafficCacheEntry struct {
@@ -498,6 +520,8 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		h.metrics.RecordNodeMetric(nodeID, metricInfo)
 		h.maybeCheckNodeTraffic(nodeID, info.InstanceID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
 		h.enforceNodeTrafficLimit(nodeID, info.InstanceID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
+		// 实时同步网卡流量
+		h.syncNodeInstanceNetTrafficRealtime(nodeID, info.InstanceID, info.NetInBytes, info.NetOutBytes)
 	})
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)

@@ -133,6 +133,8 @@ type SystemInfo struct {
 	UDPConns               int64           `json:"udp_conns"`
 	NetInSpeed             int64           `json:"net_in_speed"`
 	NetOutSpeed            int64           `json:"net_out_speed"`
+	NetInBytes             int64           `json:"net_in_bytes"`
+	NetOutBytes            int64           `json:"net_out_bytes"`
 	ServiceName            string          `json:"service_name,omitempty"`
 	InstanceID             string          `json:"instance_id,omitempty"`
 	Hostname               string          `json:"hostname,omitempty"`

@@ -343,6 +343,7 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 		_ = h.repo.ResetNodeInstancesTotalFlowByNode(nodeID)
 		_ = h.repo.ResetNodeInstanceRuntimeTrafficByNode(nodeID)
 		h.deleteNodeTrafficCacheEntries(nodeID)
+		h.deleteNodeNetTrafficCacheEntries(nodeID)
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficReset(node.Name, req.Reason)
@@ -407,6 +408,7 @@ func (h *Handler) nodeResetTotalFlow(w http.ResponseWriter, r *http.Request) {
 	_ = h.repo.ResetNodeInstancesTotalFlowByNode(req.NodeID)
 	_ = h.repo.ResetNodeInstanceRuntimeTrafficByNode(req.NodeID)
 	h.deleteNodeTrafficCacheEntries(req.NodeID)
+	h.deleteNodeNetTrafficCacheEntries(req.NodeID)
 
 	h.sendBotNotification(func(bot *telegram.Bot) {
 		bot.SendNodeTrafficReset(node.Name, "管理员归零全量流量")
