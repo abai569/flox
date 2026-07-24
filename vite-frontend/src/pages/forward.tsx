@@ -412,7 +412,7 @@ const MODE_CONFIG: Record<
 > = {
   gost: { text: "gos", bg: "bg-primary-100", textClr: "text-primary-800" },
   floxcore: { text: "flc", bg: "bg-cyan-100", textClr: "text-cyan-800" },
-  nftables: { text: "nft", bg: "bg-blue-100", textClr: "text-blue-800" },
+  nftables: { text: "nft", bg: "bg-green-100", textClr: "text-green-800" },
   mimic: { text: "wgm", bg: "bg-amber-100", textClr: "text-amber-800" },
   sdwan: { text: "sdw", bg: "bg-violet-100", textClr: "text-violet-800" },
 };
