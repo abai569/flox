@@ -1765,10 +1765,11 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 	for _, match := range matches {
 		inFlow := int64(math.Round(float64(match.item.D) * match.topology.TotalRatio))
 		outFlow := int64(math.Round(float64(match.item.U) * match.topology.TotalRatio))
-		deltas := forwardTrafficNodeDeltas(match.topology, match.item.D, match.item.U)
 		sourceID := fmt.Sprintf("share:%d", match.shareID)
 		processed, err := h.processReportedFlowItem("relay", sourceID, payload.ReportID, match.itemIndex, func(itemHandler *Handler) error {
-			if err := itemHandler.repo.AddAuthoritativeForwardTraffic(match.forwardID, match.userID, match.userTunnelID, inFlow, outFlow, match.item.D, match.item.U, match.nodeID, match.item.I, deltas); err != nil {
+			// Relay 路径只累加用户/规则/隧道流量，不累加节点和实例流量
+			// 节点和实例流量已在本地权威路径（flow_policy.go）统计过，避免重复累加
+			if err := itemHandler.repo.AddFlow(match.forwardID, match.userID, match.userTunnelID, inFlow, outFlow); err != nil {
 				return err
 			}
 			itemHandler.afterFlowCommit(func() { itemHandler.reportAuthoritativeFlowToProviders(match.topology, match.item) })
