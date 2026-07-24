@@ -678,8 +678,8 @@ export default function NodePage() {
   const loadingGenerationRef = useRef(0);
   const remoteUsageGenerationRef = useRef(0);
   const remoteUsageInFlightRef = useRef(false);
-	const remoteUsageEventTimerRef = useRef<number | null>(null);
-	const sharingOpenGenerationRef = useRef(0);
+  const remoteUsageEventTimerRef = useRef<number | null>(null);
+  const sharingOpenGenerationRef = useRef(0);
   const pageActiveRef = useRef(true);
   const [localSearchKeyword, setLocalSearchKeyword] = useLocalStorageState(
     "node-search-keyword-local",
@@ -945,9 +945,9 @@ export default function NodePage() {
       pageActiveRef.current = false;
       ++loadNodesGenerationRef.current;
       ++remoteUsageGenerationRef.current;
-	  if (remoteUsageEventTimerRef.current !== null) {
-		window.clearTimeout(remoteUsageEventTimerRef.current);
-	  }
+      if (remoteUsageEventTimerRef.current !== null) {
+        window.clearTimeout(remoteUsageEventTimerRef.current);
+      }
     };
   }, []);
 
@@ -1225,23 +1225,23 @@ export default function NodePage() {
         next[Number(group.id)] = group.members || [];
       }
       setNodeInstanceMembers(next);
-	  return true;
+      return true;
     } catch {
       // 实例配置是辅助信息，失败时不阻塞节点列表。
-	  return false;
+      return false;
     }
   }, []);
-	const openNodeSharing = useCallback(async (node: Node) => {
-		const generation = ++sharingOpenGenerationRef.current;
-		const loaded = await loadNodeInstances();
-		if (!loaded) {
-			toast.error("刷新节点实例失败，请重试");
-			return;
-		}
-		if (sharingOpenGenerationRef.current === generation) {
-			setSharingNode(node);
-		}
-	}, [loadNodeInstances]);
+  const openNodeSharing = useCallback(async (node: Node) => {
+    const generation = ++sharingOpenGenerationRef.current;
+    const loaded = await loadNodeInstances();
+    if (!loaded) {
+      toast.error("刷新节点实例失败，请重试");
+      return;
+    }
+    if (sharingOpenGenerationRef.current === generation) {
+      setSharingNode(node);
+    }
+  }, [loadNodeInstances]);
   useEffect(() => {
     void loadNodeInstances();
   }, [loadNodeInstances]);
@@ -1273,22 +1273,22 @@ export default function NodePage() {
     const nodeId = Number(id);
 
     if (Number.isNaN(nodeId)) return;
-	if (type === "remote_usage_changed") {
-		window.dispatchEvent(new CustomEvent("remote_usage_changed", { detail: { nodeId } }));
-		if (remoteUsageEventTimerRef.current !== null) {
-			window.clearTimeout(remoteUsageEventTimerRef.current);
-		}
-		const refresh = () => {
-			if (remoteUsageInFlightRef.current) {
-				remoteUsageEventTimerRef.current = window.setTimeout(refresh, 250);
-				return;
-			}
-			remoteUsageEventTimerRef.current = null;
-			void loadNodes({ silent: true });
-		};
-		remoteUsageEventTimerRef.current = window.setTimeout(refresh, 100);
-		return;
-	}
+    if (type === "remote_usage_changed") {
+      window.dispatchEvent(new CustomEvent("remote_usage_changed", { detail: { nodeId } }));
+      if (remoteUsageEventTimerRef.current !== null) {
+        window.clearTimeout(remoteUsageEventTimerRef.current);
+      }
+      const refresh = () => {
+        if (remoteUsageInFlightRef.current) {
+          remoteUsageEventTimerRef.current = window.setTimeout(refresh, 250);
+          return;
+        }
+        remoteUsageEventTimerRef.current = null;
+        void loadNodes({ silent: true });
+      };
+      remoteUsageEventTimerRef.current = window.setTimeout(refresh, 100);
+      return;
+    }
     if (type === "status") {
       if (messageData === 1) {
         if (window.__pendingNodeRefresh?.has(nodeId)) {
@@ -1523,7 +1523,7 @@ export default function NodePage() {
   usePullToRefresh(async () => {
     await Promise.all([loadNodes(), loadShareCounts()]);
   });
-	const hasRemoteNodes = nodeList.some((node) => node.isRemote === 1);
+  const hasRemoteNodes = nodeList.some((node) => node.isRemote === 1);
   useEffect(() => {
     if (!usingPollingFallback) {
       return;
@@ -1786,7 +1786,7 @@ export default function NodePage() {
             ? Boolean(cloudflare.email && cloudflare.globalApiKeySet === "true")
             : cloudflare.apiTokenSet === "true",
       });
-    }).catch(() => {});
+    }).catch(() => { });
 
   const saveNodeDNSConfig = (data: Record<string, unknown>) =>
     Network.post<any>("/node/dns-failover/save", data);
@@ -3199,9 +3199,9 @@ export default function NodePage() {
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
                 {node.isRemote !== 1 && <Checkbox
-                    isSelected={selectedIds.has(node.id)}
-                    onValueChange={() => toggleSelect(node.id)}
-                  />}
+                  isSelected={selectedIds.has(node.id)}
+                  onValueChange={() => toggleSelect(node.id)}
+                />}
                 <div
                   className="cursor-grab active:cursor-grabbing p-1 text-default-400 hover:text-default-600 transition-colors"
                   {...listeners}
@@ -3435,13 +3435,13 @@ export default function NodePage() {
               <span className="text-default-600">周期流量</span>
               <span className="font-medium text-sm text-danger-600 dark:text-danger-400">
                 {node.isRemote === 1
-                   ? formatTraffic(remoteTotalFlow)
+                  ? formatTraffic(remoteTotalFlow)
                   : realtimeNodeMetrics[node.id]
-                  ? formatTraffic(
-                    (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
-                    (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
-                  )
-                  : "-"}
+                    ? formatTraffic(
+                      (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
+                      (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
+                    )
+                    : "-"}
               </span>
             </div>
             {node.isRemote === 1 ? (
@@ -3577,102 +3577,102 @@ export default function NodePage() {
                 <Button color="danger" size="sm" variant="flat" onPress={() => handleDelete(node)}>删除</Button>
               </div>
             ) : <>
-            <div className="grid gap-2 grid-cols-3">
-              <div className="w-full">
-                <Dropdown>
-                  <DropdownTrigger>
-                    <Button
-                      className="min-h-8 w-full"
-                      color="success"
-                      isLoading={node.copyLoading}
-                      size="sm"
-                      variant="flat"
-                    >
-                      对接
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownMenu aria-label="对接方式">
-                    <DropdownItem
-                      key="auto"
-                      onPress={() => handleCopyAutoInstallCommand(node)}
-                    >
-                      🔘 自动探测线路
-                    </DropdownItem>
-                    <DropdownItem
-                      key="overseas"
-                      onPress={() => handleCopyOverseasInstallCommand(node)}
-                    >
-                      🌏 国外机主线路
-                    </DropdownItem>
-                    <DropdownMenuSeparator />
-                    <DropdownItem
-                      key="offline"
-                      onPress={() => handleCopyOfflineInstallCommand(node)}
-                    >
-                      📦 离线部署
-                    </DropdownItem>
-                  </DropdownMenu>
-                </Dropdown>
+              <div className="grid gap-2 grid-cols-3">
+                <div className="w-full">
+                  <Dropdown>
+                    <DropdownTrigger>
+                      <Button
+                        className="min-h-8 w-full"
+                        color="success"
+                        isLoading={node.copyLoading}
+                        size="sm"
+                        variant="flat"
+                      >
+                        对接
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu aria-label="对接方式">
+                      <DropdownItem
+                        key="auto"
+                        onPress={() => handleCopyAutoInstallCommand(node)}
+                      >
+                        🔘 自动探测线路
+                      </DropdownItem>
+                      <DropdownItem
+                        key="overseas"
+                        onPress={() => handleCopyOverseasInstallCommand(node)}
+                      >
+                        🌏 国外机主线路
+                      </DropdownItem>
+                      <DropdownMenuSeparator />
+                      <DropdownItem
+                        key="offline"
+                        onPress={() => handleCopyOfflineInstallCommand(node)}
+                      >
+                        📦 离线部署
+                      </DropdownItem>
+                    </DropdownMenu>
+                  </Dropdown>
+                </div>
+                <Button
+                  className="min-h-8 w-full"
+                  color="warning"
+                  isDisabled={node.connectionStatus !== "online"}
+                  isLoading={node.upgradeLoading}
+                  size="sm"
+                  variant="flat"
+                  onPress={() => openUpgradeModal("single", node.id)}
+                >
+                  更新
+                </Button>
+                <Button
+                  className="min-h-8 w-full"
+                  color={shareCounts[node.id] ? "success" : "default"}
+                  size="sm"
+                  variant="flat"
+                  onPress={() => void openNodeSharing(node)}
+                >
+                  分享
+                </Button>
               </div>
-              <Button
-                className="min-h-8 w-full"
-                color="warning"
-                isDisabled={node.connectionStatus !== "online"}
-                isLoading={node.upgradeLoading}
-                size="sm"
-                variant="flat"
-                onPress={() => openUpgradeModal("single", node.id)}
-              >
-                更新
-              </Button>
-              <Button
-                className="min-h-8 w-full"
-                color={shareCounts[node.id] ? "success" : "default"}
-                size="sm"
-                variant="flat"
-				onPress={() => void openNodeSharing(node)}
-              >
-                分享
-              </Button>
-            </div>
-            <div className="grid gap-2 grid-cols-4">
-              <Button
-                className="min-h-8 w-full"
-                color="primary"
-                size="sm"
-                variant="flat"
-                onPress={() => handleEdit(node)}
-              >
-                编辑
-              </Button>
-              <Button
-                className="min-h-8 w-full"
-                color="success"
-                size="sm"
-                variant="flat"
-                onPress={() => handleResetNodeTraffic(node)}
-              >
-                归零
-              </Button>
-              <Button
-                className="min-h-8 w-full"
-                color={node.paused ? "success" : "warning"}
-                size="sm"
-                variant="flat"
-                onPress={() => handleTogglePause(node)}
-              >
-                {node.paused ? "启用" : "暂停"}
-              </Button>
-              <Button
-                className="min-h-8 w-full"
-                color="danger"
-                size="sm"
-                variant="flat"
-                onPress={() => handleDelete(node)}
-              >
-                删除
-              </Button>
-            </div>
+              <div className="grid gap-2 grid-cols-4">
+                <Button
+                  className="min-h-8 w-full"
+                  color="primary"
+                  size="sm"
+                  variant="flat"
+                  onPress={() => handleEdit(node)}
+                >
+                  编辑
+                </Button>
+                <Button
+                  className="min-h-8 w-full"
+                  color="success"
+                  size="sm"
+                  variant="flat"
+                  onPress={() => handleResetNodeTraffic(node)}
+                >
+                  归零
+                </Button>
+                <Button
+                  className="min-h-8 w-full"
+                  color={node.paused ? "success" : "warning"}
+                  size="sm"
+                  variant="flat"
+                  onPress={() => handleTogglePause(node)}
+                >
+                  {node.paused ? "启用" : "暂停"}
+                </Button>
+                <Button
+                  className="min-h-8 w-full"
+                  color="danger"
+                  size="sm"
+                  variant="flat"
+                  onPress={() => handleDelete(node)}
+                >
+                  删除
+                </Button>
+              </div>
             </>}
           </div>
           {/* 备注和到期提醒 */}
@@ -3723,7 +3723,7 @@ export default function NodePage() {
     <MonitorTerminalProvider>
       <AnimatedPage className="px-3 lg:px-6 py-8">
         <div className="mb-6 space-y-3">
-            <div className="flex flex-wrap items-center gap-3 pb-1">
+          <div className="flex flex-wrap items-center gap-3 pb-1">
             <div className="flex items-center gap-2">
               <SearchBar
                 isVisible={isSearchVisible}
@@ -4145,7 +4145,7 @@ export default function NodePage() {
                                         onInstallMimicDeps={(node) =>
                                           requestMimicDepsInstall([node])
                                         }
-										onShareNode={(node) => void openNodeSharing(node)}
+                                        onShareNode={(node) => void openNodeSharing(node)}
                                         onViewRemoteDetail={setRemoteDetailNode}
                                         openInstallSelector={openInstallSelector}
                                         openUpgradeModal={openUpgradeModal}
@@ -4154,8 +4154,8 @@ export default function NodePage() {
                                           realtimeNodeInstanceMetrics
                                         }
                                         selectedIds={selectedIds}
-                                         shareCounts={shareCounts}
-                                         remoteUsageByNode={remoteUsageByNode}
+                                        shareCounts={shareCounts}
+                                        remoteUsageByNode={remoteUsageByNode}
                                         setFilterGroupId={setFilterGroupId}
                                         setNodeFilterMode={setNodeFilterMode}
                                         toggleSelect={toggleSelect}
@@ -4234,7 +4234,7 @@ export default function NodePage() {
                     onResetInstanceTraffic={setInstanceResetTarget}
                     onReorderInstances={reorderNodeInstances}
                     onInstallMimicDeps={(node) => requestMimicDepsInstall([node])}
-					onShareNode={(node) => void openNodeSharing(node)}
+                    onShareNode={(node) => void openNodeSharing(node)}
                     onViewRemoteDetail={setRemoteDetailNode}
                     openInstallSelector={openInstallSelector}
                     openUpgradeModal={openUpgradeModal}
@@ -4308,46 +4308,46 @@ export default function NodePage() {
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                       <div className="md:col-span-1">
                         <Select
-                        description=""
-                        label="分组"
-                        placeholder="选择分组"
-                        selectedKeys={
-                          form.groupId && form.groupId > 0
-                            ? [String(form.groupId)]
-                            : []
-                        }
-                        variant="bordered"
-                        onSelectionChange={(keys) => {
-                          const selected = Array.from(keys)[0] as
-                            | string
-                            | undefined;
+                          description=""
+                          label="分组"
+                          placeholder="选择分组"
+                          selectedKeys={
+                            form.groupId && form.groupId > 0
+                              ? [String(form.groupId)]
+                              : []
+                          }
+                          variant="bordered"
+                          onSelectionChange={(keys) => {
+                            const selected = Array.from(keys)[0] as
+                              | string
+                              | undefined;
 
-                          setForm((prev) => ({
-                            ...prev,
-                            groupId:
-                              selected && selected !== ""
-                                ? parseInt(selected)
-                                : null,
-                          }));
-                        }}
-                      >
-                        <SelectItem key="" textValue="未分组">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-gray-300" />
-                            <span>未分组</span>
-                          </div>
-                        </SelectItem>
-                        {nodeGroups.map((group) => (
-                          <SelectItem key={group.id} textValue={group.name}>
+                            setForm((prev) => ({
+                              ...prev,
+                              groupId:
+                                selected && selected !== ""
+                                  ? parseInt(selected)
+                                  : null,
+                            }));
+                          }}
+                        >
+                          <SelectItem key="" textValue="未分组">
                             <div className="flex items-center gap-2">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: group.color }}
-                              />
-                              <span>{group.name}</span>
+                              <div className="w-3 h-3 rounded-full bg-gray-300" />
+                              <span>未分组</span>
                             </div>
                           </SelectItem>
-                        ))}
+                          {nodeGroups.map((group) => (
+                            <SelectItem key={group.id} textValue={group.name}>
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: group.color }}
+                                />
+                                <span>{group.name}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
                         </Select>
                       </div>
                       <div className="md:col-span-1">
@@ -4372,30 +4372,30 @@ export default function NodePage() {
                       </div>
                       <div className="md:col-span-2">
                         <FieldContainer
-                        description=""
-                        label="密钥"
-                      >
-                        <div className="flex items-center gap-2">
-                          <BaseInput
-                            className="flex-1"
-                            placeholder="留空自动生成或输入密钥"
-                            value={form.secret}
-                            onChange={(e) =>
-                              setForm((prev) => ({
-                                ...prev,
-                                secret: e.target.value,
-                              }))
-                            }
-                          />
-                          <Button
-                            color="primary"
-                            size="sm"
-                            variant="flat"
-                            onClick={handleRegenerateSecret}
-                          >
-                            随机生成
-                          </Button>
-                        </div>
+                          description=""
+                          label="密钥"
+                        >
+                          <div className="flex items-center gap-2">
+                            <BaseInput
+                              className="flex-1"
+                              placeholder="留空自动生成或输入密钥"
+                              value={form.secret}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  secret: e.target.value,
+                                }))
+                              }
+                            />
+                            <Button
+                              color="primary"
+                              size="sm"
+                              variant="flat"
+                              onClick={handleRegenerateSecret}
+                            >
+                              随机生成
+                            </Button>
+                          </div>
                         </FieldContainer>
                       </div>
                     </div>
@@ -4431,50 +4431,50 @@ export default function NodePage() {
                         }
                       >
                         <div className="space-y-3 px-[12px] pb-2">
-                      {/* 移动端 2 列 (grid-cols-2)，中等及以上屏幕 4 列 (md:grid-cols-4) */}
-                      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-                          <Checkbox
-                            isDisabled={!dnsProviderAvailability.aliyun}
-                            isSelected={form.dnsProvider === "aliyun"}
-                          onValueChange={(selected) => {
-                            if (selected) setForm((prev) => ({ ...prev, dnsProvider: "aliyun" }));
-                          }}
-                        >
-                          {/* 核心护盾：绝对不许换行 */}
-                          <span className="whitespace-nowrap">阿里云</span>
-                        </Checkbox>
+                          {/* 移动端 2 列 (grid-cols-2)，中等及以上屏幕 4 列 (md:grid-cols-4) */}
+                          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+                            <Checkbox
+                              isDisabled={!dnsProviderAvailability.aliyun}
+                              isSelected={form.dnsProvider === "aliyun"}
+                              onValueChange={(selected) => {
+                                if (selected) setForm((prev) => ({ ...prev, dnsProvider: "aliyun" }));
+                              }}
+                            >
+                              {/* 核心护盾：绝对不许换行 */}
+                              <span className="whitespace-nowrap">阿里云</span>
+                            </Checkbox>
 
-                          <Checkbox
-                            isDisabled={!dnsProviderAvailability.cloudflare}
-                            isSelected={form.dnsProvider === "cloudflare"}
-                          onValueChange={(selected) => {
-                            if (selected) setForm((prev) => ({ ...prev, dnsProvider: "cloudflare" }));
-                          }}
-                        >
-                          <span className="whitespace-nowrap">Cloudflare</span>
-                        </Checkbox>
+                            <Checkbox
+                              isDisabled={!dnsProviderAvailability.cloudflare}
+                              isSelected={form.dnsProvider === "cloudflare"}
+                              onValueChange={(selected) => {
+                                if (selected) setForm((prev) => ({ ...prev, dnsProvider: "cloudflare" }));
+                              }}
+                            >
+                              <span className="whitespace-nowrap">Cloudflare</span>
+                            </Checkbox>
 
-                        <Checkbox
-                          isSelected={form.dnsManageA}
-                          onValueChange={(dnsManageA) => setForm((prev) => ({ ...prev, dnsManageA }))}
-                        >
-                          <span className="whitespace-nowrap">管理V4</span>
-                        </Checkbox>
+                            <Checkbox
+                              isSelected={form.dnsManageA}
+                              onValueChange={(dnsManageA) => setForm((prev) => ({ ...prev, dnsManageA }))}
+                            >
+                              <span className="whitespace-nowrap">管理V4</span>
+                            </Checkbox>
 
-                        <Checkbox
-                          isSelected={form.dnsManageAAAA}
-                          onValueChange={(dnsManageAAAA) => setForm((prev) => ({ ...prev, dnsManageAAAA }))}
-                        >
-                          <span className="whitespace-nowrap">管理V6</span>
-                        </Checkbox>
-                      </div>
-                      <div className="text-sm text-default-700">启用/关闭 DNS 容灾</div>
-                      <Checkbox isSelected={form.dnsEnabled} onValueChange={(dnsEnabled) => setForm((prev) => ({ ...prev, dnsEnabled }))}>
-                        DNS容灾
-                      </Checkbox>
-                      <div className="text-xs text-warning-800">
-                        DNS 记录名默认使用“域名/公网 IPv4 地址”，启用 DNS 容灾时必须填写域名，不能填写 IP 地址
-                      </div>
+                            <Checkbox
+                              isSelected={form.dnsManageAAAA}
+                              onValueChange={(dnsManageAAAA) => setForm((prev) => ({ ...prev, dnsManageAAAA }))}
+                            >
+                              <span className="whitespace-nowrap">管理V6</span>
+                            </Checkbox>
+                          </div>
+                          <div className="text-sm text-default-700">启用/关闭 DNS 容灾</div>
+                          <Checkbox isSelected={form.dnsEnabled} onValueChange={(dnsEnabled) => setForm((prev) => ({ ...prev, dnsEnabled }))}>
+                            DNS容灾
+                          </Checkbox>
+                          <div className="text-xs text-warning-800">
+                            DNS 记录名默认使用“域名/公网 IPv4 地址”，启用 DNS 容灾时必须填写域名，不能填写 IP 地址
+                          </div>
                         </div>
                       </AccordionItem>
                     </Accordion>
@@ -4647,14 +4647,14 @@ export default function NodePage() {
             )}
           </ModalContent>
         </Modal>
-      <NodeDNSFailoverModal
+        <NodeDNSFailoverModal
           isOpen={dnsFailoverModalOpen}
           node={dnsFailoverNode}
           nodes={nodeList}
           onOpenChange={setDNSFailoverModalOpen}
           selectedNodeIds={dnsFailoverSelectedNodeIds}
-        onSelectedNodeIdsChange={setDNSFailoverSelectedNodeIds}
-        onSaved={loadDNSProviderAvailability}
+          onSelectedNodeIdsChange={setDNSFailoverSelectedNodeIds}
+          onSaved={loadDNSProviderAvailability}
         />
         {/* 删除确认弹窗 */}
         <Modal
@@ -5350,14 +5350,6 @@ export default function NodePage() {
                     onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, remark: e.target.value }))}
                   />
                 </div>
-                <Input
-                  description={`留空使用 ${DEFAULT_INSTANCE_PORT_RANGE}`}
-                  label="端口范围"
-                  placeholder={DEFAULT_INSTANCE_PORT_RANGE}
-                  value={instanceConfigForm.portRange}
-                  variant="bordered"
-                  onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, portRange: e.target.value }))}
-                />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Select label="续费周期" selectedKeys={instanceConfigForm.renewalCycle ? [instanceConfigForm.renewalCycle] : []} variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, renewalCycle: String(Array.from(keys)[0] || "") }))}>
                     <SelectItem key="month">月付</SelectItem>
@@ -5365,6 +5357,25 @@ export default function NodePage() {
                     <SelectItem key="halfYear">半年付</SelectItem>
                     <SelectItem key="year">年付</SelectItem>
                   </Select>
+                  <Input
+                    description={`留空使用 ${DEFAULT_INSTANCE_PORT_RANGE}`}
+                    label="端口范围"
+                    placeholder={DEFAULT_INSTANCE_PORT_RANGE}
+                    value={instanceConfigForm.portRange}
+                    variant="bordered"
+                    onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, portRange: e.target.value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    description="0=不归零，1-31=日期"
+                    label="流量归零日"
+                    min={0}
+                    max={31}
+                    type="number"
+                    value={instanceConfigForm.flowResetTime}
+                    variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))}
+                  />
                   <DatePicker
                     showMonthAndYearPickers
                     label="续费基准时间"
@@ -5391,14 +5402,20 @@ export default function NodePage() {
                   </DatePicker>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input description="0=不归零，1-31=日期" label="流量归零日" min={0} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
-                  <Select label="流量累计模式" selectedKeys={[String(instanceConfigForm.trafficLimitMode)]} variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimitMode: Number(Array.from(keys)[0] || 0) }))}>
-                    <SelectItem key="0" description="流量一直累加，达到限额后暂停">终身累计</SelectItem>
+                  <Input
+                    description="流量用完前有电报提醒"
+                    label="流量限额 (GB)"
+                    min={0}
+                    type="number"
+                    value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))}
+                  />
+                  <Select
+                    label="流量累计模式"
+                    selectedKeys={[String(instanceConfigForm.trafficLimitMode)]}
+                    variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimitMode: Number(Array.from(keys)[0] || 0) }))}>
                     <SelectItem key="1" description="每月归零日自动重置累计流量">按月累计</SelectItem>
+                    <SelectItem key="0" description="流量一直累加，达到限额后暂停">终身累计</SelectItem>
                   </Select>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input description="流量用完前有电报提醒" label="流量限额 (GB)" min={0} type="number" value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))} />
                 </div>
               </div>
             </ModalBody>
