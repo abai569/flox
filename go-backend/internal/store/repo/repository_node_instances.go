@@ -91,6 +91,8 @@ type NodeInstanceTrafficLimitItem struct {
 	Mask         int
 	TotalInFlow  int64
 	TotalOutFlow int64
+	NetInBytes   int64
+	NetOutBytes  int64
 }
 
 func normalizeNodeInstanceID(instanceID string) string {
@@ -506,7 +508,9 @@ func (r *Repository) GetNodeInstanceTrafficLimitInfo(nodeID int64, instanceID st
 		       nsi.total_in_flow + nsi.total_out_flow AS used,
 		       nsi.traffic_notified_mask,
 		       nsi.total_in_flow,
-		       nsi.total_out_flow
+		       nsi.total_out_flow,
+		       nsi.net_in_bytes,
+		       nsi.net_out_bytes
 		FROM node_instance nsi
 		JOIN node n ON n.id = nsi.node_id
 		WHERE nsi.node_id = ? AND nsi.instance_id = ?
@@ -534,6 +538,29 @@ func (r *Repository) SetNodeInstanceTotalFlow(nodeID int64, instanceID string, r
 			"total_in_flow":  rx,
 			"total_out_flow": tx,
 		}).Error
+}
+
+func (r *Repository) AdjustNodeInstanceTraffic(nodeID int64, instanceID string, inAdjust, outAdjust int64) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return nil
+	}
+	updates := map[string]interface{}{}
+	if inAdjust != 0 {
+		updates["total_in_flow"] = gorm.Expr("total_in_flow + ?", inAdjust)
+	}
+	if outAdjust != 0 {
+		updates["total_out_flow"] = gorm.Expr("total_out_flow + ?", outAdjust)
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Updates(updates).Error
 }
 
 func (r *Repository) ResetNodeInstanceTotalFlow(nodeID int64, instanceID string) error {

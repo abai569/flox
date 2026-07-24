@@ -827,6 +827,7 @@ export default function NodePage() {
     flowResetTime: "",
     trafficLimit: "0",
     trafficLimitMode: 1,
+    usedTraffic: "0",
   });
   const [instanceDeleteTarget, setInstanceDeleteTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [instanceDeleteSaving, setInstanceDeleteSaving] = useState(false);
@@ -1963,6 +1964,7 @@ export default function NodePage() {
   );
   const openInstanceConfigEditor = (member: MonitorNodeInstanceGroupMemberApiItem) => {
     const renewalCycle = String(member.renewalCycle || "");
+    const usedTraffic = ((member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0)) / (1024 * 1024 * 1024);
 
     setInstanceConfigSaving(false);
     setInstanceConfigTarget(member);
@@ -1974,7 +1976,8 @@ export default function NodePage() {
       expiryDate: formatDateInputValue(member.expiryTime),
       flowResetTime: member.flowResetTime === undefined || member.flowResetTime === null ? "" : String(member.flowResetTime),
       trafficLimit: String(member.trafficLimit || 0),
-      trafficLimitMode: member.trafficLimitMode ?? 0,
+      trafficLimitMode: member.trafficLimitMode ?? 1,
+      usedTraffic: usedTraffic.toFixed(2),
     });
   };
   const saveInstanceConfig = async () => {
@@ -1983,6 +1986,7 @@ export default function NodePage() {
     const renewalCycle = instanceConfigForm.renewalCycle.trim();
     const flowResetTime = Number(instanceConfigForm.flowResetTime === "" ? 0 : instanceConfigForm.flowResetTime);
     const trafficLimit = Number(instanceConfigForm.trafficLimit || 0);
+    const usedTrafficGB = Number(instanceConfigForm.usedTraffic || 0);
     const displayName = instanceConfigForm.displayName.trim();
     const remark = instanceConfigForm.remark.trim();
     const portRange = instanceConfigForm.portRange.trim() || DEFAULT_INSTANCE_PORT_RANGE;
@@ -2006,7 +2010,34 @@ export default function NodePage() {
       toast.error("流量限额不能小于 0");
       return;
     }
-    const trafficLimitMode = instanceConfigForm.trafficLimitMode ?? 0;
+    if (!Number.isFinite(usedTrafficGB) || usedTrafficGB < 0) {
+      toast.error("已用流量不能小于 0");
+      return;
+    }
+    const trafficLimitMode = instanceConfigForm.trafficLimitMode ?? 1;
+
+    // 计算已用流量差值（GB -> bytes）
+    const currentUsedBytes = (instanceConfigTarget.totalInFlow ?? 0) + (instanceConfigTarget.totalOutFlow ?? 0);
+    const targetUsedBytes = usedTrafficGB * 1024 * 1024 * 1024;
+    const diffBytes = targetUsedBytes - currentUsedBytes;
+
+    // 按比例分配到上行/下行
+    let inFlowAdjust = 0;
+    let outFlowAdjust = 0;
+    if (Math.abs(diffBytes) > 0) {
+      const currentIn = instanceConfigTarget.totalInFlow ?? 0;
+      const currentOut = instanceConfigTarget.totalOutFlow ?? 0;
+      const total = currentIn + currentOut;
+      if (total > 0) {
+        // 按当前比例分配
+        inFlowAdjust = Math.round(diffBytes * (currentIn / total));
+        outFlowAdjust = diffBytes - inFlowAdjust;
+      } else {
+        // 新实例，全部加到下行
+        outFlowAdjust = diffBytes;
+      }
+    }
+
     setInstanceConfigSaving(true);
     try {
       const payload: Parameters<typeof updateNodeInstanceProfile>[0] = {
@@ -2019,6 +2050,8 @@ export default function NodePage() {
         flowResetTime: Math.floor(flowResetTime),
         trafficLimit: Math.floor(trafficLimit),
         trafficLimitMode,
+        inFlowAdjust: Math.round(inFlowAdjust),
+        outFlowAdjust: Math.round(outFlowAdjust),
       };
       if (expiryTime > 0 && renewalCycle) {
         payload.expiryTime = expiryTime;

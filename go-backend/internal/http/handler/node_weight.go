@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,6 +39,8 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		TrafficLimit     int64       `json:"trafficLimit"`
 		TrafficLimitMode *int        `json:"trafficLimitMode"`
 		TrafficRatio     *float64    `json:"trafficRatio"`
+		InFlowAdjust     int64       `json:"inFlowAdjust"`
+		OutFlowAdjust    int64       `json:"outFlowAdjust"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
@@ -112,6 +115,14 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
+
+		// 处理流量矫正
+		if req.InFlowAdjust != 0 || req.OutFlowAdjust != 0 {
+			if err := h.repo.AdjustNodeInstanceTraffic(req.NodeID, instanceID, req.InFlowAdjust, req.OutFlowAdjust); err != nil {
+				log.Printf("WARN: adjust node %d instance %s traffic failed: %v", req.NodeID, instanceID, err)
+			}
+		}
+
 		h.deleteNodeInstanceTrafficCacheEntry(req.NodeID, instanceID)
 	} else {
 		if err := h.repo.UpdateNodeWeight(req.NodeID, req.Weight, time.Now().UnixMilli()); err != nil {

@@ -172,6 +172,8 @@ type NodeInstance struct {
 	TrafficLimitMode             int            `gorm:"column:traffic_limit_mode;not null;default:1"`
 	TotalInFlow                  int64          `gorm:"column:total_in_flow;default:0"`
 	TotalOutFlow                 int64          `gorm:"column:total_out_flow;default:0"`
+	LastSyncNetInBytes           int64          `gorm:"column:last_sync_net_in_bytes;default:0"`
+	LastSyncNetOutBytes          int64          `gorm:"column:last_sync_net_out_bytes;default:0"`
 	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
 	NetInSpeed                   int64          `gorm:"column:net_in_speed;default:0"`
 	NetOutSpeed                  int64          `gorm:"column:net_out_speed;default:0"`

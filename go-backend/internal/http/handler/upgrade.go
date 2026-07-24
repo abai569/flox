@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"regexp"
 	"sort"
@@ -421,6 +422,44 @@ func (h *Handler) onNodeOnline(nodeID int64) {
 
 func (h *Handler) onNodeInstanceOnline(nodeID int64, instanceID string) {
 	h.syncPeerShareRuntimesToInstance(nodeID, instanceID)
+	h.syncNodeInstanceNetTraffic(nodeID, instanceID)
+}
+
+func (h *Handler) syncNodeInstanceNetTraffic(nodeID int64, instanceID string) {
+	if h == nil || h.repo == nil {
+		return
+	}
+	// 获取实例当前上报的网卡流量
+	info, err := h.repo.GetNodeInstanceTrafficLimitInfo(nodeID, instanceID)
+	if err != nil || info == nil {
+		return
+	}
+
+	// 获取实例记录的上次同步的网卡流量
+	var instance model.NodeInstance
+	if err := h.repo.DB().Where("node_id = ? AND instance_id = ?", nodeID, instanceID).First(&instance).Error; err != nil {
+		return
+	}
+
+	// 计算差值
+	inDiff := info.NetInBytes - instance.LastSyncNetInBytes
+	outDiff := info.NetOutBytes - instance.LastSyncNetOutBytes
+
+	// 如果差值为正，说明有新增流量，累加到累计流量
+	if inDiff > 0 || outDiff > 0 {
+		if err := h.repo.AdjustNodeInstanceTraffic(nodeID, instanceID, inDiff, outDiff); err != nil {
+			log.Printf("WARN: sync node %d instance %s net traffic failed: %v", nodeID, instanceID, err)
+			return
+		}
+		// 更新上次同步的网卡流量
+		h.repo.DB().Model(&model.NodeInstance{}).
+			Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+			Updates(map[string]interface{}{
+				"last_sync_net_in_bytes":  info.NetInBytes,
+				"last_sync_net_out_bytes": info.NetOutBytes,
+			})
+		log.Printf("sync node %d instance %s net traffic: in=%d out=%d", nodeID, instanceID, inDiff, outDiff)
+	}
 }
 
 func (h *Handler) onNodeOffline(nodeID int64) {
