@@ -2949,7 +2949,7 @@ export default function UserPage() {
               <Select
                 description=""
                 label="自组隧道"
-                placeholder="控制该用户是否可以自行组建隧道"
+                placeholder="控制用户自行组建隧道权限"
                 selectedKeys={[String(userForm.manualTunnelEnabled ?? 0)]}
                 onSelectionChange={(keys) => {
                   const value = Array.from(keys)[0] as string;

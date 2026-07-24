@@ -1521,7 +1521,7 @@ export default function ConfigPage() {
                   },
                   {
                     key: "forward_mode_mimic_enabled",
-                    label: "WGM 模式",
+                    label: "WGMimic 模式",
                     desc: "WGMimic 伪装转发",
                   },
                 ] as const
