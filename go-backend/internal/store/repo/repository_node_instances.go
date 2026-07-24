@@ -275,7 +275,7 @@ func (r *Repository) UpdateNodeInstanceWeight(nodeID int64, instanceID string, w
 		Updates(map[string]interface{}{"weight": weight, "updated_time": now}).Error
 }
 
-func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, remark string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, flowResetTime int, trafficLimit int64, trafficRatio *float64, now int64) error {
+func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, remark string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, flowResetTime int, trafficLimit int64, trafficLimitMode int, trafficRatio *float64, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
@@ -299,6 +299,14 @@ func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, 
 		"expiry_reminder_dismissed_until": sql.NullInt64{},
 		"traffic_notified_mask":           0,
 		"updated_time":                    now,
+	}
+	if trafficLimit > 0 {
+		var existing model.NodeInstance
+		if err := r.db.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).First(&existing).Error; err == nil {
+			if existing.TrafficLimit <= 0 {
+				updates["traffic_limit_mode"] = trafficLimitMode
+			}
+		}
 	}
 	if trafficRatio != nil {
 		updates["traffic_ratio"] = *trafficRatio
@@ -630,6 +638,7 @@ func (r *Repository) ListNodeInstanceMonthlyFlowResetDue(currentDay int, lastDay
 		) latest ON latest.node_id = nsi.node_id AND latest.instance_id = nsi.instance_id
 		WHERE n.status = 1
 		  AND nsi.flow_reset_time != 0
+		  AND nsi.traffic_limit_mode = 1
 		  AND ` + where
 	args = append([]interface{}{}, args...)
 	if currentDay == lastDay {

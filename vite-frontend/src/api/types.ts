@@ -803,6 +803,7 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   expiryReminderDismissedUntil?: number | null;
   flowResetTime?: number;
   trafficLimit?: number;
+  trafficLimitMode?: number;
   totalInFlow?: number;
   totalOutFlow?: number;
   onlineCount: number;

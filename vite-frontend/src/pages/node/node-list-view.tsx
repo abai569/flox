@@ -881,9 +881,17 @@ function NodeInstanceRows({
                   {formatTraffic(member.totalInFlow ?? 0)}
                 </td>
                 <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-3 text-center text-default-700" style={{ width: "100px" }}>
-                        {(member.trafficLimit ?? 0) > 0
-                          ? `${member.trafficLimit} G`
-                          : "不限"}
+                        {(member.trafficLimit ?? 0) > 0 ? (() => {
+                          const used = (member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0);
+                          const limitBytes = (member.trafficLimit ?? 0) * 1024 * 1024 * 1024;
+                          const remaining = Math.max(limitBytes - used, 0);
+                          const title = `已用流量：${formatTraffic(used)}\n剩余流量：${formatTraffic(remaining)}\n总流量：${formatTraffic(limitBytes)}`;
+                          return (
+                            <span title={title} className="cursor-help">
+                              {member.trafficLimit} G
+                            </span>
+                          );
+                        })() : "不限"}
                 </td>
                 <td className="w-[110px] min-w-[110px] max-w-[110px] px-2 py-3 text-center text-default-700">
                         {member.expiryTime && member.renewalCycle

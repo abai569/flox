@@ -826,6 +826,7 @@ export default function NodePage() {
     expiryDate: "",
     flowResetTime: "",
     trafficLimit: "0",
+    trafficLimitMode: 0,
   });
   const [instanceDeleteTarget, setInstanceDeleteTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [instanceDeleteSaving, setInstanceDeleteSaving] = useState(false);
@@ -1973,6 +1974,7 @@ export default function NodePage() {
       expiryDate: formatDateInputValue(member.expiryTime),
       flowResetTime: member.flowResetTime === undefined || member.flowResetTime === null ? "" : String(member.flowResetTime),
       trafficLimit: String(member.trafficLimit || 0),
+      trafficLimitMode: member.trafficLimitMode ?? 0,
     });
   };
   const saveInstanceConfig = async () => {
@@ -2004,6 +2006,7 @@ export default function NodePage() {
       toast.error("流量限额不能小于 0");
       return;
     }
+    const trafficLimitMode = instanceConfigForm.trafficLimitMode ?? 0;
     setInstanceConfigSaving(true);
     try {
       const payload: Parameters<typeof updateNodeInstanceProfile>[0] = {
@@ -2015,6 +2018,7 @@ export default function NodePage() {
         portRange,
         flowResetTime: Math.floor(flowResetTime),
         trafficLimit: Math.floor(trafficLimit),
+        trafficLimitMode,
       };
       if (expiryTime > 0 && renewalCycle) {
         payload.expiryTime = expiryTime;
@@ -5388,7 +5392,13 @@ export default function NodePage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input description="0=不归零，1-31=日期" label="流量归零日" min={0} max={31} type="number" value={instanceConfigForm.flowResetTime} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))} />
-                  <Input description="流量用完前有电报提醒" label="流量限额(GB)" min={0} type="number" value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))} />
+                  <Select label="流量累计模式" selectedKeys={[String(instanceConfigForm.trafficLimitMode)]} variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimitMode: Number(Array.from(keys)[0] || 0) }))}>
+                    <SelectItem key="0" description="流量一直累加，达到限额后暂停">终身累计</SelectItem>
+                    <SelectItem key="1" description="每月归零日自动重置累计流量">按月累计</SelectItem>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input description="流量用完前有电报提醒" label="流量限额 (GB)" min={0} type="number" value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))} />
                 </div>
               </div>
             </ModalBody>

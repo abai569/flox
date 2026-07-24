@@ -177,6 +177,7 @@ export const updateNodeInstanceProfile = (data: {
   renewalCycle?: string;
   flowResetTime?: number;
   trafficLimit?: number;
+  trafficLimitMode?: number;
 }) => Network.post("/node/weight", data);
 export const getNodeInstancePorts = (nodeId: number) =>
   Network.get<NodeInstancePortApiData>("/node/instance-port/list", {

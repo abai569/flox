@@ -17,7 +17,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	_, roleID, err := userRoleFromRequest(r)
 	if err != nil {
-		response.WriteJSON(w, response.Err(401, "未登录或token已过期"))
+		response.WriteJSON(w, response.Err(401, "未登录或 token 已过期"))
 		return
 	}
 	if roleID != 0 {
@@ -26,28 +26,29 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		NodeID        int64       `json:"nodeId"`
-		InstanceID    string      `json:"instanceId"`
-		DisplayName   string      `json:"displayName"`
-		Remark        string      `json:"remark"`
-		Weight        int         `json:"weight"`
-		PortRange     string      `json:"portRange"`
-		ExpiryTime    interface{} `json:"expiryTime"`
-		RenewalCycle  interface{} `json:"renewalCycle"`
-		FlowResetTime int         `json:"flowResetTime"`
-		TrafficLimit  int64       `json:"trafficLimit"`
-		TrafficRatio  *float64    `json:"trafficRatio"`
+		NodeID           int64       `json:"nodeId"`
+		InstanceID       string      `json:"instanceId"`
+		DisplayName      string      `json:"displayName"`
+		Remark           string      `json:"remark"`
+		Weight           int         `json:"weight"`
+		PortRange        string      `json:"portRange"`
+		ExpiryTime       interface{} `json:"expiryTime"`
+		RenewalCycle     interface{} `json:"renewalCycle"`
+		FlowResetTime    int         `json:"flowResetTime"`
+		TrafficLimit     int64       `json:"trafficLimit"`
+		TrafficLimitMode *int        `json:"trafficLimitMode"`
+		TrafficRatio     *float64    `json:"trafficRatio"`
 	}
 	if err := decodeJSON(r.Body, &req); err != nil {
 		response.WriteJSON(w, response.ErrDefault("请求参数错误"))
 		return
 	}
 	if req.NodeID <= 0 {
-		response.WriteJSON(w, response.ErrDefault("节点ID不能为空"))
+		response.WriteJSON(w, response.ErrDefault("节点 ID 不能为空"))
 		return
 	}
 	if req.Weight < 0 || req.Weight > 10 {
-		response.WriteJSON(w, response.ErrDefault("权重必须在0-10之间，0表示禁用承载"))
+		response.WriteJSON(w, response.ErrDefault("权重必须在 0-10 之间，0 表示禁用承载"))
 		return
 	}
 	node, err := h.getNodeRecord(req.NodeID)
@@ -58,6 +59,15 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 
 	instanceID := strings.TrimSpace(req.InstanceID)
 	portRange := strings.TrimSpace(req.PortRange)
+	trafficLimitMode := 0
+	if req.TrafficLimitMode != nil {
+		trafficLimitMode = *req.TrafficLimitMode
+		if trafficLimitMode < 0 || trafficLimitMode > 1 {
+			response.WriteJSON(w, response.ErrDefault("流量累计模式必须为 0 或 1"))
+			return
+		}
+	}
+
 	if instanceID != "" {
 		if req.TrafficRatio != nil {
 			if node.IsRemote == 1 {
@@ -72,11 +82,11 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len([]rune(strings.TrimSpace(req.DisplayName))) > 100 {
-			response.WriteJSON(w, response.ErrDefault("实例名称不能超过100个字符"))
+			response.WriteJSON(w, response.ErrDefault("实例名称不能超过 100 个字符"))
 			return
 		}
 		if len([]rune(strings.TrimSpace(req.Remark))) > 200 {
-			response.WriteJSON(w, response.ErrDefault("实例备注不能超过200个字符"))
+			response.WriteJSON(w, response.ErrDefault("实例备注不能超过 200 个字符"))
 			return
 		}
 		renewalCycle := normalizeNodeRenewalCycle(asString(req.RenewalCycle))
@@ -91,14 +101,14 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.TrafficLimit < 0 {
-			response.WriteJSON(w, response.ErrDefault("流量限额不能小于0"))
+			response.WriteJSON(w, response.ErrDefault("流量限额不能小于 0"))
 			return
 		}
 		var expiryInput interface{}
 		if expiryTime > 0 {
 			expiryInput = expiryTime
 		}
-		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Remark, req.Weight, portRange, expiryInput, renewalCycle, flowResetTime, req.TrafficLimit, req.TrafficRatio, time.Now().UnixMilli()); err != nil {
+		if err := h.repo.UpdateNodeInstanceProfile(req.NodeID, instanceID, req.DisplayName, req.Remark, req.Weight, portRange, expiryInput, renewalCycle, flowResetTime, req.TrafficLimit, trafficLimitMode, req.TrafficRatio, time.Now().UnixMilli()); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
 			return
 		}
@@ -112,17 +122,18 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 
 	go h.redeployNodeRuntime(req.NodeID)
 	response.WriteJSON(w, response.OK(map[string]interface{}{
-		"nodeId":        req.NodeID,
-		"instanceId":    instanceID,
-		"displayName":   strings.TrimSpace(req.DisplayName),
-		"remark":        strings.TrimSpace(req.Remark),
-		"weight":        req.Weight,
-		"portRange":     portRange,
-		"expiryTime":    asInt64(req.ExpiryTime, 0),
-		"renewalCycle":  normalizeNodeRenewalCycle(asString(req.RenewalCycle)),
-		"flowResetTime": req.FlowResetTime,
-		"trafficLimit":  req.TrafficLimit,
-		"trafficRatio":  req.TrafficRatio,
+		"nodeId":           req.NodeID,
+		"instanceId":       instanceID,
+		"displayName":      strings.TrimSpace(req.DisplayName),
+		"remark":           strings.TrimSpace(req.Remark),
+		"weight":           req.Weight,
+		"portRange":        portRange,
+		"expiryTime":       asInt64(req.ExpiryTime, 0),
+		"renewalCycle":     normalizeNodeRenewalCycle(asString(req.RenewalCycle)),
+		"flowResetTime":    req.FlowResetTime,
+		"trafficLimit":     req.TrafficLimit,
+		"trafficLimitMode": trafficLimitMode,
+		"trafficRatio":     req.TrafficRatio,
 	}))
 }
 
