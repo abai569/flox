@@ -788,9 +788,9 @@ const SortableTunnelGroupContainer = ({
           <Button
             isIconOnly
             aria-label={collapsed ? "展开分组" : "折叠分组"}
-             className="h-7 w-7 min-w-7 pointer-events-none"
-             size="sm"
-             variant="flat"
+            className="h-7 w-7 min-w-7 pointer-events-none"
+            size="sm"
+            variant="flat"
           >
             <svg
               aria-hidden="true"
@@ -870,7 +870,7 @@ const SortableForwardCard = ({ forward, renderCard }: any) => {
 };
 
 function extractAddressHost(address: string): string {
-	return formatAddressHost(address);
+  return formatAddressHost(address);
 }
 
 function getIngressDisplayAddresses(inIp: string, fallbackPort: number) {
@@ -961,8 +961,8 @@ const SortableTableRow = ({
   const rowBg = selectedIds.has(forward.id)
     ? "bg-primary-50/70 dark:bg-primary-900/40"
     : "";
-	const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
-		getIngressDisplayAddresses(forward.inIp, forward.inPort);
+  const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
+    getIngressDisplayAddresses(forward.inIp, forward.inPort);
   const remoteAddrOnly = extractAddressHost(
     forward.remoteAddr.split(",")[0] || "",
   );
@@ -1272,8 +1272,8 @@ const SortableCompactTableRow = ({
   const rowBg = selectedIds.has(forward.id)
     ? "bg-primary-50/70 dark:bg-primary-900/40"
     : "";
-	const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
-		getIngressDisplayAddresses(forward.inIp, forward.inPort);
+  const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
+    getIngressDisplayAddresses(forward.inIp, forward.inPort);
   const remoteAddrOnly = extractAddressHost(
     forward.remoteAddr.split(",")[0] || "",
   );
@@ -1804,7 +1804,7 @@ export default function ForwardPage() {
         setNodes([]);
         setNodeGroups([]);
       }
-    } catch {}
+    } catch { }
   }, [isAdmin]);
   const [editingOriginalManualTunnelId, setEditingOriginalManualTunnelId] =
     useState<number | null>(null);
@@ -1928,10 +1928,10 @@ export default function ForwardPage() {
       prev.speedLimit === currentEffectiveSpeedLimit && prev.speedLimitEnabled
         ? prev
         : {
-            ...prev,
-            speedLimit: currentEffectiveSpeedLimit,
-            speedLimitEnabled: true,
-          },
+          ...prev,
+          speedLimit: currentEffectiveSpeedLimit,
+          speedLimitEnabled: true,
+        },
     );
   }, [currentEffectiveSpeedLimit]);
   const resetManualTunnelState = () => {
@@ -2590,7 +2590,7 @@ export default function ForwardPage() {
       const nodesRes = await getNodeList();
 
       if (nodesRes.code === 0) setNodes((nodesRes.data || []) as Node[]);
-    } catch {}
+    } catch { }
   }, [canUseManualTunnel]);
   const handleNodeRealtimeMessage = useCallback(
     (message: { id?: string | number; type?: string; data?: unknown }) => {
@@ -2891,28 +2891,28 @@ export default function ForwardPage() {
     setModalOpen(true);
   };
   // 查看流量归零日志
-	const handleViewTrafficResetLogs = async (forward: Forward) => {
-		const generation = ++trafficResetLogsGenerationRef.current;
-		setTrafficResetLogsLoading(true);
+  const handleViewTrafficResetLogs = async (forward: Forward) => {
+    const generation = ++trafficResetLogsGenerationRef.current;
+    setTrafficResetLogsLoading(true);
     setCurrentLogForward(forward);
     try {
       const res = await getForwardTrafficResetLogs(forward.id, 30);
 
-		if (generation !== trafficResetLogsGenerationRef.current) return;
-		if (res.code === 0) {
+      if (generation !== trafficResetLogsGenerationRef.current) return;
+      if (res.code === 0) {
         setTrafficResetLogs(res.data?.logs || []);
         setTrafficResetLogModalOpen(true);
       } else {
         toast.error(res.msg || "获取日志失败");
       }
-		} catch {
-			if (generation === trafficResetLogsGenerationRef.current) {
-				toast.error("网络错误，请重试");
-			}
-		} finally {
-			if (generation === trafficResetLogsGenerationRef.current) {
-				setTrafficResetLogsLoading(false);
-			}
+    } catch {
+      if (generation === trafficResetLogsGenerationRef.current) {
+        toast.error("网络错误，请重试");
+      }
+    } finally {
+      if (generation === trafficResetLogsGenerationRef.current) {
+        setTrafficResetLogsLoading(false);
+      }
     }
   };
   // 删除流量归零日志
@@ -4981,8 +4981,8 @@ export default function ForwardPage() {
   }, [tunnels, forwards, searchParams.userId]);
   // 渲染规则卡片
   const renderForwardCard = (forward: Forward, listeners?: any) => {
-		const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
-			getIngressDisplayAddresses(forward.inIp, forward.inPort);
+    const { hosts: inAddrNoPorts, endpoints: inAddrWithPorts } =
+      getIngressDisplayAddresses(forward.inIp, forward.inPort);
     const statusDisplay = getStatusDisplay(forward.status);
     const strategyDisplay = getStrategyDisplay(forward.strategy);
 
@@ -5121,7 +5121,7 @@ export default function ForwardPage() {
                       >
                         {maskAddress(inAddrNoPorts.split(",").length > 1
                           ? inAddrNoPorts.split(",")[0].trim()
-							: formatAddressHost(forward.inIp || "") ||
+                          : formatAddressHost(forward.inIp || "") ||
                           "默认IP")}
                       </code>
                       {inAddrNoPorts.split(",").length > 1 && (
@@ -6272,85 +6272,88 @@ export default function ForwardPage() {
                   </div>
                   {tunnelSelectMode === "manual" && (
                     <div className="rounded-lg border border-divider bg-default-50/40 p-3 space-y-3">
-                      <div className="flex flex-col gap-1">
-                        <div className="text-sm font-semibold text-foreground">
-                          自行组建隧道
-                        </div>
-                        <div className="text-xs text-default-500">
-                          NAT机节点由于端口少，不建议自行组建隧道使用
-                        </div>
-                        {errors.manualTunnel && (
-                          <div className="text-xs text-danger-600">
-                            {errors.manualTunnel}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                        <div className="flex flex-col gap-1">
+                          <div className="text-sm font-semibold text-foreground">
+                            自行组建隧道
                           </div>
-                        )}
+                          <div className="text-xs text-default-500">
+                            NAT机不建议自行组建隧道
+                          </div>
+                          {errors.manualTunnel && (
+                            <div className="text-xs text-danger-600">
+                              {errors.manualTunnel}
+                            </div>
+                          )}
+                        </div>
+
+                        <Select
+                          label="隧道类型"
+                          selectedKeys={[manualTunnelType.toString()]}
+                          variant="bordered"
+                          onSelectionChange={(keys) => {
+                            const selectedKey = Array.from(keys)[0] as string;
+
+                            if (!selectedKey) return;
+                            const type = Number(selectedKey) === 1 ? 1 : 2;
+
+                            setManualTunnelType(type);
+                            if (type === 1) {
+                              setManualChainNodes([]);
+                              setManualOutNodeId([]);
+                              setManualFocusedInputs({});
+                            }
+                          }}
+                        >
+                          <SelectItem key="1">端口转发</SelectItem>
+                          <SelectItem key="2">隧道转发</SelectItem>
+                        </Select>
+                        <Select
+                          disabledKeys={buildManualDisabledKeys({ role: "entry" })}
+                          errorMessage={errors.manualInNodeId}
+                          isInvalid={!!errors.manualInNodeId}
+                          label={manualInNodeId.length > 0 ? "入口（已选 1 个）" : "入口"}
+                          listboxHeader={renderNodeSelectHeader()}
+                          placeholder="选择入口节点"
+                          selectedKeys={manualInNodeId.map((item) => item.nodeId.toString())}
+                          variant="bordered"
+                          onSelectionChange={(keys) => {
+                            const selectedIds = toSelectedNodeIds(keys);
+                            const autoIps = selectedIds
+                              .map((id) => {
+                                const node = nodes.find((item) => item.id === id);
+
+                                return (
+                                  node?.serverIpV4 ||
+                                  node?.serverIpV6 ||
+                                  node?.intranetIp ||
+                                  node?.serverIp ||
+                                  ""
+                                ).trim();
+                              })
+                              .filter(Boolean);
+
+                            setManualInIp(autoIps.join("\n"));
+                            setManualInNodeId((prev) =>
+                              mergeOrderedManualNodes(prev, selectedIds, 1),
+                            );
+                          }}
+                        >
+                          {renderManualNodeItems({ role: "entry" })}
+                        </Select>
+                        <Textarea
+                          classNames={{
+                            inputWrapper: "!min-h-[20px] py-1.5",
+                            input: "!min-h-[20px]",
+                          }}
+                          label="入口地址"
+                          placeholder="请输入入口域名或 IP，多个地址每行一个"
+                          rows={1}
+                          value={manualInIp}
+                          variant="bordered"
+                          onChange={(e) => setManualInIp(e.target.value)}
+                        />
                       </div>
-                      <Select
-                        label="隧道类型"
-                        selectedKeys={[manualTunnelType.toString()]}
-                        variant="bordered"
-                        onSelectionChange={(keys) => {
-                          const selectedKey = Array.from(keys)[0] as string;
-
-                          if (!selectedKey) return;
-                          const type = Number(selectedKey) === 1 ? 1 : 2;
-
-                          setManualTunnelType(type);
-                          if (type === 1) {
-                            setManualChainNodes([]);
-                            setManualOutNodeId([]);
-                            setManualFocusedInputs({});
-                          }
-                        }}
-                      >
-                        <SelectItem key="1">端口转发</SelectItem>
-                        <SelectItem key="2">隧道转发</SelectItem>
-                      </Select>
-                      <Select
-                        disabledKeys={buildManualDisabledKeys({ role: "entry" })}
-                        errorMessage={errors.manualInNodeId}
-                        isInvalid={!!errors.manualInNodeId}
-                        label={manualInNodeId.length > 0 ? "入口（已选 1 个）" : "入口"}
-                        listboxHeader={renderNodeSelectHeader()}
-                        placeholder="选择入口节点"
-                        selectedKeys={manualInNodeId.map((item) => item.nodeId.toString())}
-                        variant="bordered"
-                        onSelectionChange={(keys) => {
-                          const selectedIds = toSelectedNodeIds(keys);
-                          const autoIps = selectedIds
-                            .map((id) => {
-                              const node = nodes.find((item) => item.id === id);
-
-                              return (
-                                node?.serverIpV4 ||
-                                node?.serverIpV6 ||
-                                node?.intranetIp ||
-                                node?.serverIp ||
-                                ""
-                              ).trim();
-                            })
-                            .filter(Boolean);
-
-                          setManualInIp(autoIps.join("\n"));
-                          setManualInNodeId((prev) =>
-                            mergeOrderedManualNodes(prev, selectedIds, 1),
-                          );
-                        }}
-                      >
-                        {renderManualNodeItems({ role: "entry" })}
-                      </Select>
-                      <Textarea
-                        classNames={{
-                          inputWrapper: "!min-h-[20px] py-1.5",
-                          input: "!min-h-[20px]",
-                        }}
-                        label="入口地址"
-                        placeholder="请输入入口域名或 IP，多个地址每行一个"
-                        rows={2}
-                        value={manualInIp}
-                        variant="bordered"
-                        onChange={(e) => setManualInIp(e.target.value)}
-                      />
                       {manualTunnelType === 2 && <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
@@ -6398,93 +6401,105 @@ export default function ForwardPage() {
                                 删除
                               </Button>
                             </div>
-                            <Select
-                              disabledKeys={buildManualDisabledKeys({
-                                role: "chain",
-                                groupIndex,
-                              })}
-                              errorMessage={errors[`manualChainNodes_${groupIndex}`]}
-                              isInvalid={!!errors[`manualChainNodes_${groupIndex}`]}
-                              label={group.length > 0 ? "节点（已选 1 个）" : "节点"}
-                              listboxHeader={renderNodeSelectHeader()}
-                              placeholder="选择当前跳节点"
-                              selectedKeys={group.map((item) => item.nodeId.toString())}
-                              size="sm"
-                              variant="bordered"
-                              onSelectionChange={(keys) => {
-                                const selectedIds = toSelectedNodeIds(keys);
 
-                                setManualChainNodes((prev) => {
-                                  const next = [...prev];
+                            {/* --- 节点、协议、策略：4列网格同行布局 (50% - 25% - 25%) --- */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                              <div className="md:col-span-2">
+                                <Select
+                                  disabledKeys={buildManualDisabledKeys({
+                                    role: "chain",
+                                    groupIndex,
+                                  })}
+                                  errorMessage={errors[`manualChainNodes_${groupIndex}`]}
+                                  isInvalid={!!errors[`manualChainNodes_${groupIndex}`]}
+                                  label={group.length > 0 ? "节点（已选 1 个）" : "节点"}
+                                  listboxHeader={renderNodeSelectHeader()}
+                                  placeholder="选择当前跳节点"
+                                  selectedKeys={group.map((item) => item.nodeId.toString())}
+                                  size="sm"
+                                  variant="bordered"
+                                  onSelectionChange={(keys) => {
+                                    const selectedIds = toSelectedNodeIds(keys);
 
-                                  next[groupIndex] = mergeOrderedManualNodes(
-                                    next[groupIndex] || [],
-                                    selectedIds,
-                                    2,
-                                  );
+                                    setManualChainNodes((prev) => {
+                                      const next = [...prev];
 
-                                  return next;
-                                });
-                              }}
-                            >
-                              {renderManualNodeItems({ role: "chain", groupIndex })}
-                            </Select>
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                              <Select
-                                label="传输层协议"
-                                placeholder="选择传输层协议"
-                                selectedKeys={[group[0]?.protocol || "tcp"]}
-                                size="sm"
-                                variant="bordered"
-                                onSelectionChange={(keys) => {
-                                  const selectedKey = Array.from(keys)[0] as string;
+                                      next[groupIndex] = mergeOrderedManualNodes(
+                                        next[groupIndex] || [],
+                                        selectedIds,
+                                        2,
+                                      );
 
-                                  setManualChainNodes((prev) => {
-                                    const next = [...prev];
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  {renderManualNodeItems({ role: "chain", groupIndex })}
+                                </Select>
+                              </div>
 
-                                    next[groupIndex] = (next[groupIndex] || []).map((item) => ({
-                                      ...item,
-                                      protocol: selectedKey,
-                                    }));
+                              <div className="md:col-span-1">
+                                <Select
+                                  label="传输层协议"
+                                  placeholder="选择传输层协议"
+                                  selectedKeys={[group[0]?.protocol || "tcp"]}
+                                  size="sm"
+                                  variant="bordered"
+                                  onSelectionChange={(keys) => {
+                                    const selectedKey = Array.from(keys)[0] as string;
 
-                                    return next;
-                                  });
-                                }}
-                              >
-                                <SelectItem key="tcp">TCP</SelectItem>
-                                <SelectItem key="mtcp">MTCP</SelectItem>
-                                <SelectItem key="tls">TLS</SelectItem>
-                                <SelectItem key="mtls">MTLS</SelectItem>
-                                <SelectItem key="wss">WSS</SelectItem>
-                                <SelectItem key="mwss">MWSS</SelectItem>
-                              </Select>
-                              <Select
-                                label="负载策略"
-                                placeholder="选择策略"
-                                selectedKeys={[group[0]?.strategy || "round"]}
-                                size="sm"
-                                variant="bordered"
-                                onSelectionChange={(keys) => {
-                                  const selectedKey = Array.from(keys)[0] as string;
+                                    setManualChainNodes((prev) => {
+                                      const next = [...prev];
 
-                                  setManualChainNodes((prev) => {
-                                    const next = [...prev];
+                                      next[groupIndex] = (next[groupIndex] || []).map((item) => ({
+                                        ...item,
+                                        protocol: selectedKey,
+                                      }));
 
-                                    next[groupIndex] = (next[groupIndex] || []).map((item) => ({
-                                      ...item,
-                                      strategy: selectedKey,
-                                    }));
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <SelectItem key="tcp">TCP</SelectItem>
+                                  <SelectItem key="mtcp">MTCP</SelectItem>
+                                  <SelectItem key="tls">TLS</SelectItem>
+                                  <SelectItem key="mtls">MTLS</SelectItem>
+                                  <SelectItem key="wss">WSS</SelectItem>
+                                  <SelectItem key="mwss">MWSS</SelectItem>
+                                </Select>
+                              </div>
 
-                                    return next;
-                                  });
-                                }}
-                              >
-                                <SelectItem key="fifo">主备</SelectItem>
-                                <SelectItem key="round">轮询</SelectItem>
-                                <SelectItem key="rand">随机</SelectItem>
-                                <SelectItem key="best">最优</SelectItem>
-                              </Select>
+                              <div className="md:col-span-1">
+                                <Select
+                                  label="负载策略"
+                                  placeholder="选择策略"
+                                  selectedKeys={[group[0]?.strategy || "round"]}
+                                  size="sm"
+                                  variant="bordered"
+                                  onSelectionChange={(keys) => {
+                                    const selectedKey = Array.from(keys)[0] as string;
+
+                                    setManualChainNodes((prev) => {
+                                      const next = [...prev];
+
+                                      next[groupIndex] = (next[groupIndex] || []).map((item) => ({
+                                        ...item,
+                                        strategy: selectedKey,
+                                      }));
+
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  <SelectItem key="fifo">主备</SelectItem>
+                                  <SelectItem key="round">轮询</SelectItem>
+                                  <SelectItem key="rand">随机</SelectItem>
+                                  <SelectItem key="best">最优</SelectItem>
+                                </Select>
+                              </div>
                             </div>
+                            {/* --- /节点、协议、策略 布局结束 --- */}
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                               <Input
                                 description="指定当前级被上一级连接的端口，留空按节点端口范围自动分配"
@@ -6569,8 +6584,8 @@ export default function ForwardPage() {
                                     [`chain_ipType_${groupIndex}`]: e.target.value,
                                   }))
                                 }
-                               />
-                             </div>
+                              />
+                            </div>
                             {groupIndex === manualChainNodes.length - 1 && (
                               <div className="flex justify-end">
                                 <Button
@@ -6583,69 +6598,83 @@ export default function ForwardPage() {
                                 </Button>
                               </div>
                             )}
-                           </div>
+                          </div>
                         ))}
                       </div>}
-                      {manualTunnelType === 2 && <Select
-                        disabledKeys={buildManualDisabledKeys({ role: "exit" })}
-                        errorMessage={errors.manualOutNodeId}
-                        isInvalid={!!errors.manualOutNodeId}
-                        label={manualOutNodeId.length > 0 ? "出口（已选 1 个）" : "出口"}
-                        listboxHeader={renderNodeSelectHeader()}
-                        placeholder="选择出口节点"
-                        selectedKeys={manualOutNodeId.map((item) => item.nodeId.toString())}
-                        variant="bordered"
-                        onSelectionChange={(keys) => {
-                          const selectedIds = toSelectedNodeIds(keys);
 
-                          setManualOutNodeId((prev) =>
-                            mergeOrderedManualNodes(prev, selectedIds, 3),
-                          );
-                        }}
-                      >
-                        {renderManualNodeItems({ role: "exit" })}
-                      </Select>}
-                      {manualTunnelType === 2 && <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <Select
-                          label="传输层协议"
-                          placeholder="选择传输层协议"
-                          selectedKeys={[manualOutNodeId[0]?.protocol || "tcp"]}
-                          variant="bordered"
-                          onSelectionChange={(keys) => {
-                            const selectedKey = Array.from(keys)[0] as string;
+                      {/* --- 出口节点：4列网格同行布局 (50% - 25% - 25%) --- */}
+                      {manualTunnelType === 2 && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-3">
+                          <div className="md:col-span-2">
+                            <Select
+                              disabledKeys={buildManualDisabledKeys({ role: "exit" })}
+                              errorMessage={errors.manualOutNodeId}
+                              isInvalid={!!errors.manualOutNodeId}
+                              label={manualOutNodeId.length > 0 ? "出口（已选 1 个）" : "出口"}
+                              listboxHeader={renderNodeSelectHeader()}
+                              placeholder="选择出口节点"
+                              selectedKeys={manualOutNodeId.map((item) => item.nodeId.toString())}
+                              variant="bordered"
+                              onSelectionChange={(keys) => {
+                                const selectedIds = toSelectedNodeIds(keys);
 
-                            setManualOutNodeId((prev) =>
-                              prev.map((item) => ({ ...item, protocol: selectedKey })),
-                            );
-                          }}
-                        >
-                          <SelectItem key="tcp">TCP</SelectItem>
-                          <SelectItem key="mtcp">MTCP</SelectItem>
-                          <SelectItem key="tls">TLS</SelectItem>
-                          <SelectItem key="mtls">MTLS</SelectItem>
-                          <SelectItem key="wss">WSS</SelectItem>
-                          <SelectItem key="mwss">MWSS</SelectItem>
-                        </Select>
-                        <Select
-                          label="负载策略"
-                          placeholder="选择策略"
-                          selectedKeys={[manualOutNodeId[0]?.strategy || "round"]}
-                          variant="bordered"
-                          onSelectionChange={(keys) => {
-                            const selectedKey = Array.from(keys)[0] as string;
+                                setManualOutNodeId((prev) =>
+                                  mergeOrderedManualNodes(prev, selectedIds, 3),
+                                );
+                              }}
+                            >
+                              {renderManualNodeItems({ role: "exit" })}
+                            </Select>
+                          </div>
 
-                            setManualOutNodeId((prev) =>
-                              prev.map((item) => ({ ...item, strategy: selectedKey })),
-                            );
-                          }}
-                        >
-                          <SelectItem key="fifo">主备</SelectItem>
-                          <SelectItem key="round">轮询</SelectItem>
-                          <SelectItem key="rand">随机</SelectItem>
-                          <SelectItem key="best">最优</SelectItem>
-                        </Select>
-                      </div>}
-                      {manualTunnelType === 2 && <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          <div className="md:col-span-1">
+                            <Select
+                              label="传输层协议"
+                              placeholder="选择传输层协议"
+                              selectedKeys={[manualOutNodeId[0]?.protocol || "tcp"]}
+                              variant="bordered"
+                              onSelectionChange={(keys) => {
+                                const selectedKey = Array.from(keys)[0] as string;
+
+                                setManualOutNodeId((prev) =>
+                                  prev.map((item) => ({ ...item, protocol: selectedKey })),
+                                );
+                              }}
+                            >
+                              <SelectItem key="tcp">TCP</SelectItem>
+                              <SelectItem key="mtcp">MTCP</SelectItem>
+                              <SelectItem key="tls">TLS</SelectItem>
+                              <SelectItem key="mtls">MTLS</SelectItem>
+                              <SelectItem key="wss">WSS</SelectItem>
+                              <SelectItem key="mwss">MWSS</SelectItem>
+                            </Select>
+                          </div>
+
+                          <div className="md:col-span-1">
+                            <Select
+                              label="负载策略"
+                              placeholder="选择策略"
+                              selectedKeys={[manualOutNodeId[0]?.strategy || "round"]}
+                              variant="bordered"
+                              onSelectionChange={(keys) => {
+                                const selectedKey = Array.from(keys)[0] as string;
+
+                                setManualOutNodeId((prev) =>
+                                  prev.map((item) => ({ ...item, strategy: selectedKey })),
+                                );
+                              }}
+                            >
+                              <SelectItem key="fifo">主备</SelectItem>
+                              <SelectItem key="round">轮询</SelectItem>
+                              <SelectItem key="rand">随机</SelectItem>
+                              <SelectItem key="best">最优</SelectItem>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                      {/* --- /出口节点 布局结束 --- */}
+
+                      {manualTunnelType === 2 && <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
                         <Input
                           description="指定出口节点被上一级连接的端口，留空按节点端口范围自动分配"
                           errorMessage={errors.manualOutPort}
@@ -6723,8 +6752,8 @@ export default function ForwardPage() {
                       errorMessage={errors.remoteAddr}
                       isInvalid={!!errors.remoteAddr}
                       label="落地地址"
-                      maxRows={6}
-                      minRows={3}
+                      maxRows={8}
+                      minRows={4}
                       placeholder="请输入落地地址，多个地址用换行分隔，例如:&#10;8.8.8.8:10000&#10;[2001:db8::10]:10086&#10;test.example.com:10010"
                       value={form.remoteAddr}
                       variant="bordered"
@@ -6957,7 +6986,7 @@ export default function ForwardPage() {
           <ModalBody className="pb-2">
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {addressList.map((item) => {
-				const { host, port } = splitAddressHostPort(item.address);
+                const { host, port } = splitAddressHostPort(item.address);
 
                 return (
                   <div
@@ -7309,8 +7338,8 @@ export default function ForwardPage() {
                       <div
                         key={index}
                         className={`p-2 rounded border ${result.success
-                            ? "bg-success-50 dark:bg-success-100/10 border-success-200 dark:border-success-300/20"
-                            : "bg-danger-50 dark:bg-danger-100/10 border-danger-200 dark:border-danger-300/20"
+                          ? "bg-success-50 dark:bg-success-100/10 border-success-200 dark:border-success-300/20"
+                          : "bg-danger-50 dark:bg-danger-100/10 border-danger-200 dark:border-danger-300/20"
                           }`}
                       >
                         <div className="flex items-center gap-2">
@@ -7345,8 +7374,8 @@ export default function ForwardPage() {
                             <div className="flex items-center gap-2 mb-0.5">
                               <span
                                 className={`text-xs font-medium ${result.success
-                                    ? "text-success-700 dark:text-success-300"
-                                    : "text-danger-700 dark:text-danger-300"
+                                  ? "text-success-700 dark:text-success-300"
+                                  : "text-danger-700 dark:text-danger-300"
                                   }`}
                               >
                                 {result.success ? "成功" : "失败"}
@@ -7360,8 +7389,8 @@ export default function ForwardPage() {
                             </div>
                             <div
                               className={`text-xs ${result.success
-                                  ? "text-success-600 dark:text-success-400"
-                                  : "text-danger-600 dark:text-danger-400"
+                                ? "text-success-600 dark:text-success-400"
+                                : "text-danger-600 dark:text-danger-400"
                                 }`}
                             >
                               {result.message}
@@ -7580,10 +7609,10 @@ export default function ForwardPage() {
                                       <tr
                                         key={index}
                                         className={`hover:bg-default-50 dark:hover:bg-gray-700/50 ${isDiagnosing
-                                            ? "bg-warning-50 dark:bg-warning-900/20"
-                                            : isSuccess
-                                              ? "bg-white dark:bg-gray-800"
-                                              : "bg-danger-50 dark:bg-danger-900/30"
+                                          ? "bg-warning-50 dark:bg-warning-900/20"
+                                          : isSuccess
+                                            ? "bg-white dark:bg-gray-800"
+                                            : "bg-danger-50 dark:bg-danger-900/30"
                                           }`}
                                       >
                                         <td className="px-3 py-2">
@@ -7593,8 +7622,8 @@ export default function ForwardPage() {
                                             ) : (
                                               <span
                                                 className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${isSuccess
-                                                    ? "bg-success text-white"
-                                                    : "bg-danger text-white"
+                                                  ? "bg-success text-white"
+                                                  : "bg-danger text-white"
                                                   }`}
                                               >
                                                 {isSuccess ? "✓" : "✗"}
@@ -7602,18 +7631,18 @@ export default function ForwardPage() {
                                             )}
                                             <div className="flex-1 min-w-0">
                                               <div className="font-medium text-foreground truncate">
-                                                  {formatRemoteDisplayText(result.description)}
+                                                {formatRemoteDisplayText(result.description)}
                                               </div>
                                               {instanceLine && (
                                                 <div className="text-[11px] text-primary truncate">
                                                   {instanceLine}
                                                 </div>
                                               )}
-                                               <div className="text-xs text-default-500 truncate">
-                                                   <span className="truncate">
-                                                     {maskPublicIP(result.targetIp)}:{result.targetPort}
-                                                   </span>
-                                               </div>
+                                              <div className="text-xs text-default-500 truncate">
+                                                <span className="truncate">
+                                                  {maskPublicIP(result.targetIp)}:{result.targetPort}
+                                                </span>
+                                              </div>
                                             </div>
                                           </div>
                                         </td>
@@ -7643,8 +7672,8 @@ export default function ForwardPage() {
                                           {isSuccess && !isServiceCheck ? (
                                             <span
                                               className={`font-semibold ${(result.packetLoss || 0) > 0
-                                                  ? "text-warning"
-                                                  : "text-success"
+                                                ? "text-warning"
+                                                : "text-success"
                                                 }`}
                                             >
                                               {result.packetLoss?.toFixed(1)}%
@@ -7859,10 +7888,10 @@ export default function ForwardPage() {
                                   <div
                                     key={index}
                                     className={`border rounded-lg p-3 ${isDiagnosing
-                                        ? "border-warning-200 dark:border-warning-300/30 bg-warning-50 dark:bg-warning-900/20"
-                                        : isSuccess
-                                          ? "border-divider bg-white dark:bg-gray-800"
-                                          : "border-danger-200 dark:border-danger-300/30 bg-danger-50 dark:bg-danger-900/30"
+                                      ? "border-warning-200 dark:border-warning-300/30 bg-warning-50 dark:bg-warning-900/20"
+                                      : isSuccess
+                                        ? "border-divider bg-white dark:bg-gray-800"
+                                        : "border-danger-200 dark:border-danger-300/30 bg-danger-50 dark:bg-danger-900/30"
                                       }`}
                                   >
                                     <div className="flex items-start gap-2 mb-2">
@@ -7871,8 +7900,8 @@ export default function ForwardPage() {
                                       ) : (
                                         <span
                                           className={`w-6 h-6 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${isSuccess
-                                              ? "bg-success text-white"
-                                              : "bg-danger text-white"
+                                            ? "bg-success text-white"
+                                            : "bg-danger text-white"
                                             }`}
                                         >
                                           {isSuccess ? "✓" : "✗"}
@@ -7880,18 +7909,18 @@ export default function ForwardPage() {
                                       )}
                                       <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-sm text-foreground break-words">
-                                            {formatRemoteDisplayText(result.description)}
+                                          {formatRemoteDisplayText(result.description)}
                                         </div>
                                         {instanceLine && (
                                           <div className="text-[11px] text-primary mt-0.5 break-words">
                                             {instanceLine}
                                           </div>
                                         )}
-                                         <div className="text-xs text-default-500 mt-0.5 truncate">
-                                                   <span className="truncate">
-                                                     {maskPublicIP(result.targetIp)}:{result.targetPort}
-                                                   </span>
-                                         </div>
+                                        <div className="text-xs text-default-500 mt-0.5 truncate">
+                                          <span className="truncate">
+                                            {maskPublicIP(result.targetIp)}:{result.targetPort}
+                                          </span>
+                                        </div>
                                       </div>
                                       <div
                                         className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${isDiagnosing ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : isSuccess ? "bg-success-500/10 text-success-600 dark:text-success-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
@@ -7916,8 +7945,8 @@ export default function ForwardPage() {
                                         <div className="text-center">
                                           <div
                                             className={`text-lg font-bold ${(result.packetLoss || 0) > 0
-                                                ? "text-warning"
-                                                : "text-success"
+                                              ? "text-warning"
+                                              : "text-success"
                                               }`}
                                           >
                                             {result.packetLoss?.toFixed(1)}%
@@ -7949,8 +7978,8 @@ export default function ForwardPage() {
                                       <div className="mt-2 pt-2 border-t border-divider">
                                         <div
                                           className={`text-xs ${isDiagnosing
-                                              ? "text-warning"
-                                              : "text-danger"
+                                            ? "text-warning"
+                                            : "text-danger"
                                             }`}
                                         >
                                           {isDiagnosing
@@ -8659,8 +8688,8 @@ function ConnectionLimitField({
     <div className="space-y-2">
       <span className="text-sm font-medium text-foreground">连接数限制</span>
       <Input
-        description="留空表示不限制"
-        placeholder="不限制"
+        description="留空不限制"
+        placeholder=""
         type="number"
         value={value > 0 ? value.toString() : ""}
         variant="bordered"
@@ -8683,10 +8712,10 @@ function SpeedLimitConfigField({
 }) {
   return (
     <div className="space-y-2">
-      <span className="text-sm font-medium text-foreground">速度限制</span>
+      <span className="text-sm font-medium text-foreground">速度限制(Mbps)</span>
       <Input
-        description="留空表示不限制，单位：Mbps"
-        placeholder="正整数 Mbps，留空不限"
+        description="留空不限速"
+        placeholder=""
         readOnly={readOnly}
         type="number"
         min="1"
@@ -8704,8 +8733,8 @@ function SpeedLimitConfigField({
           }
           const speed = Number(raw);
 
-           if (Number.isInteger(speed) && speed > 0) {
-             onSpeedLimitChange(maxSpeed > 0 ? Math.min(speed, maxSpeed) : speed);
+          if (Number.isInteger(speed) && speed > 0) {
+            onSpeedLimitChange(maxSpeed > 0 ? Math.min(speed, maxSpeed) : speed);
           }
         }}
       />
@@ -8741,10 +8770,10 @@ function TrafficLimitField({
 
   return (
     <div className="space-y-2">
-      <span className="text-sm font-medium text-foreground">流量限制</span>
+      <span className="text-sm font-medium text-foreground">流量限制(GB)</span>
       <Input
-        description="留空表示不限制，单位：GB"
-        placeholder="不限制"
+        description="留空不限制"
+        placeholder=""
         type="number"
         value={value > 0 ? value.toString() : ""}
         variant="bordered"
@@ -8765,7 +8794,7 @@ function ExpiryTimeField({
     <div className="space-y-2">
       <DatePicker
         showMonthAndYearPickers
-        description="留空表示永不过期"
+        description="留空表示永久有效"
         label="有效期"
         value={timestampToCalendarDate(value)}
         onChange={(date) => {

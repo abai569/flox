@@ -104,7 +104,7 @@ export function DatePicker({
   isRequired,
   label,
   onChange,
-  permanentLabel = "永久有效",
+  permanentLabel = "留空表示永久有效",
   showMonthAndYearPickers,
   value,
 }: DatePickerProps) {
