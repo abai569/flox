@@ -891,7 +891,15 @@ function NodeInstanceRows({
                               {member.trafficLimit} G
                             </span>
                           );
-                        })() : "不限"}
+                        })() : (() => {
+                          const used = (member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0);
+                          const title = `已用流量：${formatTraffic(used)}\n可用流量：不限\n总流量：不限`;
+                          return (
+                            <span title={title} className="cursor-help">
+                              不限
+                            </span>
+                          );
+                        })()}
                 </td>
                 <td className="w-[110px] min-w-[110px] max-w-[110px] px-2 py-3 text-center text-default-700">
                         {member.expiryTime && member.renewalCycle
