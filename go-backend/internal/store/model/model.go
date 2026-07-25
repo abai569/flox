@@ -1207,3 +1207,16 @@ type BalanceLog struct {
 }
 
 func (BalanceLog) TableName() string { return "balance_log" }
+
+type PeerShareNotification struct {
+	ID                int64  `gorm:"primaryKey;autoIncrement"`
+	Token             string `gorm:"column:token;type:varchar(100);not null;uniqueIndex"`
+	ProviderURL       string `gorm:"column:provider_url;type:varchar(500);not null"`
+	ProviderToken     string `gorm:"column:provider_token;type:varchar(100);not null;default:''"`
+	ProviderNodeName  string `gorm:"column:provider_node_name;type:varchar(200);not null;default:''"`
+	MaxBandwidth      int64  `gorm:"column:max_bandwidth;not null;default:0"`
+	Dismissed         int    `gorm:"column:dismissed;not null;default:0"`
+	CreatedTime       int64  `gorm:"column:created_time;not null"`
+}
+
+func (PeerShareNotification) TableName() string { return "peer_share_notification" }

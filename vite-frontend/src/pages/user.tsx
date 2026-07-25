@@ -109,6 +109,7 @@ import {
 } from "@/api";
 import { EditIcon, DeleteIcon, EyeIcon, EyeOffIcon } from "@/components/icons";
 import { PageLoadingState } from "@/components/page-state";
+import { SmartTooltip } from "@/components/smart-tooltip";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { removeItemsById, replaceItemById } from "@/utils/list-state";
@@ -2246,30 +2247,28 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
-                            <span
+                            <SmartTooltip content={user.user}><span
                               className={`font-medium truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
-                              title={user.user}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 copyToClipboard(user.user, "用户名");
                               }}
                             >
                               {user.user}
-                            </span>
+                            </span></SmartTooltip>
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
-                            <span
+                            <SmartTooltip content={user.name || user.user}><span
                               className="text-default-500 truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
-                              title={user.name || user.user}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 copyToClipboard(user.name || user.user, "备注");
                               }}
                             >
                               {user.name || user.user}
-                            </span>
+                            </span></SmartTooltip>
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -2281,9 +2280,8 @@ export default function UserPage() {
                               : formatFlow(user.flow, "gb")}
                           </span>
                         </TableCell>
-                        <TableCell
+                        <SmartTooltip content={`已用：${formatFlow(usedFlow)}\n剩余：${user.flow === 99999 ? "不限" : formatFlow(Math.max(user.flow * 1024 * 1024 * 1024 - usedFlow, 0))}\n总量：${user.flow === 99999 ? "不限" : formatFlow(user.flow * 1024 * 1024 * 1024)}`}><TableCell
                           className="whitespace-nowrap"
-                          title={`已用流量：${formatFlow(usedFlow)}\n剩余流量：${user.flow === 99999 ? "不限" : formatFlow(Math.max(user.flow * 1024 * 1024 * 1024 - usedFlow, 0))}\n总流量：${user.flow === 99999 ? "不限" : formatFlow(user.flow * 1024 * 1024 * 1024)}`}
                         >
                           <div className="flex flex-col items-end gap-1">
                             <div className="flex items-center justify-end gap-1">
@@ -2334,7 +2332,7 @@ export default function UserPage() {
                               )}
                             />
                           )}
-                        </TableCell>
+                        </TableCell></SmartTooltip>
                         <TableCell className="whitespace-nowrap">
                           <span className="text-sm text-foreground">
                             {user.num}个
@@ -2588,27 +2586,25 @@ export default function UserPage() {
                           </div>
                           <div className="flex justify-between items-center w-full mt-1">
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <span
+                              <SmartTooltip content={user.user}><span
                                 className={`font-medium text-sm truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
-                                title={user.user}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   copyToClipboard(user.user, "用户名");
                                 }}
                               >
                                 {user.user}
-                              </span>
+                              </span></SmartTooltip>
                             </div>
-                            <span
+                            <SmartTooltip content={user.name || user.user}><span
                               className="text-sm text-default-500 truncate ml-2 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
-                              title={user.name || user.user}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 copyToClipboard(user.name || user.user, "备注");
                               }}
                             >
                               {user.name || user.user}
-                            </span>
+                            </span></SmartTooltip>
                           </div>
                         </CardHeader>
                         <CardBody className="pt-0 pb-3 md:pt-0 md:pb-3">

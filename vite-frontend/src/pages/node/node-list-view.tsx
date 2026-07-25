@@ -58,6 +58,7 @@ import {
   getDistroColor,
 } from "@/components/distro-icon";
 import { MonitorTerminalButton } from "@/pages/monitor-terminal";
+import { SmartTooltip } from "@/components/smart-tooltip";
 interface RealtimeInstanceMetric {
   tcpConns: number;
   udpConns: number;
@@ -362,9 +363,9 @@ function InstanceIPRegionCell({
                 <CountryFlag code={item.countryCode} title={item.region} />
               ) : null}
               {item.ip ? (
+                <SmartTooltip content={item.ip}>
                 <button
                   className="inline-block min-w-0 max-w-[108px] truncate rounded bg-transparent px-0.5 text-right font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
-                  title={item.ip}
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -373,6 +374,7 @@ function InstanceIPRegionCell({
                 >
                   {formatInstanceIPForCell(item.ip)}
                 </button>
+                </SmartTooltip>
               ) : null}
             </div>
           ))}
@@ -751,14 +753,13 @@ function NodeInstanceRows({
                     ) : (node as any).mimicStatus ? (
                       <button
                         className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
-                        title={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
                           onInstallMimicDeps?.(node);
                         }}
                       >
-                        ❌
+                        <SmartTooltip content={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}>❌</SmartTooltip>
                       </button>
                     ) : (
                       <span className="text-default-400">-</span>
@@ -800,13 +801,11 @@ function NodeInstanceRows({
                         size="sm"
                         value={upgradeProgress.percent}
                       />
-                      <div
-                        className="truncate text-[10px] leading-tight text-warning-600"
-                        title={upgradeProgress.message}
-                      >
-                              {upgradeProgress.message ||
-                                `${upgradeProgress.percent}%`}
-                      </div>
+                      <SmartTooltip content={upgradeProgress.message}>
+                        <div className="truncate text-[10px] leading-tight text-warning-600">
+                          {upgradeProgress.message || `${upgradeProgress.percent}%`}
+                        </div>
+                      </SmartTooltip>
                     </div>
                   ) : node.version ? (
                     <div className="inline-flex items-center justify-center gap-1.5">
@@ -885,19 +884,23 @@ function NodeInstanceRows({
                           const used = (member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0);
                           const limitBytes = (member.trafficLimit ?? 0) * 1024 * 1024 * 1024;
                           const remaining = Math.max(limitBytes - used, 0);
-                          const title = `已用流量：${formatTraffic(used)}\n剩余流量：${formatTraffic(remaining)}\n总流量：${formatTraffic(limitBytes)}`;
+                          const title = `已用：${formatTraffic(used)}\n剩余：${formatTraffic(remaining)}\n总量：${formatTraffic(limitBytes)}`;
                           return (
-                            <span title={title} className="cursor-help">
-                              {member.trafficLimit} G
-                            </span>
+                            <SmartTooltip content={title}>
+                              <span className="cursor-help">
+                                {member.trafficLimit} G
+                              </span>
+                            </SmartTooltip>
                           );
                         })() : (() => {
                           const used = (member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0);
-                          const title = `已用流量：${formatTraffic(used)}\n可用流量：不限\n总流量：不限`;
+                          const title = `已用：${formatTraffic(used)}\n可用：不限\n总量：不限`;
                           return (
-                            <span title={title} className="cursor-help">
-                              不限
-                            </span>
+                            <SmartTooltip content={title}>
+                              <span className="cursor-help">
+                                不限
+                              </span>
+                            </SmartTooltip>
                           );
                         })()}
                 </td>
@@ -997,12 +1000,9 @@ function NodeInstanceRows({
                 </td>
                 <td className="w-[160px] min-w-[160px] max-w-[160px] px-2 py-3 text-left align-middle truncate text-default-600 text-xs">
                   {member.remark?.trim() ? (
-                          <span
-                            className="truncate block"
-                            title={member.remark.trim()}
-                          >
-                      {member.remark.trim()}
-                    </span>
+                          <SmartTooltip content={member.remark.trim()}>
+                            <span className="truncate block">{member.remark.trim()}</span>
+                          </SmartTooltip>
                   ) : (
                     <span className="text-default-400">-</span>
                   )}
@@ -1130,6 +1130,8 @@ function SortableTableRow({
   handleTogglePause,
   instanceMembers = [],
   isExpanded,
+  isHighlighted,
+  onToggleHighlighted,
   onToggleExpanded,
   onConfigureInstance,
   onDeleteInstance,
@@ -1254,18 +1256,20 @@ function SortableTableRow({
   );
   const remoteTrafficLimit = node.remoteMaxBandwidth ?? 0;
   const remoteTrafficUsed = node.remoteCurrentFlow ?? 0;
-  const remoteTrafficTitle = `已用流量：${formatTraffic(remoteTrafficUsed)}\n剩余流量：${
+  const remoteTrafficTitle = `已用：${formatTraffic(remoteTrafficUsed)}\n剩余：${
     remoteTrafficLimit > 0
       ? formatTraffic(Math.max(remoteTrafficLimit - remoteTrafficUsed, 0))
       : "不限"
-  }\n总流量：${remoteTrafficLimit > 0 ? formatTraffic(remoteTrafficLimit) : "不限"}`;
+  }\n总量：${remoteTrafficLimit > 0 ? formatTraffic(remoteTrafficLimit) : "不限"}`;
   const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
   const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
     ? "bg-primary-50/70 dark:bg-default-900/40"
     : isActuallyExpanded
       ? "bg-primary-100/80 dark:bg-default-100/30"
-      : "";
+      : isHighlighted
+        ? "bg-default-100 dark:bg-default-100/20"
+        : "";
   const visualMeta = deriveNodeVisualState(instanceMembers, node.paused);
   const expiryTarget =
     node.expiryInstances?.find(
@@ -1322,9 +1326,9 @@ function SortableTableRow({
     <TableRow
       key={node.id}
       ref={setNodeRef}
-      className={`${isExpandable ? "cursor-pointer" : "cursor-default"} ${isActuallyExpanded ? "border-b border-primary-300/70 shadow-[inset_3px_0_0_rgba(59,130,246,0.65)]" : ""}`}
+      className={`cursor-pointer ${isActuallyExpanded ? "border-b border-primary-300/70 shadow-[inset_3px_0_0_rgba(59,130,246,0.65)]" : ""}`}
       style={style}
-      onClick={() => isExpandable && onToggleExpanded?.(node.id)}
+      onClick={() => onToggleHighlighted?.()}
     >
       <TableCell className={rowBg}>
         <div
@@ -1361,9 +1365,9 @@ function SortableTableRow({
       <TableCell className={rowBg}>
         <div className="flex items-center justify-center">
             {isExpandable ? (
+              <SmartTooltip content={isActuallyExpanded ? "收起实例" : "展开实例"}>
               <button
             className="inline-flex h-6 w-6 items-center justify-center rounded text-default-500 transition-colors hover:bg-default-200/70 hover:text-foreground"
-            title={isActuallyExpanded ? "收起实例" : "展开实例"}
             type="button"
             onClick={(e) => {
               e.stopPropagation();
@@ -1381,8 +1385,9 @@ function SortableTableRow({
               viewBox="0 0 24 24"
             >
               <path d="m6 9 6 6 6-6" />
-            </svg>
+             </svg>
               </button>
+              </SmartTooltip>
             ) : (
               <span className="text-default-300">-</span>
             )}
@@ -1390,29 +1395,28 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={`px-1 text-center align-middle ${rowBg}`}>
         {node.isRemote === 1 ? (
-           <div
-               className="flex items-center justify-center gap-0.5"
-               title={
+           <SmartTooltip
+               content={
                  remoteDisplayState === "online" && remoteDisplayMeta
                    ? `在线${remoteDisplayMeta.onlineCount}/禁用${remoteDisplayMeta.disabledCount}/全部${remoteDisplayMeta.totalCount}`
                    : remoteStatusMeta.label
                }
            >
-             <StatusDot
-                 active={remoteDisplayState === "online"}
-                 tone={remoteStatusMeta.tone}
-               />
-               <span className="text-xs font-mono tabular-nums text-default-600">
-               {remoteDisplayState === "online" && remoteDisplayMeta
-                 ? `${remoteDisplayMeta.onlineCount}/${remoteDisplayMeta.disabledCount}/${remoteDisplayMeta.totalCount}`
-                 : remoteStatusMeta.label}
-            </span>
-          </div>
-        ) : (
-            <div
-              className="flex items-center justify-center gap-0.5"
-              title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}
-            >
+           <div className="flex items-center justify-center gap-0.5">
+              <StatusDot
+                  active={remoteDisplayState === "online"}
+                  tone={remoteStatusMeta.tone}
+                />
+                <span className="text-xs font-mono tabular-nums text-default-600">
+                {remoteDisplayState === "online" && remoteDisplayMeta
+                  ? `${remoteDisplayMeta.onlineCount}/${remoteDisplayMeta.disabledCount}/${remoteDisplayMeta.totalCount}`
+                  : remoteStatusMeta.label}
+             </span>
+           </div>
+           </SmartTooltip>
+         ) : (
+            <SmartTooltip content={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
+            <div className="flex items-center justify-center gap-0.5">
               <StatusDot
                 active={visualMeta.state !== "offline"}
                 tone={visualMeta.color}
@@ -1422,14 +1426,15 @@ function SortableTableRow({
                 {visualMeta.totalCount}
             </span>
           </div>
+          </SmartTooltip>
         )}
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
-            title={node.name}
-            onClick={(e) => {
+          <SmartTooltip content={node.name}>
+            <span
+              className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
+              onClick={(e) => {
               e.stopPropagation();
               copyToClipboard(node.name, "节点名称");
             }}
@@ -1439,6 +1444,7 @@ function SortableTableRow({
               <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">(Rem)</span>
             )}
           </span>
+          </SmartTooltip>
         </div>
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
@@ -1531,9 +1537,9 @@ function SortableTableRow({
           }
 
           return (
+            <SmartTooltip content={address}>
             <button
               className="inline-block max-w-[150px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
-              title={address}
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
@@ -1542,6 +1548,7 @@ function SortableTableRow({
             >
               {formatInstanceIPForCell(address)}
             </button>
+            </SmartTooltip>
           );
         })()}
       </TableCell>
@@ -1587,16 +1594,15 @@ function SortableTableRow({
       </TableCell>
       <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] ${rowBg}`} aria-label="流量限额" style={{ width: "110px" }}>
         <div className="flex w-full justify-center">
-          <span
-            className="whitespace-nowrap text-sm text-default-700"
-            title={node.isRemote === 1 ? remoteTrafficTitle : undefined}
-          >
-            {node.isRemote === 1
-              ? remoteTrafficLimit > 0
-                ? formatTraffic(remoteTrafficLimit)
-                : "不限"
-              : "-"}
-          </span>
+          {node.isRemote === 1 ? (
+            <SmartTooltip content={remoteTrafficTitle}>
+              <span className="whitespace-nowrap text-sm text-default-700 cursor-help">
+                {remoteTrafficLimit > 0 ? formatTraffic(remoteTrafficLimit) : "不限"}
+              </span>
+            </SmartTooltip>
+          ) : (
+            <span className="whitespace-nowrap text-sm text-default-700">-</span>
+          )}
         </div>
       </TableCell>
       <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap text-center ${rowBg}`}>
@@ -1701,9 +1707,9 @@ function SortableTableRow({
         className={`w-[160px] min-w-[160px] max-w-[160px] whitespace-nowrap px-1 ${rowBg}`}
       >
         {node.remark?.trim() ? (
+          <SmartTooltip content={node.remark.trim()}>
           <span
             className="inline-block max-w-full cursor-pointer rounded px-1 text-sm transition-colors hover:bg-default-200/50"
-            title={node.remark.trim()}
             onClick={(e) => {
               e.stopPropagation();
               copyToClipboard(node.remark!.trim(), "备注");
@@ -1711,6 +1717,7 @@ function SortableTableRow({
           >
             {node.remark.trim()}
           </span>
+          </SmartTooltip>
         ) : (
           <span className="text-sm text-default-400">-</span>
         )}
@@ -1910,6 +1917,10 @@ export function NodeListView({
 }: NodeListViewProps) {
   const [expandedNodeIds, setExpandedNodeIds] =
     useState<Set<number>>(readExpandedNodeIds);
+  const [highlightedNodeId, setHighlightedNodeId] = useState<number | null>(null);
+  const toggleHighlightedNode = (nodeId: number) => {
+    setHighlightedNodeId(prev => prev === nodeId ? null : nodeId);
+  };
   const localDisplayNodes = displayNodes.filter((node) => node.isRemote !== 1);
   const expandableDisplayNodes = displayNodes.filter((node) =>
     node.isRemote === 1
@@ -1987,16 +1998,16 @@ export function NodeListView({
             排序
           </TableColumn>
           <TableColumn className="w-[64px] whitespace-nowrap px-1 py-2 text-center">
-            <button
-              className={`inline-flex items-center justify-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-default-200/70 disabled:cursor-default disabled:opacity-40 ${isPartiallyExpanded ? "text-primary" : ""}`}
-              disabled={expandableDisplayNodes.length === 0}
-              title={
+            <SmartTooltip content={
                 isAllExpanded
                   ? "闭合全部实例"
                   : isPartiallyExpanded
                       ? `已展开 ${expandedNodeCount}/${expandableDisplayNodes.length}，点击展开全部`
                     : "展开全部实例"
-              }
+              }>
+            <button
+              className={`inline-flex items-center justify-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-default-200/70 disabled:cursor-default disabled:opacity-40 ${isPartiallyExpanded ? "text-primary" : ""}`}
+              disabled={expandableDisplayNodes.length === 0}
               type="button"
               onClick={toggleAllExpandedNodes}
             >
@@ -2012,8 +2023,9 @@ export function NodeListView({
                 viewBox="0 0 24 24"
               >
                 <path d="m6 9 6 6 6-6" />
-              </svg>
+             </svg>
             </button>
+            </SmartTooltip>
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center w-[70px]">
             状态
@@ -2211,6 +2223,8 @@ export function NodeListView({
                   upgradeProgress,
                   isLastNode: nodeIndex === displayNodes.length - 1,
                   isExpanded: expandedNodeIds.has(node.id),
+                  isHighlighted: highlightedNodeId === node.id,
+                  onToggleHighlighted: () => toggleHighlightedNode(node.id),
                   onToggleExpanded: toggleExpandedNode,
                   onConfigureInstance,
                   onDeleteInstance,

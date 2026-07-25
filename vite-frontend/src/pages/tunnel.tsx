@@ -33,6 +33,7 @@ import { SearchBar } from "@/components/search-bar";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { AnimatedPage } from "@/components/animated-page";
 import { BatchActionResultModal } from "@/components/batch-action-result-modal";
+import { SmartTooltip } from "@/components/smart-tooltip";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input, Textarea } from "@/shadcn-bridge/heroui/input";
@@ -2584,9 +2585,8 @@ export default function TunnelPage() {
                                           : "bg-danger"
                                       }`}
                                     />
-                                    <button
+                                    <SmartTooltip content={formatRemoteDisplayText(tunnel.name)}><button
                                       className="font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors bg-transparent text-left"
-                                      title={formatRemoteDisplayText(tunnel.name)}
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -2597,7 +2597,7 @@ export default function TunnelPage() {
                                       }}
                                     >
                                       {formatRemoteDisplayText(tunnel.name)}
-                                    </button>
+                                    </button></SmartTooltip>
                                   </div>
                                 </td>
                                 <td className="py-3 px-4 align-middle">
@@ -2671,9 +2671,8 @@ export default function TunnelPage() {
                                 </td>
                                 <td className="py-3 px-4 align-middle">
                                   {tunnel.remark ? (
-                                    <button
+                                    <SmartTooltip content={tunnel.remark}><button
                                       className="text-sm text-default-600 truncate max-w-[140px] cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block bg-transparent text-left"
-                                      title={tunnel.remark}
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -2681,7 +2680,7 @@ export default function TunnelPage() {
                                       }}
                                     >
                                       {tunnel.remark}
-                                    </button>
+                                    </button></SmartTooltip>
                                   ) : (
                                     <span className="text-sm text-default-400">
                                       -
@@ -2822,9 +2821,8 @@ export default function TunnelPage() {
                                             : "bg-default-300"
                                         }`}
                                       />
-                                      <button
+                                      <SmartTooltip content={formatRemoteDisplayText(tunnel.name)}><button
                                         className="font-semibold text-foreground truncate text-sm cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors bg-transparent text-left"
-                                        title={formatRemoteDisplayText(tunnel.name)}
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2835,7 +2833,7 @@ export default function TunnelPage() {
                                         }}
                                       >
                                         {formatRemoteDisplayText(tunnel.name)}
-                                      </button>
+                                      </button></SmartTooltip>
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-1">
                                       <div className={tunnelTypeChipClassName}>
@@ -3057,9 +3055,8 @@ export default function TunnelPage() {
                                         <span className="font-medium text-red-500 flex-shrink-0">
                                           备注：
                                         </span>
-                                        <button
+                                        <SmartTooltip content={tunnel.remark}><button
                                           className="truncate ml-1 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit inline-block bg-transparent text-left"
-                                          title={tunnel.remark}
                                           type="button"
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -3070,7 +3067,7 @@ export default function TunnelPage() {
                                           }}
                                         >
                                           {tunnel.remark}
-                                        </button>
+                                        </button></SmartTooltip>
                                       </div>
                                     </div>
                                   )}

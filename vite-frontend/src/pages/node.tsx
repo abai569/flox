@@ -107,6 +107,8 @@ import {
   updateNodeInstanceProfile,
   updateNodeInstanceOrder,
   getPeerShareList,
+  listPeerShareNotifications,
+  dismissPeerShareNotification,
   type ReleaseChannel,
 } from "@/api";
 import { compareVersions } from "@/utils/version-update";
@@ -713,6 +715,27 @@ export default function NodePage() {
   }>>({});
   const [sharingNode, setSharingNode] = useState<Node | null>(null);
   const [importNodeOpen, setImportNodeOpen] = useState(false);
+  const [peerShareNotifications, setPeerShareNotifications] = useState<
+    { id: number; token: string; providerUrl: string; providerToken: string; providerNodeName: string; maxBandwidth: number }[]
+  >([]);
+
+  // 轮询分享通知
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await listPeerShareNotifications();
+        if (res.code === 0 && Array.isArray(res.data)) {
+          setPeerShareNotifications(res.data);
+        }
+      } catch { /* ignore poll errors */ }
+    };
+    poll();
+    const timer = setInterval(poll, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const [importPrefillUrl, setImportPrefillUrl] = useState("");
+  const [importPrefillToken, setImportPrefillToken] = useState("");
   const [remoteDetailNode, setRemoteDetailNode] = useState<Node | null>(null);
   const [form, setForm, resetDraft] = useLocalStorageState<NodeForm>(
     "node-create-draft",
@@ -3905,9 +3928,18 @@ export default function NodePage() {
                     color="secondary"
                     size="sm"
                     variant="flat"
-                    onPress={() => setImportNodeOpen(true)}
+                    onPress={() => {
+                      setImportPrefillUrl("");
+                      setImportPrefillToken("");
+                      setImportNodeOpen(true);
+                    }}
                   >
                     远程
+                    {peerShareNotifications.length > 0 && (
+                      <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+                        {peerShareNotifications.length}
+                      </span>
+                    )}
                   </Button>
                   <Button
                     color="primary"
@@ -5459,7 +5491,7 @@ export default function NodePage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
                     description="留空不矫正，输入目标值自动按比例分配上下行"
-                    label="已用流量 (GB)"
+                    label="已用流量(GB)"
                     min={0}
                     step="0.01"
                     type="number"
@@ -5895,7 +5927,18 @@ export default function NodePage() {
         />
         <NodeImportModal
           isOpen={importNodeOpen}
-          onClose={() => setImportNodeOpen(false)}
+          onClose={() => {
+            setImportNodeOpen(false);
+            setImportPrefillUrl("");
+            setImportPrefillToken("");
+          }}
+          prefillUrl={importPrefillUrl}
+          prefillToken={importPrefillToken}
+          notifications={peerShareNotifications}
+          onDismissNotification={async (id: number) => {
+            await dismissPeerShareNotification(id);
+            setPeerShareNotifications(prev => prev.filter(n => n.id !== id));
+          }}
           onImported={() => void loadNodes({ silent: true })}
         />
         <RemoteNodeDetailModal

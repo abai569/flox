@@ -120,6 +120,7 @@ import {
   FORWARD_ORDER_KEY,
 } from "@/pages/forward/order";
 import { PageLoadingState } from "@/components/page-state";
+import { SmartTooltip } from "@/components/smart-tooltip";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 // import { useMobileBreakpoint } from "@/hooks/useMobileBreakpoint";
 import { saveOrder } from "@/utils/order-storage";
@@ -1038,12 +1039,11 @@ const SortableTableRow = ({
               copyToClipboard(inAddrNoPorts.split(",").join("\n"), "入口地址")
             }
           >
-            <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[130px] inline-block"
-              title={inAddrNoPorts}>
+            <SmartTooltip content={inAddrNoPorts}><span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[130px] inline-block">
               {maskAddress(inAddrNoPorts.split(",").length > 1
                 ? inAddrNoPorts.split(",")[0].trim()
                 : inAddrNoPorts)}
-            </span>
+            </span></SmartTooltip>
             {inAddrNoPorts.split(",").length > 1 && (
               <span
                 className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full shrink-0 cursor-pointer hover:bg-default-300 transition-colors"
@@ -1081,13 +1081,12 @@ const SortableTableRow = ({
           >
             <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
           </svg>
-          <span
+          <SmartTooltip content={remoteAddrOnly}><span
             className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[130px] inline-block"
-            title={remoteAddrOnly}
             onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
           >
             {maskAddress(remoteAddrOnly)}
-          </span>
+          </span></SmartTooltip>
           {forward.remoteAddr.includes(",") && (
             <span className="text-primary-400 ml-0.5">...</span>
           )}
@@ -1361,12 +1360,11 @@ const SortableCompactTableRow = ({
               copyToClipboard(inAddrNoPorts.split(",").join("\n"), "入口地址")
             }
           >
-            <span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[130px] inline-block"
-              title={inAddrNoPorts}>
+            <SmartTooltip content={inAddrNoPorts}><span className="text-sm font-medium text-foreground truncate shrink min-w-0 max-w-[130px] inline-block">
               {maskAddress(inAddrNoPorts.split(",").length > 1
                 ? inAddrNoPorts.split(",")[0].trim()
                 : inAddrNoPorts)}
-            </span>
+            </span></SmartTooltip>
             {inAddrNoPorts.split(",").length > 1 && (
               <span
                 className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-medium bg-default-200 text-default-600 rounded-full shrink-0 cursor-pointer hover:bg-default-300 transition-colors"
@@ -1404,13 +1402,12 @@ const SortableCompactTableRow = ({
           >
             <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
           </svg>
-          <span
+          <SmartTooltip content={remoteAddrOnly}><span
             className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[130px] inline-block"
-            title={remoteAddrOnly}
             onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
           >
             {maskAddress(remoteAddrOnly)}
-          </span>
+          </span></SmartTooltip>
           {forward.remoteAddr.includes(",") && (
             <span className="text-primary-400 ml-0.5">...</span>
           )}
