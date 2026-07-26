@@ -152,16 +152,6 @@ const getDisplayInstanceName = (
   return displayName || getDisplayInstanceLabel(member?.displayIndex, fallbackIndex);
 };
 
-const getInstanceConnectionTooltip = (
-  tcpConns?: number,
-  udpConns?: number,
-): string => {
-  const tcp = Number(tcpConns ?? 0);
-  const udp = Number(udpConns ?? 0);
-
-  return `TCP ${tcp}\nUDP ${udp}`;
-};
-
 const getGroupConnectionTooltip = (
   tcpConns?: number,
   udpConns?: number,
@@ -328,10 +318,9 @@ function MonitorIPCellValue({ ip, label }: { ip?: string; label: string }) {
   }
 
   return (
-    <span className="block w-full text-center leading-5">
+    <span className="group relative block w-full text-center leading-5">
       <button
         className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
-        title={value}
         type="button"
         onClick={(event) => {
           event.stopPropagation();
@@ -340,6 +329,9 @@ function MonitorIPCellValue({ ip, label }: { ip?: string; label: string }) {
       >
         {formatMonitorIPForCell(value)}
       </button>
+      <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+        {value}
+      </div>
     </span>
   );
 }
@@ -598,26 +590,26 @@ function NodeInstanceGroupsView({
                           <td className="px-1 py-3 text-start align-middle font-medium whitespace-nowrap">
                             {getDisplayInstanceName(member, memberIndex + 1)}
                           </td>
-                          <td
-                            className="px-1 py-3 text-center align-middle font-mono text-xs text-default-600"
-                            title={getMonitorRegionIPTitle(member, "v4")}
-                          >
+                          <td className="group relative px-1 py-3 text-center align-middle font-mono text-xs text-default-600">
                             <div className="truncate">
                               <MonitorRegionCellValue
                                 countryCode={member.publicIpV4CountryCode}
                                 region={member.publicIpV4Region}
                               />
                             </div>
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                              {getMonitorRegionIPTitle(member, "v4")}
+                            </div>
                           </td>
-                          <td
-                            className="px-1 py-3 text-center align-middle font-mono text-xs text-default-600"
-                            title={getMonitorRegionIPTitle(member, "v6")}
-                          >
+                          <td className="group relative px-1 py-3 text-center align-middle font-mono text-xs text-default-600">
                             <div className="truncate">
                               <MonitorRegionCellValue
                                 countryCode={member.publicIpV6CountryCode}
                                 region={member.publicIpV6Region}
                               />
+                            </div>
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                              {getMonitorRegionIPTitle(member, "v6")}
                             </div>
                           </td>
                           <td className="px-1 py-3 text-center align-middle font-mono text-xs text-default-600">
@@ -631,17 +623,16 @@ function NodeInstanceGroupsView({
                             />
                           </td>
                           <td
-                            className="px-1 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums"
-                            title={getInstanceConnectionTooltip(
-                              member.tcpConns,
-                              member.udpConns,
-                            )}
+                            className="group relative px-1 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums"
                           >
                             <div className="truncate">
                               {formatSpeed(member.netOutSpeed)}↑
                             </div>
                             <div className="truncate">
                               {formatSpeed(member.netInSpeed)}↓
+                            </div>
+                            <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                              TCP: {member.tcpConns ?? 0} | UDP: {member.udpConns ?? 0}
                             </div>
                           </td>
                           <td className="px-1 py-3 text-center align-middle">
@@ -1296,7 +1287,7 @@ export default function MonitorPage() {
                   </MetricPill>
                 </div>
                 <NodeInstanceGroupsView
-                  groups={nodeInstanceGroups}
+                  groups={nodeInstanceGroups.filter((g) => nodeMap.has(g.id))}
                   loading={nodeInstanceGroupsLoading}
                   realtimeMetrics={realtimeInstanceMetrics}
                   onEditInstance={openInstanceEditModal}
