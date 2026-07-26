@@ -19,7 +19,6 @@ import (
 	"github.com/go-gost/x/stats"
 	"github.com/go-gost/x/traffic"
 	"github.com/judwhite/go-svc"
-	psnet "github.com/shirou/gopsutil/v3/net"
 )
 
 type stringList []string
@@ -145,21 +144,7 @@ func main() {
 		}
 		if _, err := traffic.InitBaselineManager(nodeID, baselinePath); err == nil {
 			if bm := traffic.GetManager(); bm != nil {
-				// 获取当前网卡流量
-				var networkStats struct {
-					BytesReceived    uint64
-					BytesTransmitted uint64
-				}
-				ioCounters, err := psnet.IOCounters(true)
-				if err == nil {
-					for _, io := range ioCounters {
-						if io.Name == "lo" || strings.HasPrefix(io.Name, "lo") {
-							continue
-						}
-						networkStats.BytesReceived += io.BytesRecv
-						networkStats.BytesTransmitted += io.BytesSent
-					}
-				}
+				networkStats, _ := socket.ReadHostNetworkCounters()
 				if _, err := bm.CreateInitialBaseline(networkStats.BytesReceived, networkStats.BytesTransmitted, ""); err != nil {
 					fmt.Printf("⚠️ 创建初始基线失败：%v\n", err)
 				} else {
@@ -173,7 +158,7 @@ func main() {
 	fullVersion := fmt.Sprintf("%s (%s/%s)", version, distro, runtime.GOARCH)
 	wsReporter := socket.StartWebSocketReporterWithConfig(config.Addr, config.Secret, config.BlockHttp, config.BlockTls, config.BlockSocks, config.BlockOtherPorts, fullVersion, config.NodeID, config.InstanceID)
 	defer wsReporter.Stop()
-	service.SetHTTPReportURL(config.Addr, config.Secret, config.InstanceID)
+	service.SetHTTPReportURL(config.Addr, config.Secret, wsReporter.InstanceID())
 
 	p := &program{}
 	if err := svc.Run(p); err != nil {

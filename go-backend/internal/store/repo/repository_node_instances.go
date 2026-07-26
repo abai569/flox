@@ -83,16 +83,24 @@ type NodeInstanceExpiryReminder struct {
 }
 
 type NodeInstanceTrafficLimitItem struct {
-	NodeID       int64
-	InstanceID   string
-	Name         string
-	LimitGB      int64
-	Used         int64
-	Mask         int
-	TotalInFlow  int64
-	TotalOutFlow int64
-	NetInBytes   int64
-	NetOutBytes  int64
+	NodeID            int64
+	InstanceID        string
+	Name              string
+	Weight            int
+	LimitGB           int64
+	Used              int64
+	Mask              int
+	TotalInFlow       int64
+	TotalOutFlow      int64
+	NetInBytes        int64
+	NetOutBytes       int64
+	PeriodNetInBytes  int64
+	PeriodNetOutBytes int64
+}
+
+type NodeInstancePeriodNetTraffic struct {
+	InBytes  int64
+	OutBytes int64
 }
 
 func normalizeNodeInstanceID(instanceID string) string {
@@ -133,84 +141,98 @@ func (r *Repository) UpsertNodeInstance(in NodeInstanceUpsert) error {
 		now = unixMilliNow()
 	}
 
-	var existing model.NodeInstance
-	err = r.db.Where("node_id = ? AND instance_id = ?", in.NodeID, instanceID).First(&existing).Error
-	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "paused").Where("id = ?", in.NodeID).First(&node).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		displayIndex, err := r.nextNodeInstanceDisplayIndex(in.NodeID)
-		if err != nil {
-			return err
-		}
-		inst := model.NodeInstance{
-			NodeID:       in.NodeID,
-			InstanceID:   instanceID,
-			Hostname:     strings.TrimSpace(in.Hostname),
-			PublicIPV4:   strings.TrimSpace(in.PublicIPV4),
-			PublicIPV6:   strings.TrimSpace(in.PublicIPV6),
-			Version:      strings.TrimSpace(in.Version),
-			Status:       1,
-			Weight:       1,
-			DisplayIndex: displayIndex,
-			NetInSpeed:   in.NetInSpeed,
-			NetOutSpeed:  in.NetOutSpeed,
-			NetInBytes:   in.NetInBytes,
-			NetOutBytes:  in.NetOutBytes,
-			TCPConns:     in.TCPConns,
-			UDPConns:     in.UDPConns,
-			Uptime:       in.Uptime,
-			PeriodRx:     in.PeriodRx,
-			PeriodTx:     in.PeriodTx,
-			CPUUsage:     in.CPUUsage,
-			MemUsage:     in.MemUsage,
-			DiskUsage:    in.DiskUsage,
-			LastSeenAt:   now,
-			CreatedTime:  now,
-			UpdatedTime:  now,
-		}
-		return r.db.Create(&inst).Error
-	}
 
-	resetTrafficStats := nodeInstanceServerChanged(existing, in)
-	updates := map[string]interface{}{
-		"status":        1,
-		"last_seen_at":  now,
-		"updated_time":  now,
-		"net_in_speed":  in.NetInSpeed,
-		"net_out_speed": in.NetOutSpeed,
-		"net_in_bytes":  in.NetInBytes,
-		"net_out_bytes": in.NetOutBytes,
-		"tcp_conns":     in.TCPConns,
-		"udp_conns":     in.UDPConns,
-		"uptime":        in.Uptime,
-		"period_rx":     in.PeriodRx,
-		"period_tx":     in.PeriodTx,
-		"cpu_usage":     in.CPUUsage,
-		"mem_usage":     in.MemUsage,
-		"disk_usage":    in.DiskUsage,
-	}
-	if resetTrafficStats {
-		updates["net_in_bytes"] = int64(0)
-		updates["net_out_bytes"] = int64(0)
-		updates["period_rx"] = int64(0)
-		updates["period_tx"] = int64(0)
-	}
-	if v := strings.TrimSpace(in.Hostname); v != "" {
-		updates["hostname"] = v
-	}
-	if v := strings.TrimSpace(in.PublicIPV4); v != "" {
-		updates["public_ip_v4"] = v
-	}
-	if v := strings.TrimSpace(in.PublicIPV6); v != "" {
-		updates["public_ip_v6"] = v
-	}
-	if v := strings.TrimSpace(in.Version); v != "" {
-		updates["version"] = v
-	}
-	return r.db.Model(&model.NodeInstance{}).
-		Where("id = ?", existing.ID).
-		Updates(updates).Error
+		var existing model.NodeInstance
+		err = tx.Where("node_id = ? AND instance_id = ?", in.NodeID, instanceID).First(&existing).Error
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			displayIndex, err := nextNodeInstanceDisplayIndexTx(tx, in.NodeID)
+			if err != nil {
+				return err
+			}
+			weight := 1
+			var pauseRestoreWeight sql.NullInt64
+			if node.Paused == 1 {
+				weight = 0
+				pauseRestoreWeight = sql.NullInt64{Int64: 1, Valid: true}
+			}
+			inst := model.NodeInstance{
+				NodeID:             in.NodeID,
+				InstanceID:         instanceID,
+				Hostname:           strings.TrimSpace(in.Hostname),
+				PublicIPV4:         strings.TrimSpace(in.PublicIPV4),
+				PublicIPV6:         strings.TrimSpace(in.PublicIPV6),
+				Version:            strings.TrimSpace(in.Version),
+				Status:             1,
+				Weight:             weight,
+				PauseRestoreWeight: pauseRestoreWeight,
+				DisplayIndex:       displayIndex,
+				NetInSpeed:         in.NetInSpeed,
+				NetOutSpeed:        in.NetOutSpeed,
+				NetInBytes:         in.NetInBytes,
+				NetOutBytes:        in.NetOutBytes,
+				TCPConns:           in.TCPConns,
+				UDPConns:           in.UDPConns,
+				Uptime:             in.Uptime,
+				PeriodRx:           in.PeriodRx,
+				PeriodTx:           in.PeriodTx,
+				CPUUsage:           in.CPUUsage,
+				MemUsage:           in.MemUsage,
+				DiskUsage:          in.DiskUsage,
+				LastSeenAt:         now,
+				CreatedTime:        now,
+				UpdatedTime:        now,
+			}
+			return tx.Create(&inst).Error
+		}
+
+		resetTrafficStats := nodeInstanceServerChanged(existing, in)
+		updates := map[string]interface{}{
+			"status":        1,
+			"last_seen_at":  now,
+			"updated_time":  now,
+			"net_in_speed":  in.NetInSpeed,
+			"net_out_speed": in.NetOutSpeed,
+			"net_in_bytes":  in.NetInBytes,
+			"net_out_bytes": in.NetOutBytes,
+			"tcp_conns":     in.TCPConns,
+			"udp_conns":     in.UDPConns,
+			"uptime":        in.Uptime,
+			"period_rx":     in.PeriodRx,
+			"period_tx":     in.PeriodTx,
+			"cpu_usage":     in.CPUUsage,
+			"mem_usage":     in.MemUsage,
+			"disk_usage":    in.DiskUsage,
+		}
+		if resetTrafficStats {
+			updates["net_in_bytes"] = int64(0)
+			updates["net_out_bytes"] = int64(0)
+			updates["period_rx"] = int64(0)
+			updates["period_tx"] = int64(0)
+		}
+		if v := strings.TrimSpace(in.Hostname); v != "" {
+			updates["hostname"] = v
+		}
+		if v := strings.TrimSpace(in.PublicIPV4); v != "" {
+			updates["public_ip_v4"] = v
+		}
+		if v := strings.TrimSpace(in.PublicIPV6); v != "" {
+			updates["public_ip_v6"] = v
+		}
+		if v := strings.TrimSpace(in.Version); v != "" {
+			updates["version"] = v
+		}
+		return tx.Model(&model.NodeInstance{}).
+			Where("id = ?", existing.ID).
+			Updates(updates).Error
+	})
 }
 
 func nodeInstanceServerChanged(existing model.NodeInstance, in NodeInstanceUpsert) bool {
@@ -277,6 +299,107 @@ func (r *Repository) UpdateNodeInstanceWeight(nodeID int64, instanceID string, w
 		Updates(map[string]interface{}{"weight": weight, "updated_time": now}).Error
 }
 
+func (r *Repository) DisableNodeInstance(nodeID int64, instanceID string, now int64) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	if now <= 0 {
+		now = unixMilliNow()
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return false, errors.New("node instance id is required")
+	}
+	result := r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ? AND weight > 0", nodeID, instanceID).
+		Updates(map[string]interface{}{"weight": 0, "updated_time": now})
+	return result.RowsAffected > 0, result.Error
+}
+
+func (r *Repository) PauseNodeRouting(nodeID, now int64) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	if nodeID <= 0 {
+		return false, errors.New("node id is required")
+	}
+	if now <= 0 {
+		now = unixMilliNow()
+	}
+	changed := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "paused", "weight").Where("id = ?", nodeID).First(&node).Error; err != nil {
+			return err
+		}
+		if node.Paused == 1 {
+			return nil
+		}
+		if err := tx.Model(&model.NodeInstance{}).Where("node_id = ?", nodeID).Updates(map[string]interface{}{
+			"pause_restore_weight": gorm.Expr("weight"),
+			"weight":               0,
+			"updated_time":         now,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
+			"paused":               1,
+			"pause_restore_weight": node.Weight,
+			"weight":               0,
+			"updated_time":         now,
+		}).Error; err != nil {
+			return err
+		}
+		changed = true
+		return nil
+	})
+	return changed, err
+}
+
+func (r *Repository) ResumeNodeRouting(nodeID, now int64) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, errors.New("repository not initialized")
+	}
+	if nodeID <= 0 {
+		return false, errors.New("node id is required")
+	}
+	if now <= 0 {
+		now = unixMilliNow()
+	}
+	changed := false
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "paused", "pause_restore_weight").Where("id = ?", nodeID).First(&node).Error; err != nil {
+			return err
+		}
+		if node.Paused != 1 {
+			return nil
+		}
+		if err := tx.Model(&model.NodeInstance{}).Where("node_id = ?", nodeID).Updates(map[string]interface{}{
+			"weight":               gorm.Expr("COALESCE(pause_restore_weight, 0)"),
+			"pause_restore_weight": nil,
+			"updated_time":         now,
+		}).Error; err != nil {
+			return err
+		}
+		restoreWeight := int64(0)
+		if node.PauseRestoreWeight.Valid {
+			restoreWeight = node.PauseRestoreWeight.Int64
+		}
+		if err := tx.Model(&model.Node{}).Where("id = ?", nodeID).Updates(map[string]interface{}{
+			"paused":               0,
+			"pause_restore_weight": nil,
+			"weight":               restoreWeight,
+			"updated_time":         now,
+		}).Error; err != nil {
+			return err
+		}
+		changed = true
+		return nil
+	})
+	return changed, err
+}
+
 func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, displayName string, remark string, weight int, portRange string, expiryTime interface{}, renewalCycle interface{}, flowResetTime int, trafficLimit int64, trafficLimitMode int, trafficRatio *float64, now int64) error {
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
@@ -288,41 +411,43 @@ func (r *Repository) UpdateNodeInstanceProfile(nodeID int64, instanceID string, 
 	if instanceID == "" {
 		return errors.New("node instance id is required")
 	}
-	updates := map[string]interface{}{
-		"display_name":                    strings.TrimSpace(displayName),
-		"remark":                          strings.TrimSpace(remark),
-		"weight":                          weight,
-		"port_range":                      strings.TrimSpace(portRange),
-		"expiry_time":                     nullInt64FromInterface(expiryTime),
-		"renewal_cycle":                   nullStringFromInterface(renewalCycle),
-		"flow_reset_time":                 flowResetTime,
-		"traffic_limit":                   trafficLimit,
-		"expiry_reminder_dismissed":       0,
-		"expiry_reminder_dismissed_until": sql.NullInt64{},
-		"traffic_notified_mask":           0,
-		"updated_time":                    now,
-	}
-	if trafficLimit > 0 {
-		var existing model.NodeInstance
-		if err := r.db.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).First(&existing).Error; err == nil {
-			if existing.TrafficLimit <= 0 {
-				updates["traffic_limit_mode"] = trafficLimitMode
-			}
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "paused").Where("id = ?", nodeID).First(&node).Error; err != nil {
+			return err
 		}
-	}
-	if trafficRatio != nil {
-		updates["traffic_ratio"] = *trafficRatio
-	}
-	result := r.db.Model(&model.NodeInstance{}).
-		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
-		Updates(updates)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return errors.New("node instance not found")
-	}
-	return nil
+		var existing model.NodeInstance
+		if err := tx.Where("node_id = ? AND instance_id = ?", nodeID, instanceID).First(&existing).Error; err != nil {
+			return err
+		}
+		updates := map[string]interface{}{
+			"display_name":                    strings.TrimSpace(displayName),
+			"remark":                          strings.TrimSpace(remark),
+			"port_range":                      strings.TrimSpace(portRange),
+			"expiry_time":                     nullInt64FromInterface(expiryTime),
+			"renewal_cycle":                   nullStringFromInterface(renewalCycle),
+			"flow_reset_time":                 flowResetTime,
+			"traffic_limit":                   trafficLimit,
+			"expiry_reminder_dismissed":       0,
+			"expiry_reminder_dismissed_until": sql.NullInt64{},
+			"traffic_notified_mask":           0,
+			"updated_time":                    now,
+		}
+		if node.Paused == 1 {
+			updates["weight"] = 0
+			updates["pause_restore_weight"] = weight
+		} else {
+			updates["weight"] = weight
+			updates["pause_restore_weight"] = nil
+		}
+		if trafficLimit > 0 && existing.TrafficLimit <= 0 {
+			updates["traffic_limit_mode"] = trafficLimitMode
+		}
+		if trafficRatio != nil {
+			updates["traffic_ratio"] = *trafficRatio
+		}
+		return tx.Model(&model.NodeInstance{}).Where("id = ?", existing.ID).Updates(updates).Error
+	})
 }
 
 func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeInstanceSync, now int64) ([]model.NodeInstance, error) {
@@ -339,7 +464,7 @@ func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeIns
 	instances := make([]model.NodeInstance, 0)
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		var node model.Node
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "remote_instances_updated_time").Where("id = ? AND is_remote = 1", nodeID).First(&node).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "paused", "remote_instances_updated_time").Where("id = ? AND is_remote = 1", nodeID).First(&node).Error; err != nil {
 			return err
 		}
 		if node.RemoteInstancesUpdatedTime > now {
@@ -366,12 +491,18 @@ func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeIns
 			}
 			seen[instanceID] = struct{}{}
 			instanceIDs = append(instanceIDs, instanceID)
+			instanceWeight := item.Weight
+			var pauseRestoreWeight interface{}
+			if node.Paused == 1 {
+				instanceWeight = 0
+				pauseRestoreWeight = item.Weight
+			}
 			values := map[string]interface{}{
 				"node_id": nodeID, "instance_id": instanceID, "display_name": strings.TrimSpace(item.DisplayName),
 				"display_index": item.DisplayIndex, "hostname": strings.TrimSpace(item.Hostname),
 				"public_ip_v4": strings.TrimSpace(item.PublicIPV4), "public_ip_v6": strings.TrimSpace(item.PublicIPV6),
 				"version": item.Version,
-				"status":  item.Status, "weight": item.Weight, "traffic_ratio": item.TrafficRatio,
+				"status":  item.Status, "weight": instanceWeight, "pause_restore_weight": pauseRestoreWeight, "traffic_ratio": item.TrafficRatio,
 				"flow_reset_time": item.FlowResetTime, "traffic_limit": item.TrafficLimit,
 				"total_in_flow": int64(0), "total_out_flow": int64(0), "period_rx": item.PeriodRx, "period_tx": item.PeriodTx,
 				"net_in_speed": item.NetInSpeed, "net_out_speed": item.NetOutSpeed, "net_in_bytes": item.NetInBytes, "net_out_bytes": item.NetOutBytes,
@@ -390,7 +521,7 @@ func (r *Repository) SyncRemoteNodeInstances(nodeID int64, items []RemoteNodeIns
 			}
 			if err := tx.Model(&model.NodeInstance{}).Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "node_id"}, {Name: "instance_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "public_ip_v4", "public_ip_v6", "version", "status", "weight", "traffic_ratio", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
+				DoUpdates: clause.AssignmentColumns([]string{"display_name", "display_index", "hostname", "public_ip_v4", "public_ip_v6", "version", "status", "weight", "pause_restore_weight", "traffic_ratio", "expiry_time", "renewal_cycle", "flow_reset_time", "traffic_limit", "period_rx", "period_tx", "net_in_speed", "net_out_speed", "net_in_bytes", "net_out_bytes", "tcp_conns", "udp_conns", "uptime", "cpu_usage", "mem_usage", "disk_usage", "last_seen_at", "updated_time"}),
 			}).Create(values).Error; err != nil {
 				return err
 			}
@@ -504,13 +635,16 @@ func (r *Repository) GetNodeInstanceTrafficLimitInfo(nodeID int64, instanceID st
 	err := r.db.Raw(`
 		SELECT nsi.node_id, nsi.instance_id,
 		       CASE WHEN COALESCE(nsi.display_name, '') <> '' THEN n.name || ' / ' || nsi.display_name ELSE n.name || ' / 实例 ' || nsi.display_index END AS name,
+		       nsi.weight,
 		       nsi.traffic_limit,
 		       nsi.total_in_flow + nsi.total_out_flow AS used,
 		       nsi.traffic_notified_mask,
 		       nsi.total_in_flow,
 		       nsi.total_out_flow,
 		       nsi.net_in_bytes,
-		       nsi.net_out_bytes
+		       nsi.net_out_bytes,
+		       nsi.period_net_in_bytes,
+		       nsi.period_net_out_bytes
 		FROM node_instance nsi
 		JOIN node n ON n.id = nsi.node_id
 		WHERE nsi.node_id = ? AND nsi.instance_id = ?
@@ -522,6 +656,110 @@ func (r *Repository) GetNodeInstanceTrafficLimitInfo(nodeID int64, instanceID st
 		return nil, nil
 	}
 	return &item, nil
+}
+
+func (r *Repository) AccumulateNodeInstancePeriodNetTraffic(nodeID int64, instanceID string, currentIn, currentOut, bootID int64, interfaceKey string, now int64) (*NodeInstancePeriodNetTraffic, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if nodeID <= 0 || instanceID == "" || currentIn < 0 || currentOut < 0 {
+		return nil, nil
+	}
+	if now <= 0 {
+		now = unixMilliNow()
+	}
+	result := &NodeInstancePeriodNetTraffic{}
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		var instance model.NodeInstance
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("node_id = ? AND instance_id = ?", nodeID, instanceID).First(&instance).Error; err != nil {
+			return err
+		}
+		if instance.PeriodNetInitialized == 0 {
+			if err := tx.Model(&model.NodeInstance{}).Where("id = ?", instance.ID).Updates(map[string]interface{}{
+				"period_net_in_bytes":         currentIn,
+				"period_net_out_bytes":        currentOut,
+				"period_net_initialized":      1,
+				"last_sync_net_in_bytes":      currentIn,
+				"last_sync_net_out_bytes":     currentOut,
+				"last_sync_net_boot_id":       bootID,
+				"last_sync_net_interface_key": interfaceKey,
+				"updated_time":                now,
+			}).Error; err != nil {
+				return err
+			}
+			result.InBytes = currentIn
+			result.OutBytes = currentOut
+			return nil
+		}
+		interfaceChanged := instance.LastSyncNetInterfaceKey != "" && interfaceKey != "" && interfaceKey != instance.LastSyncNetInterfaceKey
+		if bootID > 0 && instance.LastSyncNetBootID > 0 && bootID < instance.LastSyncNetBootID {
+			result.InBytes = instance.PeriodNetInBytes
+			result.OutBytes = instance.PeriodNetOutBytes
+			return nil
+		}
+		restarted := bootID > 0 && instance.LastSyncNetBootID > 0 && bootID > instance.LastSyncNetBootID
+		if !interfaceChanged && !restarted && (currentIn < instance.LastSyncNetInBytes || currentOut < instance.LastSyncNetOutBytes) {
+			result.InBytes = instance.PeriodNetInBytes
+			result.OutBytes = instance.PeriodNetOutBytes
+			return nil
+		}
+		inDelta := currentIn - instance.LastSyncNetInBytes
+		if currentIn < instance.LastSyncNetInBytes {
+			if restarted {
+				inDelta = currentIn
+			} else {
+				inDelta = 0
+			}
+		}
+		outDelta := currentOut - instance.LastSyncNetOutBytes
+		if currentOut < instance.LastSyncNetOutBytes {
+			if restarted {
+				outDelta = currentOut
+			} else {
+				outDelta = 0
+			}
+		}
+		if interfaceChanged {
+			inDelta = 0
+			outDelta = 0
+		}
+		if err := tx.Model(&model.NodeInstance{}).Where("id = ?", instance.ID).Updates(map[string]interface{}{
+			"period_net_in_bytes":         gorm.Expr("period_net_in_bytes + ?", inDelta),
+			"period_net_out_bytes":        gorm.Expr("period_net_out_bytes + ?", outDelta),
+			"last_sync_net_in_bytes":      currentIn,
+			"last_sync_net_out_bytes":     currentOut,
+			"last_sync_net_boot_id":       bootID,
+			"last_sync_net_interface_key": interfaceKey,
+			"updated_time":                now,
+		}).Error; err != nil {
+			return err
+		}
+		result.InBytes = instance.PeriodNetInBytes + inDelta
+		result.OutBytes = instance.PeriodNetOutBytes + outDelta
+		return nil
+	})
+	return result, err
+}
+
+func (r *Repository) ResetNodeInstancePeriodNetTraffic(nodeID int64, instanceID string, currentIn, currentOut, bootID int64, interfaceKey string) error {
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", nodeID, instanceID).Updates(map[string]interface{}{
+		"period_net_in_bytes":         0,
+		"period_net_out_bytes":        0,
+		"period_net_initialized":      1,
+		"last_sync_net_in_bytes":      currentIn,
+		"last_sync_net_out_bytes":     currentOut,
+		"last_sync_net_boot_id":       bootID,
+		"last_sync_net_interface_key": interfaceKey,
+		"updated_time":                unixMilliNow(),
+	}).Error
 }
 
 func (r *Repository) SetNodeInstanceTotalFlow(nodeID int64, instanceID string, rx, tx int64) error {
@@ -564,7 +802,24 @@ func (r *Repository) AdjustNodeInstanceTraffic(nodeID int64, instanceID string, 
 }
 
 func (r *Repository) ResetNodeInstanceTotalFlow(nodeID int64, instanceID string) error {
-	return r.SetNodeInstanceTotalFlow(nodeID, instanceID, 0, 0)
+	if r == nil || r.db == nil {
+		return errors.New("repository not initialized")
+	}
+	instanceID = normalizeNodeInstanceID(instanceID)
+	if instanceID == "" {
+		return nil
+	}
+	return r.db.Model(&model.NodeInstance{}).
+		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
+		Updates(map[string]interface{}{
+			"total_in_flow":           0,
+			"total_out_flow":          0,
+			"period_net_in_bytes":     0,
+			"period_net_out_bytes":    0,
+			"period_net_initialized":  1,
+			"last_sync_net_in_bytes":  gorm.Expr("net_in_bytes"),
+			"last_sync_net_out_bytes": gorm.Expr("net_out_bytes"),
+		}).Error
 }
 
 func (r *Repository) ResetNodeInstancesTotalFlowByNode(nodeID int64) error {
@@ -577,8 +832,13 @@ func (r *Repository) ResetNodeInstancesTotalFlowByNode(nodeID int64) error {
 	return r.db.Model(&model.NodeInstance{}).
 		Where("node_id = ?", nodeID).
 		Updates(map[string]interface{}{
-			"total_in_flow":  0,
-			"total_out_flow": 0,
+			"total_in_flow":           0,
+			"total_out_flow":          0,
+			"period_net_in_bytes":     0,
+			"period_net_out_bytes":    0,
+			"period_net_initialized":  1,
+			"last_sync_net_in_bytes":  gorm.Expr("net_in_bytes"),
+			"last_sync_net_out_bytes": gorm.Expr("net_out_bytes"),
 		}).Error
 }
 
@@ -633,13 +893,18 @@ func (r *Repository) ResetNodeInstanceTrafficNotifiedMasksByNode(nodeID int64) e
 }
 
 type NodeInstanceTrafficResetDue struct {
-	NodeID       int64
-	NodeName     string
-	InstanceID   string
-	DisplayIndex int
-	DisplayName  string
-	PeriodRx     int64
-	PeriodTx     int64
+	NodeID            int64
+	NodeName          string
+	InstanceID        string
+	DisplayIndex      int
+	DisplayName       string
+	PeriodRx          int64
+	PeriodTx          int64
+	PeriodNetInBytes  int64
+	PeriodNetOutBytes int64
+	NetInBytes        int64
+	NetOutBytes       int64
+	Uptime            int64
 }
 
 func (r *Repository) ListNodeInstanceMonthlyFlowResetDue(currentDay int, lastDay int) ([]NodeInstanceTrafficResetDue, error) {
@@ -651,7 +916,12 @@ func (r *Repository) ListNodeInstanceMonthlyFlowResetDue(currentDay int, lastDay
 	query := `
 		SELECT nsi.node_id, n.name AS node_name, nsi.instance_id, nsi.display_index, COALESCE(nsi.display_name, '') AS display_name,
 		       COALESCE(latest.period_rx, 0) AS period_rx,
-		       COALESCE(latest.period_tx, 0) AS period_tx
+		       COALESCE(latest.period_tx, 0) AS period_tx,
+		       COALESCE(nsi.period_net_in_bytes, 0) AS period_net_in_bytes,
+		       COALESCE(nsi.period_net_out_bytes, 0) AS period_net_out_bytes,
+		       COALESCE(nsi.net_in_bytes, 0) AS net_in_bytes,
+		       COALESCE(nsi.net_out_bytes, 0) AS net_out_bytes,
+		       COALESCE(nsi.uptime, 0) AS uptime
 		FROM node_instance nsi
 		JOIN node n ON n.id = nsi.node_id
 		LEFT JOIN (
@@ -1043,9 +1313,13 @@ func (r *Repository) ensureNodeInstanceDisplayIndexesTx(tx *gorm.DB, nodeIDs []i
 }
 
 func (r *Repository) nextNodeInstanceDisplayIndex(nodeID int64) (int, error) {
+	return nextNodeInstanceDisplayIndexTx(r.db, nodeID)
+}
+
+func nextNodeInstanceDisplayIndexTx(tx *gorm.DB, nodeID int64) (int, error) {
 	var indexes []int
 	where, args := validNodeInstanceWhere()
-	err := r.db.Model(&model.NodeInstance{}).
+	err := tx.Model(&model.NodeInstance{}).
 		Where("node_id = ?", nodeID).
 		Where(where, args...).
 		Where("display_index > 0").

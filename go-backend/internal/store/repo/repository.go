@@ -484,6 +484,13 @@ func autoMigrateAll(db *gorm.DB) error {
 	_ = db.Model(&model.Node{}).Where("LOWER(TRIM(server_ip)) = ?", "auto").Update("server_ip", "")
 	_ = db.Model(&model.Node{}).Where("TRIM(port) = ?", "1000-65535").Update("port", "10000-65535")
 	_ = db.Where("TRIM(instance_id) = '' OR LOWER(TRIM(instance_id)) = ?", "default").Delete(&model.NodeInstance{})
+	_ = db.Exec(`UPDATE node_instance
+		SET pause_restore_weight = weight, weight = 0
+		WHERE node_id IN (SELECT id FROM node WHERE paused = 1)
+		  AND pause_restore_weight IS NULL`).Error
+	_ = db.Exec(`UPDATE node
+		SET pause_restore_weight = weight, weight = 0
+		WHERE paused = 1 AND pause_restore_weight IS NULL`).Error
 	_ = db.Model(&model.PeerShare{}).Where("scope_type IS NULL OR TRIM(scope_type) = ''").Updates(map[string]interface{}{
 		"scope_type": "all_enabled", "auto_include_new_instances": 1, "min_healthy_instances": 1,
 	})
@@ -724,7 +731,7 @@ func prepareSQLiteLegacyColumns(db *gorm.DB) error {
 			"UDPListenAddr", "Inx", "IsRemote", "RemoteURL", "RemoteToken", "RemoteConfig",
 			"RemoteInstancesUpdatedTime", "ExpiryReminderDismissed", "ExpiryReminderDismissedUntil",
 			"GroupID", "ServiceName", "TrafficLimit", "TotalInFlow", "TotalOutFlow", "Paused",
-			"AuthoritativeFlowEpoch", "Weight", "TrafficNotifiedMask", "FlowResetTime", "MimicStatus", "MimicError", "MimicUpdatedAt",
+			"AuthoritativeFlowEpoch", "Weight", "PauseRestoreWeight", "TrafficNotifiedMask", "FlowResetTime", "MimicStatus", "MimicError", "MimicUpdatedAt",
 		} {
 			if m.HasColumn(&model.Node{}, field) {
 				continue

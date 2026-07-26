@@ -536,12 +536,23 @@ func (r *Repository) UpdateNodeWeight(nodeID int64, weight int, now int64) error
 	if r == nil || r.db == nil {
 		return errors.New("repository not initialized")
 	}
-	return r.db.Model(&model.Node{}).
-		Where("id = ?", nodeID).
-		Updates(map[string]interface{}{
-			"weight":       weight,
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var node model.Node
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id", "paused").Where("id = ?", nodeID).First(&node).Error; err != nil {
+			return err
+		}
+		updates := map[string]interface{}{
 			"updated_time": sql.NullInt64{Int64: now, Valid: true},
-		}).Error
+		}
+		if node.Paused == 1 {
+			updates["weight"] = 0
+			updates["pause_restore_weight"] = weight
+		} else {
+			updates["weight"] = weight
+			updates["pause_restore_weight"] = nil
+		}
+		return tx.Model(&model.Node{}).Where("id = ?", nodeID).Updates(updates).Error
+	})
 }
 
 func (r *Repository) GetNodeNameTx(tx *gorm.DB, nodeID int64) (string, error) {
@@ -4116,10 +4127,13 @@ func (r *Repository) ResetNodeTotalFlow(nodeID int64) error {
 		// 重置该节点下所有实例的流量和网卡同步值
 		if err := tx.Model(&model.NodeInstance{}).Where("node_id = ?", nodeID).
 			Updates(map[string]interface{}{
-				"total_in_flow":            0,
-				"total_out_flow":           0,
-				"last_sync_net_in_bytes":   0,
-				"last_sync_net_out_bytes":  0,
+				"total_in_flow":           0,
+				"total_out_flow":          0,
+				"period_net_in_bytes":     0,
+				"period_net_out_bytes":    0,
+				"period_net_initialized":  1,
+				"last_sync_net_in_bytes":  gorm.Expr("net_in_bytes"),
+				"last_sync_net_out_bytes": gorm.Expr("net_out_bytes"),
 			}).Error; err != nil {
 			return err
 		}
@@ -4146,8 +4160,11 @@ func (r *Repository) ResetNodeTotalFlowWithLog(nodeID int64, params *NodeTraffic
 			Updates(map[string]interface{}{
 				"total_in_flow":           0,
 				"total_out_flow":          0,
-				"last_sync_net_in_bytes":  0,
-				"last_sync_net_out_bytes": 0,
+				"period_net_in_bytes":     0,
+				"period_net_out_bytes":    0,
+				"period_net_initialized":  1,
+				"last_sync_net_in_bytes":  gorm.Expr("net_in_bytes"),
+				"last_sync_net_out_bytes": gorm.Expr("net_out_bytes"),
 			}).Error; err != nil {
 			return err
 		}

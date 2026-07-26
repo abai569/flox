@@ -48,6 +48,7 @@ import (
 // SystemInfo 系统信息结构体
 type SystemInfo struct {
 	Uptime                 uint64          `json:"uptime"`
+	BootID                 uint64          `json:"boot_id"`
 	BytesReceived          uint64          `json:"bytes_received"`
 	BytesTransmitted       uint64          `json:"bytes_transmitted"`
 	PeriodBytesReceived    uint64          `json:"period_bytes_received"`    // 周期内接收流量
@@ -67,6 +68,7 @@ type SystemInfo struct {
 	NetOutSpeed            int64           `json:"net_out_speed"`
 	NetInBytes             int64           `json:"net_in_bytes"`
 	NetOutBytes            int64           `json:"net_out_bytes"`
+	NetInterfaceKey        string          `json:"net_interface_key,omitempty"`
 	ServiceName            string          `json:"service_name,omitempty"` // 服务名
 	InstanceID             string          `json:"instance_id,omitempty"`
 	Hostname               string          `json:"hostname,omitempty"`
@@ -95,6 +97,7 @@ type NetworkStats struct {
 	BytesTransmitted uint64 `json:"bytes_transmitted"`
 	BytesRecvDelta   uint64 `json:"bytes_recv_delta"`
 	BytesSentDelta   uint64 `json:"bytes_sent_delta"`
+	InterfaceKey     string `json:"interface_key"`
 }
 
 // CPUInfo CPU信息
@@ -240,8 +243,8 @@ type WebSocketReporter struct {
 	publicIPMu            sync.RWMutex
 	serviceName           string                   // 服务名
 	nftablesMgr           NftablesManagerInterface // nftables manager (platform-specific)
-	nftablesPrevCounters  map[string]uint64        // "forwardID_protocol" → last total bytes
-	nftablesConntrackPrev map[string]uint64        // "protocol:port" → last total conntrack bytes
+	nftablesPrevCounters  map[string]uint64        // logical rule identity → last total bytes
+	nftablesConntrackPrev map[string]uint64
 	nftConnPrev           map[string]nftables.RuleConnInfo
 	nftablesPrevMu        sync.Mutex
 	agentConnMu           sync.RWMutex
@@ -1119,6 +1122,7 @@ var connInfoCachedMu sync.Mutex
 var lastNetBytesReceived uint64
 var lastNetBytesTransmitted uint64
 var lastNetTime int64
+var lastNetInterfaces string
 
 // collectSystemInfo 收集系统信息
 func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
@@ -1175,6 +1179,7 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 
 	return SystemInfo{
 		Uptime:                 getUptime(),
+		BootID:                 getBootID(),
 		BytesReceived:          businessDown,
 		BytesTransmitted:       businessUp,
 		PeriodBytesReceived:    periodRX,
@@ -1194,6 +1199,7 @@ func (w *WebSocketReporter) collectSystemInfo() SystemInfo {
 		NetOutSpeed:            netOutSpeed,
 		NetInBytes:             int64(networkStats.BytesReceived),
 		NetOutBytes:            int64(networkStats.BytesTransmitted),
+		NetInterfaceKey:        networkStats.InterfaceKey,
 		ServiceName:            w.serviceName,
 		InstanceID:             w.instanceID,
 		Hostname:               hostname,
@@ -1220,66 +1226,6 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		w.nftablesConntrackPrev = make(map[string]uint64)
 	}
 
-	if bytesResults, err := w.nftablesMgr.CountConnectionBytesByRule(); err == nil && len(bytesResults) > 0 {
-		type deltaEntry struct {
-			forwardID    int64
-			shareID      int64
-			userID       int64
-			userTunnelID int64
-			port         int
-			protocol     string
-			delta        uint64
-			nodeID       int64
-		}
-		var deltas []deltaEntry
-		for _, c := range bytesResults {
-			key := fmt.Sprintf("%d_%s:%d", c.ForwardID, c.Protocol, c.Port)
-			total := c.Bytes
-			prev, exists := w.nftablesConntrackPrev[key]
-			if exists {
-				var delta uint64
-				if total > prev {
-					delta = total - prev
-				}
-				if delta > 0 {
-					deltas = append(deltas, deltaEntry{
-						forwardID:    c.ForwardID,
-						shareID:      c.ShareID,
-						userID:       c.UserID,
-						userTunnelID: c.UserTunnelID,
-						port:         c.Port,
-						protocol:     c.Protocol,
-						delta:        delta,
-						nodeID:       c.NodeID,
-					})
-				}
-			}
-			w.nftablesConntrackPrev[key] = total
-		}
-
-		if len(deltas) > 0 {
-			var flowDeltas []service.NftablesFlowDelta
-			for _, d := range deltas {
-				serviceName := nftMetricServiceName(d.shareID, d.forwardID, d.userID, d.userTunnelID)
-				stats.AddForwardTraffic(d.forwardID, d.userID, d.userTunnelID, serviceName, d.nodeID, d.port, false, d.delta)
-				flowDeltas = append(flowDeltas, service.NftablesFlowDelta{
-					ServiceName: serviceName,
-					Up:          0,
-					Down:        d.delta,
-				})
-			}
-			service.ReportNftablesFlow(flowDeltas)
-			return
-		}
-	}
-
-	counters := w.nftablesMgr.RefreshCounters()
-	if len(counters) == 0 {
-		fmt.Println("⚠️ [nft] RefreshCounters returned empty")
-		return
-	}
-
-	// 收集按 forwardID 聚合的 delta（TCP+UDP 合并）
 	type deltaEntry struct {
 		forwardID    int64
 		shareID      int64
@@ -1291,37 +1237,78 @@ func (w *WebSocketReporter) pollNftablesCounters() {
 		nodeID       int64
 		chainType    int
 	}
-	var deltas []deltaEntry
+	conntrackDeltas := make(map[string]uint64)
+	entries := make(map[string]deltaEntry)
+	if bytesResults, err := w.nftablesMgr.CountConnectionBytesByRule(); err == nil {
+		seen := make(map[string]struct{}, len(bytesResults))
+		for _, c := range bytesResults {
+			if c.ChainType == 3 {
+				continue
+			}
+			key := fmt.Sprintf("%d_%d_%d_%d_%d_%s_%d_%d", c.ForwardID, c.ShareID, c.UserID, c.UserTunnelID, c.NodeID, c.Protocol, c.Port, c.ChainType)
+			seen[key] = struct{}{}
+			prev, exists := w.nftablesConntrackPrev[key]
+			w.nftablesConntrackPrev[key] = c.Bytes
+			if exists && c.Bytes > prev {
+				conntrackDeltas[key] = c.Bytes - prev
+			}
+			entries[key] = deltaEntry{forwardID: c.ForwardID, shareID: c.ShareID, userID: c.UserID, userTunnelID: c.UserTunnelID, port: c.Port, protocol: c.Protocol, nodeID: c.NodeID, chainType: c.ChainType}
+		}
+		for key := range w.nftablesConntrackPrev {
+			if _, ok := seen[key]; !ok {
+				delete(w.nftablesConntrackPrev, key)
+			}
+		}
+	}
+
+	counters := w.nftablesMgr.RefreshCounters()
+	if len(counters) == 0 {
+		fmt.Println("⚠️ [nft] RefreshCounters returned empty, using conntrack deltas only")
+	}
+
+	// 收集按 forwardID 聚合的 delta（TCP+UDP 合并）
+	totals := make(map[string]uint64)
 
 	for _, c := range counters {
 		// 出口节点（ChainType=3）不统计流量，只统计入口
 		if c.ChainType == 3 {
 			continue
 		}
-		// 用 ChainType 区分不同 hook 的规则，防止共享 prev key 互覆盖导致 delta 虚高
-		key := fmt.Sprintf("%d_%s_%d", c.ForwardID, c.Protocol, c.ChainType)
-		total := c.Bytes
+		key := fmt.Sprintf("%d_%d_%d_%d_%d_%s_%d_%d", c.ForwardID, c.ShareID, c.UserID, c.UserTunnelID, c.NodeID, c.Protocol, c.Port, c.ChainType)
+		totals[key] += c.Bytes
+		entries[key] = deltaEntry{
+			forwardID:    c.ForwardID,
+			shareID:      c.ShareID,
+			userID:       c.UserID,
+			userTunnelID: c.UserTunnelID,
+			port:         c.Port,
+			protocol:     c.Protocol,
+			nodeID:       c.NodeID,
+			chainType:    c.ChainType,
+		}
+	}
+
+	deltasByKey := make(map[string]uint64, len(conntrackDeltas))
+	for key, delta := range conntrackDeltas {
+		deltasByKey[key] = delta
+	}
+	for key, total := range totals {
 		prev, exists := w.nftablesPrevCounters[key]
-		if exists {
-			var delta uint64
-			if total > prev {
-				delta = total - prev
-			}
-			if delta > 0 {
-				deltas = append(deltas, deltaEntry{
-					forwardID:    c.ForwardID,
-					shareID:      c.ShareID,
-					userID:       c.UserID,
-					userTunnelID: c.UserTunnelID,
-					port:         c.Port,
-					protocol:     c.Protocol,
-					delta:        delta,
-					nodeID:       c.NodeID,
-					chainType:    c.ChainType,
-				})
+		if exists && total > prev {
+			if delta := total - prev; delta > deltasByKey[key] {
+				deltasByKey[key] = delta
 			}
 		}
 		w.nftablesPrevCounters[key] = total
+	}
+	var deltas []deltaEntry
+	for key, delta := range deltasByKey {
+		entry, ok := entries[key]
+		if !ok || delta == 0 {
+			continue
+		}
+		entry.delta = delta
+		deltas = append(deltas, entry)
 	}
 
 	if len(deltas) == 0 {
@@ -1737,7 +1724,7 @@ func (w *WebSocketReporter) routeCommand(cmd CommandMessage) {
 
 	// Traffic 相关命令
 	case "ResetTraffic":
-		err = w.handleResetTraffic(cmd.Data)
+		response.Data, err = w.handleResetTraffic(cmd.Data)
 		response.Type = "ResetTrafficResponse"
 
 	// Chain 相关命令
@@ -2046,10 +2033,10 @@ func (w *WebSocketReporter) handleSetServiceMaxConnections(data interface{}) err
 	return nil
 }
 
-func (w *WebSocketReporter) handleResetTraffic(data interface{}) error {
+func (w *WebSocketReporter) handleResetTraffic(data interface{}) (map[string]interface{}, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("序列化数据失败：%v", err)
+		return nil, fmt.Errorf("序列化数据失败：%v", err)
 	}
 
 	var req struct {
@@ -2057,7 +2044,7 @@ func (w *WebSocketReporter) handleResetTraffic(data interface{}) error {
 		NodeID int64  `json:"nodeId"` // 面板传入的节点 ID
 	}
 	if err := json.Unmarshal(jsonData, &req); err != nil {
-		return fmt.Errorf("解析请求失败：%v", err)
+		return nil, fmt.Errorf("解析请求失败：%v", err)
 	}
 
 	bm := traffic.GetManager()
@@ -2067,7 +2054,7 @@ func (w *WebSocketReporter) handleResetTraffic(data interface{}) error {
 		configDir := getConfigDir(w.serviceName)
 		baselinePath := configDir + "/traffic_baseline.json"
 		if _, err := traffic.InitBaselineManager(req.NodeID, baselinePath); err != nil {
-			return fmt.Errorf("初始化基线管理器失败：%v", err)
+			return nil, fmt.Errorf("初始化基线管理器失败：%v", err)
 		}
 		bm = traffic.GetManager()
 
@@ -2096,7 +2083,7 @@ func (w *WebSocketReporter) handleResetTraffic(data interface{}) error {
 	}
 
 	if bm == nil {
-		return fmt.Errorf("基线管理器未初始化")
+		return nil, fmt.Errorf("基线管理器未初始化")
 	}
 
 	service.GetGlobalTrafficManager().ResetBusinessTraffic()
@@ -2107,11 +2094,17 @@ func (w *WebSocketReporter) handleResetTraffic(data interface{}) error {
 	// 创建手动归零基线（归档当前周期，创建新周期）
 	_, err = bm.CreateManualBaseline(networkStats.BytesReceived, networkStats.BytesTransmitted, req.Reason)
 	if err != nil {
-		return fmt.Errorf("创建基线失败：%v", err)
+		return nil, fmt.Errorf("创建基线失败：%v", err)
 	}
 
 	fmt.Printf("✅ 流量已归零：%s\n", req.Reason)
-	return nil
+	return map[string]interface{}{
+		"netInBytes":      networkStats.BytesReceived,
+		"netOutBytes":     networkStats.BytesTransmitted,
+		"netInterfaceKey": networkStats.InterfaceKey,
+		"uptime":          getUptime(),
+		"bootId":          getBootID(),
+	}, nil
 }
 
 func (w *WebSocketReporter) handleAddChain(data interface{}) error {
@@ -2822,30 +2815,35 @@ func getUptime() uint64 {
 	return uptime
 }
 
+func getBootID() uint64 {
+	bootTime, err := host.BootTime()
+	if err != nil {
+		return 0
+	}
+	return bootTime
+}
+
 // getNetworkStats 获取网络统计信息
 func getNetworkStats() NetworkStats {
 	var stats NetworkStats
 
-	ioCounters, err := psnet.IOCounters(true)
+	counters, err := ReadHostNetworkCounters()
 	if err != nil {
 		fmt.Printf("获取网络统计失败: %v\n", err)
 		return stats
 	}
+	stats.BytesReceived = counters.BytesReceived
+	stats.BytesTransmitted = counters.BytesTransmitted
+	interfaceKey := strings.Join(counters.Interfaces, ",")
+	stats.InterfaceKey = interfaceKey
 
-	for _, io := range ioCounters {
-		if io.Name == "lo" || strings.HasPrefix(io.Name, "lo") {
-			continue
-		}
-		stats.BytesReceived += io.BytesRecv
-		stats.BytesTransmitted += io.BytesSent
-	}
-
-	if lastNetBytesReceived > 0 && stats.BytesReceived >= lastNetBytesReceived {
+	if interfaceKey == lastNetInterfaces && lastNetBytesReceived > 0 && stats.BytesReceived >= lastNetBytesReceived {
 		stats.BytesRecvDelta = stats.BytesReceived - lastNetBytesReceived
 	}
-	if lastNetBytesTransmitted > 0 && stats.BytesTransmitted >= lastNetBytesTransmitted {
+	if interfaceKey == lastNetInterfaces && lastNetBytesTransmitted > 0 && stats.BytesTransmitted >= lastNetBytesTransmitted {
 		stats.BytesSentDelta = stats.BytesTransmitted - lastNetBytesTransmitted
 	}
+	lastNetInterfaces = interfaceKey
 
 	return stats
 }
@@ -3046,6 +3044,13 @@ func StartWebSocketReporterWithConfig(addr string, secret string, http int, tls 
 
 	reporter.Start()
 	return reporter
+}
+
+func (w *WebSocketReporter) InstanceID() string {
+	if w == nil {
+		return ""
+	}
+	return w.instanceID
 }
 
 // handleTcpPing 处理TCP ping诊断命令
@@ -4682,11 +4687,6 @@ func (w *WebSocketReporter) handlePauseNode() error {
 	}
 	if len(names) == 0 {
 		return nil
-	}
-
-	conn := w.conn
-	if conn != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"type":"PauseNodeResponse","success":true,"message":"暂停中..."}`))
 	}
 
 	os.WriteFile("gost.json.paused", mustMarshal(cfg), 0644)

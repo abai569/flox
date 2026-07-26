@@ -116,6 +116,7 @@ type Server struct {
 
 type SystemInfo struct {
 	Uptime                 uint64          `json:"uptime"`
+	BootID                 uint64          `json:"boot_id"`
 	BytesReceived          uint64          `json:"bytes_received"`
 	BytesTransmitted       uint64          `json:"bytes_transmitted"`
 	PeriodBytesReceived    uint64          `json:"period_bytes_received"`
@@ -135,6 +136,9 @@ type SystemInfo struct {
 	NetOutSpeed            int64           `json:"net_out_speed"`
 	NetInBytes             int64           `json:"net_in_bytes"`
 	NetOutBytes            int64           `json:"net_out_bytes"`
+	NetInterfaceKey        string          `json:"net_interface_key,omitempty"`
+	PeriodNetInBytes       int64           `json:"period_net_in_bytes"`
+	PeriodNetOutBytes      int64           `json:"period_net_out_bytes"`
 	ServiceName            string          `json:"service_name,omitempty"`
 	InstanceID             string          `json:"instance_id,omitempty"`
 	Hostname               string          `json:"hostname,omitempty"`
@@ -790,9 +794,6 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 						if strings.TrimSpace(sysInfo.Hostname) == "" {
 							sysInfo.Hostname = ns.hostname
 						}
-						if normalizedMetricData, err := json.Marshal(sysInfo); err == nil {
-							metricData = normalizedMetricData
-						}
 						// 缓存服务连接数
 						s.mu.Lock()
 						if s.serviceConnections[nodeID] == nil {
@@ -838,8 +839,8 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 							Version:     version,
 							NetInSpeed:  sysInfo.NetInSpeed,
 							NetOutSpeed: sysInfo.NetOutSpeed,
-							NetInBytes:  int64(sysInfo.BytesReceived),
-							NetOutBytes: int64(sysInfo.BytesTransmitted),
+							NetInBytes:  sysInfo.NetInBytes,
+							NetOutBytes: sysInfo.NetOutBytes,
 							TCPConns:    sysInfo.TCPConns,
 							UDPConns:    sysInfo.UDPConns,
 							Uptime:      int64(sysInfo.Uptime),
@@ -850,6 +851,13 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 							DiskUsage:   sysInfo.DiskUsage,
 							Now:         time.Now().UnixMilli(),
 						})
+						if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
+							sysInfo.PeriodNetInBytes = periodNet.InBytes
+							sysInfo.PeriodNetOutBytes = periodNet.OutBytes
+						}
+						if normalizedMetricData, err := json.Marshal(sysInfo); err == nil {
+							metricData = normalizedMetricData
+						}
 
 						s.mu.RLock()
 						onMetric := s.onNodeMetric
@@ -976,8 +984,8 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					Version:     version,
 					NetInSpeed:  sysInfo.NetInSpeed,
 					NetOutSpeed: sysInfo.NetOutSpeed,
-					NetInBytes:  int64(sysInfo.BytesReceived),
-					NetOutBytes: int64(sysInfo.BytesTransmitted),
+					NetInBytes:  sysInfo.NetInBytes,
+					NetOutBytes: sysInfo.NetOutBytes,
 					TCPConns:    sysInfo.TCPConns,
 					UDPConns:    sysInfo.UDPConns,
 					Uptime:      int64(sysInfo.Uptime),
@@ -988,6 +996,10 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					DiskUsage:   sysInfo.DiskUsage,
 					Now:         time.Now().UnixMilli(),
 				})
+				if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
+					sysInfo.PeriodNetInBytes = periodNet.InBytes
+					sysInfo.PeriodNetOutBytes = periodNet.OutBytes
+				}
 
 				s.mu.RLock()
 				onMetric := s.onNodeMetric
@@ -995,7 +1007,11 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 				if onMetric != nil {
 					s.runHook(func() { onMetric(nodeID, sysInfo) })
 				}
-				s.broadcastTyped(nodeID, "metric", msg)
+				normalizedMsg := msg
+				if data, err := json.Marshal(sysInfo); err == nil {
+					normalizedMsg = string(data)
+				}
+				s.broadcastTyped(nodeID, "metric", normalizedMsg)
 				continue
 			}
 		}
@@ -1525,6 +1541,10 @@ func sanitizePublicMetricData(data string) (string, bool) {
 		"netInBytes":               {},
 		"bytes_transmitted":        {},
 		"netOutBytes":              {},
+		"period_net_in_bytes":      {},
+		"periodNetInBytes":         {},
+		"period_net_out_bytes":     {},
+		"periodNetOutBytes":        {},
 		"period_bytes_received":    {},
 		"periodRx":                 {},
 		"period_bytes_transmitted": {},

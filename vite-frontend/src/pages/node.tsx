@@ -428,10 +428,10 @@ const buildRealtimeNodeMetric = (
   previous?: RealtimeNodeMetric,
 ): RealtimeNodeMetric => {
   const hasPeriodTraffic =
-    metric.periodRx !== undefined ||
-    metric.periodTx !== undefined ||
-    metric.period_bytes_received !== undefined ||
-    metric.period_bytes_transmitted !== undefined;
+    metric.periodNetInBytes !== undefined ||
+    metric.periodNetOutBytes !== undefined ||
+    metric.period_net_in_bytes !== undefined ||
+    metric.period_net_out_bytes !== undefined;
 
   return {
     uploadTraffic: Number(
@@ -464,8 +464,8 @@ const buildRealtimeNodeMetric = (
     udpConns: Number(metric.udpConns ?? metric.udp_conns ?? previous?.udpConns ?? 0),
     periodTraffic: hasPeriodTraffic
       ? {
-        rx: Number(metric.periodRx ?? metric.period_bytes_received ?? 0),
-        tx: Number(metric.periodTx ?? metric.period_bytes_transmitted ?? 0),
+        rx: Number(metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0),
+        tx: Number(metric.periodNetOutBytes ?? metric.period_net_out_bytes ?? 0),
         since: Number(
           metric.baselineRecordedAt ?? metric.baseline_recorded_at ?? 0,
         ),
@@ -1081,29 +1081,6 @@ export default function NodePage() {
           copyLoading: false,
         }));
 
-        // 用 REST API 返回的 periodTraffic 初始化离线节点的流量数据
-        setRealtimeNodeMetrics((prev) => {
-          const next = { ...prev };
-          let changed = false;
-
-          for (const node of nodesData) {
-            if (node.periodTraffic && !next[node.id]) {
-              next[node.id] = buildRealtimeNodeMetric({
-                netOutBytes: node.periodTraffic.tx ?? 0,
-                netInBytes: node.periodTraffic.rx ?? 0,
-                period_bytes_received: node.periodTraffic.rx ?? 0,
-                period_bytes_transmitted: node.periodTraffic.tx ?? 0,
-                baseline_recorded_at: node.periodTraffic.since ?? 0,
-                next_reset_at: node.periodTraffic.nextReset ?? 0,
-                renewal_cycle: node.periodTraffic.cycle ?? "",
-              });
-              changed = true;
-            }
-          }
-
-          return changed ? next : prev;
-        });
-
         setNodeList((prev) => {
           const previousById = new Map(prev.map((node) => [node.id, node]));
 
@@ -1249,6 +1226,47 @@ export default function NodePage() {
         next[Number(group.id)] = group.members || [];
       }
       setNodeInstanceMembers(next);
+      setRealtimeNodeInstanceMetrics((prev) => {
+        const metrics = { ...prev };
+        const receivedAt = Date.now();
+
+        for (const members of Object.values(next)) {
+          for (const member of members) {
+            const instanceId = member.instanceId?.trim();
+            if (!instanceId) continue;
+            const key = getRealtimeInstanceKey(member.nodeId, instanceId);
+            metrics[key] = {
+              ...buildRealtimeNodeMetric({
+                periodNetInBytes: member.periodNetInBytes ?? 0,
+                periodNetOutBytes: member.periodNetOutBytes ?? 0,
+                netInSpeed: member.netInSpeed ?? 0,
+                netOutSpeed: member.netOutSpeed ?? 0,
+                uptime: member.uptime ?? 0,
+                tcpConns: member.tcpConns ?? 0,
+                udpConns: member.udpConns ?? 0,
+              }),
+              nodeId: member.nodeId,
+              instanceId,
+              receivedAt,
+            };
+          }
+        }
+        return metrics;
+      });
+      setRealtimeNodeMetrics((prev) => {
+        const metrics = { ...prev };
+
+        for (const [nodeIdText, members] of Object.entries(next)) {
+          const nodeId = Number(nodeIdText);
+          const rx = members.reduce((sum, m) => sum + (m.periodNetInBytes ?? 0), 0);
+          const tx = members.reduce((sum, m) => sum + (m.periodNetOutBytes ?? 0), 0);
+          metrics[nodeId] = {
+            ...buildRealtimeNodeMetric({ periodNetInBytes: rx, periodNetOutBytes: tx }),
+            ...metrics[nodeId],
+          };
+        }
+        return metrics;
+      });
       return true;
     } catch {
       // 实例配置是辅助信息，失败时不阻塞节点列表。
@@ -3533,7 +3551,7 @@ export default function NodePage() {
                     <span>↑ 上行</span>
                     <span className="font-medium text-success-600 dark:text-success-400">
                       {formatTraffic(
-                        realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0,
+                        realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0,
                       )}
                     </span>
                   </div>
@@ -3541,7 +3559,7 @@ export default function NodePage() {
                     <span>↓ 下行</span>
                     <span className="font-medium text-primary-600 dark:text-primary-400">
                       {formatTraffic(
-                        realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0,
+                        realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0,
                       )}
                     </span>
                   </div>

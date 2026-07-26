@@ -111,6 +111,8 @@ type RealtimeNodeMetric = {
   diskUsage: number;
   netInBytes: number;
   netOutBytes: number;
+  periodNetInBytes: number;
+  periodNetOutBytes: number;
   netInSpeed: number;
   netOutSpeed: number;
   load1: number;
@@ -843,6 +845,8 @@ export function MonitorView({
           netOutBytes: Number(
             metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
           ),
+          periodNetInBytes: Number(metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0),
+          periodNetOutBytes: Number(metric.periodNetOutBytes ?? metric.period_net_out_bytes ?? 0),
           netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
           netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
           load1: Number(metric.load1 ?? 0),
@@ -872,6 +876,8 @@ export function MonitorView({
             netOutBytes: Number(
               metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
             ),
+            periodNetInBytes: Number(metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0),
+            periodNetOutBytes: Number(metric.periodNetOutBytes ?? metric.period_net_out_bytes ?? 0),
             netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
             netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
             load1: Number(metric.load1 ?? 0),
@@ -1706,7 +1712,7 @@ export function MonitorView({
                           <div className="flex flex-col items-center gap-2 py-1 text-xs whitespace-nowrap w-full">
                             <div className="flex items-center justify-center gap-1.5 font-mono text-default-600 w-full">
                               <span className="w-[76px] text-center inline-block tabular-nums">
-                                {metric ? formatBytes(metric.netOutBytes) : "-"}
+                                {metric ? formatBytes(metric.periodNetOutBytes) : "-"}
                               </span>
                               <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50 shrink-0">
                                 <ArrowUp
@@ -1717,7 +1723,7 @@ export function MonitorView({
                             </div>
                             <div className="flex items-center justify-center gap-1.5 font-mono text-default-600 w-full">
                               <span className="w-[76px] text-center inline-block tabular-nums">
-                                {metric ? formatBytes(metric.netInBytes) : "-"}
+                                {metric ? formatBytes(metric.periodNetInBytes) : "-"}
                               </span>
                               <div className="flex items-center justify-center p-[3px] rounded-full bg-default-100 text-default-500 dark:bg-default-100/50 shrink-0">
                                 <ArrowDown

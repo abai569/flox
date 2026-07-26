@@ -63,9 +63,6 @@ type Handler struct {
 	telegramBot      *telegram.Bot
 	nodeTrafficCache sync.Map // map[int64]*nodeTrafficCacheEntry
 
-	// 网卡流量实时同步缓存
-	nodeNetTrafficCache sync.Map // key: "nodeID:instanceID", value: *nodeNetTrafficCacheEntry
-
 	peerShareEventMu          sync.Mutex
 	peerShareEventSubscribers map[int64]map[chan peerShareEvent]struct{}
 	peerShareEventRevisions   map[int64]int64
@@ -90,12 +87,6 @@ type remoteForwardMetric struct {
 	OutSpeed    uint64
 	Connections int
 	UpdatedAt   time.Time
-}
-
-type nodeNetTrafficCacheEntry struct {
-	LastSyncNetInBytes  int64
-	LastSyncNetOutBytes int64
-	LastSyncTime        time.Time
 }
 
 func (h *Handler) replaceRemoteForwardMetrics(nodeID int64, metrics []client.RemoteForwardMetric) {
@@ -202,19 +193,6 @@ func (h *Handler) deleteNodeInstanceTrafficCacheEntry(nodeID int64, instanceID s
 	h.nodeTrafficCache.Delete(fmt.Sprintf("%d:%s", nodeID, instanceID))
 }
 
-func (h *Handler) deleteNodeNetTrafficCacheEntries(nodeID int64) {
-	if h == nil {
-		return
-	}
-	prefix := fmt.Sprintf("%d:", nodeID)
-	h.nodeNetTrafficCache.Range(func(key, value any) bool {
-		if k, ok := key.(string); ok && strings.HasPrefix(k, prefix) {
-			h.nodeNetTrafficCache.Delete(k)
-		}
-		return true
-	})
-}
-
 type nodeTrafficCacheEntry struct {
 	limitGB int64
 	name    string
@@ -251,7 +229,7 @@ func (h *Handler) maybeCheckNodeTraffic(nodeID int64, instanceID string, periodR
 	if err != nil || info == nil {
 		return
 	}
-	used := info.TotalInFlow + info.TotalOutFlow
+	used := info.PeriodNetInBytes + info.PeriodNetOutBytes
 	remainingGB := entry.limitGB - used/(1024*1024*1024)
 	if remainingGB < 0 {
 		remainingGB = 0
@@ -303,14 +281,28 @@ func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, perio
 	if err != nil || info == nil || info.LimitGB <= 0 {
 		return
 	}
+	if info.Weight <= 0 {
+		return
+	}
 
-	totalUsed := info.TotalInFlow + info.TotalOutFlow
+	totalUsed := info.PeriodNetInBytes + info.PeriodNetOutBytes
 	limitBytes := info.LimitGB * 1024 * 1024 * 1024
 
 	if totalUsed >= limitBytes {
-		log.Printf("Node %d instance %s 流量超限自动暂停: %.2f GB / %.2f GB", nodeID, instanceID, float64(totalUsed)/1e9, float64(limitBytes)/1e9)
-		_, _ = h.sendNodeCommandToInstanceWithTimeout(nodeID, instanceID, "PauseNode", nil, defaultNodeCommandTimeout, false, false)
-		_ = h.repo.SetNodePaused(nodeID, 1)
+		disabled, err := h.repo.DisableNodeInstance(nodeID, instanceID, time.Now().UnixMilli())
+		if err != nil {
+			log.Printf("WARN: disable node %d instance %s after traffic limit exceeded: %v", nodeID, instanceID, err)
+			return
+		}
+		if !disabled {
+			return
+		}
+		log.Printf("Node %d instance %s traffic limit exceeded, weight set to 0: %.2f GB / %.2f GB", nodeID, instanceID, float64(totalUsed)/(1024*1024*1024), float64(limitBytes)/(1024*1024*1024))
+		go func() {
+			if err := h.redeployNodeRuntime(nodeID); err != nil {
+				log.Printf("WARN: redeploy node %d after disabling instance %s: %v", nodeID, instanceID, err)
+			}
+		}()
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficExceeded(info.Name)
 		})
@@ -520,8 +512,6 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		h.metrics.RecordNodeMetric(nodeID, metricInfo)
 		h.maybeCheckNodeTraffic(nodeID, info.InstanceID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
 		h.enforceNodeTrafficLimit(nodeID, info.InstanceID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
-		// 实时同步网卡流量
-		h.syncNodeInstanceNetTrafficRealtime(nodeID, info.InstanceID, info.NetInBytes, info.NetOutBytes)
 	})
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)

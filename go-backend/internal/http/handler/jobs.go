@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"go-backend/internal/http/client"
 	"go-backend/internal/middleware"
-	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 	"go-backend/internal/telegram"
 )
@@ -29,7 +27,7 @@ func (h *Handler) StartBackgroundJobs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(21)
+	h.jobsWG.Add(19)
 	h.jobsMu.Unlock()
 
 	go h.runHourlyStatsLoop(ctx)
@@ -52,8 +50,6 @@ func (h *Handler) StartBackgroundJobs() {
 	go h.runFederationTunnelReleaseRetryLoop(ctx)
 	go h.runAuthoritativeFlowResendLoop(ctx)
 	go h.runFlowRelayOutboxLoop(ctx)
-	go h.runNodeNetTrafficCachePersistLoop(ctx)
-	go h.loadAllNodeNetTrafficCache(ctx)
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier != middleware.TierFree {
@@ -616,12 +612,18 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 			OperatorID:    actorUserID,
 			OperatorName:  actorUserName,
 			Reason:        "自动周期归零",
-			InFlowBefore:  inst.PeriodTx,
-			OutFlowBefore: inst.PeriodRx,
+			InFlowBefore:  inst.PeriodNetOutBytes,
+			OutFlowBefore: inst.PeriodNetInBytes,
 		})
 
 		_ = h.repo.UpdateNodeInstanceTrafficNotifiedMask(inst.NodeID, inst.InstanceID, 0)
+		netIn, netOut, bootID, interfaceKey, ok := resetTrafficNetSnapshot(cmdResult)
+		if !ok {
+			log.Printf("WARN: auto-reset node %d instance %s missing network snapshot", inst.NodeID, inst.InstanceID)
+			continue
+		}
 		_ = h.repo.ResetNodeInstanceTotalFlow(inst.NodeID, inst.InstanceID)
+		_ = h.repo.ResetNodeInstancePeriodNetTraffic(inst.NodeID, inst.InstanceID, netIn, netOut, bootID, interfaceKey)
 		h.nodeTrafficCache.Delete(fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID))
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
@@ -1228,84 +1230,4 @@ func (h *Handler) runTelegramBotLoop(ctx context.Context) {
 			}
 		}
 	}
-}
-
-// runNodeNetTrafficCachePersistLoop 定时持久化网卡流量缓存
-func (h *Handler) runNodeNetTrafficCachePersistLoop(ctx context.Context) {
-	defer h.jobsWG.Done()
-	ticker := time.NewTicker(1 * time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			h.persistNodeNetTrafficCache()
-		}
-	}
-}
-
-// persistNodeNetTrafficCache 将内存缓存中的 last_sync_net_bytes 同步到数据库
-func (h *Handler) persistNodeNetTrafficCache() {
-	if h == nil || h.repo == nil {
-		return
-	}
-
-	h.nodeNetTrafficCache.Range(func(key, value interface{}) bool {
-		cacheKey := key.(string)
-		cache := value.(*nodeNetTrafficCacheEntry)
-
-		// 解析 nodeID 和 instanceID
-		parts := strings.SplitN(cacheKey, ":", 2)
-		if len(parts) != 2 {
-			return true
-		}
-		nodeID, err := strconv.ParseInt(parts[0], 10, 64)
-		if err != nil {
-			return true
-		}
-		instanceID := parts[1]
-
-		// 更新数据库
-		h.repo.DB().Model(&model.NodeInstance{}).
-			Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
-			Updates(map[string]interface{}{
-				"last_sync_net_in_bytes":  cache.LastSyncNetInBytes,
-				"last_sync_net_out_bytes": cache.LastSyncNetOutBytes,
-			})
-
-		return true
-	})
-}
-
-// loadAllNodeNetTrafficCache 面板启动时加载所有实例的网卡流量缓存
-func (h *Handler) loadAllNodeNetTrafficCache(ctx context.Context) {
-	defer h.jobsWG.Done()
-
-	// 等待一小段时间，确保数据库连接就绪
-	time.Sleep(2 * time.Second)
-
-	if h == nil || h.repo == nil {
-		return
-	}
-
-	// 查询所有实例
-	var instances []model.NodeInstance
-	if err := h.repo.DB().Select("node_id, instance_id, last_sync_net_in_bytes, last_sync_net_out_bytes").
-		Find(&instances).Error; err != nil {
-		log.Printf("load all node net traffic cache failed: %v", err)
-		return
-	}
-
-	for _, inst := range instances {
-		cacheKey := fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID)
-		h.nodeNetTrafficCache.Store(cacheKey, &nodeNetTrafficCacheEntry{
-			LastSyncNetInBytes:  inst.LastSyncNetInBytes,
-			LastSyncNetOutBytes: inst.LastSyncNetOutBytes,
-			LastSyncTime:        time.Now(),
-		})
-	}
-
-	log.Printf("loaded %d node net traffic cache entries", len(instances))
 }

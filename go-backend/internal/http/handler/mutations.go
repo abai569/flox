@@ -6249,6 +6249,9 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 	}
 
 	for _, inNode := range state.InNodes {
+		if node := state.Nodes[inNode.NodeID]; node != nil && node.Paused == 1 {
+			continue
+		}
 		targets := state.OutNodes
 		if len(state.ChainHops) > 0 {
 			targets = state.ChainHops[0]
@@ -6278,6 +6281,9 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 			nextTargets = state.ChainHops[i+1]
 		}
 		for _, chainNode := range hop {
+			if node := state.Nodes[chainNode.NodeID]; node != nil && node.Paused == 1 {
+				continue
+			}
 			preparedTargets := h.prepareRuntimeTargetsForOwner(state.TunnelID, chainNode.NodeID, nextTargets, 0)
 			chainData, err := buildTunnelChainConfig(state.TunnelID, chainNode.NodeID, preparedTargets, state.Nodes, state.NodeInstances, state.IPPreference)
 			if err != nil {
@@ -6297,6 +6303,9 @@ func (h *Handler) applyTunnelRuntime(state *tunnelCreateState) ([]int64, []int64
 	}
 
 	for _, outNode := range state.OutNodes {
+		if node := state.Nodes[outNode.NodeID]; node != nil && node.Paused == 1 {
+			continue
+		}
 		serviceData := buildTunnelChainServiceConfig(state.TunnelID, outNode, state.Nodes[outNode.NodeID], 1, state.Mode)
 		if err := h.addTunnelServiceOnNode(outNode.NodeID, state.TunnelID, serviceData); err != nil {
 			return createdChains, createdServices, fmt.Errorf("出口节点 %s 下发服务失败: %w", nodeDisplayName(state.Nodes[outNode.NodeID]), err)

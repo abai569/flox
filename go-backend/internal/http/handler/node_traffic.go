@@ -10,6 +10,7 @@ import (
 	"go-backend/internal/http/response"
 	"go-backend/internal/store/repo"
 	"go-backend/internal/telegram"
+	"go-backend/internal/ws"
 )
 
 type nodeRecordOfflineLogRequest struct {
@@ -76,24 +77,15 @@ func (h *Handler) nodeRecordOfflineLog(w http.ResponseWriter, r *http.Request) {
 				label = fmt.Sprintf("实例 %d", inst.DisplayIndex)
 			}
 			instanceName = label
+			inFlowBefore = inst.PeriodNetOutBytes
+			outFlowBefore = inst.PeriodNetInBytes
 			break
 		}
-		metric, metricErr := h.repo.GetLatestNodeInstanceMetric(req.NodeID, instanceID)
-		if metricErr != nil {
-			response.WriteJSON(w, response.Err(-1, "读取节点流量失败："+metricErr.Error()))
-			return
-		}
-		if metric != nil {
-			inFlowBefore, outFlowBefore = metric.PeriodTx, metric.PeriodRx
-		}
 	} else {
-		metric, metricErr := h.repo.GetLatestNodeAggregateMetric(req.NodeID)
-		if metricErr != nil {
-			response.WriteJSON(w, response.Err(-1, "读取节点流量失败："+metricErr.Error()))
-			return
-		}
-		if metric != nil {
-			inFlowBefore, outFlowBefore = metric.PeriodTx, metric.PeriodRx
+		instances, _ := h.repo.ListNodeInstances(req.NodeID)
+		for _, inst := range instances {
+			inFlowBefore += inst.PeriodNetOutBytes
+			outFlowBefore += inst.PeriodNetInBytes
 		}
 	}
 
@@ -133,6 +125,15 @@ type nodeBatchResetTrafficResult struct {
 	NodeName   string `json:"nodeName,omitempty"`
 	Success    bool   `json:"success"`
 	Error      string `json:"error,omitempty"`
+}
+
+func resetTrafficNetSnapshot(result ws.CommandResult) (inBytes, outBytes, bootID int64, interfaceKey string, ok bool) {
+	if result.Data == nil {
+		return 0, 0, 0, "", false
+	}
+	_, hasIn := result.Data["netInBytes"]
+	_, hasOut := result.Data["netOutBytes"]
+	return asInt64(result.Data["netInBytes"], 0), asInt64(result.Data["netOutBytes"], 0), asInt64(result.Data["bootId"], 0), strings.TrimSpace(asString(result.Data["netInterfaceKey"])), hasIn && hasOut
 }
 
 func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) {
@@ -195,16 +196,7 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 				continue
 			}
 			matched = true
-			metric, metricErr := h.repo.GetLatestNodeInstanceMetric(result.NodeID, result.InstanceID)
-			if metricErr != nil {
-				result.Error = "读取归零前流量失败：" + metricErr.Error()
-				results = append(results, result)
-				break
-			}
-			inFlowBefore, outFlowBefore := int64(0), int64(0)
-			if metric != nil {
-				inFlowBefore, outFlowBefore = metric.PeriodTx, metric.PeriodRx
-			}
+			inFlowBefore, outFlowBefore := inst.PeriodNetOutBytes, inst.PeriodNetInBytes
 			cmdResult, err := h.sendNodeCommandToInstanceWithTimeout(
 				result.NodeID,
 				result.InstanceID,
@@ -252,7 +244,14 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 			result.NodeName = node.Name
 			results = append(results, result)
 			_ = h.repo.UpdateNodeInstanceTrafficNotifiedMask(result.NodeID, result.InstanceID, 0)
+			netIn, netOut, bootID, interfaceKey, ok := resetTrafficNetSnapshot(cmdResult)
+			if !ok {
+				result.Error = "Agent 未返回网卡归零快照，请先升级 Agent"
+				results = append(results, result)
+				break
+			}
 			_ = h.repo.ResetNodeInstanceTotalFlow(result.NodeID, result.InstanceID)
+			_ = h.repo.ResetNodeInstancePeriodNetTraffic(result.NodeID, result.InstanceID, netIn, netOut, bootID, interfaceKey)
 			h.deleteNodeInstanceTrafficCacheEntry(result.NodeID, result.InstanceID)
 			h.sendBotNotification(func(bot *telegram.Bot) {
 				nodeName := node.Name
@@ -286,34 +285,44 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 			results = append(results, result)
 			continue
 		}
-		metric, metricErr := h.repo.GetLatestNodeAggregateMetric(nodeID)
-		if metricErr != nil {
-			result.Error = "读取归零前流量失败：" + metricErr.Error()
-			results = append(results, result)
-			continue
-		}
 		inFlowBefore, outFlowBefore := int64(0), int64(0)
-		if metric != nil {
-			inFlowBefore, outFlowBefore = metric.PeriodTx, metric.PeriodRx
+		instances, _ := h.repo.ListNodeInstances(nodeID)
+		type netResetSnapshot struct {
+			instanceID   string
+			inBytes      int64
+			outBytes     int64
+			bootID       int64
+			interfaceKey string
+		}
+		netSnapshots := make([]netResetSnapshot, 0, len(instances))
+		for _, inst := range instances {
+			inFlowBefore += inst.PeriodNetOutBytes
+			outFlowBefore += inst.PeriodNetInBytes
 		}
 
-		cmdResult, err := h.sendNodeCommandWithTimeout(
-			nodeID,
-			"ResetTraffic",
-			map[string]interface{}{"reason": req.Reason, "nodeId": nodeID},
-			10*time.Second,
-			false,
-			false,
-		)
-
-		if err != nil {
-			result.Error = err.Error()
-			results = append(results, result)
-			continue
+		resetFailed := false
+		for _, instance := range instances {
+			cmdResult, err := h.sendNodeCommandToInstanceWithTimeout(nodeID, instance.InstanceID, "ResetTraffic", map[string]interface{}{
+				"reason": req.Reason, "nodeId": nodeID, "instanceId": instance.InstanceID,
+			}, 10*time.Second, false, false)
+			if err != nil || !cmdResult.Success {
+				if err != nil {
+					result.Error = err.Error()
+				} else {
+					result.Error = cmdResult.Message
+				}
+				resetFailed = true
+				break
+			}
+			netIn, netOut, bootID, interfaceKey, ok := resetTrafficNetSnapshot(cmdResult)
+			if !ok {
+				result.Error = "Agent 未返回网卡归零快照，请先升级 Agent"
+				resetFailed = true
+				break
+			}
+			netSnapshots = append(netSnapshots, netResetSnapshot{instanceID: instance.InstanceID, inBytes: netIn, outBytes: netOut, bootID: bootID, interfaceKey: interfaceKey})
 		}
-
-		if !cmdResult.Success {
-			result.Error = cmdResult.Message
+		if resetFailed {
 			results = append(results, result)
 			continue
 		}
@@ -342,8 +351,10 @@ func (h *Handler) nodeBatchResetTraffic(w http.ResponseWriter, r *http.Request) 
 		_ = h.repo.ResetNodeInstanceTrafficNotifiedMasksByNode(nodeID)
 		_ = h.repo.ResetNodeInstancesTotalFlowByNode(nodeID)
 		_ = h.repo.ResetNodeInstanceRuntimeTrafficByNode(nodeID)
+		for _, snapshot := range netSnapshots {
+			_ = h.repo.ResetNodeInstancePeriodNetTraffic(nodeID, snapshot.instanceID, snapshot.inBytes, snapshot.outBytes, snapshot.bootID, snapshot.interfaceKey)
+		}
 		h.deleteNodeTrafficCacheEntries(nodeID)
-		h.deleteNodeNetTrafficCacheEntries(nodeID)
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficReset(node.Name, req.Reason)
@@ -393,6 +404,30 @@ func (h *Handler) nodeResetTotalFlow(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(-1, "节点不存在"))
 		return
 	}
+	instances, _ := h.repo.ListNodeInstances(req.NodeID)
+	type netResetSnapshot struct {
+		instanceID   string
+		inBytes      int64
+		outBytes     int64
+		bootID       int64
+		interfaceKey string
+	}
+	netSnapshots := make([]netResetSnapshot, 0, len(instances))
+	for _, instance := range instances {
+		cmdResult, err := h.sendNodeCommandToInstanceWithTimeout(req.NodeID, instance.InstanceID, "ResetTraffic", map[string]interface{}{
+			"reason": "管理员归零全量流量", "nodeId": req.NodeID, "instanceId": instance.InstanceID,
+		}, 10*time.Second, false, false)
+		if err != nil || !cmdResult.Success {
+			response.WriteJSON(w, response.Err(-1, "归零失败：实例 "+instance.InstanceID+" 未返回成功"))
+			return
+		}
+		netIn, netOut, bootID, interfaceKey, ok := resetTrafficNetSnapshot(cmdResult)
+		if !ok {
+			response.WriteJSON(w, response.Err(-1, "Agent 未返回网卡归零快照，请先升级 Agent"))
+			return
+		}
+		netSnapshots = append(netSnapshots, netResetSnapshot{instanceID: instance.InstanceID, inBytes: netIn, outBytes: netOut, bootID: bootID, interfaceKey: interfaceKey})
+	}
 
 	if err := h.repo.ResetNodeTotalFlowWithLog(req.NodeID, &repo.NodeTrafficResetLogCreateParams{
 		NodeID: req.NodeID, NodeName: node.Name, ResetTime: time.Now().UnixMilli(),
@@ -407,8 +442,10 @@ func (h *Handler) nodeResetTotalFlow(w http.ResponseWriter, r *http.Request) {
 	_ = h.repo.ResetNodeInstanceTrafficNotifiedMasksByNode(req.NodeID)
 	_ = h.repo.ResetNodeInstancesTotalFlowByNode(req.NodeID)
 	_ = h.repo.ResetNodeInstanceRuntimeTrafficByNode(req.NodeID)
+	for _, snapshot := range netSnapshots {
+		_ = h.repo.ResetNodeInstancePeriodNetTraffic(req.NodeID, snapshot.instanceID, snapshot.inBytes, snapshot.outBytes, snapshot.bootID, snapshot.interfaceKey)
+	}
 	h.deleteNodeTrafficCacheEntries(req.NodeID)
-	h.deleteNodeNetTrafficCacheEntries(req.NodeID)
 
 	h.sendBotNotification(func(bot *telegram.Bot) {
 		bot.SendNodeTrafficReset(node.Name, "管理员归零全量流量")
@@ -448,15 +485,16 @@ func (h *Handler) nodePause(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.sendNodeCommand(req.NodeID, "PauseNode", nil, false, false)
-	if err == nil && h.repo != nil {
-		_ = h.repo.SetNodePaused(req.NodeID, 1)
-	}
-
+	_, err = h.repo.PauseNodeRouting(req.NodeID, time.Now().UnixMilli())
 	if err != nil {
 		response.WriteJSON(w, response.Err(-1, "暂停失败："+err.Error()))
 		return
 	}
+	go func() {
+		if err := h.redeployNodeRuntime(req.NodeID); err != nil {
+			log.Printf("WARN: redeploy node %d after pause: %v", req.NodeID, err)
+		}
+	}()
 
 	response.WriteJSON(w, response.OK(map[string]interface{}{
 		"nodeId":   req.NodeID,
@@ -488,15 +526,16 @@ func (h *Handler) nodeResume(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.sendNodeCommand(req.NodeID, "ResumeNode", nil, false, false)
-	if err == nil && h.repo != nil {
-		_ = h.repo.SetNodePaused(req.NodeID, 0)
-	}
-
+	_, err = h.repo.ResumeNodeRouting(req.NodeID, time.Now().UnixMilli())
 	if err != nil {
 		response.WriteJSON(w, response.Err(-1, "恢复失败："+err.Error()))
 		return
 	}
+	go func() {
+		if err := h.redeployNodeRuntime(req.NodeID); err != nil {
+			log.Printf("WARN: redeploy node %d after resume: %v", req.NodeID, err)
+		}
+	}()
 
 	response.WriteJSON(w, response.OK(map[string]interface{}{
 		"nodeId":   req.NodeID,

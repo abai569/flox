@@ -290,10 +290,10 @@ function InstanceRow({
       <td
         className="group relative px-1 py-3 text-center align-middle font-mono text-xs"
       >
-        <div className="truncate">{formatBytes(member.periodTx)}↑</div>
-        <div className="truncate">{formatBytes(member.periodRx)}↓</div>
+        <div className="truncate">{formatBytes(member.periodNetOutBytes)}↑</div>
+        <div className="truncate">{formatBytes(member.periodNetInBytes)}↓</div>
         <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-          总量:{formatBytes(member.periodTx + member.periodRx)}
+          总量:{formatBytes(member.periodNetOutBytes + member.periodNetInBytes)}
         </div>
       </td>
       <td className="px-1 py-3 align-middle">
@@ -430,6 +430,8 @@ export default function TZPage() {
         netOutBytes: Number(metric.netOutBytes ?? metric.bytes_transmitted ?? 0),
         periodRx: Number(metric.periodRx ?? metric.period_bytes_received ?? 0),
         periodTx: Number(metric.periodTx ?? metric.period_bytes_transmitted ?? 0),
+        periodNetInBytes: Number(metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0),
+        periodNetOutBytes: Number(metric.periodNetOutBytes ?? metric.period_net_out_bytes ?? 0),
         uptime: Number(metric.uptime ?? 0),
         cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
         memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),

@@ -269,6 +269,7 @@ func nodeRecordFromModel(n *model.Node) *model.NodeRecord {
 		Name:          n.Name,
 		ServerIP:      n.ServerIP,
 		Status:        n.Status,
+		Paused:        n.Paused,
 		Weight:        n.Weight,
 		TrafficRatio:  n.TrafficRatio,
 		PortRange:     n.Port,

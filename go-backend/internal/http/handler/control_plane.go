@@ -435,6 +435,12 @@ func (h *Handler) syncForwardServicesWithWarningsStrict(forward *forwardRecord, 
 		if err != nil {
 			return nil, err
 		}
+		if node.Paused == 1 {
+			if err := h.deleteForwardServicesOnNode(forward, node.ID); err != nil && !isNotFoundError(err) && !isNodeOfflineOrTimeoutError(err) {
+				return warnings, fmt.Errorf("节点 %s 暂停服务清理失败: %w", node.Name, err)
+			}
+			continue
+		}
 		limiters := []struct {
 			name  string
 			speed *int
@@ -3288,6 +3294,12 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 	}
 
 	chainNodes, _ := h.listChainNodesForTunnel(forward.TunnelID)
+	for _, chainNode := range chainNodes {
+		node, err := h.getNodeRecord(chainNode.NodeID)
+		if err == nil && node != nil && node.Paused == 1 {
+			return h.deleteNftablesRules(forward, ports)
+		}
+	}
 
 	// 为链节点填充缺失的 ConnectIP，同时收集 IPv6 地址
 	nodeIPv6Map := make(map[int64]string)
@@ -3382,11 +3394,6 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 					nodeRules[i].ShareID = shareID
 				}
 			}
-			fmt.Printf("[nft.debug] node %s: %d rules, ports %v\n", node.Name, len(nodeRules), plist)
-			if len(nodeRules) == 0 {
-				return
-			}
-
 			// Batch delete old rules for this forward on all ports
 			delPayload := DeleteNftablesRulesRequest{
 				ForwardIDs: []int64{forward.ID},
@@ -3403,6 +3410,10 @@ func (h *Handler) syncNftablesRules(forward *forwardRecord, tunnel *tunnelRecord
 					fmt.Printf("️ syncNftablesRules node delete error: %v\n", err)
 				}
 			}
+			if node.Paused == 1 || len(nodeRules) == 0 {
+				return
+			}
+			fmt.Printf("[nft.debug] node %s: %d rules, ports %v\n", node.Name, len(nodeRules), plist)
 
 			// Batch add new rules for this forward
 			payload := AddNftablesRulesRequest{Rules: nodeRules}

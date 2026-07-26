@@ -414,6 +414,7 @@ type nodeNotifyState struct {
 
 var notifyStateMu sync.RWMutex
 var notifyStates = make(map[int64]*nodeNotifyState)
+var nodeRuntimeRedeployLocks sync.Map
 
 func (h *Handler) onNodeOnline(nodeID int64) {
 	h.redeployNodeRuntime(nodeID)
@@ -422,90 +423,6 @@ func (h *Handler) onNodeOnline(nodeID int64) {
 
 func (h *Handler) onNodeInstanceOnline(nodeID int64, instanceID string) {
 	h.syncPeerShareRuntimesToInstance(nodeID, instanceID)
-	// 上线时从数据库加载缓存，不立即同步（等下次指标上报）
-	h.loadNodeNetTrafficCache(nodeID, instanceID)
-}
-
-// syncNodeInstanceNetTrafficRealtime 实时同步网卡流量（每 2 秒调用一次）
-func (h *Handler) syncNodeInstanceNetTrafficRealtime(nodeID int64, instanceID string, currentNetIn, currentNetOut int64) {
-	if h == nil || h.repo == nil || nodeID <= 0 || instanceID == "" {
-		return
-	}
-
-	cacheKey := fmt.Sprintf("%d:%s", nodeID, instanceID)
-
-	// 从内存缓存获取上次同步值
-	cached, ok := h.nodeNetTrafficCache.Load(cacheKey)
-	var lastIn, lastOut int64
-	if ok {
-		cache := cached.(*nodeNetTrafficCacheEntry)
-		lastIn = cache.LastSyncNetInBytes
-		lastOut = cache.LastSyncNetOutBytes
-	} else {
-		// 首次：从数据库加载
-		var instance model.NodeInstance
-		if err := h.repo.DB().Select("last_sync_net_in_bytes, last_sync_net_out_bytes").
-			Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
-			First(&instance).Error; err == nil {
-			lastIn = instance.LastSyncNetInBytes
-			lastOut = instance.LastSyncNetOutBytes
-		}
-		// 加载到缓存
-		h.nodeNetTrafficCache.Store(cacheKey, &nodeNetTrafficCacheEntry{
-			LastSyncNetInBytes:  lastIn,
-			LastSyncNetOutBytes: lastOut,
-			LastSyncTime:        time.Now(),
-		})
-	}
-
-	// 检测网卡归零（节点重启）
-	var inDiff, outDiff int64
-	if currentNetIn < lastIn {
-		inDiff = currentNetIn // 从 0 重新开始
-	} else {
-		inDiff = currentNetIn - lastIn
-	}
-	if currentNetOut < lastOut {
-		outDiff = currentNetOut
-	} else {
-		outDiff = currentNetOut - lastOut
-	}
-
-	// 累加到实例流量
-	if inDiff > 0 || outDiff > 0 {
-		if err := h.repo.AdjustNodeInstanceTraffic(nodeID, instanceID, inDiff, outDiff); err != nil {
-			log.Printf("WARN: realtime sync node %d instance %s net traffic failed: %v", nodeID, instanceID, err)
-			return
-		}
-	}
-
-	// 更新内存缓存
-	h.nodeNetTrafficCache.Store(cacheKey, &nodeNetTrafficCacheEntry{
-		LastSyncNetInBytes:  currentNetIn,
-		LastSyncNetOutBytes: currentNetOut,
-		LastSyncTime:        time.Now(),
-	})
-}
-
-// loadNodeNetTrafficCache 从数据库加载缓存（上线时调用）
-func (h *Handler) loadNodeNetTrafficCache(nodeID int64, instanceID string) {
-	if h == nil || h.repo == nil || nodeID <= 0 || instanceID == "" {
-		return
-	}
-	cacheKey := fmt.Sprintf("%d:%s", nodeID, instanceID)
-	if _, ok := h.nodeNetTrafficCache.Load(cacheKey); ok {
-		return // 已存在
-	}
-	var instance model.NodeInstance
-	if err := h.repo.DB().Select("last_sync_net_in_bytes, last_sync_net_out_bytes").
-		Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
-		First(&instance).Error; err == nil {
-		h.nodeNetTrafficCache.Store(cacheKey, &nodeNetTrafficCacheEntry{
-			LastSyncNetInBytes:  instance.LastSyncNetInBytes,
-			LastSyncNetOutBytes: instance.LastSyncNetOutBytes,
-			LastSyncTime:        time.Now(),
-		})
-	}
 }
 
 func (h *Handler) onNodeOffline(nodeID int64) {
@@ -636,6 +553,11 @@ func (h *Handler) resetNodeNotifyCooldown(nodeID int64) {
 }
 
 func (h *Handler) redeployNodeRuntime(nodeID int64) error {
+	lock, _ := nodeRuntimeRedeployLocks.LoadOrStore(nodeID, &sync.Mutex{})
+	mu := lock.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
+
 	tunnelIDs, err := h.repo.ListActiveTunnelIDsByNode(nodeID)
 	if err != nil {
 		fmt.Printf("redeploy: list tunnels for node %d failed: %v\n", nodeID, err)

@@ -139,6 +139,7 @@ type Node struct {
 	AuthoritativeFlowEpoch       int64          `gorm:"column:authoritative_flow_epoch;not null;default:1"`
 	Paused                       int            `gorm:"column:paused;default:0"`
 	Weight                       int            `gorm:"column:weight;not null;default:1"`
+	PauseRestoreWeight           sql.NullInt64  `gorm:"column:pause_restore_weight"`
 	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
 	FlowResetTime                int            `gorm:"column:flow_reset_time;not null;default:1"`
 	MimicStatus                  string         `gorm:"column:mimic_status;type:varchar(50);default:''"`
@@ -160,6 +161,7 @@ type NodeInstance struct {
 	Remark                       string         `gorm:"column:remark;type:text;default:''"`
 	Status                       int            `gorm:"column:status;not null;default:1"`
 	Weight                       int            `gorm:"column:weight;not null;default:1"`
+	PauseRestoreWeight           sql.NullInt64  `gorm:"column:pause_restore_weight"`
 	TrafficRatio                 float64        `gorm:"column:traffic_ratio;not null;default:0"`
 	DisplayIndex                 int            `gorm:"column:display_index;not null;default:0"`
 	PortRange                    string         `gorm:"column:port_range;type:varchar(255);default:''"`
@@ -174,6 +176,11 @@ type NodeInstance struct {
 	TotalOutFlow                 int64          `gorm:"column:total_out_flow;default:0"`
 	LastSyncNetInBytes           int64          `gorm:"column:last_sync_net_in_bytes;default:0"`
 	LastSyncNetOutBytes          int64          `gorm:"column:last_sync_net_out_bytes;default:0"`
+	LastSyncNetBootID            int64          `gorm:"column:last_sync_net_boot_id;default:0"`
+	LastSyncNetInterfaceKey      string         `gorm:"column:last_sync_net_interface_key;type:varchar(500);default:''"`
+	PeriodNetInBytes             int64          `gorm:"column:period_net_in_bytes;default:0"`
+	PeriodNetOutBytes            int64          `gorm:"column:period_net_out_bytes;default:0"`
+	PeriodNetInitialized         int            `gorm:"column:period_net_initialized;not null;default:0"`
 	TrafficNotifiedMask          int            `gorm:"column:traffic_notified_mask;default:0"`
 	NetInSpeed                   int64          `gorm:"column:net_in_speed;default:0"`
 	NetOutSpeed                  int64          `gorm:"column:net_out_speed;default:0"`
@@ -902,6 +909,7 @@ type NodeRecord struct {
 	RemoteURL     string
 	RemoteToken   string
 	RemoteConfig  string
+	Paused        int
 	Weight        int
 	TrafficRatio  float64
 }
@@ -1209,14 +1217,14 @@ type BalanceLog struct {
 func (BalanceLog) TableName() string { return "balance_log" }
 
 type PeerShareNotification struct {
-	ID                int64  `gorm:"primaryKey;autoIncrement"`
-	Token             string `gorm:"column:token;type:varchar(100);not null;uniqueIndex"`
-	ProviderURL       string `gorm:"column:provider_url;type:varchar(500);not null"`
-	ProviderToken     string `gorm:"column:provider_token;type:varchar(100);not null;default:''"`
-	ProviderNodeName  string `gorm:"column:provider_node_name;type:varchar(200);not null;default:''"`
-	MaxBandwidth      int64  `gorm:"column:max_bandwidth;not null;default:0"`
-	Dismissed         int    `gorm:"column:dismissed;not null;default:0"`
-	CreatedTime       int64  `gorm:"column:created_time;not null"`
+	ID               int64  `gorm:"primaryKey;autoIncrement"`
+	Token            string `gorm:"column:token;type:varchar(100);not null;uniqueIndex"`
+	ProviderURL      string `gorm:"column:provider_url;type:varchar(500);not null"`
+	ProviderToken    string `gorm:"column:provider_token;type:varchar(100);not null;default:''"`
+	ProviderNodeName string `gorm:"column:provider_node_name;type:varchar(200);not null;default:''"`
+	MaxBandwidth     int64  `gorm:"column:max_bandwidth;not null;default:0"`
+	Dismissed        int    `gorm:"column:dismissed;not null;default:0"`
+	CreatedTime      int64  `gorm:"column:created_time;not null"`
 }
 
 func (PeerShareNotification) TableName() string { return "peer_share_notification" }

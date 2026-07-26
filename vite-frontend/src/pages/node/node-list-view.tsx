@@ -646,6 +646,15 @@ function NodeInstanceRows({
       `${member.nodeId}:${member.instanceId?.trim() || ""}`
     ];
 
+  const getPeriodNetTraffic = (member: MonitorNodeInstanceGroupMemberApiItem) => {
+    const realtime = getRealtimeMetric(member)?.periodTraffic;
+
+    return {
+      rx: realtime?.rx ?? member.periodNetInBytes ?? 0,
+      tx: realtime?.tx ?? member.periodNetOutBytes ?? 0,
+    };
+  };
+
   useEffect(() => {
     if (!openExpiryInstanceId) return;
     const closePopover = () => setOpenExpiryInstanceId(null);
@@ -844,8 +853,7 @@ function NodeInstanceRows({
                   <div className="inline-flex items-center justify-end gap-1">
                     <span>
                       {(() => {
-                        const tx = member.totalOutFlow ?? 0;
-                        const rx = member.totalInFlow ?? 0;
+                        const { tx, rx } = getPeriodNetTraffic(member);
 
                         return formatTraffic(tx + rx);
                       })()}
@@ -874,14 +882,15 @@ function NodeInstanceRows({
                   </div>
                 </td>
                 <td className="px-1 py-3 text-right text-success-700 dark:text-success-300">
-                  {formatTraffic(member.totalOutFlow ?? 0)}
+                  {formatTraffic(getPeriodNetTraffic(member).tx)}
                 </td>
                 <td className="px-1 py-3 text-right text-primary-700 dark:text-primary-300">
-                  {formatTraffic(member.totalInFlow ?? 0)}
+                  {formatTraffic(getPeriodNetTraffic(member).rx)}
                 </td>
                 <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-3 text-center text-default-700" style={{ width: "100px" }}>
                         {(member.trafficLimit ?? 0) > 0 ? (() => {
-                          const used = (member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0);
+                          const traffic = getPeriodNetTraffic(member);
+                          const used = traffic.rx + traffic.tx;
                           const limitBytes = (member.trafficLimit ?? 0) * 1024 * 1024 * 1024;
                           const remaining = Math.max(limitBytes - used, 0);
                           const title = `已用：${formatTraffic(used)}\n剩余：${formatTraffic(remaining)}\n总量：${formatTraffic(limitBytes)}`;
@@ -893,7 +902,8 @@ function NodeInstanceRows({
                             </SmartTooltip>
                           );
                         })() : (() => {
-                          const used = (member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0);
+                          const traffic = getPeriodNetTraffic(member);
+                          const used = traffic.rx + traffic.tx;
                           const title = `已用：${formatTraffic(used)}\n可用：不限\n总量：不限`;
                           return (
                             <SmartTooltip content={title}>
@@ -1254,6 +1264,18 @@ function SortableTableRow({
       total + (instance.onlineCount ?? 0),
     0,
   );
+  const localPeriodNetTraffic = instanceMembers.reduce(
+    (total: { rx: number; tx: number }, member: MonitorNodeInstanceGroupMemberApiItem) => {
+      const realtime = realtimeInstanceMetrics[
+        `${member.nodeId}:${member.instanceId?.trim() || ""}`
+      ]?.periodTraffic;
+
+      total.rx += realtime?.rx ?? member.periodNetInBytes ?? 0;
+      total.tx += realtime?.tx ?? member.periodNetOutBytes ?? 0;
+      return total;
+    },
+    { rx: 0, tx: 0 },
+  );
   const remoteTrafficLimit = node.remoteMaxBandwidth ?? 0;
   const remoteTrafficUsed = node.remoteCurrentFlow ?? 0;
   const remoteTrafficTitle = `已用：${formatTraffic(remoteTrafficUsed)}\n剩余：${
@@ -1568,9 +1590,9 @@ function SortableTableRow({
       >
         <div className="flex w-[104px] items-center justify-end gap-1">
           <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
-            {formatTraffic(
-              (node.totalOutFlow ?? 0) + (node.totalInFlow ?? 0),
-            )}
+            {formatTraffic(node.isRemote === 1
+              ? (node.totalOutFlow ?? 0) + (node.totalInFlow ?? 0)
+              : localPeriodNetTraffic.tx + localPeriodNetTraffic.rx)}
           </span>
         </div>
       </TableCell>
@@ -1579,7 +1601,7 @@ function SortableTableRow({
       >
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-success-700 dark:text-success-300">
-            {formatTraffic(node.totalOutFlow ?? 0)}
+            {formatTraffic(node.isRemote === 1 ? node.totalOutFlow ?? 0 : localPeriodNetTraffic.tx)}
           </span>
         </div>
       </TableCell>
@@ -1588,7 +1610,7 @@ function SortableTableRow({
       >
         <div className="flex w-[96px] justify-end">
           <span className="truncate text-sm text-primary-700 dark:text-primary-300">
-            {formatTraffic(node.totalInFlow ?? 0)}
+            {formatTraffic(node.isRemote === 1 ? node.totalInFlow ?? 0 : localPeriodNetTraffic.rx)}
           </span>
         </div>
       </TableCell>
