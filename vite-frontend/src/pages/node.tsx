@@ -5818,13 +5818,13 @@ export default function NodePage() {
                       >
                         <SelectItem key="all">全部节点</SelectItem>
                         <SelectItem key="expiringSoon">
-                          7 天内到期 ({nodeExpiryStats.expiringSoon})
+                          7 天内 ({nodeExpiryStats.expiringSoon})
                         </SelectItem>
                         <SelectItem key="expired">
                           已逾期 ({nodeExpiryStats.expired})
                         </SelectItem>
                         <SelectItem key="withExpiry">
-                          已启用到期提醒 ({nodeExpiryStats.withExpiry})
+                          已启用 ({nodeExpiryStats.withExpiry})
                         </SelectItem>
                       </Select>
                     </div>
