@@ -495,6 +495,7 @@ type monitorNodeListItem struct {
 	Inx                 int    `json:"inx"`
 	Name                string `json:"name"`
 	Status              int    `json:"status"`
+	IsRemote            int    `json:"isRemote"`
 	Version             string `json:"version"`
 	Weight              int    `json:"weight"`
 	InstanceCount       int64  `json:"instanceCount"`
@@ -550,6 +551,7 @@ func (h *Handler) monitorNodeListHandler(w http.ResponseWriter, r *http.Request)
 			Inx:                 n.Inx,
 			Name:                n.Name,
 			Status:              n.Status,
+			IsRemote:            n.IsRemote,
 			Version:             n.Version.String,
 			Weight:              n.Weight,
 			InstanceCount:       counts.Total,

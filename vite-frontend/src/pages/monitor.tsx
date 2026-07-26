@@ -1147,7 +1147,7 @@ export default function MonitorPage() {
     });
 
     const list: MonitorNode[] = nodes
-      .filter((n) => Number(n.id) > 0)
+      .filter((n) => Number(n.id) > 0 && n.isRemote !== 1)
       .map((n) => {
         const id = Number(n.id);
         const counts = instanceCounts.get(id);

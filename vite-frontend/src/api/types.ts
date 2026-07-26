@@ -773,6 +773,7 @@ export interface MonitorNodeApiItem {
   inx: number;
   name: string;
   status: number;
+  isRemote?: number;
   version?: string;
   weight?: number;
   instanceCount?: number;
