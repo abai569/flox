@@ -19,6 +19,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { AnimatedPage } from "@/components/animated-page";
 import { CountryFlag } from "@/components/country-flag";
 import { MetricPill } from "@/components/metric-pill";
+import { SmartTooltip } from "@/components/smart-tooltip";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
@@ -318,7 +319,7 @@ function MonitorIPCellValue({ ip, label }: { ip?: string; label: string }) {
   }
 
   return (
-    <span className="group relative block w-full text-center leading-5">
+    <SmartTooltip content={value}>
       <button
         className="inline-block max-w-full truncate rounded bg-transparent px-1 text-center font-mono text-xs text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
         type="button"
@@ -329,10 +330,7 @@ function MonitorIPCellValue({ ip, label }: { ip?: string; label: string }) {
       >
         {formatMonitorIPForCell(value)}
       </button>
-      <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-        {value}
-      </div>
-    </span>
+    </SmartTooltip>
   );
 }
 
