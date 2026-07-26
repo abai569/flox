@@ -125,6 +125,9 @@ interface NodeListViewProps {
   onResetInstanceTraffic?: (
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
+  onToggleInstancePause?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
   onReorderInstances: (
     nodeId: number,
     activeInstanceId: string,
@@ -164,10 +167,10 @@ const getRemoteExpiryChipProps = (timestamp?: number) => {
     label: new Date(expiry).toLocaleDateString("zh-CN"),
     className:
       days <= 0
-      ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-      : days <= 7
-        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-        : "bg-success-500/10 text-success-600 dark:text-success-400",
+        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+        : days <= 7
+          ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+          : "bg-success-500/10 text-success-600 dark:text-success-400",
   };
 };
 
@@ -364,16 +367,16 @@ function InstanceIPRegionCell({
               ) : null}
               {item.ip ? (
                 <SmartTooltip content={item.ip}>
-                <button
-                  className="inline-block min-w-0 max-w-[108px] truncate rounded bg-transparent px-0.5 text-right font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    copyToClipboard(item.ip, item.label);
-                  }}
-                >
-                  {formatInstanceIPForCell(item.ip)}
-                </button>
+                  <button
+                    className="inline-block min-w-0 max-w-[108px] truncate rounded bg-transparent px-0.5 text-right font-mono text-xs leading-5 text-default-600 transition-colors hover:bg-default-200/50 hover:text-primary"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      copyToClipboard(item.ip, item.label);
+                    }}
+                  >
+                    {formatInstanceIPForCell(item.ip)}
+                  </button>
                 </SmartTooltip>
               ) : null}
             </div>
@@ -568,6 +571,7 @@ function NodeInstanceRows({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onToggleInstancePause,
   onReorderInstances,
   onInstallMimicDeps,
 }: {
@@ -582,6 +586,9 @@ function NodeInstanceRows({
   onConfigureInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onDeleteInstance?: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onResetInstanceTraffic?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
+  onToggleInstancePause?: (
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
   onReorderInstances: (
@@ -643,7 +650,7 @@ function NodeInstanceRows({
 
   const getRealtimeMetric = (member: MonitorNodeInstanceGroupMemberApiItem) =>
     realtimeInstanceMetrics[
-      `${member.nodeId}:${member.instanceId?.trim() || ""}`
+    `${member.nodeId}:${member.instanceId?.trim() || ""}`
     ];
 
   const getPeriodNetTraffic = (member: MonitorNodeInstanceGroupMemberApiItem) => {
@@ -676,19 +683,19 @@ function NodeInstanceRows({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="w-full max-w-full overflow-x-auto pb-2">
-      <DndContext
-        collisionDetection={closestCenter}
-        sensors={instanceSensors}
-        onDragEnd={handleInstanceDragEnd}
-      >
-      <SortableContext
-        items={sortableInstanceIds}
-        strategy={verticalListSortingStrategy}
-      >
-      <table className="w-full min-w-[1654px] table-fixed text-[13px]">
-        <NodeTableColGroup />
-        <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
-          <tr>
+        <DndContext
+          collisionDetection={closestCenter}
+          sensors={instanceSensors}
+          onDragEnd={handleInstanceDragEnd}
+        >
+          <SortableContext
+            items={sortableInstanceIds}
+            strategy={verticalListSortingStrategy}
+          >
+            <table className="w-full min-w-[1654px] table-fixed text-[13px]">
+              <NodeTableColGroup />
+              <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
+                <tr>
                   <th aria-label="选择" />
                   <th className="px-0 py-2 text-center font-medium" title="拖拽排序">
                     排序
@@ -697,8 +704,8 @@ function NodeInstanceRows({
                   <th className="px-1 py-2 text-center font-medium">
                     状态
                   </th>
-            <th className="px-1 py-2 text-left font-medium">
-              实例名称
+                  <th className="px-1 py-2 text-left font-medium">
+                    实例名称
                     <span className="font-normal text-primary-500">
                       ^{members.length}个
                     </span>
@@ -706,7 +713,9 @@ function NodeInstanceRows({
                   <th className="px-1 py-2 text-center font-medium">
                     版本
                   </th>
-                  <th aria-label="节点分组" />
+                  <th className="px-1 py-2 text-center font-medium">
+                    权重
+                  </th>
                   <th className="px-1 py-2 text-left font-medium">IP / 地区</th>
                   <th className="px-1 py-2 text-center font-medium">
                     在线数
@@ -731,163 +740,165 @@ function NodeInstanceRows({
                   </th>
                   <th className="px-1 py-2 text-left font-medium">
                     操作
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.length === 0 ? (
-            <tr>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.length === 0 ? (
+                  <tr>
                     <td
                       className="px-2 py-8 text-center text-default-500"
                       colSpan={16}
                     >
-                暂无实例上报
-              </td>
-            </tr>
-          ) : (
-            members.map((member, memberIndex) => (
-              <SortableInstanceRow
+                      暂无实例上报
+                    </td>
+                  </tr>
+                ) : (
+                  members.map((member, memberIndex) => (
+                    <SortableInstanceRow
                       key={
                         member.instanceId ||
                         `${member.nodeId}-${member.displayIndex || 0}`
                       }
-                id={getInstanceSortableId(member, memberIndex)}
-                isPopoverOpen={openExpiryInstanceId === member.instanceId}
-                sortableDisabled={!member.instanceId?.trim()}
-                wgmCell={
-                  <td className="px-1 py-3 text-center">
-                    {(node as any).mimicStatus === "ok" ||
-                    (node as any).mimicStatus === "deps_ready" ? (
-                      <span className="text-green-500" title="WGM 就绪">✅</span>
-                    ) : (node as any).mimicStatus ? (
-                      <button
-                        className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onInstallMimicDeps?.(node);
-                        }}
-                      >
-                        <SmartTooltip content={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}>❌</SmartTooltip>
-                      </button>
-                    ) : (
-                      <span className="text-default-400">-</span>
-                    )}
-                  </td>
-                }
-              >
-                <td className="px-2 py-2.5 text-center align-middle">
-                  <StatusDot
-                    active={member.weight > 0 && member.status === 1}
-                    tone={
-                      member.weight <= 0
-                        ? "default"
-                        : member.status === 1
-                          ? "success"
-                          : "danger"
-                    }
-                    title={
-                      member.weight <= 0
-                        ? "已禁用（权重为 0）"
-                        : member.status === 1
-                          ? "在线"
-                          : "离线"
-                    }
-                  />
-                </td>
-                <td className="px-1 py-3 text-left font-medium text-foreground">
+                      id={getInstanceSortableId(member, memberIndex)}
+                      isPopoverOpen={openExpiryInstanceId === member.instanceId}
+                      sortableDisabled={!member.instanceId?.trim()}
+                      wgmCell={
+                        <td className="px-1 py-3 text-center">
+                          {(node as any).mimicStatus === "ok" ||
+                            (node as any).mimicStatus === "deps_ready" ? (
+                            <span className="text-green-500" title="WGM 就绪">✅</span>
+                          ) : (node as any).mimicStatus ? (
+                            <button
+                              className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onInstallMimicDeps?.(node);
+                              }}
+                            >
+                              <SmartTooltip content={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}>❌</SmartTooltip>
+                            </button>
+                          ) : (
+                            <span className="text-default-400">-</span>
+                          )}
+                        </td>
+                      }
+                    >
+                      <td className="px-2 py-2.5 text-center align-middle">
+                        <StatusDot
+                          active={member.weight > 0 && member.status === 1}
+                          tone={
+                            member.weight <= 0
+                              ? "default"
+                              : member.status === 1
+                                ? "success"
+                                : "danger"
+                          }
+                          title={
+                            member.weight <= 0
+                              ? "已禁用（权重为 0）"
+                              : member.status === 1
+                                ? "在线"
+                                : "离线"
+                          }
+                        />
+                      </td>
+                      <td className="px-1 py-3 text-left font-medium text-foreground">
                         <span className="block truncate">
                           {getInstanceLabel(member)}
                         </span>
-                </td>
-                <td className="overflow-visible px-2 py-3 text-center text-default-700">
-                  {upgradeProgress && upgradeProgress.percent < 100 ? (
-                    <div className="mx-auto w-[105px] space-y-1">
-                      <Progress
-                        aria-label="实例更新进度"
-                        className="w-full"
-                        color="warning"
-                        size="sm"
-                        value={upgradeProgress.percent}
-                      />
-                      <SmartTooltip content={upgradeProgress.message}>
-                        <div className="truncate text-[10px] leading-tight text-warning-600">
-                          {upgradeProgress.message || `${upgradeProgress.percent}%`}
-                        </div>
-                      </SmartTooltip>
-                    </div>
-                  ) : node.version ? (
-                    <div className="inline-flex items-center justify-center gap-1.5">
-                      <DistroIcon
-                        className="h-4 w-4 shrink-0"
-                        distro={parseDistroFromVersion(node.version)}
-                        style={{
+                      </td>
+                      <td className="overflow-visible px-2 py-3 text-center text-default-700">
+                        {upgradeProgress && upgradeProgress.percent < 100 ? (
+                          <div className="mx-auto w-[105px] space-y-1">
+                            <Progress
+                              aria-label="实例更新进度"
+                              className="w-full"
+                              color="warning"
+                              size="sm"
+                              value={upgradeProgress.percent}
+                            />
+                            <SmartTooltip content={upgradeProgress.message}>
+                              <div className="truncate text-[10px] leading-tight text-warning-600">
+                                {upgradeProgress.message || `${upgradeProgress.percent}%`}
+                              </div>
+                            </SmartTooltip>
+                          </div>
+                        ) : node.version ? (
+                          <div className="inline-flex items-center justify-center gap-1.5">
+                            <DistroIcon
+                              className="h-4 w-4 shrink-0"
+                              distro={parseDistroFromVersion(node.version)}
+                              style={{
                                 color: getDistroColor(
                                   parseDistroFromVersion(node.version),
                                 ),
-                        }}
-                      />
-                      <span>{node.version.split(" ")[0]}</span>
-                    </div>
+                              }}
+                            />
+                            <span>{node.version.split(" ")[0]}</span>
+                          </div>
                   ) : (
                     "-"
                   )}
                 </td>
-                <td />
-                <InstanceIPRegionCell
-                  copyToClipboard={copyToClipboard}
-                  member={member}
-                />
-                <td className="px-1 py-3 text-center font-mono text-default-700">
-                  {member.status === 1
-                    ? (() => {
-                        const realtime = getRealtimeMetric(member);
-
-                        return realtime
-                          ? realtime.tcpConns + realtime.udpConns
-                                : (member.onlineCount ?? 0);
-                      })()
-                    : "-"}
+                <td className="px-1 py-3 text-center text-default-700">
+                  {member.weight ?? "-"}
                 </td>
-                <td className="px-1 py-3 text-right text-danger-600 dark:text-danger-400">
-                  <div className="inline-flex items-center justify-end gap-1">
-                    <span>
-                      {(() => {
-                        const { tx, rx } = getPeriodNetTraffic(member);
+                      <InstanceIPRegionCell
+                        copyToClipboard={copyToClipboard}
+                        member={member}
+                      />
+                      <td className="px-1 py-3 text-center font-mono text-default-700">
+                        {member.status === 1
+                          ? (() => {
+                            const realtime = getRealtimeMetric(member);
 
-                        return formatTraffic(tx + rx);
-                      })()}
-                    </span>
-                    {onViewTrafficLogs && (
-                      <Button
-                        isIconOnly
-                        className="h-6 w-6 min-w-6"
-                        size="sm"
-                        variant="flat"
-                        onPress={() => onViewTrafficLogs(node)}
-                      >
+                            return realtime
+                              ? realtime.tcpConns + realtime.udpConns
+                              : (member.onlineCount ?? 0);
+                          })()
+                          : "-"}
+                      </td>
+                      <td className="px-1 py-3 text-right text-danger-600 dark:text-danger-400">
+                        <div className="inline-flex items-center justify-end gap-1">
+                          <span>
+                            {(() => {
+                              const { tx, rx } = getPeriodNetTraffic(member);
+
+                              return formatTraffic(tx + rx);
+                            })()}
+                          </span>
+                          {onViewTrafficLogs && (
+                            <Button
+                              isIconOnly
+                              className="h-6 w-6 min-w-6"
+                              size="sm"
+                              variant="flat"
+                              onPress={() => onViewTrafficLogs(node)}
+                            >
                               <svg
                                 className="h-4 w-4"
                                 fill="currentColor"
                                 viewBox="0 0 20 20"
                               >
-                          <path
-                            clipRule="evenodd"
-                            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                            fillRule="evenodd"
-                          />
-                        </svg>
-                      </Button>
-                    )}
-                  </div>
-                </td>
-                <td className="px-1 py-3 text-right text-success-700 dark:text-success-300">
-                  {formatTraffic(getPeriodNetTraffic(member).tx)}
-                </td>
-                <td className="px-1 py-3 text-right text-primary-700 dark:text-primary-300">
-                  {formatTraffic(getPeriodNetTraffic(member).rx)}
-                </td>
-                <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-3 text-center text-default-700" style={{ width: "100px" }}>
+                                <path
+                                  clipRule="evenodd"
+                                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                  fillRule="evenodd"
+                                />
+                              </svg>
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-1 py-3 text-right text-success-700 dark:text-success-300">
+                        {formatTraffic(getPeriodNetTraffic(member).tx)}
+                      </td>
+                      <td className="px-1 py-3 text-right text-primary-700 dark:text-primary-300">
+                        {formatTraffic(getPeriodNetTraffic(member).rx)}
+                      </td>
+                      <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-3 text-center text-default-700" style={{ width: "100px" }}>
                         {(member.trafficLimit ?? 0) > 0 ? (() => {
                           const traffic = getPeriodNetTraffic(member);
                           const used = traffic.rx + traffic.tx;
@@ -913,152 +924,161 @@ function NodeInstanceRows({
                             </SmartTooltip>
                           );
                         })()}
-                </td>
-                <td className="w-[110px] min-w-[110px] max-w-[110px] px-2 py-3 text-center text-default-700">
+                      </td>
+                      <td className="w-[110px] min-w-[110px] max-w-[110px] px-2 py-3 text-center text-default-700">
                         {member.expiryTime && member.renewalCycle
                           ? (() => {
-                      const meta = getNodeRenewalSnapshot(
-                        member.expiryTime,
-                        member.renewalCycle,
-                        7,
-                      );
-                      const toneClass =
-                        meta.state === "expired"
-                          ? "text-danger-600 dark:text-danger-400"
-                          : meta.state === "dueSoon"
-                            ? "text-warning-600 dark:text-warning-400"
-                            : "text-success-700 dark:text-success-300";
+                            const meta = getNodeRenewalSnapshot(
+                              member.expiryTime,
+                              member.renewalCycle,
+                              7,
+                            );
+                            const toneClass =
+                              meta.state === "expired"
+                                ? "text-danger-600 dark:text-danger-400"
+                                : meta.state === "dueSoon"
+                                  ? "text-warning-600 dark:text-warning-400"
+                                  : "text-success-700 dark:text-success-300";
 
-                      return (
-                        <div className="relative inline-flex min-w-[72px] items-center justify-center leading-tight">
-                          <button
-                            className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-default-200/60 ${toneClass}`}
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              window.dispatchEvent(
-                                new CustomEvent(
-                                  "closeOtherInstanceExpiryPopovers",
-                                          {
-                                            detail: {
-                                              instanceId: member.instanceId,
-                                            },
-                                          },
-                                ),
-                              );
-                              setOpenExpiryInstanceId((current) =>
-                                current === member.instanceId
-                                  ? null
-                                  : member.instanceId || null,
-                              );
-                            }}
-                          >
-                            {meta.label}
-                            <svg
-                              aria-hidden="true"
-                              className={`h-3 w-3 transition-transform ${openExpiryInstanceId === member.instanceId ? "rotate-180" : ""}`}
-                              fill="none"
-                              stroke="currentColor"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="2"
-                              viewBox="0 0 24 24"
-                            >
-                              <path d="m6 9 6 6 6-6" />
-                            </svg>
-                          </button>
-                                  {openExpiryInstanceId ===
-                                    member.instanceId && (
-                            <div
-                              className={`absolute right-0 z-[100] w-[160px] rounded-lg border border-divider/80 bg-background/98 p-2 text-left shadow-xl backdrop-blur ${memberIndex === members.length - 1 ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}
-                                      onClick={(event) =>
-                                        event.stopPropagation()
-                                      }
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="truncate text-xs font-medium text-default-700">
-                                    {getInstanceLabel(member)}
-                                  </div>
-                                  <div className="text-[10px] text-default-500">
-                                            {formatNodeRenewalTime(
-                                              meta.nextDueTime,
-                                            )}
-                                  </div>
-                                </div>
+                            return (
+                              <div className="relative inline-flex min-w-[72px] items-center justify-center leading-tight">
                                 <button
-                                  className="inline-flex shrink-0 items-center justify-center rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+                                  className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-default-200/60 ${toneClass}`}
                                   type="button"
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    onDismissExpiryReminder?.(
-                                      member.nodeId,
-                                      member.instanceId,
+                                    window.dispatchEvent(
+                                      new CustomEvent(
+                                        "closeOtherInstanceExpiryPopovers",
+                                        {
+                                          detail: {
+                                            instanceId: member.instanceId,
+                                          },
+                                        },
+                                      ),
                                     );
-                                    setOpenExpiryInstanceId(null);
+                                    setOpenExpiryInstanceId((current) =>
+                                      current === member.instanceId
+                                        ? null
+                                        : member.instanceId || null,
+                                    );
                                   }}
                                 >
-                                  更新周期
+                                  {meta.label}
+                                  <svg
+                                    aria-hidden="true"
+                                    className={`h-3 w-3 transition-transform ${openExpiryInstanceId === member.instanceId ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth="2"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path d="m6 9 6 6 6-6" />
+                                  </svg>
                                 </button>
+                                {openExpiryInstanceId ===
+                                  member.instanceId && (
+                                    <div
+                                      className={`absolute right-0 z-[100] w-[160px] rounded-lg border border-divider/80 bg-background/98 p-2 text-left shadow-xl backdrop-blur ${memberIndex === members.length - 1 ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}
+                                      onClick={(event) =>
+                                        event.stopPropagation()
+                                      }
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="truncate text-xs font-medium text-default-700">
+                                            {getInstanceLabel(member)}
+                                          </div>
+                                          <div className="text-[10px] text-default-500">
+                                            {formatNodeRenewalTime(
+                                              meta.nextDueTime,
+                                            )}
+                                          </div>
+                                        </div>
+                                        <button
+                                          className="inline-flex shrink-0 items-center justify-center rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-100 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+                                          type="button"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            onDismissExpiryReminder?.(
+                                              member.nodeId,
+                                              member.instanceId,
+                                            );
+                                            setOpenExpiryInstanceId(null);
+                                          }}
+                                        >
+                                          更新周期
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()
+                            );
+                          })()
                           : "-"}
-                </td>
-                <td className="w-[160px] min-w-[160px] max-w-[160px] px-2 py-3 text-left align-middle truncate text-default-600 text-xs">
-                  {member.remark?.trim() ? (
+                      </td>
+                      <td className="w-[160px] min-w-[160px] max-w-[160px] px-2 py-3 text-left align-middle truncate text-default-600 text-xs">
+                        {member.remark?.trim() ? (
                           <SmartTooltip content={member.remark.trim()}>
                             <span className="truncate block">{member.remark.trim()}</span>
                           </SmartTooltip>
-                  ) : (
-                    <span className="text-default-400">-</span>
-                  )}
-                </td>
-                <td className="px-1 py-3">
-                  <div className="flex items-center justify-start gap-1 whitespace-nowrap">
-                    <Button
-                      className="h-7 shrink-0 px-2 text-xs font-medium"
-                      color="primary"
-                      size="sm"
-                      variant="flat"
-                      onPress={() => onConfigureInstance?.(member)}
-                    >
-                      编辑
-                    </Button>
-                    <MonitorTerminalButton
-                      className="h-7 shrink-0 px-2 text-xs font-medium"
-                      member={member}
-                    />
-                    <Button
-                      className="h-7 shrink-0 px-2 text-xs font-medium"
-                      color="success"
-                      size="sm"
-                      variant="flat"
-                      onPress={() => onResetInstanceTraffic?.(member)}
-                    >
-                      归零
-                    </Button>
-                    <Button
-                      className="h-7 shrink-0 px-2 text-xs font-medium"
-                      color="danger"
-                      size="sm"
-                      variant="flat"
-                      onPress={() => onDeleteInstance?.(member)}
-                    >
-                      删除
-                    </Button>
-                  </div>
-                </td>
-              </SortableInstanceRow>
-            ))
-          )}
-        </tbody>
-      </table>
-      </SortableContext>
-      </DndContext>
+                        ) : (
+                          <span className="text-default-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-1 py-3">
+                        <div className="flex items-center justify-start gap-1 whitespace-nowrap">
+                          <Button
+                            className="h-7 shrink-0 px-2 text-xs font-medium"
+                            color="primary"
+                            size="sm"
+                            variant="flat"
+                            onPress={() => onConfigureInstance?.(member)}
+                          >
+                            编辑
+                          </Button>
+                          <MonitorTerminalButton
+                            className="h-7 shrink-0 px-2 text-xs font-medium"
+                            member={member}
+                          />
+                          <Button
+                            className="h-7 shrink-0 px-2 text-xs font-medium"
+                            color="success"
+                            size="sm"
+                            variant="flat"
+                            onPress={() => onResetInstanceTraffic?.(member)}
+                          >
+                            归零
+                          </Button>
+                          <Button
+                            className="h-7 shrink-0 px-2 text-xs font-medium"
+                            color={member.weight > 0 ? "warning" : "success"}
+                            size="sm"
+                            variant="flat"
+                            onPress={() => onToggleInstancePause?.(member)}
+                          >
+                            {member.weight > 0 ? "暂停" : "启用"}
+                          </Button>
+                          <Button
+                            className="h-7 shrink-0 px-2 text-xs font-medium"
+                            color="danger"
+                            size="sm"
+                            variant="flat"
+                            onPress={() => onDeleteInstance?.(member)}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </td>
+                    </SortableInstanceRow>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </SortableContext>
+        </DndContext>
       </div>
     </div>
   );
@@ -1146,6 +1166,7 @@ function SortableTableRow({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onToggleInstancePause,
   onReorderInstances,
   onInstallMimicDeps,
   realtimeInstanceMetrics,
@@ -1251,12 +1272,12 @@ function SortableTableRow({
 
       return member
         ? {
-            ...instance,
-            publicIpV4Region: member.publicIpV4Region,
-            publicIpV4CountryCode: member.publicIpV4CountryCode,
-            publicIpV6Region: member.publicIpV6Region,
-            publicIpV6CountryCode: member.publicIpV6CountryCode,
-          }
+          ...instance,
+          publicIpV4Region: member.publicIpV4Region,
+          publicIpV4CountryCode: member.publicIpV4CountryCode,
+          publicIpV6Region: member.publicIpV6Region,
+          publicIpV6CountryCode: member.publicIpV6CountryCode,
+        }
         : instance;
     });
   const remoteConnectionCount = remoteInstances.reduce(
@@ -1279,11 +1300,10 @@ function SortableTableRow({
   );
   const remoteTrafficLimit = node.remoteMaxBandwidth ?? 0;
   const remoteTrafficUsed = node.remoteCurrentFlow ?? 0;
-  const remoteTrafficTitle = `已用：${formatTraffic(remoteTrafficUsed)}\n剩余：${
-    remoteTrafficLimit > 0
+  const remoteTrafficTitle = `已用：${formatTraffic(remoteTrafficUsed)}\n剩余：${remoteTrafficLimit > 0
       ? formatTraffic(Math.max(remoteTrafficLimit - remoteTrafficUsed, 0))
       : "不限"
-  }\n总量：${remoteTrafficLimit > 0 ? formatTraffic(remoteTrafficLimit) : "不限"}`;
+    }\n总量：${remoteTrafficLimit > 0 ? formatTraffic(remoteTrafficLimit) : "不限"}`;
   const isExpandable = node.isRemote !== 1 || remoteInstances.length > 0;
   const isActuallyExpanded = isExpandable && isExpanded;
   const rowBg = selectedIds.has(node.id)
@@ -1307,11 +1327,11 @@ function SortableTableRow({
   );
   const hasExpiryInfo = Boolean(
     expiryTarget?.expiryTime &&
-      expiryTarget.expiryTime > 0 &&
-      expiryTarget.renewalCycle &&
-      (expiryTarget.expiryReminderDismissed !== 1 ||
-        (expiryTarget.expiryReminderDismissedUntil &&
-          expiryTarget.expiryReminderDismissedUntil < Date.now())),
+    expiryTarget.expiryTime > 0 &&
+    expiryTarget.renewalCycle &&
+    (expiryTarget.expiryReminderDismissed !== 1 ||
+      (expiryTarget.expiryReminderDismissedUntil &&
+        expiryTarget.expiryReminderDismissedUntil < Date.now())),
   );
   const getExpiryChipProps = () => {
     if (expiryMeta.state === "expired") {
@@ -1341,173 +1361,173 @@ function SortableTableRow({
   const expiryChipProps = hasExpiryInfo ? getExpiryChipProps() : null;
   const remoteExpiryChipProps =
     node.isRemote === 1
-    ? getRemoteExpiryChipProps(node.remoteExpiryTime)
-    : null;
+      ? getRemoteExpiryChipProps(node.remoteExpiryTime)
+      : null;
 
   return (
     <>
-    <TableRow
-      key={node.id}
-      ref={setNodeRef}
-      className={`cursor-pointer ${isActuallyExpanded ? "border-b border-primary-300/70 shadow-[inset_3px_0_0_rgba(59,130,246,0.65)]" : ""}`}
-      style={style}
-      onClick={() => onToggleHighlighted?.()}
-    >
-      <TableCell className={rowBg}>
-        <div
-          className="flex items-center justify-center h-full"
-          onClick={(e) => e.stopPropagation()}
-        >
-            {node.isRemote !== 1 && (
-              <Checkbox
-              isSelected={selectedIds.has(node.id)}
-              onValueChange={() => toggleSelect(node.id)}
-              />
-            )}
-        </div>
-      </TableCell>
-      <TableCell className={rowBg}>
-        <div className="flex items-center justify-center">
-            <div
-            className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
-            {...attributes}
-            {...listeners}
+      <TableRow
+        key={node.id}
+        ref={setNodeRef}
+        className={`cursor-pointer ${isActuallyExpanded ? "border-b border-primary-300/70 shadow-[inset_3px_0_0_rgba(59,130,246,0.65)]" : ""}`}
+        style={style}
+        onClick={() => onToggleHighlighted?.()}
+      >
+        <TableCell className={rowBg}>
+          <div
+            className="flex items-center justify-center h-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <svg
-              aria-hidden="true"
-              className="w-4 h-4"
-              fill="currentColor"
-              viewBox="0 0 20 20"
+            {node.isRemote !== 1 && (
+              <Checkbox
+                isSelected={selectedIds.has(node.id)}
+                onValueChange={() => toggleSelect(node.id)}
+              />
+            )}
+          </div>
+        </TableCell>
+        <TableCell className={rowBg}>
+          <div className="flex items-center justify-center">
+            <div
+              className="cursor-grab active:cursor-grabbing p-1 text-default-400 flex-shrink-0 hover:text-default-600 transition-colors"
+              {...attributes}
+              {...listeners}
+              onClick={(e) => e.stopPropagation()}
             >
-              <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
-            </svg>
-              </div>
-        </div>
-      </TableCell>
-      <TableCell className={rowBg}>
-        <div className="flex items-center justify-center">
+              <svg
+                aria-hidden="true"
+                className="w-4 h-4"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path d="M7 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 2zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 7 14zm6-8a2 2 0 1 1-.001-4.001A2 2 0 0 1 13 6zm0 2a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 8zm0 6a2 2 0 1 1 .001 4.001A2 2 0 0 1 13 14z" />
+              </svg>
+            </div>
+          </div>
+        </TableCell>
+        <TableCell className={rowBg}>
+          <div className="flex items-center justify-center">
             {isExpandable ? (
               <SmartTooltip content={isActuallyExpanded ? "收起实例" : "展开实例"}>
-              <button
-            className="inline-flex h-6 w-6 items-center justify-center rounded text-default-500 transition-colors hover:bg-default-200/70 hover:text-foreground"
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleExpanded?.(node.id);
-            }}
-          >
-            <svg
-              aria-hidden="true"
-              className={`h-4 w-4 transition-transform ${isActuallyExpanded ? "rotate-180" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path d="m6 9 6 6 6-6" />
-             </svg>
-              </button>
+                <button
+                  className="inline-flex h-6 w-6 items-center justify-center rounded text-default-500 transition-colors hover:bg-default-200/70 hover:text-foreground"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleExpanded?.(node.id);
+                  }}
+                >
+                  <svg
+                    aria-hidden="true"
+                    className={`h-4 w-4 transition-transform ${isActuallyExpanded ? "rotate-180" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
               </SmartTooltip>
             ) : (
               <span className="text-default-300">-</span>
             )}
-        </div>
-      </TableCell>
-      <TableCell className={`px-1 text-center align-middle ${rowBg}`}>
-        {node.isRemote === 1 ? (
-           <SmartTooltip
-               content={
-                 remoteDisplayState === "online" && remoteDisplayMeta
-                   ? `在线${remoteDisplayMeta.onlineCount}/禁用${remoteDisplayMeta.disabledCount}/全部${remoteDisplayMeta.totalCount}`
-                   : remoteStatusMeta.label
-               }
-           >
-           <div className="flex items-center justify-center gap-0.5">
-              <StatusDot
+          </div>
+        </TableCell>
+        <TableCell className={`px-1 text-center align-middle ${rowBg}`}>
+          {node.isRemote === 1 ? (
+            <SmartTooltip
+              content={
+                remoteDisplayState === "online" && remoteDisplayMeta
+                  ? `在线${remoteDisplayMeta.onlineCount}/禁用${remoteDisplayMeta.disabledCount}/全部${remoteDisplayMeta.totalCount}`
+                  : remoteStatusMeta.label
+              }
+            >
+              <div className="flex items-center justify-center gap-0.5">
+                <StatusDot
                   active={remoteDisplayState === "online"}
                   tone={remoteStatusMeta.tone}
                 />
                 <span className="text-xs font-mono tabular-nums text-default-600">
-                {remoteDisplayState === "online" && remoteDisplayMeta
-                  ? `${remoteDisplayMeta.onlineCount}/${remoteDisplayMeta.disabledCount}/${remoteDisplayMeta.totalCount}`
-                  : remoteStatusMeta.label}
-             </span>
-           </div>
-           </SmartTooltip>
-         ) : (
+                  {remoteDisplayState === "online" && remoteDisplayMeta
+                    ? `${remoteDisplayMeta.onlineCount}/${remoteDisplayMeta.disabledCount}/${remoteDisplayMeta.totalCount}`
+                    : remoteStatusMeta.label}
+                </span>
+              </div>
+            </SmartTooltip>
+          ) : (
             <SmartTooltip content={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
-            <div className="flex items-center justify-center gap-0.5">
-              <StatusDot
-                active={visualMeta.state !== "offline"}
-                tone={visualMeta.color}
-              />
-            <span className="text-xs font-mono tabular-nums text-default-600">
-                {visualMeta.onlineCount}/{visualMeta.disabledCount}/
-                {visualMeta.totalCount}
-            </span>
-          </div>
-          </SmartTooltip>
-        )}
-      </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
-        <div className="flex items-center gap-2 min-w-0">
-          <SmartTooltip content={node.name}>
-            <span
-              className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
-              onClick={(e) => {
-              e.stopPropagation();
-              copyToClipboard(node.name, "节点名称");
-            }}
-          >
-            {formatRemoteDisplayText(node.name)}
-            {node.isRemote === 1 && !/\s\(Rem\)$/i.test(formatRemoteDisplayText(node.name)) && (
-              <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">(Rem)</span>
-            )}
-          </span>
-          </SmartTooltip>
-        </div>
-      </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
-        <span className="text-sm font-medium text-default-700">
-          {(node.trafficRatio || 1).toFixed(2).replace(/\.00$/, "")}x
-        </span>
-      </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
-        {node.isRemote === 1 ? (
-          <div className="inline-flex items-center justify-center rounded bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">
-            远程组
-          </div>
-        ) : node.groupId && node.groupId > 0 ? (
-          (() => {
-            const group = nodeGroups.find((g: any) => g.id == node.groupId);
-
-            return group ? (
-              <div
-                className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
-                style={{
-                  backgroundColor: `${group.color}1A`,
-                  color: group.color,
+              <div className="flex items-center justify-center gap-0.5">
+                <StatusDot
+                  active={visualMeta.state !== "offline"}
+                  tone={visualMeta.color}
+                />
+                <span className="text-xs font-mono tabular-nums text-default-600">
+                  {visualMeta.onlineCount}/{visualMeta.disabledCount}/
+                  {visualMeta.totalCount}
+                </span>
+              </div>
+            </SmartTooltip>
+          )}
+        </TableCell>
+        <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <SmartTooltip content={node.name}>
+              <span
+                className="text-sm font-medium text-foreground truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  copyToClipboard(node.name, "节点名称");
                 }}
               >
-                {group.name}
-              </div>
-            ) : (
-              <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
-                未分组
-              </div>
-            );
-          })()
-        ) : (
-          <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
-            未分组
+                {formatRemoteDisplayText(node.name)}
+                {node.isRemote === 1 && !/\s\(Rem\)$/i.test(formatRemoteDisplayText(node.name)) && (
+                  <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">(Rem)</span>
+                )}
+              </span>
+            </SmartTooltip>
           </div>
-        )}
-      </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 align-middle ${rowBg}`}>
-        {(() => {
+        </TableCell>
+        <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
+          <span className="text-sm font-medium text-default-700">
+            {(node.trafficRatio || 1).toFixed(2).replace(/\.00$/, "")}x
+          </span>
+        </TableCell>
+        <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
+          {node.isRemote === 1 ? (
+            <div className="inline-flex items-center justify-center rounded bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">
+              远程组
+            </div>
+          ) : node.groupId && node.groupId > 0 ? (
+            (() => {
+              const group = nodeGroups.find((g: any) => g.id == node.groupId);
+
+              return group ? (
+                <div
+                  className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
+                  style={{
+                    backgroundColor: `${group.color}1A`,
+                    color: group.color,
+                  }}
+                >
+                  {group.name}
+                </div>
+              ) : (
+                <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
+                  未分组
+                </div>
+              );
+            })()
+          ) : (
+            <div className="inline-flex items-center justify-center bg-default-500/10 text-default-500 px-2 py-0.5 rounded text-xs font-medium">
+              未分组
+            </div>
+          )}
+        </TableCell>
+        <TableCell className={`whitespace-nowrap px-1 align-middle ${rowBg}`}>
+          {(() => {
             if (node.isRemote === 1) {
               const sourceInstance = (node.remoteInstances || []).find(
                 (instance: RemoteInstance) => instance.inScope,
@@ -1546,130 +1566,130 @@ function SortableTableRow({
                 </div>
               );
             }
-          const publicIPv4 = node.serverIpV4?.trim() || "";
-          const intranetIPv4 = node.intranetIp?.trim() || "";
-          const publicIPv6 =
-            node.serverIpV6?.trim() ||
-            (node.serverIp?.trim() && node.serverIp.includes(":")
-              ? node.serverIp.trim()
-              : "");
-          const address = publicIPv4 || intranetIPv4 || publicIPv6;
+            const publicIPv4 = node.serverIpV4?.trim() || "";
+            const intranetIPv4 = node.intranetIp?.trim() || "";
+            const publicIPv6 =
+              node.serverIpV6?.trim() ||
+              (node.serverIp?.trim() && node.serverIp.includes(":")
+                ? node.serverIp.trim()
+                : "");
+            const address = publicIPv4 || intranetIPv4 || publicIPv6;
 
-          if (!address) {
+            if (!address) {
               return <span className="text-sm text-default-300">-</span>;
-          }
+            }
 
-          return (
-            <SmartTooltip content={address}>
-            <button
-              className="inline-block max-w-[150px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                copyToClipboard(address, "节点地址");
-              }}
-            >
-              {formatInstanceIPForCell(address)}
-            </button>
-            </SmartTooltip>
-          );
-        })()}
-      </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
-        <div className="flex justify-center">
-          <span className="text-sm font-mono text-default-600 tabular-nums">
+            return (
+              <SmartTooltip content={address}>
+                <button
+                  className="inline-block max-w-[150px] truncate rounded px-1 text-xs font-medium text-default-700 transition-colors hover:bg-default-200/50 hover:text-primary"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    copyToClipboard(address, "节点地址");
+                  }}
+                >
+                  {formatInstanceIPForCell(address)}
+                </button>
+              </SmartTooltip>
+            );
+          })()}
+        </TableCell>
+        <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
+          <div className="flex justify-center">
+            <span className="text-sm font-mono text-default-600 tabular-nums">
               {node.isRemote === 1
-                  ? remoteConnectionCount
+                ? remoteConnectionCount
                 : node.connectionStatus === "online"
                   ? (node.onlineCount ?? 0)
                   : "-"}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell
-        className={`w-[120px] min-w-[120px] max-w-[120px] whitespace-nowrap ${rowBg}`}
-      >
-        <div className="flex w-[104px] items-center justify-end gap-1">
-          <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
-            {formatTraffic(node.isRemote === 1
-              ? (node.totalOutFlow ?? 0) + (node.totalInFlow ?? 0)
-              : localPeriodNetTraffic.tx + localPeriodNetTraffic.rx)}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell
-        className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap ${rowBg}`}
-      >
-        <div className="flex w-[96px] justify-end">
-          <span className="truncate text-sm text-success-700 dark:text-success-300">
-            {formatTraffic(node.isRemote === 1 ? node.totalOutFlow ?? 0 : localPeriodNetTraffic.tx)}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell
-        className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap ${rowBg}`}
-      >
-        <div className="flex w-[96px] justify-end">
-          <span className="truncate text-sm text-primary-700 dark:text-primary-300">
-            {formatTraffic(node.isRemote === 1 ? node.totalInFlow ?? 0 : localPeriodNetTraffic.rx)}
-          </span>
-        </div>
-      </TableCell>
-      <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] ${rowBg}`} aria-label="流量限额" style={{ width: "110px" }}>
-        <div className="flex w-full justify-center">
-          {node.isRemote === 1 ? (
-            <SmartTooltip content={remoteTrafficTitle}>
-              <span className="whitespace-nowrap text-sm text-default-700 cursor-help">
-                {remoteTrafficLimit > 0 ? formatTraffic(remoteTrafficLimit) : "不限"}
-              </span>
-            </SmartTooltip>
-          ) : (
-            <span className="whitespace-nowrap text-sm text-default-700">-</span>
-          )}
-        </div>
-      </TableCell>
-      <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap text-center ${rowBg}`}>
-        {remoteExpiryChipProps ? (
+            </span>
+          </div>
+        </TableCell>
+        <TableCell
+          className={`w-[120px] min-w-[120px] max-w-[120px] whitespace-nowrap ${rowBg}`}
+        >
+          <div className="flex w-[104px] items-center justify-end gap-1">
+            <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
+              {formatTraffic(node.isRemote === 1
+                ? (node.totalOutFlow ?? 0) + (node.totalInFlow ?? 0)
+                : localPeriodNetTraffic.tx + localPeriodNetTraffic.rx)}
+            </span>
+          </div>
+        </TableCell>
+        <TableCell
+          className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap ${rowBg}`}
+        >
+          <div className="flex w-[96px] justify-end">
+            <span className="truncate text-sm text-success-700 dark:text-success-300">
+              {formatTraffic(node.isRemote === 1 ? node.totalOutFlow ?? 0 : localPeriodNetTraffic.tx)}
+            </span>
+          </div>
+        </TableCell>
+        <TableCell
+          className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap ${rowBg}`}
+        >
+          <div className="flex w-[96px] justify-end">
+            <span className="truncate text-sm text-primary-700 dark:text-primary-300">
+              {formatTraffic(node.isRemote === 1 ? node.totalInFlow ?? 0 : localPeriodNetTraffic.rx)}
+            </span>
+          </div>
+        </TableCell>
+        <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] ${rowBg}`} aria-label="流量限额" style={{ width: "110px" }}>
+          <div className="flex w-full justify-center">
+            {node.isRemote === 1 ? (
+              <SmartTooltip content={remoteTrafficTitle}>
+                <span className="whitespace-nowrap text-sm text-default-700 cursor-help">
+                  {remoteTrafficLimit > 0 ? formatTraffic(remoteTrafficLimit) : "不限"}
+                </span>
+              </SmartTooltip>
+            ) : (
+              <span className="whitespace-nowrap text-sm text-default-700">-</span>
+            )}
+          </div>
+        </TableCell>
+        <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap text-center ${rowBg}`}>
+          {remoteExpiryChipProps ? (
             <span
               className={`inline-flex rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium ${remoteExpiryChipProps.className}`}
             >
-            {remoteExpiryChipProps.label}
-          </span>
-        ) : hasExpiryInfo && expiryChipProps ? (
-          <div className="relative inline-flex justify-center">
-            <button
-              ref={expiryButtonRef}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all ${expiryChipProps.className} ${expiryPopoverOpen ? "border-default-400 shadow-sm" : "border-transparent hover:border-default-300"}`}
-              type="button"
-              onClick={handleTogglePopover}
-            >
-              <span className="text-xs font-medium">
-                {expiryChipProps.label}
-              </span>
-              <svg
-                aria-hidden="true"
-                className={`h-3 w-3 transition-transform ${expiryPopoverOpen ? "rotate-180" : ""}`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
+              {remoteExpiryChipProps.label}
+            </span>
+          ) : hasExpiryInfo && expiryChipProps ? (
+            <div className="relative inline-flex justify-center">
+              <button
+                ref={expiryButtonRef}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all ${expiryChipProps.className} ${expiryPopoverOpen ? "border-default-400 shadow-sm" : "border-transparent hover:border-default-300"}`}
+                type="button"
+                onClick={handleTogglePopover}
               >
+                <span className="text-xs font-medium">
+                  {expiryChipProps.label}
+                </span>
+                <svg
+                  aria-hidden="true"
+                  className={`h-3 w-3 transition-transform ${expiryPopoverOpen ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  viewBox="0 0 24 24"
+                >
                   <path
                     d="M6 9l6 6 6-6"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
-              </svg>
-            </button>
-            {expiryPopoverOpen && (
-              <div
-                className={`absolute right-0 z-[100] w-[160px] whitespace-nowrap rounded-lg border border-divider/80 bg-background/98 p-2 shadow-xl backdrop-blur ${isLastNode ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.nativeEvent.stopImmediatePropagation();
-                }}
-              >
-                <div className="space-y-1">
+                </svg>
+              </button>
+              {expiryPopoverOpen && (
+                <div
+                  className={`absolute right-0 z-[100] w-[160px] whitespace-nowrap rounded-lg border border-divider/80 bg-background/98 p-2 shadow-xl backdrop-blur ${isLastNode ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                  }}
+                >
+                  <div className="space-y-1">
                     {(node.expiryInstances?.length
                       ? node.expiryInstances
                       : expiryTarget
@@ -1687,201 +1707,202 @@ function SortableTableRow({
                           ? `实例 ${item.displayIndex}`
                           : item.instanceId);
 
-                    return (
+                      return (
                         <div
                           key={item.instanceId}
                           className="flex items-center justify-between gap-2"
                         >
-                        <div className="min-w-0 text-left">
+                          <div className="min-w-0 text-left">
                             <div className="truncate text-xs font-medium text-default-700">
                               {label}
                             </div>
                             <div className="text-[10px] text-default-500">
                               {formatNodeRenewalTime(meta.nextDueTime)}
                             </div>
-                        </div>
-                        <button
-                          className="inline-flex items-center justify-center rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-100 active:scale-95 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            e.nativeEvent.stopImmediatePropagation();
+                          </div>
+                          <button
+                            className="inline-flex items-center justify-center rounded-md bg-red-50 px-2 py-1 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-100 active:scale-95 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.nativeEvent.stopImmediatePropagation();
                               handleDismissExpiryReminder?.(
                                 node.id,
                                 item.instanceId,
                               );
-                            setExpiryPopoverOpen(false);
-                          }}
-                        >
-                          更新周期
-                        </button>
-                      </div>
-                    );
-                  })}
+                              setExpiryPopoverOpen(false);
+                            }}
+                          >
+                            更新周期
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm text-default-400">-</span>
+          )}
+        </TableCell>
+        <TableCell
+          className={`w-[160px] min-w-[160px] max-w-[160px] whitespace-nowrap px-1 ${rowBg}`}
+        >
+          {node.remark?.trim() ? (
+            <SmartTooltip content={node.remark.trim()}>
+              <span
+                className="inline-block max-w-full cursor-pointer rounded px-1 text-sm transition-colors hover:bg-default-200/50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  copyToClipboard(node.remark!.trim(), "备注");
+                }}
+              >
+                {node.remark.trim()}
+              </span>
+            </SmartTooltip>
+          ) : (
+            <span className="text-sm text-default-400">-</span>
+          )}
+        </TableCell>
+        <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
+          <div
+            className="flex min-w-0 justify-start gap-1 whitespace-nowrap"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {node.isRemote !== 1 && (
+              <>
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button
+                      className="min-h-7 shrink-0 px-2"
+                      color="success"
+                      isLoading={node.copyLoading}
+                      size="sm"
+                      variant="flat"
+                    >
+                      对接
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="对接方式">
+                    <DropdownItem
+                      key="auto"
+                      onPress={() => handleCopyAutoInstallCommand(node)}
+                    >
+                      🔘 自动探测线路
+                    </DropdownItem>
+                    <DropdownItem
+                      key="overseas"
+                      onPress={() => handleCopyOverseasInstallCommand(node)}
+                    >
+                      🌏 国外机主线路
+                    </DropdownItem>
+                    <DropdownMenuSeparator />
+                    <DropdownItem
+                      key="offline"
+                      onPress={() => handleCopyOfflineInstallCommand(node)}
+                    >
+                      📦 离线部署
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+                <Button
+                  className="min-h-7 shrink-0 px-2"
+                  color="warning"
+                  isDisabled={node.connectionStatus !== "online"}
+                  isLoading={node.upgradeLoading}
+                  size="sm"
+                  variant="flat"
+                  onPress={() => openUpgradeModal("single", node.id)}
+                >
+                  更新
+                </Button>
+                <Button
+                  className="min-h-7 shrink-0 px-2"
+                  color="primary"
+                  size="sm"
+                  variant="flat"
+                  onPress={() => handleEdit(node)}
+                >
+                  编辑
+                </Button>
+                <Button
+                  className="min-h-7 shrink-0 px-2"
+                  color={node.paused ? "success" : "warning"}
+                  size="sm"
+                  variant="flat"
+                  onPress={() => handleTogglePause(node)}
+                >
+                  {node.paused ? "启用" : "暂停"}
+                </Button>
+              </>
+            )}
+            {node.isRemote === 1 && (
+              <Button
+                className="min-h-7 shrink-0 px-2"
+                color="secondary"
+                size="sm"
+                variant="flat"
+                onPress={() => onViewRemoteDetail(node)}
+              >
+                详情
+              </Button>
+            )}
+            <Button
+              className="min-h-7 shrink-0 px-2"
+              color="danger"
+              size="sm"
+              variant="flat"
+              onPress={() => handleDelete(node)}
+            >
+              删除
+            </Button>
+            {node.isRemote !== 1 && (
+              <Button
+                className="min-h-7 shrink-0 px-2"
+                color={shareCounts[node.id] ? "success" : "default"}
+                size="sm"
+                variant="flat"
+                onPress={() => onShareNode(node)}
+              >
+                分享
+              </Button>
             )}
           </div>
-        ) : (
-          <span className="text-sm text-default-400">-</span>
-        )}
-      </TableCell>
-      <TableCell
-        className={`w-[160px] min-w-[160px] max-w-[160px] whitespace-nowrap px-1 ${rowBg}`}
-      >
-        {node.remark?.trim() ? (
-          <SmartTooltip content={node.remark.trim()}>
-          <span
-            className="inline-block max-w-full cursor-pointer rounded px-1 text-sm transition-colors hover:bg-default-200/50"
-            onClick={(e) => {
-              e.stopPropagation();
-              copyToClipboard(node.remark!.trim(), "备注");
-            }}
-          >
-            {node.remark.trim()}
-          </span>
-          </SmartTooltip>
-        ) : (
-          <span className="text-sm text-default-400">-</span>
-        )}
-      </TableCell>
-      <TableCell className={`whitespace-nowrap px-1 ${rowBg}`}>
-        <div
-          className="flex min-w-0 justify-start gap-1 whitespace-nowrap"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {node.isRemote !== 1 && (
-            <>
-              <Dropdown>
-                <DropdownTrigger>
-                  <Button
-                    className="min-h-7 shrink-0 px-2"
-                    color="success"
-                    isLoading={node.copyLoading}
-                    size="sm"
-                    variant="flat"
-                  >
-                    对接
-                  </Button>
-                </DropdownTrigger>
-                <DropdownMenu aria-label="对接方式">
-                  <DropdownItem
-                    key="auto"
-                    onPress={() => handleCopyAutoInstallCommand(node)}
-                  >
-                    🔘 自动探测线路
-                  </DropdownItem>
-                  <DropdownItem
-                    key="overseas"
-                    onPress={() => handleCopyOverseasInstallCommand(node)}
-                  >
-                    🌏 国外机主线路
-                  </DropdownItem>
-                  <DropdownMenuSeparator />
-                  <DropdownItem
-                    key="offline"
-                    onPress={() => handleCopyOfflineInstallCommand(node)}
-                  >
-                    📦 离线部署
-                  </DropdownItem>
-                </DropdownMenu>
-              </Dropdown>
-              <Button
-                className="min-h-7 shrink-0 px-2"
-                color="warning"
-                isDisabled={node.connectionStatus !== "online"}
-                isLoading={node.upgradeLoading}
-                size="sm"
-                variant="flat"
-                onPress={() => openUpgradeModal("single", node.id)}
-              >
-                更新
-              </Button>
-              <Button
-                className="min-h-7 shrink-0 px-2"
-                color="primary"
-                size="sm"
-                variant="flat"
-                onPress={() => handleEdit(node)}
-              >
-                编辑
-              </Button>
-              <Button
-                className="min-h-7 shrink-0 px-2"
-                color={node.paused ? "success" : "warning"}
-                size="sm"
-                variant="flat"
-                onPress={() => handleTogglePause(node)}
-              >
-                {node.paused ? "启用" : "暂停"}
-              </Button>
-            </>
-          )}
-          {node.isRemote === 1 && (
-            <Button
-              className="min-h-7 shrink-0 px-2"
-              color="secondary"
-              size="sm"
-              variant="flat"
-              onPress={() => onViewRemoteDetail(node)}
-            >
-              详情
-            </Button>
-          )}
-          <Button
-            className="min-h-7 shrink-0 px-2"
-            color="danger"
-            size="sm"
-            variant="flat"
-            onPress={() => handleDelete(node)}
-          >
-            删除
-          </Button>
-          {node.isRemote !== 1 && (
-            <Button
-              className="min-h-7 shrink-0 px-2"
-              color={shareCounts[node.id] ? "success" : "default"}
-              size="sm"
-              variant="flat"
-              onPress={() => onShareNode(node)}
-            >
-              分享
-            </Button>
-          )}
-        </div>
-      </TableCell>
-    </TableRow>
-    {node.isRemote !== 1 && isActuallyExpanded && (
-      <TableRow
-        key={`${node.id}-instances`}
-        className="bg-default-50/30 dark:bg-default-100/5"
-      >
-          <TableCell className="w-0 max-w-0 overflow-visible p-0" colSpan={16}>
-          <NodeInstanceRows
-            copyToClipboard={copyToClipboard}
-            formatTraffic={formatTraffic}
-            members={instanceMembers}
-            node={node}
-            realtimeInstanceMetrics={realtimeInstanceMetrics}
-            upgradeProgress={upgradeProgress?.[node.id]}
-            onDismissExpiryReminder={handleDismissExpiryReminder}
-            onViewTrafficLogs={handleViewNodeTrafficLogs}
-            onConfigureInstance={onConfigureInstance}
-            onDeleteInstance={onDeleteInstance}
-            onResetInstanceTraffic={onResetInstanceTraffic}
-            onReorderInstances={onReorderInstances}
-            onInstallMimicDeps={onInstallMimicDeps}
-          />
         </TableCell>
       </TableRow>
-    )}
+      {node.isRemote !== 1 && isActuallyExpanded && (
+        <TableRow
+          key={`${node.id}-instances`}
+          className="bg-default-50/30 dark:bg-default-100/5"
+        >
+          <TableCell className="w-0 max-w-0 overflow-visible p-0" colSpan={16}>
+            <NodeInstanceRows
+              copyToClipboard={copyToClipboard}
+              formatTraffic={formatTraffic}
+              members={instanceMembers}
+              node={node}
+              realtimeInstanceMetrics={realtimeInstanceMetrics}
+              upgradeProgress={upgradeProgress?.[node.id]}
+              onDismissExpiryReminder={handleDismissExpiryReminder}
+              onViewTrafficLogs={handleViewNodeTrafficLogs}
+              onConfigureInstance={onConfigureInstance}
+              onDeleteInstance={onDeleteInstance}
+              onResetInstanceTraffic={onResetInstanceTraffic}
+              onToggleInstancePause={onToggleInstancePause}
+              onReorderInstances={onReorderInstances}
+              onInstallMimicDeps={onInstallMimicDeps}
+            />
+          </TableCell>
+        </TableRow>
+      )}
       {node.isRemote === 1 &&
         isActuallyExpanded &&
         remoteInstances.length > 0 && (
-      <TableRow
-        key={`${node.id}-remote-instances`}
-        className="bg-default-50/30 dark:bg-default-100/5"
-      >
+          <TableRow
+            key={`${node.id}-remote-instances`}
+            className="bg-default-50/30 dark:bg-default-100/5"
+          >
             <TableCell
               className="w-0 max-w-0 overflow-visible p-0"
               colSpan={16}
@@ -1896,9 +1917,9 @@ function SortableTableRow({
                 parentTotalOutFlow={node.totalOutFlow ?? 0}
                 parentTrafficRatio={node.trafficRatio ?? 1}
               />
-        </TableCell>
-      </TableRow>
-    )}
+            </TableCell>
+          </TableRow>
+        )}
     </>
   );
 }
@@ -1931,6 +1952,7 @@ export function NodeListView({
   onConfigureInstance,
   onDeleteInstance,
   onResetInstanceTraffic,
+  onToggleInstancePause,
   onReorderInstances,
   onInstallMimicDeps,
   onShareNode,
@@ -2022,32 +2044,32 @@ export function NodeListView({
           </TableColumn>
           <TableColumn className="w-[64px] whitespace-nowrap px-1 py-2 text-center">
             <SmartTooltip content={
-                isAllExpanded
-                  ? "闭合全部实例"
-                  : isPartiallyExpanded
-                      ? `已展开 ${expandedNodeCount}/${expandableDisplayNodes.length}，点击展开全部`
-                    : "展开全部实例"
-              }>
-            <button
-              className={`inline-flex items-center justify-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-default-200/70 disabled:cursor-default disabled:opacity-40 ${isPartiallyExpanded ? "text-primary" : ""}`}
-              disabled={expandableDisplayNodes.length === 0}
-              type="button"
-              onClick={toggleAllExpandedNodes}
-            >
-              <span>展开</span>
-              <svg
-                aria-hidden="true"
-                className={`h-3.5 w-3.5 transition-transform ${isAllExpanded ? "rotate-180" : ""}`}
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
+              isAllExpanded
+                ? "闭合全部实例"
+                : isPartiallyExpanded
+                  ? `已展开 ${expandedNodeCount}/${expandableDisplayNodes.length}，点击展开全部`
+                  : "展开全部实例"
+            }>
+              <button
+                className={`inline-flex items-center justify-center gap-1 rounded px-1 py-0.5 transition-colors hover:bg-default-200/70 disabled:cursor-default disabled:opacity-40 ${isPartiallyExpanded ? "text-primary" : ""}`}
+                disabled={expandableDisplayNodes.length === 0}
+                type="button"
+                onClick={toggleAllExpandedNodes}
               >
-                <path d="m6 9 6 6 6-6" />
-             </svg>
-            </button>
+                <span>展开</span>
+                <svg
+                  aria-hidden="true"
+                  className={`h-3.5 w-3.5 transition-transform ${isAllExpanded ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
             </SmartTooltip>
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center w-[70px]">
@@ -2085,7 +2107,7 @@ export function NodeListView({
                     ? ["none"]
                     : filterGroupId === NODE_GROUP_REMOTE
                       ? ["remote"]
-                    : [String(filterGroupId)]
+                      : [String(filterGroupId)]
               }
               size="sm"
               variant="flat"
@@ -2252,12 +2274,13 @@ export function NodeListView({
                   onConfigureInstance,
                   onDeleteInstance,
                   onResetInstanceTraffic,
+                  onToggleInstancePause,
                   onReorderInstances,
                   onInstallMimicDeps,
                   onShareNode,
                   onViewRemoteDetail,
-                shareCounts,
-                remoteUsageByNode,
+                  shareCounts,
+                  remoteUsageByNode,
                 }}
               />
             ))

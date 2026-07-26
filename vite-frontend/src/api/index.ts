@@ -364,6 +364,10 @@ export const pauseNode = (nodeId: number) =>
   Network.post("/node/pause", { nodeId });
 export const resumeNode = (nodeId: number) =>
   Network.post("/node/resume", { nodeId });
+export const pauseInstance = (nodeId: number, instanceId: string) =>
+  Network.post("/node/instance-pause", { nodeId, instanceId });
+export const resumeInstance = (nodeId: number, instanceId: string) =>
+  Network.post("/node/instance-resume", { nodeId, instanceId });
 export const checkNodeStatus = (nodeId?: number) => {
   const params = nodeId ? { nodeId } : {};
 

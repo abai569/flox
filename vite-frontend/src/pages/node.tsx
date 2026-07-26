@@ -102,6 +102,8 @@ import {
   getMonitorNodeInstanceGroups,
   pauseNode,
   resumeNode,
+  pauseInstance,
+  resumeInstance,
   getConfigByName,
   installMimicDeps,
   updateNodeInstanceProfile,
@@ -851,6 +853,7 @@ export default function NodePage() {
     trafficLimit: "0",
     trafficLimitMode: 1,
     usedTraffic: "0",
+    weight: "1",
   });
   const [instanceDeleteTarget, setInstanceDeleteTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [instanceDeleteSaving, setInstanceDeleteSaving] = useState(false);
@@ -2019,6 +2022,7 @@ export default function NodePage() {
       trafficLimit: String(member.trafficLimit || 0),
       trafficLimitMode: member.trafficLimitMode ?? 1,
       usedTraffic: usedTraffic.toFixed(2),
+      weight: String(member.weight ?? 1),
     });
   };
   const saveInstanceConfig = async () => {
@@ -2086,7 +2090,7 @@ export default function NodePage() {
         instanceId: instanceConfigTarget.instanceId,
         displayName,
         remark,
-        weight: instanceConfigTarget.weight ?? 1,
+        weight: Number(instanceConfigForm.weight) || 1,
         portRange,
         flowResetTime: Math.floor(flowResetTime),
         trafficLimit: Math.floor(trafficLimit),
@@ -2220,6 +2224,36 @@ export default function NodePage() {
             n.id === node.id ? { ...n, paused: isPaused ? 0 : 1 } : n,
           ),
         );
+      } else {
+        toast.error(res.msg || "操作失败");
+      }
+    } catch {
+      toast.error("网络错误，操作失败");
+    }
+  };
+  // 暂停/启用实例
+  const handleToggleInstancePause = async (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => {
+    const isPaused = member.weight <= 0;
+    try {
+      const res = isPaused
+        ? await resumeInstance(member.nodeId, member.instanceId || "")
+        : await pauseInstance(member.nodeId, member.instanceId || "");
+      if (res.code === 0) {
+        toast.success(isPaused ? "实例已启用" : "实例已暂停");
+        setNodeInstanceMembers((prev) => {
+          const next = { ...prev };
+          const key = member.nodeId;
+          if (next[key]) {
+            next[key] = next[key].map((m) =>
+              m.instanceId === member.instanceId
+                ? { ...m, weight: isPaused ? 1 : 0 }
+                : m,
+            );
+          }
+          return next;
+        });
       } else {
         toast.error(res.msg || "操作失败");
       }
@@ -4224,6 +4258,7 @@ export default function NodePage() {
                                         onConfigureInstance={openInstanceConfigEditor}
                                         onDeleteInstance={setInstanceDeleteTarget}
                                         onResetInstanceTraffic={setInstanceResetTarget}
+                                        onToggleInstancePause={handleToggleInstancePause}
                                         onReorderInstances={reorderNodeInstances}
                                         onInstallMimicDeps={(node) =>
                                           requestMimicDepsInstall([node])
@@ -4315,6 +4350,7 @@ export default function NodePage() {
                     onConfigureInstance={openInstanceConfigEditor}
                     onDeleteInstance={setInstanceDeleteTarget}
                     onResetInstanceTraffic={setInstanceResetTarget}
+                    onToggleInstancePause={handleToggleInstancePause}
                     onReorderInstances={reorderNodeInstances}
                     onInstallMimicDeps={(node) => requestMimicDepsInstall([node])}
                     onShareNode={(node) => void openNodeSharing(node)}
@@ -5514,6 +5550,15 @@ export default function NodePage() {
                     step="0.01"
                     type="number"
                     value={instanceConfigForm.usedTraffic} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, usedTraffic: e.target.value }))}
+                  />
+                  <Input
+                    description="权重为 0 时暂停转发"
+                    label="权重"
+                    min={0}
+                    type="number"
+                    value={instanceConfigForm.weight}
+                    variant="bordered"
+                    onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, weight: e.target.value }))}
                   />
                 </div>
               </div>

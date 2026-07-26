@@ -606,6 +606,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/reset-total-flow", h.nodeResetTotalFlow)
 	mux.HandleFunc("/api/v1/node/pause", h.nodePause)
 	mux.HandleFunc("/api/v1/node/resume", h.nodeResume)
+	mux.HandleFunc("/api/v1/node/instance-pause", h.nodeInstancePause)
+	mux.HandleFunc("/api/v1/node/instance-resume", h.nodeInstanceResume)
 	mux.HandleFunc("/api/v1/node/weight", h.nodeWeightUpdate)
 	mux.HandleFunc("/api/v1/node/dns-failover/get", h.nodeDNSFailoverGet)
 	mux.HandleFunc("/api/v1/node/dns-failover/save", h.nodeDNSFailoverSave)
