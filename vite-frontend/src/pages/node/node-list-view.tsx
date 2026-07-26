@@ -454,11 +454,11 @@ function RemoteNodeInstanceRows({
               <th className="px-1 py-2 text-right font-medium">
                 下行流量
               </th>
-              <th className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-2 text-center font-medium">
+              <th className="px-1 py-2 text-center font-medium">
                 共享范围
               </th>
               <th aria-label="到期提醒" className="w-[110px] min-w-[110px] max-w-[110px]" />
-              <th aria-label="备注" className="w-[130px] min-w-[130px] max-w-[130px]" />
+              <th aria-label="备注" className="" />
               <th aria-label="操作" />
             </tr>
           </thead>
@@ -540,7 +540,7 @@ function RemoteNodeInstanceRows({
                   <td className="px-1 py-2.5 text-right text-primary-700 dark:text-primary-300">
                     {formatTraffic(downFlow)}
                   </td>
-                  <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-2.5 text-center text-default-700">
+                  <td className="px-1 py-2.5 text-center text-default-700">
                     {instance.selected
                       ? "指定共享"
                       : instance.inScope
@@ -697,50 +697,26 @@ function NodeInstanceRows({
               <thead className="border-b border-default-300/70 bg-default-100/30 text-xs text-default-500">
                 <tr>
                   <th aria-label="选择" />
-                  <th className="px-0 py-2 text-center font-medium" title="拖拽排序">
-                    排序
-                  </th>
+                  <th className="px-0 py-2 text-center font-medium" title="拖拽排序">排序</th>
                   <th className="px-1 py-2 text-center font-medium">WGM</th>
-                  <th className="px-1 py-2 text-center font-medium">
-                    状态
-                  </th>
+                  <th className="px-1 py-2 text-center font-medium">状态</th>
                   <th className="px-1 py-2 text-left font-medium">
                     实例名称
                     <span className="font-normal text-primary-500">
                       ^{members.length}个
                     </span>
                   </th>
-                  <th className="px-1 py-2 text-center font-medium">
-                    版本
-                  </th>
-                  <th className="px-1 py-2 text-center font-medium">
-                    权重
-                  </th>
+                  <th className="px-1 py-2 text-center font-medium">版本</th>
+                  <th className="px-1 py-2 text-center font-medium">权重</th>
                   <th className="px-1 py-2 text-left font-medium">地区 / 地址</th>
-                  <th className="px-1 py-2 text-center font-medium">
-                    在线数
-                  </th>
-                  <th className="px-1 py-2 text-right font-medium">
-                    周期流量
-                  </th>
-                  <th className="px-1 py-2 text-right font-medium">
-                    上行流量
-                  </th>
-                  <th className="px-1 py-2 text-right font-medium">
-                    下行流量
-                  </th>
-                  <th className="w-[110px] min-w-[110px] max-w-[110px] px-1 py-2 text-center font-medium">
-                    流量限额
-                  </th>
-                  <th className="w-[110px] min-w-[110px] max-w-[110px] px-1 py-2 text-center font-medium">
-                    到期提醒
-                  </th>
-                  <th className="w-[130px] min-w-[130px] max-w-[130px] px-1 py-2 text-left font-medium">
-                    备注
-                  </th>
-                  <th className="px-1 py-2 text-left font-medium">
-                    操作
-                  </th>
+                  <th className="px-1 py-2 text-center font-medium">在线数</th>
+                  <th className="px-1 py-2 text-right font-medium">周期流量</th>
+                  <th className="px-1 py-2 text-right font-medium">上行流量</th>
+                  <th className="px-1 py-2 text-right font-medium">下行流量</th>
+                  <th className="px-1 py-2 text-center font-medium">流量限额</th>
+                  <th className="px-1 py-2 text-center font-medium">到期提醒</th>
+                  <th className="px-1 py-2 text-left font-medium">备注</th>
+                  <th className="px-1 py-2 text-left font-medium">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -898,7 +874,7 @@ function NodeInstanceRows({
                       <td className="px-1 py-3 text-right text-primary-700 dark:text-primary-300">
                         {formatTraffic(getPeriodNetTraffic(member).rx)}
                       </td>
-                      <td className="w-[100px] min-w-[100px] max-w-[100px] px-1 py-3 text-center text-default-700" style={{ width: "100px" }}>
+                      <td className="px-1 py-3 text-center text-default-700" style={{ width: "100px" }}>
                         {(member.trafficLimit ?? 0) > 0 ? (() => {
                           const traffic = getPeriodNetTraffic(member);
                           const used = traffic.rx + traffic.tx;
@@ -925,7 +901,7 @@ function NodeInstanceRows({
                           );
                         })()}
                       </td>
-                      <td className="w-[110px] min-w-[110px] max-w-[110px] px-2 py-3 text-center text-default-700">
+                      <td className="px-2 py-3 text-center text-default-700">
                         {member.expiryTime && member.renewalCycle
                           ? (() => {
                             const meta = getNodeRenewalSnapshot(
@@ -1019,7 +995,7 @@ function NodeInstanceRows({
                           })()
                           : "-"}
                       </td>
-                      <td className="w-[130px] min-w-[130px] max-w-[130px] px-2 py-3 text-left align-middle truncate text-default-600 text-xs">
+                      <td className=" px-2 py-3 text-left align-middle truncate text-default-600 text-xs">
                         {member.remark?.trim() ? (
                           <SmartTooltip content={member.remark.trim()}>
                             <span className="truncate block">{member.remark.trim()}</span>
@@ -1624,7 +1600,7 @@ function SortableTableRow({
           </div>
         </TableCell>
         <TableCell
-          className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap ${rowBg}`}
+          className={`whitespace-nowrap ${rowBg}`}
         >
           <div className="flex w-[96px] justify-end">
             <span className="truncate text-sm text-success-700 dark:text-success-300">
@@ -1633,7 +1609,7 @@ function SortableTableRow({
           </div>
         </TableCell>
         <TableCell
-          className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap ${rowBg}`}
+          className={`whitespace-nowrap ${rowBg}`}
         >
           <div className="flex w-[96px] justify-end">
             <span className="truncate text-sm text-primary-700 dark:text-primary-300">
@@ -1641,7 +1617,7 @@ function SortableTableRow({
             </span>
           </div>
         </TableCell>
-        <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] ${rowBg}`} aria-label="流量限额" style={{ width: "110px" }}>
+        <TableCell className={`${rowBg}`} aria-label="流量限额" style={{ width: "110px" }}>
           <div className="flex w-full justify-center">
             {node.isRemote === 1 ? (
               <SmartTooltip content={remoteTrafficTitle}>
@@ -1654,7 +1630,7 @@ function SortableTableRow({
             )}
           </div>
         </TableCell>
-        <TableCell className={`w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap text-center ${rowBg}`}>
+        <TableCell className={`whitespace-nowrap text-center ${rowBg}`}>
           {remoteExpiryChipProps ? (
             <span
               className={`inline-flex rounded-lg border border-transparent px-2.5 py-1 text-xs font-medium ${remoteExpiryChipProps.className}`}
@@ -1753,7 +1729,7 @@ function SortableTableRow({
           )}
         </TableCell>
         <TableCell
-          className={`w-[130px] min-w-[130px] max-w-[130px] whitespace-nowrap px-1 ${rowBg}`}
+          className={` whitespace-nowrap px-1 ${rowBg}`}
         >
           {node.remark?.trim() ? (
             <SmartTooltip content={node.remark.trim()}>
@@ -1975,7 +1951,7 @@ export function NodeListView({
   const localDisplayNodes = displayNodes.filter((node) => node.isRemote !== 1);
   const expandableDisplayNodes = displayNodes.filter((node) =>
     node.isRemote === 1
-      ? (node.remoteInstances || []).some((instance) => instance.inScope)
+      ? (node.remoteInstances || []).some((instance: RemoteInstance) => instance.inScope)
       : true,
   );
   const isAllSelected =
@@ -2168,19 +2144,19 @@ export function NodeListView({
           <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             在线数
           </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[120px] max-w-[120px] text-right">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-right">
             周期流量
           </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[110px] max-w-[110px] text-right">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-right">
             上行流量
           </TableColumn>
-          <TableColumn className="whitespace-nowrap px-1 py-2 min-w-[110px] max-w-[110px] text-right">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-right">
             下行流量
           </TableColumn>
-          <TableColumn className="w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap px-1 py-2 text-center">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             流量限额
           </TableColumn>
-          <TableColumn className="w-[110px] min-w-[110px] max-w-[110px] whitespace-nowrap px-1 py-2 text-center">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
             <Select
               aria-label="按到期状态筛选"
               className="!w-auto !min-w-0"
@@ -2216,7 +2192,7 @@ export function NodeListView({
               </SelectItem>
             </Select>
           </TableColumn>
-          <TableColumn className="w-[130px] min-w-[130px] max-w-[130px] whitespace-nowrap px-1 py-2 text-left">
+          <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
             备注
           </TableColumn>
           <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
