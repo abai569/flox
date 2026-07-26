@@ -5528,29 +5528,25 @@ export default function NodePage() {
                     type="number"
                     value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))}
                   />
-                  <div>
-                    <Select
-                      label="流量累计模式"
-                      isDisabled={(instanceConfigTarget?.trafficLimit ?? 0) > 0}
-                      selectedKeys={[String(instanceConfigForm.trafficLimitMode)]}
-                      variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimitMode: Number(Array.from(keys)[0] || 0) }))}>
-                      <SelectItem key="1" description="每月归零日自动重置累计流量">按月累计</SelectItem>
-                      <SelectItem key="0" description="流量一直累加，达到限额后暂停">终身累计</SelectItem>
-                    </Select>
-                    {(instanceConfigTarget?.trafficLimit ?? 0) > 0 && (
-                      <p className="text-xs text-default-500 mt-1">首次设置流量限额后不可更改</p>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
-                    description="留空不矫正，输入目标值自动按比例分配上下行"
+                    description="输入目标值自动按比例分配上下行"
                     label="已用流量(GB)"
                     min={0}
                     step="0.01"
                     type="number"
                     value={instanceConfigForm.usedTraffic} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, usedTraffic: e.target.value }))}
                   />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Select
+                    description="首次设置流量限额后不可更改"
+                    label="流量累计模式"
+                    isDisabled={(instanceConfigTarget?.trafficLimit ?? 0) > 0}
+                    selectedKeys={[String(instanceConfigForm.trafficLimitMode)]}
+                    variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimitMode: Number(Array.from(keys)[0] || 0) }))}>
+                    <SelectItem key="1" description="每月归零日自动重置累计流量">按月累计</SelectItem>
+                    <SelectItem key="0" description="流量一直累加，达到限额后暂停">终身累计</SelectItem>
+                  </Select>
                   <Input
                     description="权重为 0 时暂停转发"
                     label="权重"
