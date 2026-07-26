@@ -5273,7 +5273,7 @@ export default function ForwardPage() {
     <AnimatedPage className="px-3 lg:px-6 py-8">
       {/* 页面头部 */}
       <div className="flex items-center mb-6 gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex min-h-8 flex-wrap items-center gap-2">
           {selectedIds.size > 0 ? (
             <>
               <Button
