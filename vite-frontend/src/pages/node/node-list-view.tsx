@@ -1264,14 +1264,15 @@ function SortableTableRow({
       total + (instance.onlineCount ?? 0),
     0,
   );
+  const trafficRatio = (node.trafficRatio && node.trafficRatio > 0) ? node.trafficRatio : 1;
   const localPeriodNetTraffic = instanceMembers.reduce(
     (total: { rx: number; tx: number }, member: MonitorNodeInstanceGroupMemberApiItem) => {
       const realtime = realtimeInstanceMetrics[
         `${member.nodeId}:${member.instanceId?.trim() || ""}`
       ]?.periodTraffic;
 
-      total.rx += realtime?.rx ?? member.periodNetInBytes ?? 0;
-      total.tx += realtime?.tx ?? member.periodNetOutBytes ?? 0;
+      total.rx += (realtime?.rx ?? member.periodNetInBytes ?? 0) * trafficRatio;
+      total.tx += (realtime?.tx ?? member.periodNetOutBytes ?? 0) * trafficRatio;
       return total;
     },
     { rx: 0, tx: 0 },
