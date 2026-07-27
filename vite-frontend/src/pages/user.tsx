@@ -2348,7 +2348,7 @@ export default function UserPage() {
                                 </Button>
                               </div>
                             </div>
-                            {user.flow !== 99999 && (
+                            {user.flow !== 99999 && usedFlow > 0 && (
                               <Progress
                                 aria-label="已用流量比例"
                                 className="mt-1 ml-auto w-24 cursor-pointer"

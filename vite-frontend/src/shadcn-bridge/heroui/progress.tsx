@@ -45,7 +45,7 @@ export function Progress({
   value = 0,
 }: ProgressProps) {
   return (
-    <div className={cn("w-full space-y-1", className)}>
+    <div className={cn("space-y-1", className)}>
       {label || showValueLabel ? (
         <div className="flex items-center justify-between text-xs text-default-500">
           <span>{label}</span>
