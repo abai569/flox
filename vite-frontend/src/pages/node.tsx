@@ -2090,7 +2090,7 @@ export default function NodePage() {
         instanceId: instanceConfigTarget.instanceId,
         displayName,
         remark,
-        weight: Number(instanceConfigForm.weight) || 1,
+        weight: instanceConfigForm.weight.trim() === "" ? 1 : Number(instanceConfigForm.weight),
         portRange,
         flowResetTime: Math.floor(flowResetTime),
         trafficLimit: Math.floor(trafficLimit),
