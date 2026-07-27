@@ -204,16 +204,16 @@ jobs:
           } > ./vite-frontend/.env.production
 
       - name: Build and push Vite Docker images
-        run: |
-          VERSION="${{ needs.check-version.outputs.version }}"
-          OWNER="${{ needs.check-version.outputs.image_owner }}"
-
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --push \
-            -t ${{ env.REGISTRY }}/${OWNER}/flox-svc-frontend:latest \
-            -t ${{ env.REGISTRY }}/${OWNER}/flox-svc-frontend:${VERSION} \
-            ./vite-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./vite-frontend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ needs.check-version.outputs.image_owner }}/flox-svc-frontend:latest
+            ${{ env.REGISTRY }}/${{ needs.check-version.outputs.image_owner }}/flox-svc-frontend:${{ needs.check-version.outputs.version }}
 
   build-go-backend:
     name: Build & Push Go Backend
@@ -266,16 +266,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Go backend Docker images
-        run: |
-          VERSION="${{ needs.check-version.outputs.version }}"
-          OWNER="${{ needs.check-version.outputs.image_owner }}"
-
-          docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --push \
-            -t ${{ env.REGISTRY }}/${OWNER}/flox-svc-backend:latest \
-            -t ${{ env.REGISTRY }}/${OWNER}/flox-svc-backend:${VERSION} \
-            ./go-backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./go-backend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ needs.check-version.outputs.image_owner }}/flox-svc-backend:latest
+            ${{ env.REGISTRY }}/${{ needs.check-version.outputs.image_owner }}/flox-svc-backend:${{ needs.check-version.outputs.version }}
 
   create-release:
     name: Create Release (Tag Only)
