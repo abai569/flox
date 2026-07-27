@@ -2316,44 +2316,42 @@ export default function UserPage() {
                         <SmartTooltip
                           content={`已用：${formatFlow(usedFlow)}\n剩余：${user.flow === 99999 ? "不限" : formatFlow(Math.max(user.flow * 1024 * 1024 * 1024 - usedFlow, 0))}\n总量：${user.flow === 99999 ? "不限" : formatFlow(user.flow * 1024 * 1024 * 1024)}`}
                         >
-                          <TableCell className="whitespace-nowrap">
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center justify-end gap-1">
-                                <span className="cursor-pointer text-sm font-medium text-primary">
-                                  {formatFlow(usedFlow)}
-                                </span>
-                                <Button
-                                  isIconOnly
-                                  className="h-6 min-w-6"
-                                  size="sm"
-                                  variant="flat"
-                                  onPress={() =>
-                                    openHistoryModal(user as UserWithHistory)
-                                  }
+                          <TableCell className="whitespace-nowrap relative">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="cursor-pointer text-sm font-medium text-primary">
+                                {formatFlow(usedFlow)}
+                              </span>
+                              <Button
+                                isIconOnly
+                                className="h-6 min-w-6"
+                                size="sm"
+                                variant="flat"
+                                onPress={() =>
+                                  openHistoryModal(user as UserWithHistory)
+                                }
+                              >
+                                <svg
+                                  aria-hidden="true"
+                                  className="h-4 w-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                  viewBox="0 0 24 24"
                                 >
-                                  <svg
-                                    aria-hidden="true"
-                                    className="h-4 w-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth={2}
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      d="M19 9l-7 7-7-7"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    />
-                                  </svg>
-                                </Button>
-                              </div>
+                                  <path
+                                    d="M19 9l-7 7-7-7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              </Button>
                             </div>
                             {user.flow !== 99999 && (() => {
                               const usedPercent = (usedFlow / (user.flow * 1024 * 1024 * 1024)) * 100;
                               return usedPercent >= 1 && (
                                 <Progress
                                   aria-label="已用流量比例"
-                                  className="mt-1 ml-auto w-24 cursor-pointer"
+                                  className="absolute bottom-0 right-0 w-24 cursor-pointer"
                                   color={usedPercent > 80 ? "danger" : "primary"}
                                   size="sm"
                                   value={Math.min(usedPercent, 100)}
