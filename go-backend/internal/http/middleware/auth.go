@@ -126,6 +126,25 @@ func requiresAdmin(path string) bool {
 	if path == "/api/v1/federation/node/import" {
 		return true
 	}
+	if strings.HasPrefix(path, "/api/v1/order/admin/") {
+		return true
+	}
+	if strings.HasPrefix(path, "/api/v1/billing/") {
+		return true
+	}
+	if strings.HasPrefix(path, "/api/v1/package-group/") && path != "/api/v1/package-group/list" {
+		return true
+	}
+	switch path {
+	case "/api/v1/package/create",
+		"/api/v1/package/update",
+		"/api/v1/package/delete",
+		"/api/v1/package/assign",
+		"/api/v1/package/store-status/save",
+		"/api/v1/package/toggle-auto-buy-traffic",
+		"/api/v1/package/auto-buy-traffic/list":
+		return true
+	}
 	if strings.HasPrefix(path, "/api/v1/monitor/permission/") {
 		return true
 	}

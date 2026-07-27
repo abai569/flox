@@ -25,31 +25,36 @@ func (h *Handler) StartBackgroundJobs() {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	jobs := []func(context.Context){
+		h.runHourlyStatsLoop,
+		h.runDailyMaintenanceLoop,
+		h.runAutoBuyTrafficLoop,
+		h.runNodeRenewalCycleLoop,
+		h.runMetricsIngestion,
+		h.runHealthChecks,
+		h.runTunnelQualityProber,
+		h.runBestExitLoop,
+		h.runNftablesDomainRefreshLoop,
+		h.runCancelExpiredOrdersLoop,
+		h.runExpirePackageSubscriptionsLoop,
+		h.runNodeNotifyCooldownLoop,
+		h.runTelegramBotLoop,
+		h.runSDWANReconcileLoop,
+		h.runDNSFailoverLoop,
+		h.runPeerShareExpiryLoop,
+		h.runRemoteShareEventManager,
+		h.runFederationTunnelReleaseRetryLoop,
+		h.runAuthoritativeFlowResendLoop,
+		h.runFlowRelayOutboxLoop,
+	}
 	h.jobsCancel = cancel
 	h.jobsStarted = true
-	h.jobsWG.Add(19)
+	h.jobsWG.Add(len(jobs))
 	h.jobsMu.Unlock()
 
-	go h.runHourlyStatsLoop(ctx)
-	go h.runDailyMaintenanceLoop(ctx)
-	go h.runAutoBuyTrafficLoop(ctx)
-	go h.runNodeRenewalCycleLoop(ctx)
-	go h.runMetricsIngestion(ctx)
-	go h.runHealthChecks(ctx)
-	go h.runTunnelQualityProber(ctx)
-	go h.runBestExitLoop(ctx)
-	go h.runNftablesDomainRefreshLoop(ctx)
-	go h.runCancelExpiredOrdersLoop(ctx)
-	go h.runExpirePackageSubscriptionsLoop(ctx)
-	go h.runNodeNotifyCooldownLoop(ctx)
-	go h.runTelegramBotLoop(ctx)
-	go h.runSDWANReconcileLoop(ctx)
-	go h.runDNSFailoverLoop(ctx)
-	go h.runPeerShareExpiryLoop(ctx)
-	go h.runRemoteShareEventManager(ctx)
-	go h.runFederationTunnelReleaseRetryLoop(ctx)
-	go h.runAuthoritativeFlowResendLoop(ctx)
-	go h.runFlowRelayOutboxLoop(ctx)
+	for _, job := range jobs {
+		go job(ctx)
+	}
 
 	tier, _ := middleware.GetLicenseTier()
 	if tier != middleware.TierFree {
@@ -644,45 +649,26 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 			continue
 		}
 
-		// 检查是否启用自动续费
 		resetReason := "到期自动归零"
-		if user.AutoRenew == 1 && user.RenewalAmount > 0 {
-			// 检查余额是否充足
-			if user.Balance >= user.RenewalAmount {
-				// 计算续费后的到期时间（+1 个月）
-				baseTime := user.ExpTime
-				if baseTime < nowMs {
-					// 已过期，从当前时间开始计算
-					baseTime = nowMs
-				}
-				newExpTime := time.UnixMilli(baseTime).AddDate(0, 1, 0).UnixMilli()
+		newExpTime, renewed, renewErr := h.repo.TryAutoRenewForUser(userID, nowMs)
+		if renewErr == nil && renewed {
+			log.Printf("用户 %d 自动续费成功：扣款 %d 分，新到期时间 %v",
+				userID, user.RenewalAmount, time.UnixMilli(newExpTime))
+			_ = h.repo.MarkUserAutoRenewSuccess(userID, newExpTime, nowMs)
+			_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
+			h.resumePausedForwardsByUser(userID, nowMs)
 
-				// 扣款并续费
-				if renewErr := h.repo.RenewUserWithBalance(userID, user.RenewalAmount, newExpTime, nowMs); renewErr == nil {
-					log.Printf("用户 %d 自动续费成功：扣款 %d 分，新到期时间 %v",
-						userID, user.RenewalAmount, time.UnixMilli(newExpTime))
-					_ = h.repo.MarkUserAutoRenewSuccess(userID, newExpTime, nowMs)
-					// 恢复 Forward 规则（状态更新 + 节点服务恢复）
-					_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
-					h.resumePausedForwardsByUser(userID, nowMs)
+			h.sendBotNotification(func(bot *telegram.Bot) {
+				bot.SendUserFlowReset(user.User)
+			})
 
-					h.sendBotNotification(func(bot *telegram.Bot) {
-						bot.SendUserFlowReset(user.User)
-					})
-
-					continue // 续费成功，跳过禁用
-				} else {
-					log.Printf("用户 %d 自动续费失败：%v，将执行禁用", userID, renewErr)
-					resetReason = "自动续费失败（扣款失败）"
-				}
-			} else {
-				log.Printf("用户 %d 余额不足：余额 %d 分，需要 %d 分，将执行禁用",
-					userID, user.Balance, user.RenewalAmount)
-				resetReason = "自动续费失败（余额不足）"
-			}
+			continue
+		}
+		if renewErr != nil {
+			log.Printf("用户 %d 自动续费失败：%v，将执行禁用", userID, renewErr)
+			resetReason = "自动续费失败（扣款失败）"
 		}
 
-		// 余额不足或未启用自动续费：执行禁用 + 归零流量
 		forwards, err := h.listActiveForwardsByUser(userID)
 		if err == nil {
 			h.pauseForwardRecords(forwards, nowMs)
@@ -999,17 +985,16 @@ func (h *Handler) cancelExpiredOrders() {
 		return
 	}
 
-	ids := make([]int64, 0, len(orders))
+	cancelled := 0
 	for _, o := range orders {
-		ids = append(ids, o.ID)
+		if err := h.repo.CancelPendingPackageOrder(o.ID, 0); err != nil {
+			log.Printf("[orders] 取消超时订单 %d 失败: %v", o.ID, err)
+			continue
+		}
+		cancelled++
 	}
 
-	if err := h.repo.BatchCancelOrders(ids); err != nil {
-		log.Printf("[orders] 取消超时订单失败: %v", err)
-		return
-	}
-
-	log.Printf("[orders] 已取消 %d 个超时未支付订单", len(ids))
+	log.Printf("[orders] 已取消 %d 个超时未支付订单", cancelled)
 }
 
 func (h *Handler) runExpirePackageSubscriptionsLoop(ctx context.Context) {
@@ -1042,10 +1027,6 @@ func (h *Handler) expirePackageSubscriptions() {
 	for _, sub := range expired {
 		if err := h.repo.ExpirePackageSubscription(sub.ID); err != nil {
 			log.Printf("[packages] 过期套餐 %d 失败: %v", sub.ID, err)
-			continue
-		}
-		if err := h.repo.ResetUserPackageQuotas(sub.UserID); err != nil {
-			log.Printf("[packages] 重置用户 %d 配额失败: %v", sub.UserID, err)
 			continue
 		}
 		if err := h.syncUserForwardsEffectiveSpeedLimit(sub.UserID); err != nil {

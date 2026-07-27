@@ -1184,10 +1184,6 @@ export const deleteOrder = (id: number, force?: boolean) =>
 
 export const updateOrder = (data: {
   id: number;
-  status?: number;
-  amount?: number;
-  payTime?: number;
-  payCurrency?: string;
   productName?: string;
 }) => Network.post("/order/admin/update", data);
 
