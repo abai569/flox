@@ -634,9 +634,7 @@ export function VersionFooter({
                       <span className="text-sm font-semibold">升级说明</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 list-disc list-outside pl-4 text-xs text-danger-600/80 dark:text-danger-400/80">
-                      <p className="list-item">
-                        升级前自动备份配置和数据库
-                      </p>
+                      <p className="list-item">升级前自动备份配置和数据库</p>
                       <p className="list-item">
                         最近 5 次备份保存在 /root/floxbackup
                       </p>
@@ -650,8 +648,8 @@ export function VersionFooter({
                       <p className="list-item">请确保服务器磁盘空间充足</p>
                     </div>
                     <div className="text-sm text-default-500">
-                    是否立即升级面板？
-                  </div> 
+                      是否立即升级面板？
+                    </div>
                   </div>
                 )}
               </ModalBody>

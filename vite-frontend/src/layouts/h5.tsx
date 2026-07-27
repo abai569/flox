@@ -466,7 +466,10 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       (!item.adminOnly || isAdmin) &&
       (!item.userOnly || !isAdmin) &&
       !(item.premiumOnly && licenseInfo?.tier === "free") &&
-      !(item.path === "/sdwan" && configCache.get("forward_mode_sdw_enabled") === "false") &&
+      !(
+        item.path === "/sdwan" &&
+        configCache.get("forward_mode_sdw_enabled") === "false"
+      ) &&
       !(item.path === "/monitor" && monitorAllowed !== true) &&
       !(item.path === "/shop" && !isAdmin && !storeEnabled) &&
       !(
@@ -736,7 +739,8 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
             {filteredMenuItems.map((item) => {
               const isActive = location.pathname === item.path;
               const isStoreBlocked = item.path === "/shop" && !storeEnabled;
-              const isRestrictedBlocked = restricted && !item.restrictedAccessible;
+              const isRestrictedBlocked =
+                restricted && !item.restrictedAccessible;
               const isBlocked = isStoreBlocked || isRestrictedBlocked;
 
               return (

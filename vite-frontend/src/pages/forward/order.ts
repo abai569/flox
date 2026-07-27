@@ -28,7 +28,10 @@ export const getUserScopedForwards = <T extends ForwardOrderItem>(
   return forwards.filter((item) => item.userId === currentUserId);
 };
 
-export const compareForwardOrder = <T extends ForwardOrderItem>(a: T, b: T): number => {
+export const compareForwardOrder = <T extends ForwardOrderItem>(
+  a: T,
+  b: T,
+): number => {
   const aInx = typeof a.inx === "number" ? a.inx : 0;
   const bInx = typeof b.inx === "number" ? b.inx : 0;
   const aOrdered = aInx > 0;

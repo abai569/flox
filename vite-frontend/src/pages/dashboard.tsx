@@ -702,7 +702,11 @@ export default function DashboardPage() {
                 bottomContent={
                   storeEnabled ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <StatusDot active className="h-1.5 w-1.5" tone="success" />
+                      <StatusDot
+                        active
+                        className="h-1.5 w-1.5"
+                        tone="success"
+                      />
                       <span
                         className="text-xs text-primary cursor-pointer hover:underline"
                         onClick={() => (window.location.href = "/shop")}
@@ -745,20 +749,30 @@ export default function DashboardPage() {
               <MetricCard
                 bottomContent={
                   userInfo.expTime &&
-                    typeof userInfo.expTime === "number" &&
-                    Number(userInfo.expTime) > 0 ? (
+                  typeof userInfo.expTime === "number" &&
+                  Number(userInfo.expTime) > 0 ? (
                     <div className="mt-1 flex items-center gap-1">
                       <StatusDot
-                        active={(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7}
+                        active={
+                          (Number(userInfo.expTime) - Date.now()) /
+                            (1000 * 60 * 60 * 24) >
+                          7
+                        }
                         className="h-1.5 w-1.5"
-                        tone={(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7 ? "success" : "warning"}
+                        tone={
+                          (Number(userInfo.expTime) - Date.now()) /
+                            (1000 * 60 * 60 * 24) >
+                          7
+                            ? "success"
+                            : "warning"
+                        }
                       />
                       <span
                         className={`text-xs ${(Number(userInfo.expTime) - Date.now()) / (1000 * 60 * 60 * 24) > 7 ? "text-success" : "text-warning"}`}
                       >
                         {Math.ceil(
                           (Number(userInfo.expTime) - Date.now()) /
-                          (1000 * 60 * 60 * 24),
+                            (1000 * 60 * 60 * 24),
                         )}{" "}
                         天后到期
                       </span>
@@ -784,12 +798,12 @@ export default function DashboardPage() {
                 value={
                   userInfo.expTime
                     ? new Date(userInfo.expTime)
-                      .toLocaleDateString("zh-CN", {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit",
-                      })
-                      .replace(/\//g, "-")
+                        .toLocaleDateString("zh-CN", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                        })
+                        .replace(/\//g, "-")
                     : "永久"
                 }
               />
@@ -800,7 +814,11 @@ export default function DashboardPage() {
                 bottomContent={
                   (autoRenewOverride ?? userInfo.autoRenew) === 1 ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <StatusDot active className="h-1.5 w-1.5" tone="success" />
+                      <StatusDot
+                        active
+                        className="h-1.5 w-1.5"
+                        tone="success"
+                      />
                       <span className="text-xs text-success">
                         自动续费运行中
                       </span>
@@ -860,7 +878,11 @@ export default function DashboardPage() {
                     ) : (
                       <div className="flex items-center justify-between text-xs">
                         <div className="flex items-center gap-1">
-                          <StatusDot active className="h-1.5 w-1.5" tone="success" />
+                          <StatusDot
+                            active
+                            className="h-1.5 w-1.5"
+                            tone="success"
+                          />
                           <span className="text-success">
                             {(() => {
                               const p = autoBuyPackages.find(
@@ -891,7 +913,11 @@ export default function DashboardPage() {
                     )
                   ) : userInfo.autoBuyTraffic === 1 ? (
                     <div className="mt-1 flex items-center gap-1">
-                      <StatusDot active className="h-1.5 w-1.5" tone="success" />
+                      <StatusDot
+                        active
+                        className="h-1.5 w-1.5"
+                        tone="success"
+                      />
                       <span className="text-xs text-success">
                         管理员手动开启 自动购流运行中
                       </span>
@@ -936,14 +962,14 @@ export default function DashboardPage() {
                   storeEnabled
                     ? (autoBuyOverride ?? userInfo.autoBuyTraffic) === 1
                       ? (autoBuyPackageIdOverride ??
-                        userInfo.autoBuyTrafficPackageId ??
-                        0) > 0
+                          userInfo.autoBuyTrafficPackageId ??
+                          0) > 0
                         ? (autoBuyPackages.find(
-                          (p) =>
-                            p.id ===
-                            (autoBuyPackageIdOverride ??
-                              userInfo.autoBuyTrafficPackageId),
-                        )?.name ?? "套餐自动购买")
+                            (p) =>
+                              p.id ===
+                              (autoBuyPackageIdOverride ??
+                                userInfo.autoBuyTrafficPackageId),
+                          )?.name ?? "套餐自动购买")
                         : "点击设置相关内容"
                       : "禁用"
                     : userInfo.autoBuyTraffic === 1
@@ -994,7 +1020,8 @@ export default function DashboardPage() {
                   </div>
 
                   <p className="mt-1 text-sm text-default-500">
-                    展示 7 天内需要续费或已经逾期的节点，基于月付/季付/年付周期自动推算
+                    展示 7
+                    天内需要续费或已经逾期的节点，基于月付/季付/年付周期自动推算
                   </p>
                 </div>
               </div>
@@ -1054,7 +1081,8 @@ export default function DashboardPage() {
                       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-3">
                         <div>
                           <h3 className="font-semibold text-foreground">
-                            {formatRemoteDisplayText(tunnel.tunnelName)} {/* 注释隧道 ID: {tunnel.id} */}
+                            {formatRemoteDisplayText(tunnel.tunnelName)}{" "}
+                            {/* 注释隧道 ID: {tunnel.id} */}
                           </h3>
                           <div className="flex flex-wrap items-center gap-2 mt-1">
                             <span
@@ -1181,7 +1209,7 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between w-full mb-2">
                       <span className="text-sm font-medium text-default-600">
                         {item.resetReason === "管理员手动归零" ||
-                          item.resetReason === "管理员手动重置"
+                        item.resetReason === "管理员手动重置"
                           ? "admin"
                           : "系统自动"}
                       </span>

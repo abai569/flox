@@ -31,8 +31,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Play, StopCircle } from "lucide-react";
-import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 import { timestampToCalendarDate, calendarDateToTimestamp } from "@/utils/date";
 import { SearchBar } from "@/components/search-bar";
 import {
@@ -178,8 +178,9 @@ const isNoLimitSpeedRule = (
     speedLimit.speed,
     speedLimit.uploadSpeed,
     speedLimit.downloadSpeed,
-  ].filter((speed): speed is number =>
-    typeof speed === "number" && Number.isFinite(speed),
+  ].filter(
+    (speed): speed is number =>
+      typeof speed === "number" && Number.isFinite(speed),
   );
 
   return speeds.length > 0 && speeds.every((speed) => speed <= 0);
@@ -220,7 +221,8 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
         ? undefined
         : Number(item.tunnelGroupId),
     manualTunnelEnabled: item.manualTunnelEnabled === 1 ? 1 : 0,
-    forwardSpeedLimit: Number(item.forwardSpeedLimit) > 0 ? Number(item.forwardSpeedLimit) : 0,
+    forwardSpeedLimit:
+      Number(item.forwardSpeedLimit) > 0 ? Number(item.forwardSpeedLimit) : 0,
     quotaHistory: [],
     showHistory: false,
   } as UserWithHistory;
@@ -238,9 +240,12 @@ const normalizeUserTunnelItem = (item: Partial<UserTunnel>): UserTunnel => {
     flowResetTime: Number(item.flowResetTime ?? 0),
     speedId: item.speedId ?? null,
     speedLimitName: item.speedLimitName,
-    ceilingSpeed: Number(item.ceilingSpeed) > 0 ? Number(item.ceilingSpeed) : null,
+    ceilingSpeed:
+      Number(item.ceilingSpeed) > 0 ? Number(item.ceilingSpeed) : null,
     forwardSpeedLimit:
-      Number(item.forwardSpeedLimit) > 0 ? Number(item.forwardSpeedLimit) : null,
+      Number(item.forwardSpeedLimit) > 0
+        ? Number(item.forwardSpeedLimit)
+        : null,
     inFlow: Number(item.inFlow ?? 0),
     outFlow: Number(item.outFlow ?? 0),
     tunnelFlow: item.tunnelFlow,
@@ -675,7 +680,7 @@ export default function UserPage() {
             "vite_config_registration_enabled",
             enabled ? "true" : "false",
           );
-        } catch { }
+        } catch {}
         window.dispatchEvent(new CustomEvent("configUpdated"));
         toast.success(enabled ? "注册已开启" : "注册已关闭");
       } else {
@@ -876,7 +881,7 @@ export default function UserPage() {
       if (response.code === 0) {
         setTunnels(Array.isArray(response.data) ? response.data : []);
       }
-    } catch { }
+    } catch {}
   }, []);
   const loadSpeedLimits = useCallback(async () => {
     try {
@@ -885,15 +890,15 @@ export default function UserPage() {
       if (response.code === 0) {
         const speedLimitList = Array.isArray(response.data)
           ? response.data.map((item) => ({
-            ...item,
-            uploadSpeed: item.uploadSpeed ?? item.speed ?? 0,
-            downloadSpeed: item.downloadSpeed ?? item.speed ?? 0,
-          }))
+              ...item,
+              uploadSpeed: item.uploadSpeed ?? item.speed ?? 0,
+              downloadSpeed: item.downloadSpeed ?? item.speed ?? 0,
+            }))
           : [];
 
         setSpeedLimits(speedLimitList);
       }
-    } catch { }
+    } catch {}
   }, []);
   const loadTunnelGroups = useCallback(async () => {
     try {
@@ -902,7 +907,7 @@ export default function UserPage() {
       if (response.code === 0) {
         setTunnelGroups(Array.isArray(response.data) ? response.data : []);
       }
-    } catch { }
+    } catch {}
   }, []);
   const loadUserTunnels = useCallback(async (userId: number) => {
     setTunnelListLoading(true);
@@ -966,7 +971,7 @@ export default function UserPage() {
             setRegOpen(v === "1" || v === "true");
           }
         })
-        .catch(() => { });
+        .catch(() => {});
     };
 
     loadReg();
@@ -1043,22 +1048,22 @@ export default function UserPage() {
           prev.map((user) =>
             user.id === historyModalUser.id
               ? {
-                ...user,
-                quotaHistory: user.quotaHistory?.filter(
-                  (item) => item.id !== historyToDelete,
-                ),
-              }
+                  ...user,
+                  quotaHistory: user.quotaHistory?.filter(
+                    (item) => item.id !== historyToDelete,
+                  ),
+                }
               : user,
           ),
         );
         setHistoryModalUser((current) =>
           current?.id === historyModalUser.id
             ? {
-              ...current,
-              quotaHistory: current.quotaHistory?.filter(
-                (item) => item.id !== historyToDelete,
-              ),
-            }
+                ...current,
+                quotaHistory: current.quotaHistory?.filter(
+                  (item) => item.id !== historyToDelete,
+                ),
+              }
             : current,
         );
         onDeleteConfirmClose();
@@ -1074,17 +1079,21 @@ export default function UserPage() {
   const openHistoryModal = useCallback(
     async (user: UserWithHistory) => {
       const requestID = ++historyRequestRef.current;
+
       setHistoryModalUser(user);
       onHistoryModalOpen();
       try {
         const res = await getUserQuotaHistory(user.id, 50);
+
         if (requestID !== historyRequestRef.current) return;
 
         if (res.code !== 0) {
           toast.error(res.msg || "加载流量历史失败");
+
           return;
         }
         const quotaHistory = res.data || [];
+
         setUsers((prev) =>
           prev.map((item) =>
             item.id === user.id ? { ...item, quotaHistory } : item,
@@ -1141,7 +1150,8 @@ export default function UserPage() {
       autoBuyTrafficPackageType:
         ((user as any).autoBuyTrafficPackageId ?? 0) > 0 ? "package" : "custom",
       roleId: (user as any).roleId ?? 1,
-      forwardSpeedLimit: (user.forwardSpeedLimit ?? 0) > 0 ? (user.forwardSpeedLimit ?? 0) : 0,
+      forwardSpeedLimit:
+        (user.forwardSpeedLimit ?? 0) > 0 ? (user.forwardSpeedLimit ?? 0) : 0,
     });
     if (((user as any).autoBuyTrafficPackageId ?? 0) > 0) {
       loadAutoBuyPackages();
@@ -1158,6 +1168,7 @@ export default function UserPage() {
     if (user.roleId === 0 && authenticatedUsername !== "admin") {
       return "只有 admin 可以删除其他管理员账号";
     }
+
     return "";
   };
   const deleteRestriction = getDeleteRestriction(userToDelete);
@@ -1305,6 +1316,7 @@ export default function UserPage() {
   ]);
   const handleOpenRenewalLogModal = async (user: User) => {
     const requestID = ++logRequestRef.current;
+
     setSelectedRenewalLogUser(user);
     setIsRenewalLogModalOpen(true);
     setLogModalTab("renewal");
@@ -1318,6 +1330,7 @@ export default function UserPage() {
         getUserRenewalLogs(user.id, 50),
         getUserTrafficBuyLogs(user.id, 50),
       ]);
+
       if (requestID !== logRequestRef.current) return;
 
       if (renewalResult.status === "fulfilled") {
@@ -1438,9 +1451,11 @@ export default function UserPage() {
     if (!editTunnelForm) return;
     if (
       Number(editTunnelForm.ceilingSpeed) > 0 &&
-      Number(editTunnelForm.forwardSpeedLimit) > Number(editTunnelForm.ceilingSpeed)
+      Number(editTunnelForm.forwardSpeedLimit) >
+        Number(editTunnelForm.ceilingSpeed)
     ) {
       toast.error("规则限速不能高于隧道限速阈值");
+
       return;
     }
     setEditTunnelLoading(true);
@@ -1481,10 +1496,10 @@ export default function UserPage() {
             speedLimitName:
               normalizeSpeedId(editTunnelForm.speedId) !== null
                 ? speedLimits.find(
-                  (speedLimit) =>
-                    speedLimit.id ===
-                    normalizeSpeedId(editTunnelForm.speedId),
-                )?.name
+                    (speedLimit) =>
+                      speedLimit.id ===
+                      normalizeSpeedId(editTunnelForm.speedId),
+                  )?.name
                 : undefined,
           });
 
@@ -1520,9 +1535,11 @@ export default function UserPage() {
     if (!batchEditTunnelForm || selectedUserTunnelIds.size === 0) return;
     if (
       Number(batchEditTunnelForm.ceilingSpeed) > 0 &&
-      Number(batchEditTunnelForm.forwardSpeedLimit) > Number(batchEditTunnelForm.ceilingSpeed)
+      Number(batchEditTunnelForm.forwardSpeedLimit) >
+        Number(batchEditTunnelForm.ceilingSpeed)
     ) {
       toast.error("规则限速不能高于隧道限速阈值");
+
       return;
     }
     setBatchEditTunnelLoading(true);
@@ -1564,19 +1581,19 @@ export default function UserPage() {
         prev.map((tunnel) =>
           selectedUserTunnelIds.has(tunnel.id)
             ? normalizeUserTunnelItem({
-              ...tunnel,
-              flow: batchEditTunnelForm.flow,
-              num: batchEditTunnelForm.num,
-              expTime: batchEditTunnelForm.expTime,
-              speedId,
-              ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
-              forwardSpeedLimit:
-                Number(batchEditTunnelForm.forwardSpeedLimit) > 0
-                  ? Number(batchEditTunnelForm.forwardSpeedLimit)
-                  : null,
-              status: batchEditTunnelForm.status,
-              speedLimitName,
-            })
+                ...tunnel,
+                flow: batchEditTunnelForm.flow,
+                num: batchEditTunnelForm.num,
+                expTime: batchEditTunnelForm.expTime,
+                speedId,
+                ceilingSpeed: batchEditTunnelForm.ceilingSpeed ?? null,
+                forwardSpeedLimit:
+                  Number(batchEditTunnelForm.forwardSpeedLimit) > 0
+                    ? Number(batchEditTunnelForm.forwardSpeedLimit)
+                    : null,
+                status: batchEditTunnelForm.status,
+                speedLimitName,
+              })
             : tunnel,
         ),
       );
@@ -1753,7 +1770,7 @@ export default function UserPage() {
               });
             }
           }
-        } catch { }
+        } catch {}
 
         setUserToReset(null);
       } else {
@@ -1836,7 +1853,7 @@ export default function UserPage() {
               });
             }
           }
-        } catch { }
+        } catch {}
 
         setTunnelToReset(null);
       } else {
@@ -1968,12 +1985,13 @@ export default function UserPage() {
     return (
       <TableRow
         ref={setNodeRef}
-        className={`cursor-default transition-colors ${selectedUserIds.has(user.id)
-          ? "bg-primary-50 dark:bg-primary-900/30"
-          : selectedUserId === user.id
+        className={`cursor-default transition-colors ${
+          selectedUserIds.has(user.id)
             ? "bg-primary-50 dark:bg-primary-900/30"
-            : "hover:bg-default-50/50"
-          }`}
+            : selectedUserId === user.id
+              ? "bg-primary-50 dark:bg-primary-900/30"
+              : "hover:bg-default-50/50"
+        }`}
         style={style}
         onClick={() => {
           if (!batchMode) {
@@ -2247,28 +2265,35 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
-                            <SmartTooltip content={user.user}><span
-                              className={`font-medium truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                copyToClipboard(user.user, "用户名");
-                              }}
-                            >
-                              {user.user}
-                            </span></SmartTooltip>
+                            <SmartTooltip content={user.user}>
+                              <span
+                                className={`font-medium truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(user.user, "用户名");
+                                }}
+                              >
+                                {user.user}
+                              </span>
+                            </SmartTooltip>
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
-                            <SmartTooltip content={user.name || user.user}><span
-                              className="text-default-500 truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                copyToClipboard(user.name || user.user, "备注");
-                              }}
-                            >
-                              {user.name || user.user}
-                            </span></SmartTooltip>
+                            <SmartTooltip content={user.name || user.user}>
+                              <span
+                                className="text-default-500 truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(
+                                    user.name || user.user,
+                                    "备注",
+                                  );
+                                }}
+                              >
+                                {user.name || user.user}
+                              </span>
+                            </SmartTooltip>
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -2280,59 +2305,62 @@ export default function UserPage() {
                               : formatFlow(user.flow, "gb")}
                           </span>
                         </TableCell>
-                        <SmartTooltip content={`已用：${formatFlow(usedFlow)}\n剩余：${user.flow === 99999 ? "不限" : formatFlow(Math.max(user.flow * 1024 * 1024 * 1024 - usedFlow, 0))}\n总量：${user.flow === 99999 ? "不限" : formatFlow(user.flow * 1024 * 1024 * 1024)}`}><TableCell
-                          className="whitespace-nowrap"
+                        <SmartTooltip
+                          content={`已用：${formatFlow(usedFlow)}\n剩余：${user.flow === 99999 ? "不限" : formatFlow(Math.max(user.flow * 1024 * 1024 * 1024 - usedFlow, 0))}\n总量：${user.flow === 99999 ? "不限" : formatFlow(user.flow * 1024 * 1024 * 1024)}`}
                         >
-                          <div className="flex flex-col items-end gap-1">
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="cursor-pointer text-sm font-medium text-primary">
-                                {formatFlow(usedFlow)}
-                              </span>
-                              <Button
-                                isIconOnly
-                                className="h-6 min-w-6"
-                                size="sm"
-                                variant="flat"
-                                onPress={() =>
-                                  openHistoryModal(user as UserWithHistory)
-                                }
-                              >
-                                <svg
-                                  aria-hidden="true"
-                                  className="h-4 w-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth={2}
-                                  viewBox="0 0 24 24"
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="cursor-pointer text-sm font-medium text-primary">
+                                  {formatFlow(usedFlow)}
+                                </span>
+                                <Button
+                                  isIconOnly
+                                  className="h-6 min-w-6"
+                                  size="sm"
+                                  variant="flat"
+                                  onPress={() =>
+                                    openHistoryModal(user as UserWithHistory)
+                                  }
                                 >
-                                  <path
-                                    d="M19 9l-7 7-7-7"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                </svg>
-                              </Button>
+                                  <svg
+                                    aria-hidden="true"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      d="M19 9l-7 7-7-7"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          {user.flow !== 99999 && (
-                            <Progress
-                              aria-label="已用流量比例"
-                              className="mt-1 ml-auto w-24 cursor-pointer"
-                              color={
-                                usedFlow / (user.flow * 1024 * 1024 * 1024) >
+                            {user.flow !== 99999 && (
+                              <Progress
+                                aria-label="已用流量比例"
+                                className="mt-1 ml-auto w-24 cursor-pointer"
+                                color={
+                                  usedFlow / (user.flow * 1024 * 1024 * 1024) >
                                   0.8
-                                  ? "danger"
-                                  : "primary"
-                              }
-                              size="sm"
-                              value={Math.min(
-                                (usedFlow / (user.flow * 1024 * 1024 * 1024)) *
-                                100,
-                                100,
-                              )}
-                            />
-                          )}
-                        </TableCell></SmartTooltip>
+                                    ? "danger"
+                                    : "primary"
+                                }
+                                size="sm"
+                                value={Math.min(
+                                  (usedFlow /
+                                    (user.flow * 1024 * 1024 * 1024)) *
+                                    100,
+                                  100,
+                                )}
+                              />
+                            )}
+                          </TableCell>
+                        </SmartTooltip>
                         <TableCell className="whitespace-nowrap">
                           <span className="text-sm text-foreground">
                             {user.num}个
@@ -2360,15 +2388,16 @@ export default function UserPage() {
                                 </span>
                               ) : (
                                 <div
-                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${((expStatus?.color as string) || "") ===
+                                  className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                                    ((expStatus?.color as string) || "") ===
                                     "success"
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : expStatus?.color === "warning"
-                                      ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-                                      : expStatus?.color === "danger"
-                                        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                        : "bg-default-500/10 text-default-500"
-                                    }`}
+                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                      : expStatus?.color === "warning"
+                                        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                                        : expStatus?.color === "danger"
+                                          ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                          : "bg-default-500/10 text-default-500"
+                                  }`}
                                 >
                                   {expStatus?.text || "未知"}
                                 </div>
@@ -2413,10 +2442,11 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span
-                            className={`text-sm font-medium ${user.balance && user.balance > 0
-                              ? "text-success"
-                              : "text-default-400"
-                              }`}
+                            className={`text-sm font-medium ${
+                              user.balance && user.balance > 0
+                                ? "text-success"
+                                : "text-default-400"
+                            }`}
                           >
                             {user.balance != null ? `${user.balance}元` : "-"}
                           </span>
@@ -2430,32 +2460,35 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
-                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                              }`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                              user.autoRenew === 1
+                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
                           >
                             {user.autoRenew === 1 ? "启用" : "禁用"}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
-                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                              : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                              }`}
+                            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                              user.autoBuyTraffic === 1
+                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
                           >
                             {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionLevelMap.get(user.id) === 1
-                              ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
-                              : monitorPermissionLevelMap.has(user.id)
-                                ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                              }`}
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              monitorPermissionLevelMap.get(user.id) === 1
+                                ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+                                : monitorPermissionLevelMap.has(user.id)
+                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                            }`}
                           >
                             {monitorPermissionLevelMap.has(user.id) ? (
                               <>
@@ -2555,10 +2588,11 @@ export default function UserPage() {
                 return (
                   <StaggerItem key={user.id}>
                     <div
-                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${selectedUserIds.has(user.id)
-                        ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
-                        : ""
-                        }`}
+                      className={`shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 overflow-hidden h-full rounded-xl cursor-default ${
+                        selectedUserIds.has(user.id)
+                          ? "bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700"
+                          : ""
+                      }`}
                     >
                       <Card className="shadow-none border-0">
                         <CardHeader className="pb-2 md:pb-2">
@@ -2586,25 +2620,32 @@ export default function UserPage() {
                           </div>
                           <div className="flex justify-between items-center w-full mt-1">
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <SmartTooltip content={user.user}><span
-                                className={`font-medium text-sm truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
+                              <SmartTooltip content={user.user}>
+                                <span
+                                  className={`font-medium text-sm truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    copyToClipboard(user.user, "用户名");
+                                  }}
+                                >
+                                  {user.user}
+                                </span>
+                              </SmartTooltip>
+                            </div>
+                            <SmartTooltip content={user.name || user.user}>
+                              <span
+                                className="text-sm text-default-500 truncate ml-2 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  copyToClipboard(user.user, "用户名");
+                                  copyToClipboard(
+                                    user.name || user.user,
+                                    "备注",
+                                  );
                                 }}
                               >
-                                {user.user}
-                              </span></SmartTooltip>
-                            </div>
-                            <SmartTooltip content={user.name || user.user}><span
-                              className="text-sm text-default-500 truncate ml-2 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                copyToClipboard(user.name || user.user, "备注");
-                              }}
-                            >
-                              {user.name || user.user}
-                            </span></SmartTooltip>
+                                {user.name || user.user}
+                              </span>
+                            </SmartTooltip>
                           </div>
                         </CardHeader>
                         <CardBody className="pt-0 pb-3 md:pt-0 md:pb-3">
@@ -2649,7 +2690,7 @@ export default function UserPage() {
                                 {user.expTime && user.expTime > 0 ? (
                                   <>
                                     {expStatus &&
-                                      expStatus.color === "success" ? (
+                                    expStatus.color === "success" ? (
                                       <span className="text-xs">
                                         {new Date(user.expTime)
                                           .toLocaleDateString("zh-CN", {
@@ -2736,10 +2777,11 @@ export default function UserPage() {
                                 可用余额
                               </span>
                               <span
-                                className={`text-xs font-medium ${user.balance && user.balance > 0
-                                  ? "text-success"
-                                  : "text-default-400"
-                                  }`}
+                                className={`text-xs font-medium ${
+                                  user.balance && user.balance > 0
+                                    ? "text-success"
+                                    : "text-default-400"
+                                }`}
                               >
                                 {user.balance != null
                                   ? `${user.balance}元`
@@ -2751,10 +2793,11 @@ export default function UserPage() {
                                 自动续费
                               </span>
                               <div
-                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoRenew === 1
-                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                  }`}
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  user.autoRenew === 1
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                }`}
                               >
                                 {user.autoRenew === 1 ? "启用" : "禁用"}
                               </div>
@@ -2764,10 +2807,11 @@ export default function UserPage() {
                                 自动购流
                               </span>
                               <div
-                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${user.autoBuyTraffic === 1
-                                  ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                  : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                  }`}
+                                className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  user.autoBuyTraffic === 1
+                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                }`}
                               >
                                 {user.autoBuyTraffic === 1 ? "启用" : "禁用"}
                               </div>
@@ -2777,18 +2821,19 @@ export default function UserPage() {
                                 监控权限
                               </span>
                               <div
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${monitorPermissionLevelMap.get(user.id) === 1
-                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                  : monitorPermissionLevelMap.has(user.id)
-                                    ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                                    : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                                  }`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  monitorPermissionLevelMap.get(user.id) === 1
+                                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                    : monitorPermissionLevelMap.has(user.id)
+                                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                                }`}
                               >
                                 {monitorPermissionLevelMap.has(user.id) ? (
                                   <>
                                     <EyeIcon className="w-3 h-3" />
                                     {monitorPermissionLevelMap.get(user.id) ===
-                                      1
+                                    1
                                       ? "全开"
                                       : "同步"}
                                   </>
@@ -2895,8 +2940,8 @@ export default function UserPage() {
           <ModalBody>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
               <Input
-                autoComplete="off"
                 isRequired
+                autoComplete="off"
                 label="用户名"
                 value={userForm.user}
                 onChange={(e) =>
@@ -2974,6 +3019,7 @@ export default function UserPage() {
                 selectionMode="single"
                 onSelectionChange={(keys) => {
                   const val = Array.from(keys as Set<string>)[0];
+
                   setUserForm((prev) => ({
                     ...prev,
                     tunnelGroupId: val ? Number(val) : undefined,
@@ -3069,8 +3115,8 @@ export default function UserPage() {
               <Input
                 description="限制用户所有转发规则的速率"
                 label="单规则限速 (Mbps)"
-                placeholder=""
                 min="1"
+                placeholder=""
                 step="1"
                 type="number"
                 value={String(userForm.forwardSpeedLimit ?? "")}
@@ -3085,16 +3131,19 @@ export default function UserPage() {
                   const speed = Number(raw);
 
                   if (Number.isInteger(speed) && speed > 0) {
-                    setUserForm((prev) => ({ ...prev, forwardSpeedLimit: speed }));
+                    setUserForm((prev) => ({
+                      ...prev,
+                      forwardSpeedLimit: speed,
+                    }));
                   }
                 }}
               />
               <Input
                 description="1-31=日期 0=不归零"
                 label="流量归零日"
-                placeholder="例：1"
                 max={31}
                 min={0}
+                placeholder="例：1"
                 type="number"
                 value={
                   userForm.flowResetTime > 0
@@ -3140,7 +3189,9 @@ export default function UserPage() {
                   placeholder="手动充值"
                   step="1"
                   type="number"
-                  value={userForm.balance > 0 ? userForm.balance.toString() : ""}
+                  value={
+                    userForm.balance > 0 ? userForm.balance.toString() : ""
+                  }
                   onChange={(e) => {
                     const value = Number(e.target.value);
 
@@ -3169,6 +3220,7 @@ export default function UserPage() {
                   selectedKeys={[userForm.autoRenew.toString()]}
                   onSelectionChange={(keys) => {
                     const value = Array.from(keys)[0] as string;
+
                     setUserForm((prev) => ({
                       ...prev,
                       autoRenew: Number(value),
@@ -3183,6 +3235,7 @@ export default function UserPage() {
                   selectedKeys={[userForm.status.toString()]}
                   onSelectionChange={(keys) => {
                     const value = Array.from(keys)[0] as string;
+
                     setUserForm((prev) => ({
                       ...prev,
                       status: Number(value),
@@ -3197,6 +3250,7 @@ export default function UserPage() {
                   selectedKeys={[userForm.autoBuyTraffic.toString()]}
                   onSelectionChange={(keys) => {
                     const value = Array.from(keys)[0] as string;
+
                     setUserForm((prev) => ({
                       ...prev,
                       autoBuyTraffic: Number(value),
@@ -3217,6 +3271,7 @@ export default function UserPage() {
                   }
                   onSelectionChange={(keys) => {
                     const value = Array.from(keys)[0] as string;
+
                     if (value === "package") {
                       loadAutoBuyPackages();
                       setUserForm((prev) => ({
@@ -3270,8 +3325,8 @@ export default function UserPage() {
                       <Input
                         description="剩余流量低于此值时触发"
                         label="触发阈值 (GB)"
-                        placeholder="例：20"
                         min="1"
+                        placeholder="例：20"
                         step="1"
                         type="number"
                         value={
@@ -3439,14 +3494,14 @@ export default function UserPage() {
                           <TableCell className="whitespace-nowrap">
                             {log.renewalTime
                               ? new Date(log.renewalTime)
-                                .toLocaleString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                                  .toLocaleString("zh-CN", {
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                  .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="text-success font-medium whitespace-nowrap">
@@ -3461,31 +3516,32 @@ export default function UserPage() {
                           <TableCell className="whitespace-nowrap">
                             {log.expTimeBefore
                               ? new Date(log.expTimeBefore)
-                                .toLocaleDateString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                                  .toLocaleDateString("zh-CN", {
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                  })
+                                  .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="text-primary font-medium whitespace-nowrap">
                             {log.expTimeAfter
                               ? new Date(log.expTimeAfter)
-                                .toLocaleDateString("zh-CN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                })
-                                .replace(/\//g, "-")
+                                  .toLocaleDateString("zh-CN", {
+                                    year: "numeric",
+                                    month: "2-digit",
+                                    day: "2-digit",
+                                  })
+                                  .replace(/\//g, "-")
                               : "-"}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             <span
-                              className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动续费"
-                                ? "bg-success-500/10 text-success-600"
-                                : "bg-default-500/10 text-default-600"
-                                }`}
+                              className={`text-xs px-2 py-0.5 rounded ${
+                                log.reason === "自动续费"
+                                  ? "bg-success-500/10 text-success-600"
+                                  : "bg-default-500/10 text-default-600"
+                              }`}
                             >
                               {log.reason}
                             </span>
@@ -3560,14 +3616,14 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           {log.buyTime
                             ? new Date(log.buyTime)
-                              .toLocaleString("zh-CN", {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                              .replace(/\//g, "-")
+                                .toLocaleString("zh-CN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                                .replace(/\//g, "-")
                             : "-"}
                         </TableCell>
                         <TableCell className="text-danger font-medium whitespace-nowrap">
@@ -3590,10 +3646,11 @@ export default function UserPage() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span
-                            className={`text-xs px-2 py-0.5 rounded ${log.reason === "自动购买流量"
-                              ? "bg-primary-500/10 text-primary-600"
-                              : "bg-default-500/10 text-default-600"
-                              }`}
+                            className={`text-xs px-2 py-0.5 rounded ${
+                              log.reason === "自动购买流量"
+                                ? "bg-primary-500/10 text-primary-600"
+                                : "bg-default-500/10 text-default-600"
+                            }`}
                           >
                             {log.reason}
                           </span>
@@ -3753,10 +3810,11 @@ export default function UserPage() {
                   {/* 👇 核心修复 2：分配按钮必须和选择框放在同一行！用 flex-1 min-w-0 压制选择框宽度 */}
                   <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
                     <div
-                      className={`group flex items-center px-3 sm:px-4 h-10 rounded-xl border-2 transition-all cursor-pointer shadow-sm overflow-hidden flex-1 min-w-0 ${isTunnelListExpanded
-                        ? "border-primary bg-primary-50/20 ring-4 ring-primary/10"
-                        : "border-default-200 bg-default-50 hover:border-primary-300"
-                        }`}
+                      className={`group flex items-center px-3 sm:px-4 h-10 rounded-xl border-2 transition-all cursor-pointer shadow-sm overflow-hidden flex-1 min-w-0 ${
+                        isTunnelListExpanded
+                          ? "border-primary bg-primary-50/20 ring-4 ring-primary/10"
+                          : "border-default-200 bg-default-50 hover:border-primary-300"
+                      }`}
                       onClick={() =>
                         setIsTunnelListExpanded(!isTunnelListExpanded)
                       }
@@ -3766,12 +3824,12 @@ export default function UserPage() {
                       >
                         {batchTunnelSelections.size > 0
                           ? `已选 ${batchTunnelSelections.size} 项：` +
-                          Array.from(batchTunnelSelections.keys())
-                            .map(
-                              (id) => tunnels.find((t) => t.id === id)?.name,
-                            )
-                            .filter(Boolean)
-                            .join("、")
+                            Array.from(batchTunnelSelections.keys())
+                              .map(
+                                (id) => tunnels.find((t) => t.id === id)?.name,
+                              )
+                              .filter(Boolean)
+                              .join("、")
                           : "请选择隧道（勾选后配置）"}
                       </span>
                       <svg
@@ -3810,9 +3868,9 @@ export default function UserPage() {
                                   tunnels.filter((t) => !isTunnelAssigned(t.id))
                                     .length > 0 &&
                                   batchTunnelSelections.size ===
-                                  tunnels.filter(
-                                    (t) => !isTunnelAssigned(t.id),
-                                  ).length
+                                    tunnels.filter(
+                                      (t) => !isTunnelAssigned(t.id),
+                                    ).length
                                 }
                                 size="sm"
                                 onValueChange={(isSelected) => {
@@ -4076,15 +4134,17 @@ export default function UserPage() {
                             <TableCell>
                               <div className="flex flex-col gap-0.5 text-xs sm:text-sm">
                                 <span className="text-default-600">
-                                  {userTunnel.ceilingSpeed != null && userTunnel.ceilingSpeed > 0
+                                  {userTunnel.ceilingSpeed != null &&
+                                  userTunnel.ceilingSpeed > 0
                                     ? `${userTunnel.ceilingSpeed} Mbps`
                                     : "不限速"}
                                 </span>
-                                {userTunnel.forwardSpeedLimit != null && userTunnel.forwardSpeedLimit > 0 && (
-                                  <span className="text-primary-600 bg-primary-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
-                                    规则 {userTunnel.forwardSpeedLimit} Mbps
-                                  </span>
-                                )}
+                                {userTunnel.forwardSpeedLimit != null &&
+                                  userTunnel.forwardSpeedLimit > 0 && (
+                                    <span className="text-primary-600 bg-primary-50 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded">
+                                      规则 {userTunnel.forwardSpeedLimit} Mbps
+                                    </span>
+                                  )}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -4325,66 +4385,68 @@ export default function UserPage() {
                 </DatePicker>
                 <div className="grid grid-cols-2 gap-4">
                   <Input
+                    description="限制总带宽，留空不限速"
                     label="隧道限速阈值 (Mbps)"
-                    placeholder="不限速"
-                    type="number"
                     min="1"
+                    placeholder="不限速"
                     step="1"
+                    type="number"
                     value={
                       batchEditTunnelForm.ceilingSpeed != null
                         ? String(batchEditTunnelForm.ceilingSpeed)
                         : ""
                     }
                     variant="bordered"
-                    description="限制总带宽，留空不限速"
                     onChange={(e) => {
                       const raw = e.target.value;
+
                       setBatchEditTunnelForm((prev) =>
                         prev
                           ? {
-                            ...prev,
-                            ceilingSpeed: (() => {
-                              if (raw === "") return null;
-                              const speed = Number(raw);
+                              ...prev,
+                              ceilingSpeed: (() => {
+                                if (raw === "") return null;
+                                const speed = Number(raw);
 
-                              return Number.isInteger(speed) && speed > 0
-                                ? speed
-                                : prev.ceilingSpeed;
-                            })(),
-                          }
+                                return Number.isInteger(speed) && speed > 0
+                                  ? speed
+                                  : prev.ceilingSpeed;
+                              })(),
+                            }
                           : null,
                       );
                     }}
                   />
                   <Input
+                    description="管理员强制规则限速"
                     label="规则限速 (Mbps)"
-                    placeholder="留空允许用户自定义"
-                    type="number"
-                    min="1"
                     max={batchEditTunnelForm.ceilingSpeed ?? undefined}
+                    min="1"
+                    placeholder="留空允许用户自定义"
                     step="1"
+                    type="number"
                     value={
                       batchEditTunnelForm.forwardSpeedLimit != null
                         ? String(batchEditTunnelForm.forwardSpeedLimit)
                         : ""
                     }
                     variant="bordered"
-                    description="管理员强制规则限速"
                     onChange={(e) => {
                       const raw = e.target.value;
+
                       setBatchEditTunnelForm((prev) =>
                         prev
                           ? {
-                            ...prev,
-                            forwardSpeedLimit: (() => {
-                              if (raw === "") return null;
-                              const speed = Number(raw);
+                              ...prev,
+                              forwardSpeedLimit: (() => {
+                                if (raw === "") return null;
+                                const speed = Number(raw);
 
-                              return Number.isInteger(speed) && speed > 0
-                                ? speed
-                                : prev.forwardSpeedLimit;
-                            })(),
-                          }
+                                return Number.isInteger(speed) && speed > 0
+                                  ? speed
+                                  : prev.forwardSpeedLimit;
+                              })(),
+                            }
                           : null,
                       );
                     }}
@@ -4432,7 +4494,9 @@ export default function UserPage() {
         onClose={onEditTunnelModalClose}
       >
         <ModalContent>
-          <ModalHeader>编辑隧道权限 - {formatRemoteDisplayText(editTunnelForm?.tunnelName)}</ModalHeader>
+          <ModalHeader>
+            编辑隧道权限 - {formatRemoteDisplayText(editTunnelForm?.tunnelName)}
+          </ModalHeader>
           <ModalBody>
             {editTunnelForm && (
               <>
@@ -4470,9 +4534,7 @@ export default function UserPage() {
                   showMonthAndYearPickers
                   label="到期时间"
                   value={timestampToCalendarDate(
-                    editTunnelForm.expTime > 0
-                      ? editTunnelForm.expTime
-                      : null,
+                    editTunnelForm.expTime > 0 ? editTunnelForm.expTime : null,
                   )}
                   onChange={(date) => {
                     const ts = calendarDateToTimestamp(date) || 0;
@@ -4494,10 +4556,10 @@ export default function UserPage() {
                   <Input
                     description="这是该用户在当前隧道的总速率，0 表示不限速"
                     label="隧道总限速(Mbps)"
-                    placeholder=""
-                    type="number"
                     min="1"
+                    placeholder=""
                     step="1"
+                    type="number"
                     value={
                       editTunnelForm.ceilingSpeed != null
                         ? String(editTunnelForm.ceilingSpeed)
@@ -4506,19 +4568,20 @@ export default function UserPage() {
                     variant="bordered"
                     onChange={(e) => {
                       const raw = e.target.value;
+
                       setEditTunnelForm((prev) =>
                         prev
                           ? {
-                            ...prev,
-                            ceilingSpeed: (() => {
-                              if (raw === "") return null;
-                              const speed = Number(raw);
+                              ...prev,
+                              ceilingSpeed: (() => {
+                                if (raw === "") return null;
+                                const speed = Number(raw);
 
-                              return Number.isInteger(speed) && speed > 0
-                                ? speed
-                                : prev.ceilingSpeed;
-                            })(),
-                          }
+                                return Number.isInteger(speed) && speed > 0
+                                  ? speed
+                                  : prev.ceilingSpeed;
+                              })(),
+                            }
                           : null,
                       );
                     }}
@@ -4526,11 +4589,11 @@ export default function UserPage() {
                   <Input
                     description="隧道内每条转发规则的速率，0 表示不限速"
                     label="单规则限速(Mbps)"
-                    placeholder=""
-                    type="number"
-                    min="1"
                     max={editTunnelForm.ceilingSpeed ?? undefined}
+                    min="1"
+                    placeholder=""
                     step="1"
+                    type="number"
                     value={
                       editTunnelForm.forwardSpeedLimit != null
                         ? String(editTunnelForm.forwardSpeedLimit)
@@ -4539,19 +4602,20 @@ export default function UserPage() {
                     variant="bordered"
                     onChange={(e) => {
                       const raw = e.target.value;
+
                       setEditTunnelForm((prev) =>
                         prev
                           ? {
-                            ...prev,
-                            forwardSpeedLimit: (() => {
-                              if (raw === "") return null;
-                              const speed = Number(raw);
+                              ...prev,
+                              forwardSpeedLimit: (() => {
+                                if (raw === "") return null;
+                                const speed = Number(raw);
 
-                              return Number.isInteger(speed) && speed > 0
-                                ? speed
-                                : prev.forwardSpeedLimit;
-                            })(),
-                          }
+                                return Number.isInteger(speed) && speed > 0
+                                  ? speed
+                                  : prev.forwardSpeedLimit;
+                              })(),
+                            }
                           : null,
                       );
                     }}
@@ -4937,10 +5001,11 @@ export default function UserPage() {
                     </span>
                   </div>
                   <div
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 1
-                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                      }`}
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                      user.status === 1
+                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                    }`}
                   >
                     {user.status === 1 ? "启用" : "禁用"}
                   </div>
@@ -5008,10 +5073,11 @@ export default function UserPage() {
                     </span>
                   </div>
                   <div
-                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${user.status === 1
-                      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                      : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                      }`}
+                    className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${
+                      user.status === 1
+                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                        : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                    }`}
                   >
                     {user.status === 1 ? "启用" : "禁用"}
                   </div>
@@ -5080,8 +5146,8 @@ export default function UserPage() {
           </ModalHeader>
           <ModalBody className="py-6">
             {historyModalUser &&
-              historyModalUser.quotaHistory &&
-              historyModalUser.quotaHistory.length > 0 ? (
+            historyModalUser.quotaHistory &&
+            historyModalUser.quotaHistory.length > 0 ? (
               <div className="space-y-3 max-h-80 overflow-y-auto">
                 {historyModalUser.quotaHistory.map((item) => (
                   <div
@@ -5091,7 +5157,9 @@ export default function UserPage() {
                     <div className="flex items-center justify-between w-full mb-2">
                       <span className="text-sm font-medium text-default-600">
                         {item.operatorName ||
-                          (item.actionType === "auto_reset" ? "系统自动" : "管理员")}
+                          (item.actionType === "auto_reset"
+                            ? "系统自动"
+                            : "管理员")}
                       </span>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs text-default-500">
@@ -5124,7 +5192,9 @@ export default function UserPage() {
                     <div className="flex flex-col gap-1 w-full">
                       <div className="w-full">
                         <span className="text-default-500 text-sm block mb-1">
-                          {item.actionType === "adjust" ? "修改前流量" : "归零前流量"}
+                          {item.actionType === "adjust"
+                            ? "修改前流量"
+                            : "归零前流量"}
                         </span>
                         <div className="flex items-center justify-end gap-2 flex-wrap">
                           <span className="text-primary-600 text-sm whitespace-nowrap dark:text-primary-400">
@@ -5134,7 +5204,8 @@ export default function UserPage() {
                             ↓{formatFlow(item.outFlowBefore)}
                           </span>
                           <span className="text-default-600 text-sm whitespace-nowrap font-medium">
-                            总 {formatFlow(item.inFlowBefore + item.outFlowBefore)}
+                            总{" "}
+                            {formatFlow(item.inFlowBefore + item.outFlowBefore)}
                           </span>
                         </div>
                       </div>
@@ -5151,7 +5222,8 @@ export default function UserPage() {
                               ↓{formatFlow(item.outFlowAfter)}
                             </span>
                             <span className="text-default-600 text-sm whitespace-nowrap font-medium">
-                              总 {formatFlow(item.inFlowAfter + item.outFlowAfter)}
+                              总{" "}
+                              {formatFlow(item.inFlowAfter + item.outFlowAfter)}
                             </span>
                           </div>
                         </div>
@@ -5159,7 +5231,9 @@ export default function UserPage() {
                       {item.resetReason && (
                         <div className="flex items-center justify-between w-full">
                           <span className="text-default-500 text-sm">
-                            {item.actionType === "adjust" ? "修改原因" : "归零原因"}
+                            {item.actionType === "adjust"
+                              ? "修改原因"
+                              : "归零原因"}
                           </span>
                           <span className="text-red-500 text-sm">
                             {item.resetReason}

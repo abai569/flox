@@ -7,7 +7,11 @@ interface SmartTooltipProps {
   className?: string;
 }
 
-export function SmartTooltip({ content, children, className = "" }: SmartTooltipProps) {
+export function SmartTooltip({
+  content,
+  children,
+  className = "",
+}: SmartTooltipProps) {
   const [show, setShow] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -19,14 +23,17 @@ export function SmartTooltip({ content, children, className = "" }: SmartTooltip
     const checkMobile = () => {
       setIsMobile(window.matchMedia("(pointer: coarse)").matches);
     };
+
     checkMobile();
     window.addEventListener("resize", checkMobile);
+
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
+
     setPosition({
       top: rect.top + window.scrollY,
       left: rect.left + rect.width / 2 + window.scrollX,
@@ -99,9 +106,9 @@ export function SmartTooltip({ content, children, className = "" }: SmartTooltip
         onContextMenu={(e) => e.preventDefault()}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
+        onTouchStart={handleTouchStart}
       >
         {children}
       </span>

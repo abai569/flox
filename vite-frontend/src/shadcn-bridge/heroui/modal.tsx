@@ -49,7 +49,17 @@ function useModalContext() {
   return React.useContext(ModalContext);
 }
 
-type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl" | "4xl" | "5xl" |  "6xl" |  "7xl" |  "full";
+type ModalSize =
+  | "sm"
+  | "md"
+  | "lg"
+  | "xl"
+  | "2xl"
+  | "4xl"
+  | "5xl"
+  | "6xl"
+  | "7xl"
+  | "full";
 
 function mapSize(size: ModalSize | undefined) {
   if (size === "sm") {

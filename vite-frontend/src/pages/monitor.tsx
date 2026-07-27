@@ -6,13 +6,7 @@ import type {
   ServiceMonitorResultApiItem,
 } from "@/api/types";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
@@ -153,12 +147,17 @@ const getDisplayInstanceLabel = (
 };
 
 const getDisplayInstanceName = (
-  member?: Pick<MonitorNodeInstanceGroupMemberApiItem, "displayName" | "displayIndex"> | null,
+  member?: Pick<
+    MonitorNodeInstanceGroupMemberApiItem,
+    "displayName" | "displayIndex"
+  > | null,
   fallbackIndex?: number,
 ): string => {
   const displayName = member?.displayName?.trim();
 
-  return displayName || getDisplayInstanceLabel(member?.displayIndex, fallbackIndex);
+  return (
+    displayName || getDisplayInstanceLabel(member?.displayIndex, fallbackIndex)
+  );
 };
 
 const getGroupConnectionTooltip = (
@@ -237,11 +236,16 @@ const formatMonitorCountryCity = (region?: string): string => {
   const parts = region?.trim().split(/\s+/).filter(Boolean) || [];
 
   if (parts.length <= 2) return parts.join(" ");
-  const country = ["香港", "澳门", "台湾"].includes(parts[0]) ? "中国" : parts[0];
+  const country = ["香港", "澳门", "台湾"].includes(parts[0])
+    ? "中国"
+    : parts[0];
+
   if (parts.includes("香港")) return "中国 香港";
   if (parts.includes("澳门")) return "中国 澳门";
   if (parts.includes("台湾")) {
-    const cityParts = parts.slice(1).filter((part) => !["中国", "台湾"].includes(part));
+    const cityParts = parts
+      .slice(1)
+      .filter((part) => !["中国", "台湾"].includes(part));
     const city = cityParts.length ? cityParts[cityParts.length - 1] : "";
 
     return city ? `中国 ${city}` : "中国 台湾";
@@ -395,7 +399,8 @@ const mergeRealtimeMetric = (
   if (
     !metric ||
     Date.now() - metric.receivedAt > REALTIME_INSTANCE_METRIC_STALE_MS
-  ) return status === member.status ? member : { ...member, status };
+  )
+    return status === member.status ? member : { ...member, status };
 
   return {
     ...member,
@@ -545,24 +550,48 @@ function NodeInstanceGroupsView({
                   </colgroup>
                   <thead className="border-b border-default-400/70 text-sm text-foreground">
                     <tr>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">状态</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        状态
+                      </th>
                       <th className="whitespace-nowrap px-1 py-2 text-start">
                         实例名称
                         <span className="text-xs text-primary-500 font-normal">
                           ^{members.length}个
                         </span>
                       </th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">v4 地区</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">v6 地区</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">出口 IP</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">速率</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">开机时长</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">流量</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">CPU</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">RAM</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">存储</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-center">权重</th>
-                      <th className="whitespace-nowrap px-1 py-2 text-start">操作</th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        v4 地区
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        v6 地区
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        出口 IP
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        速率
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        开机时长
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        流量
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        CPU
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        RAM
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        存储
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-center">
+                        权重
+                      </th>
+                      <th className="whitespace-nowrap px-1 py-2 text-start">
+                        操作
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -578,19 +607,19 @@ function NodeInstanceGroupsView({
                           <td className="px-1 py-3 text-center align-middle">
                             <StatusDot
                               active={member.weight > 0 && member.status === 1}
-                              tone={
-                                member.weight <= 0
-                                  ? "default"
-                                  : member.status === 1
-                                    ? "success"
-                                    : "danger"
-                              }
                               title={
                                 member.weight <= 0
                                   ? "已禁用（权重为 0）"
                                   : member.status === 1
                                     ? "在线"
                                     : "离线"
+                              }
+                              tone={
+                                member.weight <= 0
+                                  ? "default"
+                                  : member.status === 1
+                                    ? "success"
+                                    : "danger"
                               }
                             />
                           </td>
@@ -629,9 +658,7 @@ function NodeInstanceGroupsView({
                               label="IPv6"
                             />
                           </td>
-                          <td
-                            className="group relative px-1 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums"
-                          >
+                          <td className="group relative px-1 py-3 text-center align-middle font-mono text-xs leading-5 tabular-nums">
                             <div className="truncate">
                               {formatSpeed(member.netOutSpeed)}↑
                             </div>
@@ -639,7 +666,8 @@ function NodeInstanceGroupsView({
                               {formatSpeed(member.netInSpeed)}↓
                             </div>
                             <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-                              TCP: {member.tcpConns ?? 0} | UDP: {member.udpConns ?? 0}
+                              TCP: {member.tcpConns ?? 0} | UDP:{" "}
+                              {member.udpConns ?? 0}
                             </div>
                           </td>
                           <td className="px-1 py-3 text-center align-middle">
@@ -647,9 +675,7 @@ function NodeInstanceGroupsView({
                               {formatUptime(member.uptime)}
                             </div>
                           </td>
-                          <td
-                            className="group relative px-1 py-3 text-center align-middle font-mono text-xs"
-                          >
+                          <td className="group relative px-1 py-3 text-center align-middle font-mono text-xs">
                             <div className="truncate">
                               {formatBytes(member.periodNetOutBytes)}↑
                             </div>
@@ -657,7 +683,11 @@ function NodeInstanceGroupsView({
                               {formatBytes(member.periodNetInBytes)}↓
                             </div>
                             <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-                              总量:{formatBytes(member.periodNetOutBytes + member.periodNetInBytes)}
+                              总量:
+                              {formatBytes(
+                                member.periodNetOutBytes +
+                                  member.periodNetInBytes,
+                              )}
                             </div>
                           </td>
                           <td className="px-1 py-3 align-middle">
@@ -689,7 +719,9 @@ function NodeInstanceGroupsView({
                                     ? "bg-default-200 text-default-600"
                                     : ""
                                 }`}
-                                color={member.weight > 0 ? "primary" : "default"}
+                                color={
+                                  member.weight > 0 ? "primary" : "default"
+                                }
                                 size="sm"
                                 variant="flat"
                               >
@@ -852,32 +884,35 @@ export default function MonitorPage() {
     [loadNodeInstanceGroups],
   );
 
-  const loadNodes = useCallback(async (options?: { silent?: boolean }) => {
-    const silent = options?.silent ?? false;
+  const loadNodes = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
 
-    if (!silent) setNodesLoading(true);
-    try {
-      const response = await getMonitorNodes();
+      if (!silent) setNodesLoading(true);
+      try {
+        const response = await getMonitorNodes();
 
-      if (response.code === 0 && Array.isArray(response.data)) {
-        setNodesError(null);
-        setNodes(response.data);
+        if (response.code === 0 && Array.isArray(response.data)) {
+          setNodesError(null);
+          setNodes(response.data);
 
-        return;
+          return;
+        }
+        if (response.code === 403) {
+          setNodes([]);
+          setNodesError(response.msg || "暂无监控权限，请联系管理员授权");
+
+          return;
+        }
+        if (!silent) toast.error(response.msg || "加载节点失败");
+      } catch {
+        if (!silent) toast.error("加载节点失败");
+      } finally {
+        if (!silent) setNodesLoading(false);
       }
-      if (response.code === 403) {
-        setNodes([]);
-        setNodesError(response.msg || "暂无监控权限，请联系管理员授权");
-
-        return;
-      }
-      if (!silent) toast.error(response.msg || "加载节点失败");
-    } catch {
-      if (!silent) toast.error("加载节点失败");
-    } finally {
-      if (!silent) setNodesLoading(false);
-    }
-  }, [loadNodeInstanceGroups]);
+    },
+    [loadNodeInstanceGroups],
+  );
 
   const loadServiceSummary = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -944,7 +979,9 @@ export default function MonitorPage() {
           ),
         );
 
-        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+        return Object.keys(next).length === Object.keys(prev).length
+          ? prev
+          : next;
       });
       setRealtimeInstanceStatuses((prev) => {
         const next = Object.fromEntries(
@@ -954,7 +991,9 @@ export default function MonitorPage() {
           ),
         );
 
-        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+        return Object.keys(next).length === Object.keys(prev).length
+          ? prev
+          : next;
       });
       void loadNodes({ silent: true });
       void loadNodeInstanceGroups({ silent: true });
@@ -964,41 +1003,131 @@ export default function MonitorPage() {
     return () => window.clearInterval(timer);
   }, [loadNodes, loadNodeInstanceGroups, loadServiceSummary]);
 
-  const handleRealtimeMessage = useCallback((message: any) => {
-    const nodeId = Number(message?.id ?? 0);
+  const handleRealtimeMessage = useCallback(
+    (message: any) => {
+      const nodeId = Number(message?.id ?? 0);
 
-    if (!nodeId || Number.isNaN(nodeId)) return;
+      if (!nodeId || Number.isNaN(nodeId)) return;
 
-    const type = String(message?.type ?? "");
-    const payload = message?.data;
+      const type = String(message?.type ?? "");
+      const payload = message?.data;
 
-    if (type === "status") {
-      const status = Number(payload);
+      if (type === "status") {
+        const status = Number(payload);
 
-      if (status === 1) {
-        const timer = offlineTimersRef.current.get(nodeId);
+        if (status === 1) {
+          const timer = offlineTimersRef.current.get(nodeId);
 
-        if (timer) {
-          clearTimeout(timer);
+          if (timer) {
+            clearTimeout(timer);
+            offlineTimersRef.current.delete(nodeId);
+          }
+          setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
+        } else {
+          const timer = offlineTimersRef.current.get(nodeId);
+
+          if (timer) clearTimeout(timer);
+          const nextTimer = setTimeout(() => {
+            offlineTimersRef.current.delete(nodeId);
+            setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "offline" }));
+          }, 3000);
+
+          offlineTimersRef.current.set(nodeId, nextTimer);
+        }
+
+        return;
+      }
+
+      if (type === "instance_status") {
+        let raw = payload;
+
+        if (typeof raw === "string") {
+          try {
+            raw = JSON.parse(raw);
+          } catch {
+            return;
+          }
+        }
+        if (!raw || typeof raw !== "object") return;
+
+        const statusData = raw as Record<string, unknown>;
+        const instanceId = String(
+          statusData.instanceId ?? statusData.instance_id ?? "",
+        ).trim();
+        const status = Number(statusData.status ?? 0) === 1 ? 1 : 0;
+
+        if (!isRealInstanceId(instanceId)) return;
+        const metricKey = getInstanceMetricKey(nodeId, instanceId);
+        const pendingOffline = instanceOfflineTimersRef.current.get(metricKey);
+
+        if (pendingOffline) {
+          clearTimeout(pendingOffline);
+          instanceOfflineTimersRef.current.delete(metricKey);
+        }
+
+        if (status === 0) {
+          const timer = setTimeout(() => {
+            instanceOfflineTimersRef.current.delete(metricKey);
+            setNodeInstanceGroups((prev) =>
+              prev.map((group) =>
+                Number(group.id) !== nodeId
+                  ? group
+                  : {
+                      ...group,
+                      members: group.members.map((member) =>
+                        (member.instanceId || "").trim() === instanceId
+                          ? { ...member, status: 0 }
+                          : member,
+                      ),
+                    },
+              ),
+            );
+            setRealtimeInstanceMetrics((prev) => {
+              if (!(metricKey in prev)) return prev;
+              const next = { ...prev };
+
+              delete next[metricKey];
+
+              return next;
+            });
+            setRealtimeInstanceStatuses((prev) => ({
+              ...prev,
+              [metricKey]: { status: 0, receivedAt: Date.now() },
+            }));
+          }, INSTANCE_OFFLINE_GRACE_MS);
+
+          instanceOfflineTimersRef.current.set(metricKey, timer);
+
+          return;
+        }
+        setRealtimeInstanceStatuses((prev) => ({
+          ...prev,
+          [metricKey]: { status: 1, receivedAt: Date.now() },
+        }));
+        const knownInstance = nodeInstanceGroups.some(
+          (group) =>
+            Number(group.id) === nodeId &&
+            group.members.some(
+              (member) => (member.instanceId || "").trim() === instanceId,
+            ),
+        );
+
+        if (!knownInstance) {
+          scheduleInstanceRefresh(nodeId);
+        }
+        const nodeOfflineTimer = offlineTimersRef.current.get(nodeId);
+
+        if (nodeOfflineTimer) {
+          clearTimeout(nodeOfflineTimer);
           offlineTimersRef.current.delete(nodeId);
         }
         setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
-      } else {
-        const timer = offlineTimersRef.current.get(nodeId);
 
-        if (timer) clearTimeout(timer);
-        const nextTimer = setTimeout(() => {
-          offlineTimersRef.current.delete(nodeId);
-          setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "offline" }));
-        }, 3000);
-
-        offlineTimersRef.current.set(nodeId, nextTimer);
+        return;
       }
 
-      return;
-    }
+      if (type !== "metric") return;
 
-    if (type === "instance_status") {
       let raw = payload;
 
       if (typeof raw === "string") {
@@ -1010,58 +1139,12 @@ export default function MonitorPage() {
       }
       if (!raw || typeof raw !== "object") return;
 
-      const statusData = raw as Record<string, unknown>;
+      const metric = raw as Record<string, unknown>;
       const instanceId = String(
-        statusData.instanceId ?? statusData.instance_id ?? "",
+        metric.instanceId ?? metric.instance_id ?? "",
       ).trim();
-      const status = Number(statusData.status ?? 0) === 1 ? 1 : 0;
 
       if (!isRealInstanceId(instanceId)) return;
-      const metricKey = getInstanceMetricKey(nodeId, instanceId);
-      const pendingOffline = instanceOfflineTimersRef.current.get(metricKey);
-
-      if (pendingOffline) {
-        clearTimeout(pendingOffline);
-        instanceOfflineTimersRef.current.delete(metricKey);
-      }
-
-      if (status === 0) {
-        const timer = setTimeout(() => {
-          instanceOfflineTimersRef.current.delete(metricKey);
-          setNodeInstanceGroups((prev) =>
-            prev.map((group) =>
-              Number(group.id) !== nodeId
-                ? group
-                : {
-                    ...group,
-                    members: group.members.map((member) =>
-                      (member.instanceId || "").trim() === instanceId
-                        ? { ...member, status: 0 }
-                        : member,
-                    ),
-                  },
-            ),
-          );
-          setRealtimeInstanceMetrics((prev) => {
-            if (!(metricKey in prev)) return prev;
-            const next = { ...prev };
-
-            delete next[metricKey];
-            return next;
-          });
-          setRealtimeInstanceStatuses((prev) => ({
-            ...prev,
-            [metricKey]: { status: 0, receivedAt: Date.now() },
-          }));
-        }, INSTANCE_OFFLINE_GRACE_MS);
-
-        instanceOfflineTimersRef.current.set(metricKey, timer);
-        return;
-      }
-      setRealtimeInstanceStatuses((prev) => ({
-        ...prev,
-        [metricKey]: { status: 1, receivedAt: Date.now() },
-      }));
       const knownInstance = nodeInstanceGroups.some(
         (group) =>
           Number(group.id) === nodeId &&
@@ -1073,99 +1156,68 @@ export default function MonitorPage() {
       if (!knownInstance) {
         scheduleInstanceRefresh(nodeId);
       }
+
+      const tcpConns = Number(metric.tcpConns ?? metric.tcp_conns ?? 0);
+      const udpConns = Number(metric.udpConns ?? metric.udp_conns ?? 0);
+      const metricKey = getInstanceMetricKey(nodeId, instanceId);
+      const pendingOffline = instanceOfflineTimersRef.current.get(metricKey);
+
+      if (pendingOffline) {
+        clearTimeout(pendingOffline);
+        instanceOfflineTimersRef.current.delete(metricKey);
+      }
       const nodeOfflineTimer = offlineTimersRef.current.get(nodeId);
 
       if (nodeOfflineTimer) {
         clearTimeout(nodeOfflineTimer);
         offlineTimersRef.current.delete(nodeId);
       }
+      setRealtimeInstanceStatuses((prev) => ({
+        ...prev,
+        [metricKey]: { status: 1, receivedAt: Date.now() },
+      }));
+
+      setRealtimeInstanceMetrics((prev) => ({
+        ...prev,
+        [metricKey]: {
+          receivedAt: Date.now(),
+          publicIpV4: String(metric.publicIpV4 ?? metric.public_ip_v4 ?? ""),
+          publicIpV6: String(metric.publicIpV6 ?? metric.public_ip_v6 ?? ""),
+          netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
+          netOutBytes: Number(
+            metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
+          ),
+          netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
+          netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
+          uptime: Number(
+            metric.uptime ??
+              prev[getInstanceMetricKey(nodeId, instanceId)]?.uptime ??
+              0,
+          ),
+          periodRx: Number(
+            metric.periodRx ?? metric.period_bytes_received ?? 0,
+          ),
+          periodTx: Number(
+            metric.periodTx ?? metric.period_bytes_transmitted ?? 0,
+          ),
+          periodNetInBytes: Number(
+            metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0,
+          ),
+          periodNetOutBytes: Number(
+            metric.periodNetOutBytes ?? metric.period_net_out_bytes ?? 0,
+          ),
+          onlineCount: tcpConns + udpConns,
+          tcpConns,
+          udpConns,
+          cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
+          memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
+          diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
+        },
+      }));
       setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
-
-      return;
-    }
-
-    if (type !== "metric") return;
-
-    let raw = payload;
-
-    if (typeof raw === "string") {
-      try {
-        raw = JSON.parse(raw);
-      } catch {
-        return;
-      }
-    }
-    if (!raw || typeof raw !== "object") return;
-
-    const metric = raw as Record<string, unknown>;
-    const instanceId = String(
-      metric.instanceId ?? metric.instance_id ?? "",
-    ).trim();
-
-    if (!isRealInstanceId(instanceId)) return;
-    const knownInstance = nodeInstanceGroups.some(
-      (group) =>
-        Number(group.id) === nodeId &&
-        group.members.some((member) => (member.instanceId || "").trim() === instanceId),
-    );
-
-    if (!knownInstance) {
-      scheduleInstanceRefresh(nodeId);
-    }
-
-    const tcpConns = Number(metric.tcpConns ?? metric.tcp_conns ?? 0);
-    const udpConns = Number(metric.udpConns ?? metric.udp_conns ?? 0);
-    const metricKey = getInstanceMetricKey(nodeId, instanceId);
-    const pendingOffline = instanceOfflineTimersRef.current.get(metricKey);
-
-    if (pendingOffline) {
-      clearTimeout(pendingOffline);
-      instanceOfflineTimersRef.current.delete(metricKey);
-    }
-    const nodeOfflineTimer = offlineTimersRef.current.get(nodeId);
-
-    if (nodeOfflineTimer) {
-      clearTimeout(nodeOfflineTimer);
-      offlineTimersRef.current.delete(nodeId);
-    }
-    setRealtimeInstanceStatuses((prev) => ({
-      ...prev,
-      [metricKey]: { status: 1, receivedAt: Date.now() },
-    }));
-
-    setRealtimeInstanceMetrics((prev) => ({
-      ...prev,
-      [metricKey]: {
-        receivedAt: Date.now(),
-        publicIpV4: String(metric.publicIpV4 ?? metric.public_ip_v4 ?? ""),
-        publicIpV6: String(metric.publicIpV6 ?? metric.public_ip_v6 ?? ""),
-        netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
-        netOutBytes: Number(
-          metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
-        ),
-        netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
-        netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
-        uptime: Number(
-          metric.uptime ??
-            prev[getInstanceMetricKey(nodeId, instanceId)]?.uptime ??
-            0,
-        ),
-        periodRx: Number(metric.periodRx ?? metric.period_bytes_received ?? 0),
-        periodTx: Number(
-          metric.periodTx ?? metric.period_bytes_transmitted ?? 0,
-        ),
-        periodNetInBytes: Number(metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0),
-        periodNetOutBytes: Number(metric.periodNetOutBytes ?? metric.period_net_out_bytes ?? 0),
-        onlineCount: tcpConns + udpConns,
-        tcpConns,
-        udpConns,
-        cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
-        memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
-        diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
-      },
-    }));
-    setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
-  }, [nodeInstanceGroups, scheduleInstanceRefresh]);
+    },
+    [nodeInstanceGroups, scheduleInstanceRefresh],
+  );
 
   const { wsConnected, wsConnecting } = useNodeRealtime({
     onMessage: handleRealtimeMessage,
@@ -1232,12 +1284,7 @@ export default function MonitorPage() {
         setInstanceEditSaving(false);
       }
     },
-    [
-      instanceEditTarget,
-      loadNodes,
-      loadNodeInstanceGroups,
-      weightValue,
-    ],
+    [instanceEditTarget, loadNodes, loadNodeInstanceGroups, weightValue],
   );
 
   const nodeMap = useMemo(() => {
@@ -1325,11 +1372,11 @@ export default function MonitorPage() {
   return (
     <MonitorTerminalProvider>
       <AnimatedPage className="px-3 lg:px-6 py-8">
-      <div className="mb-4 space-y-3">
-        {/* 第一行：左侧按钮组 */}
-        <div className="flex items-center gap-1">
-          {/* 卡片/列表切换 - 暂停使用 */}
-          {/* <Button
+        <div className="mb-4 space-y-3">
+          {/* 第一行：左侧按钮组 */}
+          <div className="flex items-center gap-1">
+            {/* 卡片/列表切换 - 暂停使用 */}
+            {/* <Button
             color="warning"
             size="sm"
             variant="flat"
@@ -1337,156 +1384,168 @@ export default function MonitorPage() {
           >
             {viewMode === "grid" ? "列表" : "卡片"}
           </Button> */}
-          {/* 节点按钮 - 蓝色 */}
-          <Button
-            color="primary"
-            size="sm"
-            variant="flat"
-            onPress={() => setActiveTab("nodes")}
-          >
-            节点
-          </Button>
-          {/* 隧道按钮 - 绿色 */}
-          <Button
-            color="success"
-            size="sm"
-            variant="flat"
-            onPress={() => setActiveTab("tunnels")}
-          >
-            隧道
-          </Button>
-          {/* 刷新按钮 - 紫色 */}
-          <Button
-            color="secondary"
-            isLoading={
-              activeTab === "nodes"
-                ? nodesLoading || nodeInstanceGroupsLoading
-                : tunnelsLoading
-            }
-            size="sm"
-            variant="flat"
-            onPress={() => {
-              if (activeTab === "nodes") {
-                void loadNodeTab();
-              } else {
-                setTunnelRefreshTrigger((prev) => prev + 1);
-              }
-            }}
-          >
-            刷新
-          </Button>
-        </div>
-        {activeTab === "nodes" && detailNodeId == null ? (
-          <MonitorRealtimeStatus
-            wsConnected={wsConnected}
-            wsConnecting={wsConnecting}
-          />
-        ) : null}
-        {/* 第二行：副标题 */}
-        <div className="text-xs text-default-500 truncate">
-          实时节点状态 + 隧道质量检测 + 历史指标图表 + 服务监控
-        </div>
-        {nodesError && activeTab === "nodes" ? (
-          <Card>
-            <CardHeader>
-              <h3 className="text-sm font-semibold">节点列表</h3>
-            </CardHeader>
-            <CardBody>
-              <div className="text-sm text-default-600">{nodesError}</div>
-            </CardBody>
-          </Card>
-        ) : null}
-      </div>
-      <>
-        <div className={activeTab === "nodes" ? "block" : "hidden"}>
-          <div className="space-y-4">
-            {detailNodeId == null ? (
-              <>
-                <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
-                  <MetricPill tone="primary">
-                    节点 {nodeSummary.online}/{nodeSummary.total}
-                  </MetricPill>
-                  <MetricPill tone="secondary">
-                    实例 {nodeSummary.onlineInstances}/{nodeSummary.instances}
-                  </MetricPill>
-                  <MetricPill tone="success">
-                    服务监控 成功 {serviceSummary.ok} / 失败 {serviceSummary.fail}
-                  </MetricPill>
-                </div>
-                <NodeInstanceGroupsView
-                  groups={nodeInstanceGroups.filter((g) => nodeMap.has(g.id))}
-                  loading={nodeInstanceGroupsLoading}
-                  realtimeMetrics={realtimeInstanceMetrics}
-                  realtimeStatuses={realtimeInstanceStatuses}
-                  onEditInstance={openInstanceEditModal}
-                  onOpenDetail={(nodeId, instanceId) =>
-                    setDetailTarget({ nodeId, instanceId })
-                  }
-                />
-              </>
-            ) : (
-              <MonitorView
-                hideList
-                detailNodeId={detailNodeId}
-                detailInstanceId={detailTarget?.instanceId ?? null}
-                nodeMap={nodeMap}
-                viewMode={viewMode}
-                onDetailClose={() => setDetailTarget(null)}
-              />
-            )}
-          </div>
-        </div>
-        <div className={activeTab === "tunnels" ? "block" : "hidden"}>
-          <TunnelMonitorView
-            refreshTrigger={tunnelRefreshTrigger}
-            viewMode={viewMode}
-            onLoadingChange={setTunnelsLoading}
-          />
-        </div>
-      </>
-      <Modal isDismissable={false} isOpen={instanceEditModalOpen} onOpenChange={(open) => open && setInstanceEditModalOpen(true)}>
-        <ModalContent>
-          <ModalHeader>实例权重</ModalHeader>
-          <ModalBody>
-            <div className="space-y-3 text-sm">
-              <div>
-                实例名称:{" "}
-                {getDisplayInstanceLabel(instanceEditTarget?.displayIndex)}
-              </div>
-              <div>
-                IP:{" "}
-                {instanceEditTarget ? getMonitorPrimaryDisplayIP(instanceEditTarget) : "-"}
-              </div>
-              <div className="text-default-500">
-                0 表示不作为入口承载实例，DNS 命中时会迁移到同节点启用实例；大于 0 表示参与入口承载、出口和转发链新连接选择。
-                权重范围为 0-10；数值越大，被负载策略选中的比例越高。
-              </div>
-              <Input
-                description="0 为禁用承载，1-10 为参与负载的权重等级。"
-                label="实例权重"
-                max={10}
-                min={0}
-                step={1}
-                type="number"
-                value={weightValue}
-                onChange={(event) => setWeightValue(event.target.value)}
-              />
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onPress={() => setInstanceEditModalOpen(false)}>
-              取消
-            </Button>
+            {/* 节点按钮 - 蓝色 */}
             <Button
               color="primary"
-              isLoading={instanceEditSaving}
-              onPress={() => saveInstanceProfile()}
+              size="sm"
+              variant="flat"
+              onPress={() => setActiveTab("nodes")}
             >
-              保存
+              节点
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+            {/* 隧道按钮 - 绿色 */}
+            <Button
+              color="success"
+              size="sm"
+              variant="flat"
+              onPress={() => setActiveTab("tunnels")}
+            >
+              隧道
+            </Button>
+            {/* 刷新按钮 - 紫色 */}
+            <Button
+              color="secondary"
+              isLoading={
+                activeTab === "nodes"
+                  ? nodesLoading || nodeInstanceGroupsLoading
+                  : tunnelsLoading
+              }
+              size="sm"
+              variant="flat"
+              onPress={() => {
+                if (activeTab === "nodes") {
+                  void loadNodeTab();
+                } else {
+                  setTunnelRefreshTrigger((prev) => prev + 1);
+                }
+              }}
+            >
+              刷新
+            </Button>
+          </div>
+          {activeTab === "nodes" && detailNodeId == null ? (
+            <MonitorRealtimeStatus
+              wsConnected={wsConnected}
+              wsConnecting={wsConnecting}
+            />
+          ) : null}
+          {/* 第二行：副标题 */}
+          <div className="text-xs text-default-500 truncate">
+            实时节点状态 + 隧道质量检测 + 历史指标图表 + 服务监控
+          </div>
+          {nodesError && activeTab === "nodes" ? (
+            <Card>
+              <CardHeader>
+                <h3 className="text-sm font-semibold">节点列表</h3>
+              </CardHeader>
+              <CardBody>
+                <div className="text-sm text-default-600">{nodesError}</div>
+              </CardBody>
+            </Card>
+          ) : null}
+        </div>
+        <>
+          <div className={activeTab === "nodes" ? "block" : "hidden"}>
+            <div className="space-y-4">
+              {detailNodeId == null ? (
+                <>
+                  <div className="flex items-center gap-2 overflow-x-auto overscroll-x-contain whitespace-nowrap text-xs">
+                    <MetricPill tone="primary">
+                      节点 {nodeSummary.online}/{nodeSummary.total}
+                    </MetricPill>
+                    <MetricPill tone="secondary">
+                      实例 {nodeSummary.onlineInstances}/{nodeSummary.instances}
+                    </MetricPill>
+                    <MetricPill tone="success">
+                      服务监控 成功 {serviceSummary.ok} / 失败{" "}
+                      {serviceSummary.fail}
+                    </MetricPill>
+                  </div>
+                  <NodeInstanceGroupsView
+                    groups={nodeInstanceGroups.filter((g) => nodeMap.has(g.id))}
+                    loading={nodeInstanceGroupsLoading}
+                    realtimeMetrics={realtimeInstanceMetrics}
+                    realtimeStatuses={realtimeInstanceStatuses}
+                    onEditInstance={openInstanceEditModal}
+                    onOpenDetail={(nodeId, instanceId) =>
+                      setDetailTarget({ nodeId, instanceId })
+                    }
+                  />
+                </>
+              ) : (
+                <MonitorView
+                  hideList
+                  detailInstanceId={detailTarget?.instanceId ?? null}
+                  detailNodeId={detailNodeId}
+                  nodeMap={nodeMap}
+                  viewMode={viewMode}
+                  onDetailClose={() => setDetailTarget(null)}
+                />
+              )}
+            </div>
+          </div>
+          <div className={activeTab === "tunnels" ? "block" : "hidden"}>
+            <TunnelMonitorView
+              refreshTrigger={tunnelRefreshTrigger}
+              viewMode={viewMode}
+              onLoadingChange={setTunnelsLoading}
+            />
+          </div>
+        </>
+        <Modal
+          isDismissable={false}
+          isOpen={instanceEditModalOpen}
+          onOpenChange={(open) => open && setInstanceEditModalOpen(true)}
+        >
+          <ModalContent>
+            <ModalHeader>实例权重</ModalHeader>
+            <ModalBody>
+              <div className="space-y-3 text-sm">
+                <div>
+                  实例名称:{" "}
+                  {getDisplayInstanceLabel(instanceEditTarget?.displayIndex)}
+                </div>
+                <div>
+                  IP:{" "}
+                  {instanceEditTarget
+                    ? getMonitorPrimaryDisplayIP(instanceEditTarget)
+                    : "-"}
+                </div>
+                <div className="text-default-500">
+                  0 表示不作为入口承载实例，DNS
+                  命中时会迁移到同节点启用实例；大于 0
+                  表示参与入口承载、出口和转发链新连接选择。 权重范围为
+                  0-10；数值越大，被负载策略选中的比例越高。
+                </div>
+                <Input
+                  description="0 为禁用承载，1-10 为参与负载的权重等级。"
+                  label="实例权重"
+                  max={10}
+                  min={0}
+                  step={1}
+                  type="number"
+                  value={weightValue}
+                  onChange={(event) => setWeightValue(event.target.value)}
+                />
+              </div>
+            </ModalBody>
+            <ModalFooter>
+              <Button
+                variant="flat"
+                onPress={() => setInstanceEditModalOpen(false)}
+              >
+                取消
+              </Button>
+              <Button
+                color="primary"
+                isLoading={instanceEditSaving}
+                onPress={() => saveInstanceProfile()}
+              >
+                保存
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
       </AnimatedPage>
     </MonitorTerminalProvider>
   );

@@ -60,7 +60,9 @@ export const getNodeRenewalSnapshot = (
     cycle === "halfYear" ||
     cycle === "halfyear" ||
     cycle === "year"
-      ? cycle === "halfyear" ? "halfYear" : cycle
+      ? cycle === "halfyear"
+        ? "halfYear"
+        : cycle
       : "";
 
   if (!anchorTime || anchorTime <= 0 || !normalizedCycle) {

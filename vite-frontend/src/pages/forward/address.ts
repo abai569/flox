@@ -51,13 +51,13 @@ export const formatAddressHost = (value: string): string =>
   splitAddressHostPort(value).host;
 
 const formatAddressWithPort = (ip: string, port: number): string => {
-	const host = formatAddressHost(ip);
+  const host = formatAddressHost(ip);
 
-	if (host.includes(":")) {
-		return `[${host}]:${port}`;
-	}
+  if (host.includes(":")) {
+    return `[${host}]:${port}`;
+  }
 
-	return `${host}:${port}`;
+  return `${host}:${port}`;
 };
 
 export const formatInAddress = (ipString: string, port: number): string => {
@@ -71,7 +71,7 @@ export const formatInAddress = (ipString: string, port: number): string => {
     return "";
   }
 
-	const hasPort = splitAddressHostPort(items[0]).port !== "";
+  const hasPort = splitAddressHostPort(items[0]).port !== "";
 
   if (hasPort) {
     if (items.length === 1) {
@@ -140,7 +140,7 @@ export const resolveForwardAddressAction = (
       };
     }
 
-		const hasPort = splitAddressHostPort(items[0]).port !== "";
+    const hasPort = splitAddressHostPort(items[0]).port !== "";
 
     addresses = hasPort
       ? items

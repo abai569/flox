@@ -22,7 +22,12 @@ export interface NodeVisualMeta {
   enabledCount: number;
 }
 
-export type RemoteDisplayState = "online" | "paused" | "expired" | "abnormal" | "offline";
+export type RemoteDisplayState =
+  | "online"
+  | "paused"
+  | "expired"
+  | "abnormal"
+  | "offline";
 export type RemoteDisplayTone = "success" | "warning" | "danger" | "default";
 
 export const getRemoteDisplayState = (
@@ -40,6 +45,7 @@ export const getRemoteDisplayState = (
   if (node.syncError) return "offline";
   if (node.status !== 1) return visualMeta?.totalCount ? "abnormal" : "offline";
   if (visualMeta?.state === "partial") return "abnormal";
+
   return "online";
 };
 
@@ -65,27 +71,78 @@ export const deriveNodeVisualState = (
   paused?: number,
 ): NodeVisualMeta => {
   const totalCount = members?.length ?? 0;
+
   if (paused) {
-    return { state: "offline", color: "warning", text: "已暂停", onlineCount: 0, disabledCount: 0, totalCount, enabledCount: 0 };
+    return {
+      state: "offline",
+      color: "warning",
+      text: "已暂停",
+      onlineCount: 0,
+      disabledCount: 0,
+      totalCount,
+      enabledCount: 0,
+    };
   }
   if (!members || members.length === 0) {
-    return { state: "offline", color: "danger", text: "离线", onlineCount: 0, disabledCount: 0, totalCount: 0, enabledCount: 0 };
+    return {
+      state: "offline",
+      color: "danger",
+      text: "离线",
+      onlineCount: 0,
+      disabledCount: 0,
+      totalCount: 0,
+      enabledCount: 0,
+    };
   }
-  const disabledCount = members.filter((m) => m.weight !== undefined && m.weight <= 0).length;
+  const disabledCount = members.filter(
+    (m) => m.weight !== undefined && m.weight <= 0,
+  ).length;
   const enabled = members.filter((m) => m.weight === undefined || m.weight > 0);
   const enabledCount = enabled.length;
 
   if (enabled.length === 0) {
-    return { state: "offline", color: "default", text: "已禁用", onlineCount: 0, disabledCount, totalCount, enabledCount: 0 };
+    return {
+      state: "offline",
+      color: "default",
+      text: "已禁用",
+      onlineCount: 0,
+      disabledCount,
+      totalCount,
+      enabledCount: 0,
+    };
   }
   const onlineCount = enabled.filter((m) => m.status === 1).length;
 
   if (onlineCount === enabled.length) {
-    return { state: "online", color: "success", text: `全部在线 (${onlineCount})`, onlineCount, disabledCount, totalCount, enabledCount };
+    return {
+      state: "online",
+      color: "success",
+      text: `全部在线 (${onlineCount})`,
+      onlineCount,
+      disabledCount,
+      totalCount,
+      enabledCount,
+    };
   }
   if (onlineCount > 0) {
-    return { state: "partial", color: "warning", text: `部分在线 (${onlineCount}/${enabled.length})`, onlineCount, disabledCount, totalCount, enabledCount };
+    return {
+      state: "partial",
+      color: "warning",
+      text: `部分在线 (${onlineCount}/${enabled.length})`,
+      onlineCount,
+      disabledCount,
+      totalCount,
+      enabledCount,
+    };
   }
 
-  return { state: "offline", color: "danger", text: "离线", onlineCount: 0, disabledCount, totalCount, enabledCount };
+  return {
+    state: "offline",
+    color: "danger",
+    text: "离线",
+    onlineCount: 0,
+    disabledCount,
+    totalCount,
+    enabledCount,
+  };
 };

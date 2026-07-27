@@ -21,7 +21,8 @@ export const QRCodeSVG: React.ForwardRefExoticComponent<
   QRCodeSVGProps & React.RefAttributes<SVGSVGElement>
 >;
 
-interface QRCodeCanvasProps extends React.CanvasHTMLAttributes<HTMLCanvasElement> {
+interface QRCodeCanvasProps
+  extends React.CanvasHTMLAttributes<HTMLCanvasElement> {
   value: string;
   size?: number;
   level?: string;

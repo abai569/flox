@@ -32,8 +32,8 @@ import {
   Eye,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 import {
   getMonitorTunnels,
   getTunnelMetrics,

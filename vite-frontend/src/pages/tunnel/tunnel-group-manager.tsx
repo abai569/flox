@@ -6,8 +6,8 @@ import type {
 import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { Edit, Trash2 } from "lucide-react";
-import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 
+import { formatRemoteDisplayText } from "@/utils/remoteDisplay";
 import {
   Modal,
   ModalContent,
@@ -110,8 +110,10 @@ export function TunnelGroupManager({
           groupId,
           tunnelIds: selectedTunnelIds,
         });
+
         if (assignRes.code !== 0) {
           toast.error(assignRes.msg || "分组成员保存失败");
+
           return;
         }
       }
@@ -252,10 +254,11 @@ export function TunnelGroupManager({
                               {group.id === -1
                                 ? allTunnels.filter(
                                     (t) =>
-                                      !t.tunnelGroupIds || t.tunnelGroupIds.length === 0,
+                                      !t.tunnelGroupIds ||
+                                      t.tunnelGroupIds.length === 0,
                                   ).length
-                                : allTunnels.filter(
-                                    (t) => t.tunnelGroupIds?.includes(group.id),
+                                : allTunnels.filter((t) =>
+                                    t.tunnelGroupIds?.includes(group.id),
                                   ).length}
                             </div>
                           </div>
@@ -475,7 +478,9 @@ function GroupEditModal({
                     textValue={formatRemoteDisplayText(tunnel.name)}
                   >
                     <div className="flex flex-col">
-                      <span className="text-sm">{formatRemoteDisplayText(tunnel.name)}</span>
+                      <span className="text-sm">
+                        {formatRemoteDisplayText(tunnel.name)}
+                      </span>
                       <span className="text-xs text-default-400">
                         {tunnel.inIp || "未知入口 IP"}
                       </span>

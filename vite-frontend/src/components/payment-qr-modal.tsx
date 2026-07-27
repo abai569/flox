@@ -1,9 +1,9 @@
 import type { PayOrderResult } from "@/api/types";
 
 import { useEffect, useState } from "react";
-import { QRCodeSVG } from "@/lib/qrcode-react";
 import { X } from "lucide-react";
 
+import { QRCodeSVG } from "@/lib/qrcode-react";
 import { Modal, ModalContent } from "@/shadcn-bridge/heroui/modal";
 
 interface PaymentQRModalProps {
@@ -24,6 +24,7 @@ export function PaymentQRModal({
   useEffect(() => {
     if (!isOpen || !result?.expiresAt) {
       setRemaining(0);
+
       return;
     }
     const expiresAt = result.expiresAt;
@@ -69,7 +70,11 @@ export function PaymentQRModal({
           <div className="flex h-8 items-center gap-2 text-lg text-foreground/80">
             <span
               className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold text-white ${
-                isUSDT ? "bg-emerald-500" : isWechat ? "bg-green-500" : "bg-blue-500"
+                isUSDT
+                  ? "bg-emerald-500"
+                  : isWechat
+                    ? "bg-green-500"
+                    : "bg-blue-500"
               }`}
             >
               {isUSDT ? "U" : isWechat ? "微" : "支"}
@@ -90,7 +95,12 @@ export function PaymentQRModal({
                 src={result.qrImageUrl}
               />
             ) : qrValue ? (
-              <QRCodeSVG bgColor="#ffffff" fgColor="#000000" size={164} value={qrValue} />
+              <QRCodeSVG
+                bgColor="#ffffff"
+                fgColor="#000000"
+                size={164}
+                value={qrValue}
+              />
             ) : (
               <span className="text-sm text-danger">支付二维码生成失败</span>
             )}

@@ -673,7 +673,10 @@ export default function AdminLayout({
       !(item.adminOnly && !isAdmin) &&
       !(item.userOnly && isAdmin) &&
       !(item.premiumOnly && licenseInfo?.tier === "free") &&
-      !(item.path === "/sdwan" && configCache.get("forward_mode_sdw_enabled") === "false") &&
+      !(
+        item.path === "/sdwan" &&
+        configCache.get("forward_mode_sdw_enabled") === "false"
+      ) &&
       !(item.path === "/monitor" && monitorAllowed !== true) &&
       !(item.path === "/shop" && !isAdmin && !storeEnabled) &&
       !(
