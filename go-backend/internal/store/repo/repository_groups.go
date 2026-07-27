@@ -138,6 +138,22 @@ func (r *Repository) SetUserTunnelGroupNew(userID, tunnelGroupID, now int64) err
 	}).Create(&relation).Error
 }
 
+func (r *Repository) SetUserTunnelGroupNewTx(tx *gorm.DB, userID, tunnelGroupID, now int64) error {
+	if tunnelGroupID <= 0 {
+		return tx.Where("user_id = ?", userID).Delete(&model.UserTunnelGroupNew{}).Error
+	}
+	relation := model.UserTunnelGroupNew{
+		UserID:        userID,
+		TunnelGroupID: tunnelGroupID,
+		CreatedTime:   now,
+		UpdatedTime:   now,
+	}
+	return tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"tunnel_group_id", "updated_time"}),
+	}).Create(&relation).Error
+}
+
 // ListGroupPermissionPairsByUserGroup returns [userGroupID, tunnelGroupID] pairs
 // for all group permissions associated with a user group.
 func (r *Repository) ListGroupPermissionPairsByUserGroup(userGroupID int64) ([][2]int64, error) {

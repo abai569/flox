@@ -554,13 +554,13 @@ func (h *Handler) resetMonthlyFlow(now time.Time) {
 	currentDay := now.Day()
 	lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, now.Location()).Day()
 
-	snapshots, err := h.repo.ResetUserMonthlyFlow(currentDay, lastDay)
+	snapshots, err := h.repo.ResetUserMonthlyFlow(currentDay, lastDay, now)
 	if err == nil && len(snapshots) > 0 {
 		periodKey := int64(now.Year()*100 + int(now.Month()))
 		nowMs := now.UnixMilli()
 		h.repo.RecordFlowResetHistory(snapshots, periodKey, nowMs, "自动周期归零")
 	}
-	_ = h.repo.ResetUserTunnelMonthlyFlow(currentDay, lastDay)
+	_ = h.repo.ResetUserTunnelMonthlyFlow(currentDay, lastDay, now)
 }
 
 func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {

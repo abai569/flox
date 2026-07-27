@@ -281,6 +281,7 @@ export default function UserPage() {
     total: 0,
   });
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const usersRequestRef = useRef(0);
   // 用户表单相关状态
   const {
     isOpen: isUserModalOpen,
@@ -778,6 +779,7 @@ export default function UserPage() {
   // 数据加载函数
   const loadUsers = useCallback(
     async (keywordOverride?: string, showLoading = true) => {
+      const requestID = ++usersRequestRef.current;
       if (showLoading) setLoading(true);
       try {
         const keyword = keywordOverride ?? searchKeyword;
@@ -786,6 +788,8 @@ export default function UserPage() {
           size: pagination.size,
           keyword,
         });
+
+        if (requestID !== usersRequestRef.current) return;
 
         if (response.code === 0) {
           const nextUsers = Array.isArray(response.data)
@@ -798,9 +802,11 @@ export default function UserPage() {
           toast.error(response.msg || "获取用户列表失败");
         }
       } catch {
-        toast.error("获取用户列表失败");
+        if (requestID === usersRequestRef.current) {
+          toast.error("获取用户列表失败");
+        }
       } finally {
-        if (showLoading) setLoading(false); // 👈 3. 对应解除 loading
+        if (showLoading && requestID === usersRequestRef.current) setLoading(false);
       }
     },
     [pagination.current, pagination.size],
@@ -1212,9 +1218,9 @@ export default function UserPage() {
       );
       const submitData: any = {
         ...userForm,
-        balance: Math.round(userForm.balance * 100),
-        renewalAmount: Math.round(userForm.renewalAmount * 100),
-        buyTrafficPrice: Math.round(userForm.buyTrafficPrice * 100),
+        balance: Math.round((userForm.balance || 0) * 100),
+        renewalAmount: Math.round((userForm.renewalAmount || 0) * 100),
+        buyTrafficPrice: Math.round((userForm.buyTrafficPrice || 0) * 100),
         expTime:
           userForm.expTime instanceof Date ? userForm.expTime.getTime() : 0,
         tunnelGroupId: userForm.tunnelGroupId || 0,
@@ -2266,7 +2272,8 @@ export default function UserPage() {
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
                             <SmartTooltip content={user.user}>
-                              <span
+                              <button
+                                type="button"
                                 className={`font-medium truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2274,14 +2281,15 @@ export default function UserPage() {
                                 }}
                               >
                                 {user.user}
-                              </span>
+                              </button>
                             </SmartTooltip>
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <div className="flex flex-col">
                             <SmartTooltip content={user.name || user.user}>
-                              <span
+                              <button
+                                type="button"
                                 className="text-default-500 truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2292,7 +2300,7 @@ export default function UserPage() {
                                 }}
                               >
                                 {user.name || user.user}
-                              </span>
+                              </button>
                             </SmartTooltip>
                           </div>
                         </TableCell>
@@ -2621,7 +2629,8 @@ export default function UserPage() {
                           <div className="flex justify-between items-center w-full mt-1">
                             <div className="flex min-w-0 items-center gap-1.5">
                               <SmartTooltip content={user.user}>
-                                <span
+                                <button
+                                  type="button"
                                   className={`font-medium text-sm truncate cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit max-w-full ${user.roleId === 0 ? "text-warning" : "text-foreground"}`}
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -2629,11 +2638,12 @@ export default function UserPage() {
                                   }}
                                 >
                                   {user.user}
-                                </span>
+                                </button>
                               </SmartTooltip>
                             </div>
                             <SmartTooltip content={user.name || user.user}>
-                              <span
+                              <button
+                                type="button"
                                 className="text-sm text-default-500 truncate ml-2 cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors w-fit"
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -2644,7 +2654,7 @@ export default function UserPage() {
                                 }}
                               >
                                 {user.name || user.user}
-                              </span>
+                              </button>
                             </SmartTooltip>
                           </div>
                         </CardHeader>
