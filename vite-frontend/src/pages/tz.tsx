@@ -3,7 +3,7 @@ import type {
   MonitorPublicNodeInstanceGroupMemberApiItem,
 } from "@/api/types";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { AnimatedPage } from "@/components/animated-page";
@@ -235,27 +235,69 @@ function InstanceRows({
   );
 }
 
-type RealtimeMetricSnapshot = Partial<MonitorPublicNodeInstanceGroupMemberApiItem> & { instanceId?: string };
+type RealtimeMetricSnapshot = Omit<
+  Partial<MonitorPublicNodeInstanceGroupMemberApiItem>,
+  "status"
+> & {
+  instanceId: string;
+  receivedAt: number;
+};
+
+type RealtimeInstanceStatus = {
+  status: number;
+  receivedAt: number;
+};
+
+const REALTIME_INSTANCE_METRIC_STALE_MS = 90_000;
+const INSTANCE_OFFLINE_GRACE_MS = 3_000;
+
+const getInstanceMetricKey = (nodeId: number, instanceId: string): string =>
+  `${nodeId}:${instanceId.trim()}`;
 
 function mergeRealtimeMember(
   member: MonitorPublicNodeInstanceGroupMemberApiItem,
-  realtimeMetrics: Record<number, RealtimeMetricSnapshot[]>,
+  realtimeMetrics: Record<string, RealtimeMetricSnapshot>,
+  realtimeStatuses: Record<string, RealtimeInstanceStatus>,
 ) {
-  const list = realtimeMetrics[member.nodeId];
-  if (!list || list.length === 0) return member;
-
   const memberId = member.instanceId?.trim() || "";
-  if (memberId) {
-    const byId = list.find((m) => m.instanceId === memberId);
-    if (byId) return { ...member, ...byId };
-  }
+  if (!memberId) return member;
+  const key = getInstanceMetricKey(member.nodeId, memberId);
+  const metric = realtimeMetrics[key];
+  const realtimeStatus = realtimeStatuses[key];
+  const status =
+    realtimeStatus &&
+    Date.now() - realtimeStatus.receivedAt <= REALTIME_INSTANCE_METRIC_STALE_MS
+      ? realtimeStatus.status
+      : member.status;
 
-  const pos = (member.displayIndex || 1) - 1;
-  if (pos >= 0 && pos < list.length) {
-    return { ...member, ...list[pos] };
-  }
+  if (
+    !metric ||
+    Date.now() - metric.receivedAt > REALTIME_INSTANCE_METRIC_STALE_MS
+  ) return status === member.status ? member : { ...member, status };
 
-  return member;
+  return {
+    ...member,
+    status,
+    instanceId: metric.instanceId,
+    netInSpeed: metric.netInSpeed ?? member.netInSpeed,
+    netOutSpeed: metric.netOutSpeed ?? member.netOutSpeed,
+    netInBytes: metric.netInBytes ?? member.netInBytes,
+    netOutBytes: metric.netOutBytes ?? member.netOutBytes,
+    periodRx: metric.periodRx ?? member.periodRx,
+    periodTx: metric.periodTx ?? member.periodTx,
+    periodNetInBytes:
+      metric.periodNetInBytes ?? member.periodNetInBytes,
+    periodNetOutBytes:
+      metric.periodNetOutBytes ?? member.periodNetOutBytes,
+    uptime: metric.uptime ?? member.uptime,
+    onlineCount: metric.onlineCount ?? member.onlineCount,
+    tcpConns: metric.tcpConns ?? member.tcpConns,
+    udpConns: metric.udpConns ?? member.udpConns,
+    cpuUsage: metric.cpuUsage ?? member.cpuUsage,
+    memoryUsage: metric.memoryUsage ?? member.memoryUsage,
+    diskUsage: metric.diskUsage ?? member.diskUsage,
+  };
+
 }
 
 function InstanceRow({
@@ -320,8 +362,17 @@ export default function TZPage() {
     {},
   );
   const [realtimeMetrics, setRealtimeMetrics] = useState<
-    Record<number, RealtimeMetricSnapshot[]>
+    Record<string, RealtimeMetricSnapshot>
   >({});
+  const [realtimeInstanceStatuses, setRealtimeInstanceStatuses] = useState<
+    Record<string, RealtimeInstanceStatus>
+  >({});
+  const instanceOfflineTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const instanceRefreshTimersRef = useRef<
+    Map<number, ReturnType<typeof setTimeout>>
+  >(new Map());
 
   const loadGroups = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
@@ -333,16 +384,31 @@ export default function TZPage() {
       if (response.code === 0 && Array.isArray(response.data)) {
         setError(null);
         setGroups(response.data);
-      } else {
+      } else if (!silent) {
         setGroups([]);
         setError(response.msg || "暂未开放公共监控");
       }
     } catch {
-      setError("加载失败");
+      if (!silent) setError("加载失败");
     } finally {
       if (!silent) setLoading(false);
     }
   }, []);
+  const scheduleInstanceRefresh = useCallback(
+    (nodeId: number) => {
+      if (instanceRefreshTimersRef.current.has(nodeId)) return;
+      const timer = setTimeout(async () => {
+        try {
+          await loadGroups({ silent: true });
+        } finally {
+          instanceRefreshTimersRef.current.delete(nodeId);
+        }
+      }, 500);
+
+      instanceRefreshTimersRef.current.set(nodeId, timer);
+    },
+    [loadGroups],
+  );
 
   const handleRealtimeMessage = useCallback(
     (parsed: { id?: string | number; type?: string; data?: unknown }) => {
@@ -372,25 +438,61 @@ export default function TZPage() {
         const status = Number(data.status ?? 0) === 1 ? 1 : 0;
 
         if (!instanceId || instanceId.toLowerCase() === "default") return;
-        let found = false;
+        const metricKey = getInstanceMetricKey(nodeId, instanceId);
+        const pendingOffline = instanceOfflineTimersRef.current.get(metricKey);
 
-        setGroups((prev) => {
-          const next = prev.map((group) => {
-            if (Number(group.id) !== nodeId) return group;
-            const members = group.members.map((member) => {
-              if ((member.instanceId || "").trim() !== instanceId) return member;
-              found = true;
+        if (pendingOffline) {
+          clearTimeout(pendingOffline);
+          instanceOfflineTimersRef.current.delete(metricKey);
+        }
 
-              return { ...member, status };
+        if (status === 0) {
+          const timer = setTimeout(() => {
+            instanceOfflineTimersRef.current.delete(metricKey);
+            setGroups((prev) =>
+              prev.map((group) =>
+                Number(group.id) !== nodeId
+                  ? group
+                  : {
+                      ...group,
+                      members: group.members.map((member) =>
+                        (member.instanceId || "").trim() === instanceId
+                          ? { ...member, status: 0 }
+                          : member,
+                      ),
+                    },
+              ),
+            );
+            setRealtimeMetrics((prev) => {
+              if (!(metricKey in prev)) return prev;
+              const next = { ...prev };
+
+              delete next[metricKey];
+              return next;
             });
+            setRealtimeInstanceStatuses((prev) => ({
+              ...prev,
+              [metricKey]: { status: 0, receivedAt: Date.now() },
+            }));
+          }, INSTANCE_OFFLINE_GRACE_MS);
 
-            return found ? { ...group, members } : group;
-          });
+          instanceOfflineTimersRef.current.set(metricKey, timer);
+          return;
+        }
+        setRealtimeInstanceStatuses((prev) => ({
+          ...prev,
+          [metricKey]: { status: 1, receivedAt: Date.now() },
+        }));
+        const knownInstance = groups.some(
+          (group) =>
+            Number(group.id) === nodeId &&
+            group.members.some(
+              (member) => (member.instanceId || "").trim() === instanceId,
+            ),
+        );
 
-          return found ? next : prev;
-        });
-        if (!found && status === 1) {
-          window.setTimeout(() => void loadGroups({ silent: true }), 500);
+        if (!knownInstance) {
+          scheduleInstanceRefresh(nodeId);
         }
 
         return;
@@ -418,12 +520,23 @@ export default function TZPage() {
       );
 
       if (!knownInstance) {
-        window.setTimeout(() => void loadGroups({ silent: true }), 500);
+        scheduleInstanceRefresh(nodeId);
       }
 
+      const metricKey = getInstanceMetricKey(nodeId, instanceId);
+      const pendingOffline = instanceOfflineTimersRef.current.get(metricKey);
+
+      if (pendingOffline) {
+        clearTimeout(pendingOffline);
+        instanceOfflineTimersRef.current.delete(metricKey);
+      }
+      setRealtimeInstanceStatuses((prev) => ({
+        ...prev,
+        [metricKey]: { status: 1, receivedAt: Date.now() },
+      }));
       const patch: RealtimeMetricSnapshot = {
         instanceId,
-        status: 1,
+        receivedAt: Date.now(),
         netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
         netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
         netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
@@ -442,18 +555,9 @@ export default function TZPage() {
         udpConns: Number(metric.udpConns ?? metric.udp_conns ?? 0),
       };
 
-      setRealtimeMetrics((prev) => {
-        const list = [...(prev[nodeId] || [])];
-        const idx = list.findIndex((m) => m.instanceId === instanceId);
-        if (idx >= 0) {
-          list[idx] = patch;
-        } else {
-          list.push(patch);
-        }
-        return { ...prev, [nodeId]: list };
-      });
+      setRealtimeMetrics((prev) => ({ ...prev, [metricKey]: patch }));
     },
-    [groups, loadGroups],
+    [groups, scheduleInstanceRefresh],
   );
 
   const { wsConnected, wsConnecting } = useNodeRealtime({
@@ -468,12 +572,42 @@ export default function TZPage() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
+      const now = Date.now();
+
+      setRealtimeMetrics((prev) => {
+        const next = Object.fromEntries(
+          Object.entries(prev).filter(
+            ([, metric]) =>
+              now - metric.receivedAt <= REALTIME_INSTANCE_METRIC_STALE_MS,
+          ),
+        );
+
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+      });
+      setRealtimeInstanceStatuses((prev) => {
+        const next = Object.fromEntries(
+          Object.entries(prev).filter(
+            ([, status]) =>
+              now - status.receivedAt <= REALTIME_INSTANCE_METRIC_STALE_MS,
+          ),
+        );
+
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+      });
       void loadGroups({ silent: true });
     }, 30_000);
 
     return () => window.clearInterval(timer);
   }, [loadGroups]);
 
+  useEffect(() => {
+    return () => {
+      instanceOfflineTimersRef.current.forEach((timer) => clearTimeout(timer));
+      instanceOfflineTimersRef.current.clear();
+      instanceRefreshTimersRef.current.forEach((timer) => clearTimeout(timer));
+      instanceRefreshTimersRef.current.clear();
+    };
+  }, []);
   usePullToRefresh(loadGroups);
 
   const displayGroups = useMemo(
@@ -482,10 +616,10 @@ export default function TZPage() {
         ...group,
         status: realtimeStatus[group.id] ?? group.status,
         members: group.members.map((member) =>
-          mergeRealtimeMember(member, realtimeMetrics),
+          mergeRealtimeMember(member, realtimeMetrics, realtimeInstanceStatuses),
         ),
       })),
-    [groups, realtimeMetrics, realtimeStatus],
+    [groups, realtimeInstanceStatuses, realtimeMetrics, realtimeStatus],
   );
   const nodeCount = displayGroups.length;
   const onlineNodeCount = displayGroups.filter((group) => group.status === 1).length;

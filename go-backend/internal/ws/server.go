@@ -94,6 +94,8 @@ type Server struct {
 	onNodeMetric          func(nodeID int64, info SystemInfo)
 
 	mu                    sync.RWMutex
+	nodeLifecycle         [64]sync.Mutex
+	nodeHook              [64]sync.Mutex
 	admins                map[*connWrap]struct{}
 	publics               map[*connWrap]struct{}
 	nodes                 map[int64]map[string]*nodeSession
@@ -112,6 +114,33 @@ type Server struct {
 	hookWG                sync.WaitGroup
 	closing               bool
 	closeOnce             sync.Once
+}
+
+func (s *Server) lockNodeLifecycle(nodeID int64) func() {
+	index := uint64(nodeID) % uint64(len(s.nodeLifecycle))
+	s.nodeLifecycle[index].Lock()
+	return s.nodeLifecycle[index].Unlock
+}
+
+func (s *Server) runNodeHook(nodeID int64, fn func()) {
+	if fn == nil {
+		return
+	}
+	index := uint64(nodeID) % uint64(len(s.nodeHook))
+	s.nodeHook[index].Lock()
+	s.mu.Lock()
+	if s.closing {
+		s.mu.Unlock()
+		s.nodeHook[index].Unlock()
+		return
+	}
+	s.hookWG.Add(1)
+	s.mu.Unlock()
+	go func() {
+		defer s.hookWG.Done()
+		defer s.nodeHook[index].Unlock()
+		fn()
+	}()
 }
 
 type SystemInfo struct {
@@ -673,13 +702,24 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	instanceID := normalizeInstanceID(r.URL.Query().Get("instance_id"))
 	hostname := strings.TrimSpace(r.URL.Query().Get("hostname"))
 
+	unlockLifecycle := s.lockNodeLifecycle(nodeID)
 	s.mu.Lock()
+	if s.closing {
+		s.mu.Unlock()
+		unlockLifecycle()
+		close(done)
+		_ = conn.Close()
+		return
+	}
 	if s.nodes[nodeID] == nil {
 		s.nodes[nodeID] = make(map[string]*nodeSession)
 	}
+	var oldConn *websocket.Conn
 	if old, ok := s.nodes[nodeID][instanceID]; ok {
-		_ = old.conn.conn.Close()
-		delete(s.byConn, old.conn.conn)
+		if old.conn != nil && old.conn.conn != nil {
+			oldConn = old.conn.conn
+			delete(s.byConn, oldConn)
+		}
 	}
 	// 初始化 AES 加密器并缓存（仅创建一次）
 	var nodeCrypto *security.AESCrypto
@@ -692,6 +732,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	// 节点重新上线，清除离线时间记录
 	delete(s.nodeOfflineTime, nodeID)
 	s.mu.Unlock()
+	if oldConn != nil {
+		_ = oldConn.Close()
+	}
 
 	if err := s.repo.UpdateNodeOnline(nodeID, 1, version); err != nil {
 		fmt.Printf("⚠️ 更新节点%d在线状态失败：%v\n", nodeID, err)
@@ -710,18 +753,26 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	onlineHook := s.onNodeOnline
 	instanceOnlineHook := s.onNodeInstanceOnline
 	s.mu.RUnlock()
-	if onlineHook != nil {
-		s.runHook(func() { onlineHook(nodeID) })
+	if onlineHook != nil || instanceOnlineHook != nil {
+		s.runNodeHook(nodeID, func() {
+			if onlineHook != nil {
+				onlineHook(nodeID)
+			}
+			if instanceOnlineHook != nil {
+				instanceOnlineHook(nodeID, instanceID)
+			}
+		})
 	}
-	if instanceOnlineHook != nil {
-		s.runHook(func() { instanceOnlineHook(nodeID, instanceID) })
-	}
+	unlockLifecycle()
 
 	defer func() {
 		close(done)
+		unlockLifecycle := s.lockNodeLifecycle(nodeID)
+		defer unlockLifecycle()
 		needOfflineBroadcast := false
 		removedCurrentInstance := false
 		var instanceOfflineHook func(nodeID int64, instanceID string)
+		var offlineHook func(nodeID int64)
 		s.mu.Lock()
 		current, ok := s.nodes[nodeID][instanceID]
 		if ok && current.conn.conn == conn {
@@ -739,6 +790,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		if removedCurrentInstance {
 			instanceOfflineHook = s.onNodeInstanceOffline
 		}
+		if needOfflineBroadcast {
+			offlineHook = s.onNodeOffline
+		}
 		s.mu.Unlock()
 		if removedCurrentInstance {
 			_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
@@ -751,15 +805,16 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 			}
 			s.broadcastStatus(nodeID, 0)
 
-			s.mu.RLock()
-			offlineHook := s.onNodeOffline
-			s.mu.RUnlock()
-			if offlineHook != nil {
-				s.runHook(func() { offlineHook(nodeID) })
-			}
 		}
-		if removedCurrentInstance && instanceOfflineHook != nil {
-			s.runHook(func() { instanceOfflineHook(nodeID, instanceID) })
+		if (removedCurrentInstance && instanceOfflineHook != nil) || offlineHook != nil {
+			s.runNodeHook(nodeID, func() {
+				if removedCurrentInstance && instanceOfflineHook != nil {
+					instanceOfflineHook(nodeID, instanceID)
+				}
+				if offlineHook != nil {
+					offlineHook(nodeID)
+				}
+			})
 		}
 		_ = conn.Close()
 	}()
@@ -1455,6 +1510,14 @@ func (s *Server) DisconnectNode(nodeID int64) {
 		return
 	}
 
+	unlockLifecycle := s.lockNodeLifecycle(nodeID)
+	defer unlockLifecycle()
+
+	type disconnectedSession struct {
+		instanceID string
+		conn       *websocket.Conn
+	}
+
 	s.mu.Lock()
 	sessions, ok := s.nodes[nodeID]
 	if !ok {
@@ -1464,20 +1527,32 @@ func (s *Server) DisconnectNode(nodeID int64) {
 
 	s.nodeOfflineTime[nodeID] = time.Now().Unix()
 
-	offlineInstanceIDs := make([]string, 0, len(sessions))
+	disconnected := make([]disconnectedSession, 0, len(sessions))
 	for instanceID, ns := range sessions {
+		var conn *websocket.Conn
 		if ns.conn != nil && ns.conn.conn != nil {
-			_ = ns.conn.conn.Close()
+			conn = ns.conn.conn
 			delete(s.byConn, ns.conn.conn)
 		}
-		_ = s.repo.MarkNodeInstanceOffline(nodeID, instanceID, time.Now().UnixMilli())
-		s.broadcastInstanceStatus(nodeID, instanceID, 0)
-		offlineInstanceIDs = append(offlineInstanceIDs, instanceID)
+		disconnected = append(disconnected, disconnectedSession{
+			instanceID: instanceID,
+			conn:       conn,
+		})
 	}
 	instanceOfflineHook := s.onNodeInstanceOffline
+	offlineHook := s.onNodeOffline
 	delete(s.nodes, nodeID)
 	delete(s.serviceConnections, nodeID)
 	s.mu.Unlock()
+
+	now := time.Now().UnixMilli()
+	for _, session := range disconnected {
+		if session.conn != nil {
+			_ = session.conn.Close()
+		}
+		_ = s.repo.MarkNodeInstanceOffline(nodeID, session.instanceID, now)
+		s.broadcastInstanceStatus(nodeID, session.instanceID, 0)
+	}
 
 	s.failPendingForNode(nodeID, "节点被面板踢下线")
 	if err := s.repo.UpdateNodeStatus(nodeID, 0); err != nil {
@@ -1485,18 +1560,17 @@ func (s *Server) DisconnectNode(nodeID int64) {
 	}
 	s.broadcastStatus(nodeID, 0)
 
-	if instanceOfflineHook != nil {
-		for _, instanceID := range offlineInstanceIDs {
-			instanceID := instanceID
-			s.runHook(func() { instanceOfflineHook(nodeID, instanceID) })
-		}
-	}
-
-	s.mu.RLock()
-	offlineHook := s.onNodeOffline
-	s.mu.RUnlock()
-	if offlineHook != nil {
-		s.runHook(func() { offlineHook(nodeID) })
+	if instanceOfflineHook != nil || offlineHook != nil {
+		s.runNodeHook(nodeID, func() {
+			if instanceOfflineHook != nil {
+				for _, session := range disconnected {
+					instanceOfflineHook(nodeID, session.instanceID)
+				}
+			}
+			if offlineHook != nil {
+				offlineHook(nodeID)
+			}
+		})
 	}
 }
 

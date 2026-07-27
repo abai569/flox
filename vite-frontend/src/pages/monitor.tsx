@@ -105,6 +105,14 @@ type RealtimeNodeInstanceMetric = {
   diskUsage: number;
 };
 
+type RealtimeInstanceStatus = {
+  status: number;
+  receivedAt: number;
+};
+
+const REALTIME_INSTANCE_METRIC_STALE_MS = 90_000;
+const INSTANCE_OFFLINE_GRACE_MS = 3_000;
+
 type ServiceSummary = {
   ok: number;
   fail: number;
@@ -372,29 +380,28 @@ function UsageMeter({
 
 const mergeRealtimeMetric = (
   member: MonitorNodeInstanceGroupMemberApiItem,
-  groupMembers: MonitorNodeInstanceGroupMemberApiItem[],
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>,
+  realtimeStatuses: Record<string, RealtimeInstanceStatus>,
 ): MonitorNodeInstanceGroupMemberApiItem => {
-  let metric = realtimeMetrics[getInstanceMetricKey(member.nodeId, member.instanceId)];
+  const key = getInstanceMetricKey(member.nodeId, member.instanceId);
+  const metric = realtimeMetrics[key];
+  const realtimeStatus = realtimeStatuses[key];
+  const status =
+    realtimeStatus &&
+    Date.now() - realtimeStatus.receivedAt <= REALTIME_INSTANCE_METRIC_STALE_MS
+      ? realtimeStatus.status
+      : member.status;
 
-  if (!metric && groupMembers.length === 1) {
-    const nodePrefix = `${member.nodeId}:`;
-    const nodeMetrics = Object.entries(realtimeMetrics)
-      .filter(([key]) => key.startsWith(nodePrefix))
-      .map(([, value]) => value);
-
-    if (nodeMetrics.length === 1) {
-      metric = nodeMetrics[0];
-    }
-  }
-
-  if (!metric) return member;
+  if (
+    !metric ||
+    Date.now() - metric.receivedAt > REALTIME_INSTANCE_METRIC_STALE_MS
+  ) return status === member.status ? member : { ...member, status };
 
   return {
     ...member,
+    status,
     publicIpV4: metric.publicIpV4 || member.publicIpV4,
     publicIpV6: metric.publicIpV6 || member.publicIpV6,
-    status: 1,
     netInSpeed: metric.netInSpeed,
     netOutSpeed: metric.netOutSpeed,
     netInBytes: metric.netInBytes,
@@ -442,12 +449,14 @@ function NodeInstanceGroupsView({
   groups,
   loading,
   realtimeMetrics,
+  realtimeStatuses,
   onEditInstance,
   onOpenDetail,
 }: {
   groups: MonitorNodeInstanceGroupApiItem[];
   loading: boolean;
   realtimeMetrics: Record<string, RealtimeNodeInstanceMetric>;
+  realtimeStatuses: Record<string, RealtimeInstanceStatus>;
   onEditInstance: (member: MonitorNodeInstanceGroupMemberApiItem) => void;
   onOpenDetail: (nodeId: number, instanceId: string) => void;
 }) {
@@ -475,7 +484,7 @@ function NodeInstanceGroupsView({
     <div className="space-y-5">
       {groups.map((group) => {
         const members = group.members.map((member) =>
-          mergeRealtimeMetric(member, group.members, realtimeMetrics),
+          mergeRealtimeMetric(member, realtimeMetrics, realtimeStatuses),
         );
         const totalOutSpeed = members.reduce(
           (sum, member) => sum + member.netOutSpeed,
@@ -750,9 +759,18 @@ export default function MonitorPage() {
   const [realtimeInstanceMetrics, setRealtimeInstanceMetrics] = useState<
     Record<string, RealtimeNodeInstanceMetric>
   >({});
+  const [realtimeInstanceStatuses, setRealtimeInstanceStatuses] = useState<
+    Record<string, RealtimeInstanceStatus>
+  >({});
   const offlineTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(
     new Map(),
   );
+  const instanceOfflineTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const instanceRefreshTimersRef = useRef<
+    Map<number, ReturnType<typeof setTimeout>>
+  >(new Map());
   const [nodesLoading, setNodesLoading] = useState(false);
   const [nodeInstanceGroupsLoading, setNodeInstanceGroupsLoading] =
     useState(false);
@@ -817,6 +835,21 @@ export default function MonitorPage() {
       }
     },
     [],
+  );
+  const scheduleInstanceRefresh = useCallback(
+    (nodeId: number) => {
+      if (instanceRefreshTimersRef.current.has(nodeId)) return;
+      const timer = setTimeout(async () => {
+        try {
+          await loadNodeInstanceGroups({ silent: true });
+        } finally {
+          instanceRefreshTimersRef.current.delete(nodeId);
+        }
+      }, 500);
+
+      instanceRefreshTimersRef.current.set(nodeId, timer);
+    },
+    [loadNodeInstanceGroups],
   );
 
   const loadNodes = useCallback(async (options?: { silent?: boolean }) => {
@@ -901,6 +934,28 @@ export default function MonitorPage() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
+      const now = Date.now();
+
+      setRealtimeInstanceMetrics((prev) => {
+        const next = Object.fromEntries(
+          Object.entries(prev).filter(
+            ([, metric]) =>
+              now - metric.receivedAt <= REALTIME_INSTANCE_METRIC_STALE_MS,
+          ),
+        );
+
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+      });
+      setRealtimeInstanceStatuses((prev) => {
+        const next = Object.fromEntries(
+          Object.entries(prev).filter(
+            ([, status]) =>
+              now - status.receivedAt <= REALTIME_INSTANCE_METRIC_STALE_MS,
+          ),
+        );
+
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+      });
       void loadNodes({ silent: true });
       void loadNodeInstanceGroups({ silent: true });
       void loadServiceSummary({ silent: true });
@@ -962,26 +1017,69 @@ export default function MonitorPage() {
       const status = Number(statusData.status ?? 0) === 1 ? 1 : 0;
 
       if (!isRealInstanceId(instanceId)) return;
-      let found = false;
+      const metricKey = getInstanceMetricKey(nodeId, instanceId);
+      const pendingOffline = instanceOfflineTimersRef.current.get(metricKey);
 
-      setNodeInstanceGroups((prev) => {
-        const next = prev.map((group) => {
-          if (Number(group.id) !== nodeId) return group;
-          const members = group.members.map((member) => {
-            if ((member.instanceId || "").trim() !== instanceId) return member;
-            found = true;
-
-            return { ...member, status };
-          });
-
-          return found ? { ...group, members } : group;
-        });
-
-        return found ? next : prev;
-      });
-      if (!found && status === 1) {
-        window.setTimeout(() => void loadNodeInstanceGroups({ silent: true }), 500);
+      if (pendingOffline) {
+        clearTimeout(pendingOffline);
+        instanceOfflineTimersRef.current.delete(metricKey);
       }
+
+      if (status === 0) {
+        const timer = setTimeout(() => {
+          instanceOfflineTimersRef.current.delete(metricKey);
+          setNodeInstanceGroups((prev) =>
+            prev.map((group) =>
+              Number(group.id) !== nodeId
+                ? group
+                : {
+                    ...group,
+                    members: group.members.map((member) =>
+                      (member.instanceId || "").trim() === instanceId
+                        ? { ...member, status: 0 }
+                        : member,
+                    ),
+                  },
+            ),
+          );
+          setRealtimeInstanceMetrics((prev) => {
+            if (!(metricKey in prev)) return prev;
+            const next = { ...prev };
+
+            delete next[metricKey];
+            return next;
+          });
+          setRealtimeInstanceStatuses((prev) => ({
+            ...prev,
+            [metricKey]: { status: 0, receivedAt: Date.now() },
+          }));
+        }, INSTANCE_OFFLINE_GRACE_MS);
+
+        instanceOfflineTimersRef.current.set(metricKey, timer);
+        return;
+      }
+      setRealtimeInstanceStatuses((prev) => ({
+        ...prev,
+        [metricKey]: { status: 1, receivedAt: Date.now() },
+      }));
+      const knownInstance = nodeInstanceGroups.some(
+        (group) =>
+          Number(group.id) === nodeId &&
+          group.members.some(
+            (member) => (member.instanceId || "").trim() === instanceId,
+          ),
+      );
+
+      if (!knownInstance) {
+        scheduleInstanceRefresh(nodeId);
+      }
+      const nodeOfflineTimer = offlineTimersRef.current.get(nodeId);
+
+      if (nodeOfflineTimer) {
+        clearTimeout(nodeOfflineTimer);
+        offlineTimersRef.current.delete(nodeId);
+      }
+      setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
 
       return;
     }
@@ -1012,15 +1110,32 @@ export default function MonitorPage() {
     );
 
     if (!knownInstance) {
-      window.setTimeout(() => void loadNodeInstanceGroups({ silent: true }), 500);
+      scheduleInstanceRefresh(nodeId);
     }
 
     const tcpConns = Number(metric.tcpConns ?? metric.tcp_conns ?? 0);
     const udpConns = Number(metric.udpConns ?? metric.udp_conns ?? 0);
+    const metricKey = getInstanceMetricKey(nodeId, instanceId);
+    const pendingOffline = instanceOfflineTimersRef.current.get(metricKey);
+
+    if (pendingOffline) {
+      clearTimeout(pendingOffline);
+      instanceOfflineTimersRef.current.delete(metricKey);
+    }
+    const nodeOfflineTimer = offlineTimersRef.current.get(nodeId);
+
+    if (nodeOfflineTimer) {
+      clearTimeout(nodeOfflineTimer);
+      offlineTimersRef.current.delete(nodeId);
+    }
+    setRealtimeInstanceStatuses((prev) => ({
+      ...prev,
+      [metricKey]: { status: 1, receivedAt: Date.now() },
+    }));
 
     setRealtimeInstanceMetrics((prev) => ({
       ...prev,
-      [getInstanceMetricKey(nodeId, instanceId)]: {
+      [metricKey]: {
         receivedAt: Date.now(),
         publicIpV4: String(metric.publicIpV4 ?? metric.public_ip_v4 ?? ""),
         publicIpV6: String(metric.publicIpV6 ?? metric.public_ip_v6 ?? ""),
@@ -1050,7 +1165,7 @@ export default function MonitorPage() {
       },
     }));
     setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));
-  }, [loadNodeInstanceGroups, nodeInstanceGroups]);
+  }, [nodeInstanceGroups, scheduleInstanceRefresh]);
 
   const { wsConnected, wsConnecting } = useNodeRealtime({
     onMessage: handleRealtimeMessage,
@@ -1061,6 +1176,10 @@ export default function MonitorPage() {
     return () => {
       offlineTimersRef.current.forEach((timer) => clearTimeout(timer));
       offlineTimersRef.current.clear();
+      instanceOfflineTimersRef.current.forEach((timer) => clearTimeout(timer));
+      instanceOfflineTimersRef.current.clear();
+      instanceRefreshTimersRef.current.forEach((timer) => clearTimeout(timer));
+      instanceRefreshTimersRef.current.clear();
     };
   }, []);
 
@@ -1126,7 +1245,11 @@ export default function MonitorPage() {
 
     nodeInstanceGroups.forEach((group) => {
       const members = group.members.map((member) =>
-        mergeRealtimeMetric(member, group.members, realtimeInstanceMetrics),
+        mergeRealtimeMetric(
+          member,
+          realtimeInstanceMetrics,
+          realtimeInstanceStatuses,
+        ),
       );
 
       instanceCounts.set(group.id, {
@@ -1155,7 +1278,13 @@ export default function MonitorPage() {
       });
 
     return new Map<number, MonitorNode>(list.map((n) => [n.id, n]));
-  }, [nodeInstanceGroups, nodes, realtimeInstanceMetrics, realtimeNodeStatus]);
+  }, [
+    nodeInstanceGroups,
+    nodes,
+    realtimeInstanceMetrics,
+    realtimeInstanceStatuses,
+    realtimeNodeStatus,
+  ]);
 
   const monitorNodes = useMemo(() => Array.from(nodeMap.values()), [nodeMap]);
   const nodeSummary = useMemo(() => {
@@ -1288,6 +1417,7 @@ export default function MonitorPage() {
                   groups={nodeInstanceGroups.filter((g) => nodeMap.has(g.id))}
                   loading={nodeInstanceGroupsLoading}
                   realtimeMetrics={realtimeInstanceMetrics}
+                  realtimeStatuses={realtimeInstanceStatuses}
                   onEditInstance={openInstanceEditModal}
                   onOpenDetail={(nodeId, instanceId) =>
                     setDetailTarget({ nodeId, instanceId })

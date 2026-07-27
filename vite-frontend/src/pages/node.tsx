@@ -843,6 +843,7 @@ export default function NodePage() {
   const [nodeInstanceMembers, setNodeInstanceMembers] = useState<Record<number, MonitorNodeInstanceGroupMemberApiItem[]>>({});
   const [instanceConfigSaving, setInstanceConfigSaving] = useState(false);
   const [instanceConfigTarget, setInstanceConfigTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [usedTrafficDirty, setUsedTrafficDirty] = useState(false);
   const [instanceConfigForm, setInstanceConfigForm] = useState({
     displayName: "",
     remark: "",
@@ -2011,6 +2012,7 @@ export default function NodePage() {
     const usedTraffic = ((member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0)) / (1024 * 1024 * 1024);
 
     setInstanceConfigSaving(false);
+    setUsedTrafficDirty(false);
     setInstanceConfigTarget(member);
     setInstanceConfigForm({
       displayName: member.displayName?.trim() || "",
@@ -2063,8 +2065,8 @@ export default function NodePage() {
 
     // 计算已用流量差值（GB -> bytes）
     const currentUsedBytes = (instanceConfigTarget.totalInFlow ?? 0) + (instanceConfigTarget.totalOutFlow ?? 0);
-    const targetUsedBytes = usedTrafficGB * 1024 * 1024 * 1024;
-    const diffBytes = targetUsedBytes - currentUsedBytes;
+    const targetUsedBytes = Math.round(usedTrafficGB * 1024 * 1024 * 1024);
+    const diffBytes = usedTrafficDirty ? targetUsedBytes - currentUsedBytes : 0;
 
     // 按比例分配到上行/下行
     let inFlowAdjust = 0;
@@ -2106,6 +2108,7 @@ export default function NodePage() {
       if (res.code === 0) {
         toast.success("实例配置已保存");
         setInstanceConfigSaving(false);
+        setUsedTrafficDirty(false);
         setInstanceConfigTarget(null);
         await loadNodeInstances();
         await loadNodes({ silent: true });
@@ -5534,7 +5537,10 @@ export default function NodePage() {
                     min={0}
                     step="0.01"
                     type="number"
-                    value={instanceConfigForm.usedTraffic} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, usedTraffic: e.target.value }))}
+                     value={instanceConfigForm.usedTraffic} variant="bordered" onChange={(e) => {
+                       setUsedTrafficDirty(true);
+                       setInstanceConfigForm((prev) => ({ ...prev, usedTraffic: e.target.value }));
+                     }}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -5560,7 +5566,10 @@ export default function NodePage() {
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button variant="flat" onPress={() => setInstanceConfigTarget(null)}>取消</Button>
+              <Button variant="flat" onPress={() => {
+                setUsedTrafficDirty(false);
+                setInstanceConfigTarget(null);
+              }}>取消</Button>
               <Button color="primary" isLoading={instanceConfigSaving} onPress={saveInstanceConfig}>保存</Button>
             </ModalFooter>
           </ModalContent>
