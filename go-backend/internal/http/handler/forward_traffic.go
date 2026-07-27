@@ -126,6 +126,9 @@ func (h *Handler) forwardTrafficResetLogs(w http.ResponseWriter, r *http.Request
 	if limit <= 0 {
 		limit = 30
 	}
+	if limit > 100 {
+		limit = 100
+	}
 
 	logs, err := h.repo.GetForwardTrafficResetLogs(req.ForwardID, limit)
 	if err != nil {
@@ -175,6 +178,9 @@ func (h *Handler) nodeTrafficResetLogs(w http.ResponseWriter, r *http.Request) {
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 30
+	}
+	if limit > 100 {
+		limit = 100
 	}
 
 	logs, err := h.repo.GetNodeTrafficResetLogs(req.NodeID, limit)

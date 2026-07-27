@@ -987,20 +987,12 @@ func (h *Handler) enforceForwardTrafficLimit(forwardID int64) {
 	limitBytes := forward.TrafficLimit * bytesPerGB
 
 	if totalFlow >= limitBytes {
-		// 流量超限，暂停转发
+		// 流量超限，暂停转发（不归零，由用户手动归零或等待自动归零周期）
 		if pauseErr := h.pauseForward(forwardID, "流量超限"); pauseErr != nil {
 			log.Printf("ERROR: pauseForward %d failed: %v", forwardID, pauseErr)
 		} else {
 			log.Printf("Forward %d paused: traffic limit exceeded (%.2f GB / %.2f GB)",
 				forwardID, float64(totalFlow)/1e9, float64(limitBytes)/1e9)
-
-			// 归零流量 + 记录日志
-			if resetErr := h.repo.ResetForwardTrafficWithLog(forwardID, &repo.ForwardTrafficResetLogCreateParams{
-				ForwardID: forwardID, ForwardName: forward.Name, UserID: forward.UserID, UserName: forward.UserName,
-				ResetTime: time.Now().UnixMilli(), OperatorID: 1, OperatorName: "system", Reason: "流量超限",
-			}); resetErr != nil {
-				log.Printf("ERROR: reset forward %d traffic failed: %v", forwardID, resetErr)
-			}
 		}
 	}
 }
