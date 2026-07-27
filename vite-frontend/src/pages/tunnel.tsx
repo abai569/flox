@@ -533,6 +533,10 @@ export default function TunnelPage() {
     return () => {
       diagnosisAbortRef.current?.abort();
       diagnosisAbortRef.current = null;
+      if (instanceStatusTimerRef.current) {
+        clearTimeout(instanceStatusTimerRef.current);
+        instanceStatusTimerRef.current = null;
+      }
     };
   }, []);
   const applyTunnelList = useCallback((items: Tunnel[]) => {

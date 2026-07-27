@@ -52,7 +52,7 @@ func (h *Handler) licenseTransfer(w http.ResponseWriter, r *http.Request) {
 		"new_domain":  req.NewDomain,
 	})
 
-	resp, err := http.Post(lsURL+"/api/transfer", "application/json", bytes.NewReader(trialPayload))
+	resp, err := licenseHTTPClient.Post(lsURL+"/api/transfer", "application/json", bytes.NewReader(trialPayload))
 	if err != nil {
 		response.WriteJSON(w, response.ErrDefault("转让请求失败: "+err.Error()))
 		return
@@ -82,9 +82,9 @@ func (h *Handler) licenseTransfer(w http.ResponseWriter, r *http.Request) {
 	// 面板将继续使用旧域名进行验证，因域名不匹配自动失效。
 	// (原代码会强制改为新域名，导致面板误以为转让成功，未失效)
 	/*
-	now := time.Now().UnixMilli()
-	h.repo.UpsertConfig("server_domain", req.NewDomain, now)
-	middleware.UpdateCheckParams(lsURL, licenseKey, req.NewDomain)
+		now := time.Now().UnixMilli()
+		h.repo.UpsertConfig("server_domain", req.NewDomain, now)
+		middleware.UpdateCheckParams(lsURL, licenseKey, req.NewDomain)
 	*/
 
 	go middleware.TriggerAsyncCheck() // 立即触发验证，让面板尽快检测到失效

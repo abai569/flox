@@ -123,13 +123,15 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
+var licenseHTTPClient = &http.Client{Timeout: 10 * time.Second}
+
 // isLicenseKeyValid checks if a license key is still valid by calling the verify API.
 func isLicenseKeyValid(serverURL, licenseKey, domain string) bool {
 	body, _ := json.Marshal(map[string]string{
 		"license_key": licenseKey,
 		"domain":      domain,
 	})
-	resp, err := http.Post(serverURL+"/api/verify", "application/json", bytes.NewReader(body))
+	resp, err := licenseHTTPClient.Post(serverURL+"/api/verify", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return false
 	}
@@ -146,7 +148,7 @@ func isLicenseKeyValid(serverURL, licenseKey, domain string) bool {
 
 func requestTrialLicense(serverURL, domain string) (string, error) {
 	body, _ := json.Marshal(map[string]string{"domain": domain})
-	resp, err := http.Post(serverURL+"/api/trial", "application/json", bytes.NewReader(body))
+	resp, err := licenseHTTPClient.Post(serverURL+"/api/trial", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}

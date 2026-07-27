@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"go-backend/internal/http/response"
@@ -90,9 +91,9 @@ func (h *Handler) streamDiagnosisRuntime(ctx context.Context, cancel context.Can
 		return err
 	}
 
-	streamBroken := false
+	var streamBroken atomic.Bool
 	emitter := func(index int, item map[string]interface{}, progress diagnosisProgress) {
-		if streamBroken {
+		if streamBroken.Load() {
 			return
 		}
 		itemPayload := map[string]interface{}{
@@ -101,7 +102,7 @@ func (h *Handler) streamDiagnosisRuntime(ctx context.Context, cancel context.Can
 			"progress": progress,
 		}
 		if err := writeDiagnosisStreamEvent(encoder, flusher, "item", itemPayload); err != nil {
-			streamBroken = true
+			streamBroken.Store(true)
 			if cancel != nil {
 				cancel()
 			}
@@ -109,7 +110,7 @@ func (h *Handler) streamDiagnosisRuntime(ctx context.Context, cancel context.Can
 	}
 
 	results := h.runDiagnosisWorkItems(ctx, workItems, emitter)
-	if streamBroken {
+	if streamBroken.Load() {
 		return context.Canceled
 	}
 

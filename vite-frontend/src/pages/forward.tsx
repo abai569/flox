@@ -2260,6 +2260,10 @@ export default function ForwardPage() {
     return () => {
       diagnosisAbortRef.current?.abort();
       diagnosisAbortRef.current = null;
+      if (instanceStatusTimerRef.current) {
+        clearTimeout(instanceStatusTimerRef.current);
+        instanceStatusTimerRef.current = null;
+      }
     };
   }, []);
   const persistGroupOrderToLocal = (nextOrderMap: ForwardGroupOrderMap) => {

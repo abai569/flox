@@ -860,11 +860,14 @@ func (h *Handler) runNodeRenewalCycleJob(now time.Time) {
 func (h *Handler) runNftablesDomainRefreshLoop(ctx context.Context) {
 	defer h.jobsWG.Done()
 
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(10 * time.Minute):
+		case <-ticker.C:
 			h.runNftablesDomainRefreshJob()
 		}
 	}
@@ -961,11 +964,14 @@ func (h *Handler) runNftablesDomainRefreshJob() {
 func (h *Handler) runCancelExpiredOrdersLoop(ctx context.Context) {
 	defer h.jobsWG.Done()
 
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(5 * time.Minute):
+		case <-ticker.C:
 			h.cancelExpiredOrders()
 		}
 	}
@@ -1003,11 +1009,14 @@ func (h *Handler) cancelExpiredOrders() {
 func (h *Handler) runExpirePackageSubscriptionsLoop(ctx context.Context) {
 	defer h.jobsWG.Done()
 
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(10 * time.Minute):
+		case <-ticker.C:
 			h.expirePackageSubscriptions()
 		}
 	}

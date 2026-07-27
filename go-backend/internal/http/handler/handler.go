@@ -2339,7 +2339,7 @@ func getOrCreateFlowCrypto(secret string) *security.AESCrypto {
 
 func readAndDecryptFlowBody(body io.ReadCloser, secret string) (string, error) {
 	defer body.Close()
-	raw, err := io.ReadAll(body)
+	raw, err := io.ReadAll(io.LimitReader(body, 10<<20)) // 10MB limit
 	if err != nil {
 		return "", err
 	}
@@ -2368,11 +2368,13 @@ func readAndDecryptFlowBody(body io.ReadCloser, secret string) (string, error) {
 	return string(plain), nil
 }
 
+var turnstileHTTPClient = &http.Client{Timeout: 10 * time.Second}
+
 func (h *Handler) verifyCloudflareTurnstile(token, secretKey string) bool {
 	if token == "" || secretKey == "" {
 		return false
 	}
-	resp, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
+	resp, err := turnstileHTTPClient.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
 		"secret":   {secretKey},
 		"response": {token},
 	})

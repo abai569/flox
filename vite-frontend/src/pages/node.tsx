@@ -696,6 +696,13 @@ export default function NodePage() {
   const remoteUsageEventTimerRef = useRef<number | null>(null);
   const sharingOpenGenerationRef = useRef(0);
   const pageActiveRef = useRef(true);
+  const upgradeRefreshTimersRef = useRef<number[]>([]);
+  useEffect(() => {
+    return () => {
+      upgradeRefreshTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      upgradeRefreshTimersRef.current = [];
+    };
+  }, []);
   const [localSearchKeyword, setLocalSearchKeyword] = useLocalStorageState(
     "node-search-keyword-local",
     "",
@@ -1573,9 +1580,10 @@ export default function NodePage() {
               });
             }, 1500);
             [2000, 5000, 10000].forEach((delay) => {
-              setTimeout(() => {
+              const timer = window.setTimeout(() => {
                 loadNodes({ silent: true });
               }, delay);
+              upgradeRefreshTimersRef.current.push(timer);
             });
           }
         }

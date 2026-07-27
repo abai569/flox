@@ -15,11 +15,14 @@ import (
 	"sync"
 	"time"
 
+	"gorm.io/gorm"
+
 	federationclient "go-backend/internal/http/client"
 	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
-	"gorm.io/gorm"
 )
+
+var flowRelayHTTPClient = &http.Client{Timeout: 5 * time.Second}
 
 const bytesPerGB int64 = 1024 * 1024 * 1024
 
@@ -1037,8 +1040,7 @@ func (h *Handler) sendFlowRelayOutbox(item *model.FlowRelayOutbox) error {
 	}
 	targetURL = strings.TrimRight(targetURL, "/") + "/flow/relay?secret=" + url.QueryEscape(target.Token)
 
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Post(targetURL, "application/json", bytes.NewReader(payload))
+	resp, err := flowRelayHTTPClient.Post(targetURL, "application/json", bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}

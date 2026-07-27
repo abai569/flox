@@ -231,6 +231,8 @@ export default function ConfigPage() {
   const initialConfigs = getInitialConfigs();
   const [configs, setConfigs] =
     useState<Record<string, string>>(initialConfigs);
+  const configsRef = useRef(configs);
+  configsRef.current = configs;
   const [loading, setLoading] = useState(
     Object.keys(initialConfigs).length === 0,
   );
@@ -276,7 +278,7 @@ export default function ConfigPage() {
   }, [navigate]);
   // 加载配置数据（优先从缓存）
   const loadConfigs = async (currentConfigs?: Record<string, string>) => {
-    const configsToCompare = currentConfigs || configs;
+    const configsToCompare = currentConfigs || configsRef.current;
     const hasInitialData = Object.keys(configsToCompare).length > 0;
 
     // 如果已有缓存数据，不显示loading，静默更新

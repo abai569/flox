@@ -93,54 +93,31 @@ type Server struct {
 	onNodeInstanceOffline func(nodeID int64, instanceID string)
 	onNodeMetric          func(nodeID int64, info SystemInfo)
 
-	mu                    sync.RWMutex
-	nodeLifecycle         [64]sync.Mutex
-	nodeHook              [64]sync.Mutex
-	admins                map[*connWrap]struct{}
-	publics               map[*connWrap]struct{}
-	nodes                 map[int64]map[string]*nodeSession
-	byConn                map[*websocket.Conn]*nodeSession
-	pending               map[string]pendingRequest
-	subscribers           map[int]chan NodeMessage
-	nextSubscriberID      int
-	serviceConnections    map[int64]map[string]map[string]int           // nodeID -> instanceID -> serviceName -> connections
-	serviceConnUpdateTime map[int64]int64                               // nodeID -> last update time
-	forwardMetrics        map[int64]map[int64]map[string]*ForwardMetric // forwardID -> nodeID -> serviceName -> metric
-	forwardMetricsMu      sync.RWMutex
-	nodeOfflineTime       map[int64]int64 // nodeID -> offline timestamp (seconds)
-	cleanupStop           chan struct{}
-	cleanupWG             sync.WaitGroup
-	connectionWG          sync.WaitGroup
-	hookWG                sync.WaitGroup
-	closing               bool
-	closeOnce             sync.Once
+	mu                 sync.RWMutex
+	nodeLifecycle      [64]sync.Mutex
+	admins             map[*connWrap]struct{}
+	publics            map[*connWrap]struct{}
+	nodes              map[int64]map[string]*nodeSession
+	byConn             map[*websocket.Conn]*nodeSession
+	pending            map[string]pendingRequest
+	subscribers        map[int]chan NodeMessage
+	nextSubscriberID   int
+	serviceConnections map[int64]map[string]map[string]int           // nodeID -> instanceID -> serviceName -> connections
+	forwardMetrics     map[int64]map[int64]map[string]*ForwardMetric // forwardID -> nodeID -> serviceName -> metric
+	forwardMetricsMu   sync.RWMutex
+	nodeOfflineTime    map[int64]int64 // nodeID -> offline timestamp (seconds)
+	cleanupStop        chan struct{}
+	cleanupWG          sync.WaitGroup
+	connectionWG       sync.WaitGroup
+	hookWG             sync.WaitGroup
+	closing            bool
+	closeOnce          sync.Once
 }
 
 func (s *Server) lockNodeLifecycle(nodeID int64) func() {
 	index := uint64(nodeID) % uint64(len(s.nodeLifecycle))
 	s.nodeLifecycle[index].Lock()
 	return s.nodeLifecycle[index].Unlock
-}
-
-func (s *Server) runNodeHook(nodeID int64, fn func()) {
-	if fn == nil {
-		return
-	}
-	index := uint64(nodeID) % uint64(len(s.nodeHook))
-	s.nodeHook[index].Lock()
-	s.mu.Lock()
-	if s.closing {
-		s.mu.Unlock()
-		s.nodeHook[index].Unlock()
-		return
-	}
-	s.hookWG.Add(1)
-	s.mu.Unlock()
-	go func() {
-		defer s.hookWG.Done()
-		defer s.nodeHook[index].Unlock()
-		fn()
-	}()
 }
 
 type SystemInfo struct {
@@ -426,17 +403,16 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
-		admins:                make(map[*connWrap]struct{}),
-		publics:               make(map[*connWrap]struct{}),
-		nodes:                 make(map[int64]map[string]*nodeSession),
-		byConn:                make(map[*websocket.Conn]*nodeSession),
-		pending:               make(map[string]pendingRequest),
-		subscribers:           make(map[int]chan NodeMessage),
-		serviceConnections:    make(map[int64]map[string]map[string]int),
-		serviceConnUpdateTime: make(map[int64]int64),
-		forwardMetrics:        make(map[int64]map[int64]map[string]*ForwardMetric), // forwardID -> nodeID -> serviceName -> metric
-		nodeOfflineTime:       make(map[int64]int64),                               // nodeID -> offline timestamp
-		cleanupStop:           make(chan struct{}),
+		admins:             make(map[*connWrap]struct{}),
+		publics:            make(map[*connWrap]struct{}),
+		nodes:              make(map[int64]map[string]*nodeSession),
+		byConn:             make(map[*websocket.Conn]*nodeSession),
+		pending:            make(map[string]pendingRequest),
+		subscribers:        make(map[int]chan NodeMessage),
+		serviceConnections: make(map[int64]map[string]map[string]int),
+		forwardMetrics:     make(map[int64]map[int64]map[string]*ForwardMetric), // forwardID -> nodeID -> serviceName -> metric
+		nodeOfflineTime:    make(map[int64]int64),                               // nodeID -> offline timestamp
+		cleanupStop:        make(chan struct{}),
 	}
 	// 启动后台清理任务（每 2 分钟清理一次过期数据）
 	s.cleanupWG.Add(1)
@@ -753,15 +729,11 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 	onlineHook := s.onNodeOnline
 	instanceOnlineHook := s.onNodeInstanceOnline
 	s.mu.RUnlock()
-	if onlineHook != nil || instanceOnlineHook != nil {
-		s.runNodeHook(nodeID, func() {
-			if onlineHook != nil {
-				onlineHook(nodeID)
-			}
-			if instanceOnlineHook != nil {
-				instanceOnlineHook(nodeID, instanceID)
-			}
-		})
+	if onlineHook != nil {
+		s.runHook(func() { onlineHook(nodeID) })
+	}
+	if instanceOnlineHook != nil {
+		s.runHook(func() { instanceOnlineHook(nodeID, instanceID) })
 	}
 	unlockLifecycle()
 
@@ -781,6 +753,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 			removedCurrentInstance = true
 			if len(s.nodes[nodeID]) == 0 {
 				delete(s.nodes, nodeID)
+				if len(s.serviceConnections[nodeID]) == 0 {
+					delete(s.serviceConnections, nodeID)
+				}
 				// 记录节点离线时间
 				s.nodeOfflineTime[nodeID] = time.Now().Unix()
 				needOfflineBroadcast = true
@@ -806,15 +781,11 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 			s.broadcastStatus(nodeID, 0)
 
 		}
-		if (removedCurrentInstance && instanceOfflineHook != nil) || offlineHook != nil {
-			s.runNodeHook(nodeID, func() {
-				if removedCurrentInstance && instanceOfflineHook != nil {
-					instanceOfflineHook(nodeID, instanceID)
-				}
-				if offlineHook != nil {
-					offlineHook(nodeID)
-				}
-			})
+		if removedCurrentInstance && instanceOfflineHook != nil {
+			s.runHook(func() { instanceOfflineHook(nodeID, instanceID) })
+		}
+		if offlineHook != nil {
+			s.runHook(func() { offlineHook(nodeID) })
 		}
 		_ = conn.Close()
 	}()
@@ -855,7 +826,6 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 							s.serviceConnections[nodeID] = make(map[string]map[string]int)
 						}
 						s.serviceConnections[nodeID][strings.TrimSpace(sysInfo.InstanceID)] = sysInfo.ServiceConnections
-						s.serviceConnUpdateTime[nodeID] = time.Now().Unix()
 						// 更新 service_name
 						if sysInfo.ServiceName != "" {
 							_ = s.repo.UpdateNodeServiceName(nodeID, sysInfo.ServiceName)
@@ -1028,7 +998,6 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					s.serviceConnections[nodeID] = make(map[string]map[string]int)
 				}
 				s.serviceConnections[nodeID][strings.TrimSpace(sysInfo.InstanceID)] = sysInfo.ServiceConnections
-				s.serviceConnUpdateTime[nodeID] = time.Now().Unix()
 				s.mu.Unlock()
 				_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
 					NodeID:      nodeID,
@@ -1560,17 +1529,14 @@ func (s *Server) DisconnectNode(nodeID int64) {
 	}
 	s.broadcastStatus(nodeID, 0)
 
-	if instanceOfflineHook != nil || offlineHook != nil {
-		s.runNodeHook(nodeID, func() {
-			if instanceOfflineHook != nil {
-				for _, session := range disconnected {
-					instanceOfflineHook(nodeID, session.instanceID)
-				}
-			}
-			if offlineHook != nil {
-				offlineHook(nodeID)
-			}
-		})
+	if instanceOfflineHook != nil {
+		for _, session := range disconnected {
+			instanceID := session.instanceID
+			s.runHook(func() { instanceOfflineHook(nodeID, instanceID) })
+		}
+	}
+	if offlineHook != nil {
+		s.runHook(func() { offlineHook(nodeID) })
 	}
 }
 
