@@ -66,6 +66,7 @@ import { Switch } from "@/shadcn-bridge/heroui/switch";
 import { DatePicker } from "@/shadcn-bridge/heroui/date-picker";
 import { DatePresets } from "@/shadcn-bridge/heroui/date-presets";
 import { Spinner } from "@/shadcn-bridge/heroui/spinner";
+import { Progress } from "@/shadcn-bridge/heroui/progress";
 import { Alert } from "@/shadcn-bridge/heroui/alert";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
 import {
@@ -2312,10 +2313,11 @@ export default function UserPage() {
                               : formatFlow(user.flow, "gb")}
                           </span>
                         </TableCell>
-                        <SmartTooltip
-                          content={`已用：${formatFlow(usedFlow)}\n剩余：${user.flow === 99999 ? "不限" : formatFlow(Math.max(user.flow * 1024 * 1024 * 1024 - usedFlow, 0))}\n总量：${user.flow === 99999 ? "不限" : formatFlow(user.flow * 1024 * 1024 * 1024)}`}
+                        <TableCell
+                          className="whitespace-nowrap"
+                          title={`已用流量：${formatFlow(usedFlow)}\n剩余流量：${user.flow === 99999 ? "不限" : formatFlow(Math.max(user.flow * 1024 * 1024 * 1024 - usedFlow, 0))}\n总流量：${user.flow === 99999 ? "不限" : formatFlow(user.flow * 1024 * 1024 * 1024)}`}
                         >
-                          <TableCell className="whitespace-nowrap relative">
+                          <div className="flex flex-col items-end gap-1">
                             <div className="flex items-center justify-end gap-1">
                               <span className="cursor-pointer text-sm font-medium text-primary">
                                 {formatFlow(usedFlow)}
@@ -2345,20 +2347,28 @@ export default function UserPage() {
                                 </svg>
                               </Button>
                             </div>
-                            {user.flow !== 99999 && (() => {
-                              const usedPercent = (usedFlow / (user.flow * 1024 * 1024 * 1024)) * 100;
-                              if (usedPercent < 1) return null;
-                              return (
-                                <div className="absolute bottom-0 right-0 w-24 h-1.5 rounded-full overflow-hidden bg-transparent">
-                                  <div
-                                    className={`h-full ${usedPercent > 80 ? 'bg-danger' : 'bg-primary'}`}
-                                    style={{ width: `${Math.min(usedPercent, 100)}%` }}
-                                  />
-                                </div>
-                              );
-                            })()}
-                          </TableCell>
-                        </SmartTooltip>
+                            {user.flow !== 99999 && (
+                              <Progress
+                                aria-label="已用流量比例"
+                                className="w-24 cursor-pointer"
+                                color={
+                                  usedFlow /
+                                    (user.flow * 1024 * 1024 * 1024) >
+                                  0.8
+                                    ? "danger"
+                                    : "primary"
+                                }
+                                size="sm"
+                                value={Math.min(
+                                  (usedFlow /
+                                    (user.flow * 1024 * 1024 * 1024)) *
+                                    100,
+                                  100,
+                                )}
+                              />
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <span className="text-sm text-foreground">
                             {user.num}个
