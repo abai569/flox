@@ -409,10 +409,8 @@ const mergeNodeRealtimeState = (
       existingNode?.expiryReminderDismissedUntil ??
       incomingNode.expiryReminderDismissedUntil ??
       null,
-    mimicStatus:
-      existingNode?.mimicStatus ?? incomingNode.mimicStatus ?? "",
-    mimicError:
-      existingNode?.mimicError ?? incomingNode.mimicError ?? "",
+    mimicStatus: existingNode?.mimicStatus ?? incomingNode.mimicStatus ?? "",
+    mimicError: existingNode?.mimicError ?? incomingNode.mimicError ?? "",
   } as Node;
 };
 
@@ -438,12 +436,15 @@ const buildRealtimeNodeMetric = (
   return {
     uploadTraffic: Number(
       metric.netOutBytes ??
-      metric.bytes_transmitted ??
-      previous?.uploadTraffic ??
-      0,
+        metric.bytes_transmitted ??
+        previous?.uploadTraffic ??
+        0,
     ),
     downloadTraffic: Number(
-      metric.netInBytes ?? metric.bytes_received ?? previous?.downloadTraffic ?? 0,
+      metric.netInBytes ??
+        metric.bytes_received ??
+        previous?.downloadTraffic ??
+        0,
     ),
     uploadSpeed: Number(
       metric.netOutSpeed ?? metric.net_out_speed ?? previous?.uploadSpeed ?? 0,
@@ -451,7 +452,9 @@ const buildRealtimeNodeMetric = (
     downloadSpeed: Number(
       metric.netInSpeed ?? metric.net_in_speed ?? previous?.downloadSpeed ?? 0,
     ),
-    cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? previous?.cpuUsage ?? 0),
+    cpuUsage: Number(
+      metric.cpuUsage ?? metric.cpu_usage ?? previous?.cpuUsage ?? 0,
+    ),
     memoryUsage: Number(
       metric.memoryUsage ?? metric.memory_usage ?? previous?.memoryUsage ?? 0,
     ),
@@ -462,18 +465,26 @@ const buildRealtimeNodeMetric = (
     load1: Number(metric.load1 ?? previous?.load1 ?? 0),
     load5: Number(metric.load5 ?? previous?.load5 ?? 0),
     load15: Number(metric.load15 ?? previous?.load15 ?? 0),
-    tcpConns: Number(metric.tcpConns ?? metric.tcp_conns ?? previous?.tcpConns ?? 0),
-    udpConns: Number(metric.udpConns ?? metric.udp_conns ?? previous?.udpConns ?? 0),
+    tcpConns: Number(
+      metric.tcpConns ?? metric.tcp_conns ?? previous?.tcpConns ?? 0,
+    ),
+    udpConns: Number(
+      metric.udpConns ?? metric.udp_conns ?? previous?.udpConns ?? 0,
+    ),
     periodTraffic: hasPeriodTraffic
       ? {
-        rx: Number(metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0),
-        tx: Number(metric.periodNetOutBytes ?? metric.period_net_out_bytes ?? 0),
-        since: Number(
-          metric.baselineRecordedAt ?? metric.baseline_recorded_at ?? 0,
-        ),
-        nextReset: Number(metric.nextResetAt ?? metric.next_reset_at ?? 0),
-        cycle: String(metric.renewalCycle ?? metric.renewal_cycle ?? ""),
-      }
+          rx: Number(
+            metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0,
+          ),
+          tx: Number(
+            metric.periodNetOutBytes ?? metric.period_net_out_bytes ?? 0,
+          ),
+          since: Number(
+            metric.baselineRecordedAt ?? metric.baseline_recorded_at ?? 0,
+          ),
+          nextReset: Number(metric.nextResetAt ?? metric.next_reset_at ?? 0),
+          cycle: String(metric.renewalCycle ?? metric.renewal_cycle ?? ""),
+        }
       : previous?.periodTraffic,
   };
 };
@@ -486,7 +497,8 @@ const aggregateRealtimeNodeMetrics = (
   const now = Date.now();
   const metrics = Object.values(instanceMetrics).filter(
     (item) =>
-      item.nodeId === nodeId && now - item.receivedAt <= REALTIME_NODE_METRIC_STALE_MS,
+      item.nodeId === nodeId &&
+      now - item.receivedAt <= REALTIME_NODE_METRIC_STALE_MS,
   );
 
   if (metrics.length === 0) {
@@ -568,12 +580,12 @@ const aggregateRealtimeNodeMetrics = (
     udpConns: total.udpConns,
     periodTraffic: total.periodSeen
       ? {
-        rx: total.periodRx,
-        tx: total.periodTx,
-        since: total.periodSince,
-        nextReset: total.periodNextReset,
-        cycle: total.periodCycle,
-      }
+          rx: total.periodRx,
+          tx: total.periodTx,
+          since: total.periodSince,
+          nextReset: total.periodNextReset,
+          cycle: total.periodCycle,
+        }
       : fallback?.periodTraffic,
   };
 };
@@ -583,6 +595,7 @@ const resetRealtimeNodeInstanceMetrics = (
   nodeIDs: Set<number>,
 ) => {
   const next = { ...instanceMetrics };
+
   for (const [key, metric] of Object.entries(next)) {
     if (!nodeIDs.has(metric.nodeId)) continue;
     next[key] = {
@@ -594,6 +607,7 @@ const resetRealtimeNodeInstanceMetrics = (
       },
     };
   }
+
   return next;
 };
 const SortableItem = ({
@@ -616,10 +630,10 @@ const SortableItem = ({
   const style: React.CSSProperties = {
     transform: transform
       ? CSS.Transform.toString({
-        ...transform,
-        x: Math.round(transform.x),
-        y: Math.round(transform.y),
-      })
+          ...transform,
+          x: Math.round(transform.x),
+          y: Math.round(transform.y),
+        })
       : undefined,
     transition: isDragging ? undefined : transition || undefined,
     opacity: isDragging ? 0.5 : 1,
@@ -657,9 +671,7 @@ const formatNodeAddressForCell = (address: string): string => {
       return `${parts[0]}.${parts[1]}.*`;
     }
 
-    return parts.length >= 2
-      ? `${parts.slice(0, -1).join(".")}.*`
-      : address;
+    return parts.length >= 2 ? `${parts.slice(0, -1).join(".")}.*` : address;
   }
 
   return address.length > 15 ? `${address.slice(0, 15)}...` : address;
@@ -673,9 +685,8 @@ export default function NodePage() {
   const [realtimeNodeMetrics, setRealtimeNodeMetrics] = useState<
     Record<number, RealtimeNodeMetric>
   >({});
-  const [realtimeNodeInstanceMetrics, setRealtimeNodeInstanceMetrics] = useState<
-    Record<string, RealtimeNodeInstanceMetric>
-  >({});
+  const [realtimeNodeInstanceMetrics, setRealtimeNodeInstanceMetrics] =
+    useState<Record<string, RealtimeNodeInstanceMetric>>({});
   const realtimeNodeMetricsRef = useRef(realtimeNodeMetrics);
   const realtimeNodeInstanceMetricsRef = useRef(realtimeNodeInstanceMetrics);
   const loadNodesGenerationRef = useRef(0);
@@ -709,16 +720,28 @@ export default function NodePage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [nodeToDelete, setNodeToDelete] = useState<Node | null>(null);
   const [shareCounts, setShareCounts] = useState<Record<number, number>>({});
-  const [remoteUsageByNode, setRemoteUsageByNode] = useState<Record<number, {
-    usedPorts: number[];
-    portRangeStart: number;
-    portRangeEnd: number;
-    runtimeInstances?: PeerRemoteUsageNodeApiItem["runtimeInstances"];
-  }>>({});
+  const [remoteUsageByNode, setRemoteUsageByNode] = useState<
+    Record<
+      number,
+      {
+        usedPorts: number[];
+        portRangeStart: number;
+        portRangeEnd: number;
+        runtimeInstances?: PeerRemoteUsageNodeApiItem["runtimeInstances"];
+      }
+    >
+  >({});
   const [sharingNode, setSharingNode] = useState<Node | null>(null);
   const [importNodeOpen, setImportNodeOpen] = useState(false);
   const [peerShareNotifications, setPeerShareNotifications] = useState<
-    { id: number; token: string; providerUrl: string; providerToken: string; providerNodeName: string; maxBandwidth: number }[]
+    {
+      id: number;
+      token: string;
+      providerUrl: string;
+      providerToken: string;
+      providerNodeName: string;
+      maxBandwidth: number;
+    }[]
   >([]);
 
   // 轮询分享通知
@@ -726,14 +749,33 @@ export default function NodePage() {
     const poll = async () => {
       try {
         const res = await listPeerShareNotifications();
+
         if (res.code === 0 && Array.isArray(res.data)) {
           setPeerShareNotifications(res.data);
         }
-      } catch { /* ignore poll errors */ }
+      } catch {
+        /* ignore poll errors */
+      }
     };
+
     poll();
-    const timer = setInterval(poll, 30000);
-    return () => clearInterval(timer);
+    const timer = setInterval(poll, 10000);
+
+    // 多标签页同步
+    let channel: BroadcastChannel | undefined;
+    try {
+      channel = new BroadcastChannel("flox-peer-share-notifications");
+      channel.onmessage = () => {
+        void poll();
+      };
+    } catch {
+      /* BroadcastChannel not supported */
+    }
+
+    return () => {
+      clearInterval(timer);
+      channel?.close();
+    };
   }, []);
 
   const [importPrefillUrl, setImportPrefillUrl] = useState("");
@@ -840,9 +882,12 @@ export default function NodePage() {
   } = useDisclosure();
   const [nodeToReset, setNodeToReset] = useState<Node | null>(null);
   const [resetTrafficLoading, setResetTrafficLoading] = useState(false);
-  const [nodeInstanceMembers, setNodeInstanceMembers] = useState<Record<number, MonitorNodeInstanceGroupMemberApiItem[]>>({});
+  const [nodeInstanceMembers, setNodeInstanceMembers] = useState<
+    Record<number, MonitorNodeInstanceGroupMemberApiItem[]>
+  >({});
   const [instanceConfigSaving, setInstanceConfigSaving] = useState(false);
-  const [instanceConfigTarget, setInstanceConfigTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [instanceConfigTarget, setInstanceConfigTarget] =
+    useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [usedTrafficDirty, setUsedTrafficDirty] = useState(false);
   const [instanceConfigForm, setInstanceConfigForm] = useState({
     displayName: "",
@@ -856,9 +901,11 @@ export default function NodePage() {
     usedTraffic: "0",
     weight: "1",
   });
-  const [instanceDeleteTarget, setInstanceDeleteTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [instanceDeleteTarget, setInstanceDeleteTarget] =
+    useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [instanceDeleteSaving, setInstanceDeleteSaving] = useState(false);
-  const [instanceResetTarget, setInstanceResetTarget] = useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
+  const [instanceResetTarget, setInstanceResetTarget] =
+    useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
   const [instanceResetSaving, setInstanceResetSaving] = useState(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<"single" | "batch">(
@@ -891,7 +938,14 @@ export default function NodePage() {
   const [batchMimicLoading, setBatchMimicLoading] = useState(false);
   const [mimicResultModalOpen, setMimicResultModalOpen] = useState(false);
   const [mimicConfirmNodes, setMimicConfirmNodes] = useState<Node[]>([]);
-  const [mimicResults, setMimicResults] = useState<Array<{ nodeId: number; nodeName: string; success: boolean; message: string }>>([]);
+  const [mimicResults, setMimicResults] = useState<
+    Array<{
+      nodeId: number;
+      nodeName: string;
+      success: boolean;
+      message: string;
+    }>
+  >([]);
   const [batchResetTrafficLoading, setBatchResetTrafficLoading] =
     useState(false);
   const [batchResetTrafficModalOpen, setBatchResetTrafficModalOpen] =
@@ -946,6 +1000,7 @@ export default function NodePage() {
   const handleDeleteLog = useCallback(async () => {
     if (!isAdmin || !logToDelete) return;
     const generation = nodeTrafficLogsGenerationRef.current;
+
     try {
       const res = await deleteNodeTrafficResetLog(logToDelete);
 
@@ -996,11 +1051,12 @@ export default function NodePage() {
         }
 
         const offlineMetrics = realtimeNodeMetricsRef.current[nodeId];
+
         if (
           (offlineMetrics?.periodTraffic?.tx || 0) > 0 ||
           (offlineMetrics?.periodTraffic?.rx || 0) > 0
         ) {
-          recordNodeOfflineLog(nodeId, "节点离线").catch(() => { });
+          recordNodeOfflineLog(nodeId, "节点离线").catch(() => {});
         }
 
         return {
@@ -1038,9 +1094,11 @@ export default function NodePage() {
   const loadShareCounts = useCallback(async () => {
     try {
       const res = await getPeerShareList();
+
       if (res.code !== 0 || !Array.isArray(res.data)) return;
       const counts = res.data.reduce<Record<number, number>>((acc, share) => {
         acc[share.nodeId] = (acc[share.nodeId] || 0) + 1;
+
         return acc;
       }, {});
 
@@ -1060,7 +1118,11 @@ export default function NodePage() {
     try {
       const res: any = await getNodeList();
 
-      if (!pageActiveRef.current || loadNodesGenerationRef.current !== generation) return;
+      if (
+        !pageActiveRef.current ||
+        loadNodesGenerationRef.current !== generation
+      )
+        return;
       if (res.code === 0 || res.code === 200 || !res.code) {
         const data = res.data !== undefined ? res.data : res;
         const nodesArray = Array.isArray(data)
@@ -1092,40 +1154,55 @@ export default function NodePage() {
             mergeNodeRealtimeState(node, previousById.get(node.id)),
           );
         });
-        if (nodesData.some((node) => node.isRemote === 1) && !remoteUsageInFlightRef.current) {
+        if (
+          nodesData.some((node) => node.isRemote === 1) &&
+          !remoteUsageInFlightRef.current
+        ) {
           const usageGeneration = ++remoteUsageGenerationRef.current;
+
           remoteUsageInFlightRef.current = true;
           getPeerRemoteUsageList()
             .then((usageRes) => {
-              if (!pageActiveRef.current || remoteUsageGenerationRef.current !== usageGeneration) return;
+              if (
+                !pageActiveRef.current ||
+                remoteUsageGenerationRef.current !== usageGeneration
+              )
+                return;
               if (usageRes.code !== 0 || !Array.isArray(usageRes.data)) return;
-              const usageByNode = usageRes.data.reduce<Record<number, PeerRemoteUsageNodeApiItem>>(
-                (acc, item) => {
-                  acc[item.nodeId] = item;
-                  return acc;
-                },
-                {},
-              );
+              const usageByNode = usageRes.data.reduce<
+                Record<number, PeerRemoteUsageNodeApiItem>
+              >((acc, item) => {
+                acc[item.nodeId] = item;
+
+                return acc;
+              }, {});
 
               setRemoteUsageByNode(
-                usageRes.data.reduce<Record<number, {
-                  usedPorts: number[];
-                  portRangeStart: number;
-                  portRangeEnd: number;
-                  runtimeInstances?: PeerRemoteUsageNodeApiItem["runtimeInstances"];
-                }>>((acc, item) => {
+                usageRes.data.reduce<
+                  Record<
+                    number,
+                    {
+                      usedPorts: number[];
+                      portRangeStart: number;
+                      portRangeEnd: number;
+                      runtimeInstances?: PeerRemoteUsageNodeApiItem["runtimeInstances"];
+                    }
+                  >
+                >((acc, item) => {
                   acc[item.nodeId] = {
                     usedPorts: item.usedPorts || [],
                     portRangeStart: item.portRangeStart || 0,
                     portRangeEnd: item.portRangeEnd || 0,
                     runtimeInstances: item.runtimeInstances || [],
                   };
+
                   return acc;
                 }, {}),
               );
               setNodeList((prev) =>
                 prev.map((node) => {
                   const usage = usageByNode[node.id];
+
                   if (!usage || node.isRemote !== 1) return node;
 
                   const existingInstances = new Map(
@@ -1134,26 +1211,30 @@ export default function NodePage() {
                       instance,
                     ]),
                   );
-                  const instances = (usage.instances || node.remoteInstances || []).map(
-                    (instance) => {
-                      const existing = existingInstances.get(instance.instanceId.trim());
+                  const instances = (
+                    usage.instances ||
+                    node.remoteInstances ||
+                    []
+                  ).map((instance) => {
+                    const existing = existingInstances.get(
+                      instance.instanceId.trim(),
+                    );
 
-                      return {
-                        ...existing,
-                        ...instance,
-                        periodRx: existing?.periodRx,
-                        periodTx: existing?.periodTx,
-                        totalInFlow:
-                          instance.totalInFlow !== undefined
-                            ? instance.totalInFlow
-                            : existing?.totalInFlow,
-                        totalOutFlow:
-                          instance.totalOutFlow !== undefined
-                            ? instance.totalOutFlow
-                            : existing?.totalOutFlow,
-                      };
-                    },
-                  );
+                    return {
+                      ...existing,
+                      ...instance,
+                      periodRx: existing?.periodRx,
+                      periodTx: existing?.periodTx,
+                      totalInFlow:
+                        instance.totalInFlow !== undefined
+                          ? instance.totalInFlow
+                          : existing?.totalInFlow,
+                      totalOutFlow:
+                        instance.totalOutFlow !== undefined
+                          ? instance.totalOutFlow
+                          : existing?.totalOutFlow,
+                    };
+                  });
                   const healthyInstances = instances.filter(
                     (instance) =>
                       instance.inScope &&
@@ -1169,11 +1250,22 @@ export default function NodePage() {
                   return {
                     ...node,
                     status: nextStatus,
-                    connectionStatus: usage.syncError ? "offline" : nextStatus === 1 ? "online" : "offline",
+                    connectionStatus: usage.syncError
+                      ? "offline"
+                      : nextStatus === 1
+                        ? "online"
+                        : "offline",
                     syncError: usage.syncError || undefined,
-                    trafficRatio: usage.trafficRatio && usage.trafficRatio > 0 ? usage.trafficRatio : node.trafficRatio,
-                    remoteCurrentFlow: usage.remoteCurrentFlow ?? usage.currentFlow ?? node.remoteCurrentFlow,
-                    remoteMaxBandwidth: usage.maxBandwidth ?? node.remoteMaxBandwidth,
+                    trafficRatio:
+                      usage.trafficRatio && usage.trafficRatio > 0
+                        ? usage.trafficRatio
+                        : node.trafficRatio,
+                    remoteCurrentFlow:
+                      usage.remoteCurrentFlow ??
+                      usage.currentFlow ??
+                      node.remoteCurrentFlow,
+                    remoteMaxBandwidth:
+                      usage.maxBandwidth ?? node.remoteMaxBandwidth,
                     remoteExpiryTime: usage.expiryTime ?? node.remoteExpiryTime,
                     remoteInstances: instances,
                   };
@@ -1212,11 +1304,19 @@ export default function NodePage() {
         }
       }
     } catch {
-      if (!silent && pageActiveRef.current && loadNodesGenerationRef.current === generation) {
+      if (
+        !silent &&
+        pageActiveRef.current &&
+        loadNodesGenerationRef.current === generation
+      ) {
         toast.error("网络错误，请重试");
       }
     } finally {
-      if (!silent && pageActiveRef.current && loadingGenerationRef.current === loadingGeneration) {
+      if (
+        !silent &&
+        pageActiveRef.current &&
+        loadingGenerationRef.current === loadingGeneration
+      ) {
         setLoading(false);
       }
     }
@@ -1224,8 +1324,10 @@ export default function NodePage() {
   const loadNodeInstances = useCallback(async (): Promise<boolean> => {
     try {
       const res = await getMonitorNodeInstanceGroups();
+
       if (res.code !== 0) return false;
       const next: Record<number, MonitorNodeInstanceGroupMemberApiItem[]> = {};
+
       for (const group of res.data || []) {
         next[Number(group.id)] = group.members || [];
       }
@@ -1237,8 +1339,10 @@ export default function NodePage() {
         for (const members of Object.values(next)) {
           for (const member of members) {
             const instanceId = member.instanceId?.trim();
+
             if (!instanceId) continue;
             const key = getRealtimeInstanceKey(member.nodeId, instanceId);
+
             metrics[key] = {
               ...buildRealtimeNodeMetric({
                 periodNetInBytes: member.periodNetInBytes ?? 0,
@@ -1255,6 +1359,7 @@ export default function NodePage() {
             };
           }
         }
+
         return metrics;
       });
       setRealtimeNodeMetrics((prev) => {
@@ -1262,36 +1367,58 @@ export default function NodePage() {
 
         for (const [nodeIdText, members] of Object.entries(next)) {
           const nodeId = Number(nodeIdText);
-          const rx = members.reduce((sum, m) => sum + (m.periodNetInBytes ?? 0), 0);
-          const tx = members.reduce((sum, m) => sum + (m.periodNetOutBytes ?? 0), 0);
+          const rx = members.reduce(
+            (sum, m) => sum + (m.periodNetInBytes ?? 0),
+            0,
+          );
+          const tx = members.reduce(
+            (sum, m) => sum + (m.periodNetOutBytes ?? 0),
+            0,
+          );
+
           metrics[nodeId] = {
-            ...buildRealtimeNodeMetric({ periodNetInBytes: rx, periodNetOutBytes: tx }),
+            ...buildRealtimeNodeMetric({
+              periodNetInBytes: rx,
+              periodNetOutBytes: tx,
+            }),
             ...metrics[nodeId],
           };
         }
+
         return metrics;
       });
+
       return true;
     } catch {
       // 实例配置是辅助信息，失败时不阻塞节点列表。
       return false;
     }
   }, []);
-  const openNodeSharing = useCallback(async (node: Node) => {
-    const generation = ++sharingOpenGenerationRef.current;
-    const loaded = await loadNodeInstances();
-    if (!loaded) {
-      toast.error("刷新节点实例失败，请重试");
-      return;
-    }
-    if (sharingOpenGenerationRef.current === generation) {
-      setSharingNode(node);
-    }
-  }, [loadNodeInstances]);
+  const openNodeSharing = useCallback(
+    async (node: Node) => {
+      const generation = ++sharingOpenGenerationRef.current;
+      const loaded = await loadNodeInstances();
+
+      if (!loaded) {
+        toast.error("刷新节点实例失败，请重试");
+
+        return;
+      }
+      if (sharingOpenGenerationRef.current === generation) {
+        setSharingNode(node);
+      }
+    },
+    [loadNodeInstances],
+  );
+
   useEffect(() => {
     void loadNodeInstances();
   }, [loadNodeInstances]);
-  const syncNodeInstanceStatus = (nodeId: number, instanceId: string, status: number) => {
+  const syncNodeInstanceStatus = (
+    nodeId: number,
+    instanceId: string,
+    status: number,
+  ) => {
     const normalizedInstanceId = instanceId.trim();
 
     if (!normalizedInstanceId) return;
@@ -1302,7 +1429,8 @@ export default function NodePage() {
 
       if (members.length === 0) return prev;
       const nextMembers = members.map((member) => {
-        if ((member.instanceId || "").trim() !== normalizedInstanceId) return member;
+        if ((member.instanceId || "").trim() !== normalizedInstanceId)
+          return member;
         found = true;
 
         return { ...member, status };
@@ -1320,19 +1448,24 @@ export default function NodePage() {
 
     if (Number.isNaN(nodeId)) return;
     if (type === "remote_usage_changed") {
-      window.dispatchEvent(new CustomEvent("remote_usage_changed", { detail: { nodeId } }));
+      window.dispatchEvent(
+        new CustomEvent("remote_usage_changed", { detail: { nodeId } }),
+      );
       if (remoteUsageEventTimerRef.current !== null) {
         window.clearTimeout(remoteUsageEventTimerRef.current);
       }
       const refresh = () => {
         if (remoteUsageInFlightRef.current) {
           remoteUsageEventTimerRef.current = window.setTimeout(refresh, 250);
+
           return;
         }
         remoteUsageEventTimerRef.current = null;
         void loadNodes({ silent: true });
       };
+
       remoteUsageEventTimerRef.current = window.setTimeout(refresh, 100);
+
       return;
     }
     if (type === "status") {
@@ -1446,7 +1579,7 @@ export default function NodePage() {
             });
           }
         }
-      } catch { }
+      } catch {}
     } else if (type === "panel_upgrade_progress") {
       try {
         const progressData =
@@ -1466,7 +1599,7 @@ export default function NodePage() {
             }),
           );
         }
-      } catch { }
+      } catch {}
     } else if (type === "mimic_status") {
       try {
         const statusData =
@@ -1479,15 +1612,15 @@ export default function NodePage() {
             prev.map((n) =>
               n.id === nodeId
                 ? {
-                  ...n,
-                  mimicStatus: statusData.data.status || "",
-                  mimicError: statusData.data.error || "",
-                }
+                    ...n,
+                    mimicStatus: statusData.data.status || "",
+                    mimicError: statusData.data.error || "",
+                  }
                 : n,
             ),
           );
         }
-      } catch { }
+      } catch {}
     } else if (type === "instance_status") {
       let payload = messageData;
 
@@ -1499,7 +1632,9 @@ export default function NodePage() {
         }
       }
       if (!payload || typeof payload !== "object") return;
-      const instanceId = String(payload?.instanceId ?? payload?.instance_id ?? "").trim();
+      const instanceId = String(
+        payload?.instanceId ?? payload?.instance_id ?? "",
+      ).trim();
       const status = Number(payload?.status ?? 0) === 1 ? 1 : 0;
 
       syncNodeInstanceStatus(nodeId, instanceId, status);
@@ -1507,6 +1642,7 @@ export default function NodePage() {
       clearOfflineTimer(nodeId);
       const metric =
         typeof messageData === "string" ? JSON.parse(messageData) : messageData;
+
       if (!metric || typeof metric !== "object") return;
       const metricData = metric as Record<string, unknown>;
       const instanceId = String(
@@ -1516,7 +1652,7 @@ export default function NodePage() {
       if (isRealMetricInstanceId(instanceId)) {
         const previousInstance =
           realtimeNodeInstanceMetricsRef.current[
-          getRealtimeInstanceKey(nodeId, instanceId)
+            getRealtimeInstanceKey(nodeId, instanceId)
           ];
         const nextInstanceMetric: RealtimeNodeInstanceMetric = {
           ...buildRealtimeNodeMetric(metricData, previousInstance),
@@ -1535,8 +1671,11 @@ export default function NodePage() {
         setRealtimeNodeMetrics((prev) => ({
           ...prev,
           [nodeId]:
-            aggregateRealtimeNodeMetrics(nodeId, nextInstanceMetrics, prev[nodeId]) ??
-            nextInstanceMetric,
+            aggregateRealtimeNodeMetrics(
+              nodeId,
+              nextInstanceMetrics,
+              prev[nodeId],
+            ) ?? nextInstanceMetric,
         }));
       } else {
         setRealtimeNodeMetrics((prev) => ({
@@ -1570,6 +1709,7 @@ export default function NodePage() {
     await Promise.all([loadNodes(), loadShareCounts()]);
   });
   const hasRemoteNodes = nodeList.some((node) => node.isRemote === 1);
+
   useEffect(() => {
     if (!usingPollingFallback) {
       return;
@@ -1599,9 +1739,12 @@ export default function NodePage() {
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
-  const handleShareCountChange = useCallback((nodeId: number, count: number) => {
-    setShareCounts((prev) => ({ ...prev, [nodeId]: count }));
-  }, []);
+  const handleShareCountChange = useCallback(
+    (nodeId: number, count: number) => {
+      setShareCounts((prev) => ({ ...prev, [nodeId]: count }));
+    },
+    [],
+  );
   const getSelectedLocalIds = () =>
     Array.from(selectedIds).filter(
       (id) => nodeList.find((node) => node.id === id)?.isRemote !== 1,
@@ -1796,17 +1939,21 @@ export default function NodePage() {
       dnsManageA: true,
       dnsManageAAAA: false,
     });
-    getNodeDNSConfig(node.id).then((res) => {
-      if (res.code === 0 && res.data) {
-        setForm((prev) => ({
-          ...prev,
-          dnsEnabled: !!res.data.enabled,
-          dnsProvider: res.data.provider === "cloudflare" ? "cloudflare" : "aliyun",
-          dnsManageA: res.data.manageA !== false,
-          dnsManageAAAA: res.data.enabled === true && res.data.manageAAAA === true,
-        }));
-      }
-    }).catch(() => { });
+    getNodeDNSConfig(node.id)
+      .then((res) => {
+        if (res.code === 0 && res.data) {
+          setForm((prev) => ({
+            ...prev,
+            dnsEnabled: !!res.data.enabled,
+            dnsProvider:
+              res.data.provider === "cloudflare" ? "cloudflare" : "aliyun",
+            dnsManageA: res.data.manageA !== false,
+            dnsManageAAAA:
+              res.data.enabled === true && res.data.manageAAAA === true,
+          }));
+        }
+      })
+      .catch(() => {});
     setDialogVisible(true);
   };
   const openDNSFailoverPicker = (node?: Node) => {
@@ -1818,21 +1965,31 @@ export default function NodePage() {
     Network.post<any>("/node/dns-failover/get", { nodeId });
 
   const loadDNSProviderAvailability = () =>
-    Network.post<Array<{ provider: string; providerConfig?: Record<string, string> }>>(
-      "/dns-failover/global/get",
-      {},
-    ).then((res) => {
-      if (res.code !== 0 || !res.data) return;
-      const aliyun = res.data.find((item) => item.provider === "aliyun")?.providerConfig || {};
-      const cloudflare = res.data.find((item) => item.provider === "cloudflare")?.providerConfig || {};
-      setDNSProviderAvailability({
-        aliyun: Boolean(aliyun.accessKeyId && aliyun.accessKeySecretSet === "true"),
-        cloudflare:
-          cloudflare.authMode === "global_key"
-            ? Boolean(cloudflare.email && cloudflare.globalApiKeySet === "true")
-            : cloudflare.apiTokenSet === "true",
-      });
-    }).catch(() => { });
+    Network.post<
+      Array<{ provider: string; providerConfig?: Record<string, string> }>
+    >("/dns-failover/global/get", {})
+      .then((res) => {
+        if (res.code !== 0 || !res.data) return;
+        const aliyun =
+          res.data.find((item) => item.provider === "aliyun")?.providerConfig ||
+          {};
+        const cloudflare =
+          res.data.find((item) => item.provider === "cloudflare")
+            ?.providerConfig || {};
+
+        setDNSProviderAvailability({
+          aliyun: Boolean(
+            aliyun.accessKeyId && aliyun.accessKeySecretSet === "true",
+          ),
+          cloudflare:
+            cloudflare.authMode === "global_key"
+              ? Boolean(
+                  cloudflare.email && cloudflare.globalApiKeySet === "true",
+                )
+              : cloudflare.apiTokenSet === "true",
+        });
+      })
+      .catch(() => {});
 
   const saveNodeDNSConfig = (data: Record<string, unknown>) =>
     Network.post<any>("/node/dns-failover/save", data);
@@ -1840,25 +1997,33 @@ export default function NodePage() {
   const syncNodeDNSConfig = (nodeId: number) =>
     Network.post<any>("/node/dns-failover/sync", { nodeId });
 
-  const handleManualDNSSync = async (event?: { stopPropagation?: () => void }) => {
+  const handleManualDNSSync = async (event?: {
+    stopPropagation?: () => void;
+  }) => {
     event?.stopPropagation?.();
     const nodeId = Number(form.id || 0);
     const dnsAddress = form.serverIpV4.trim();
 
     if (!nodeId) {
       toast.error("请先保存节点后再同步 DNS 容灾");
+
       return;
     }
     if (!form.dnsEnabled) {
       toast.error("请先启用 DNS 容灾");
+
       return;
     }
     if (!dnsAddress || validateIpv4Literal(dnsAddress)) {
       toast.error("启用 DNS 容灾时，请填写域名而不是 IP 地址");
+
       return;
     }
     if (!dnsProviderAvailability[form.dnsProvider]) {
-      toast.error(`${form.dnsProvider === "aliyun" ? "阿里云" : "Cloudflare"} DNS 尚未配置`);
+      toast.error(
+        `${form.dnsProvider === "aliyun" ? "阿里云" : "Cloudflare"} DNS 尚未配置`,
+      );
+
       return;
     }
 
@@ -1873,11 +2038,14 @@ export default function NodePage() {
         manageAAAA: form.dnsManageAAAA,
         providerConfig: {},
       });
+
       if (saveRes.code !== 0) {
         toast.error(saveRes.msg || "DNS 配置保存失败");
+
         return;
       }
       const syncRes = await syncNodeDNSConfig(nodeId);
+
       if (syncRes.code === 0) {
         toast.success("DNS 容灾同步完成");
       } else {
@@ -1924,7 +2092,10 @@ export default function NodePage() {
       setDeleteLoading(false);
     }
   };
-  const handleDismissExpiryReminder = async (nodeId: number, instanceId?: string) => {
+  const handleDismissExpiryReminder = async (
+    nodeId: number,
+    instanceId?: string,
+  ) => {
     try {
       const res = await refreshNodeExpiryReminder(nodeId, instanceId);
 
@@ -1954,20 +2125,33 @@ export default function NodePage() {
       toast.error("操作失败");
     }
   };
-  const getInstanceLabel = (member?: MonitorNodeInstanceGroupMemberApiItem | null) => {
+  const getInstanceLabel = (
+    member?: MonitorNodeInstanceGroupMemberApiItem | null,
+  ) => {
     if (!member) return "实例";
     const displayName = member.displayName?.trim();
+
     if (displayName) return displayName;
-    return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
+
+    return member.displayIndex
+      ? `实例 ${member.displayIndex}`
+      : member.instanceId || "实例";
   };
   const getDefaultInstanceLabel = (
     member?: MonitorNodeInstanceGroupMemberApiItem | null,
   ) => {
     if (!member) return "实例";
-    return member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId || "实例";
+
+    return member.displayIndex
+      ? `实例 ${member.displayIndex}`
+      : member.instanceId || "实例";
   };
   const reorderNodeInstances = useCallback(
-    async (nodeId: number, activeInstanceId: string, overInstanceId: string) => {
+    async (
+      nodeId: number,
+      activeInstanceId: string,
+      overInstanceId: string,
+    ) => {
       const previousMembers = nodeInstanceMembers[nodeId];
 
       if (!previousMembers) return;
@@ -1979,13 +2163,18 @@ export default function NodePage() {
       );
 
       if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return;
-      const reorderedMembers = arrayMove(previousMembers, oldIndex, newIndex).map(
-        (member, index) => ({ ...member, displayIndex: index + 1 }),
+      const reorderedMembers = arrayMove(
+        previousMembers,
+        oldIndex,
+        newIndex,
+      ).map((member, index) => ({ ...member, displayIndex: index + 1 }));
+      const instanceIds = reorderedMembers.map(
+        (member) => member.instanceId?.trim() || "",
       );
-      const instanceIds = reorderedMembers.map((member) => member.instanceId?.trim() || "");
 
       if (instanceIds.some((instanceId) => !instanceId)) {
         toast.error("实例标识无效，无法保存排序");
+
         return;
       }
 
@@ -2002,14 +2191,20 @@ export default function NodePage() {
           ...current,
           [nodeId]: previousMembers,
         }));
-        toast.error(error instanceof Error ? error.message : "保存实例排序失败");
+        toast.error(
+          error instanceof Error ? error.message : "保存实例排序失败",
+        );
       }
     },
     [nodeInstanceMembers],
   );
-  const openInstanceConfigEditor = (member: MonitorNodeInstanceGroupMemberApiItem) => {
+  const openInstanceConfigEditor = (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => {
     const renewalCycle = String(member.renewalCycle || "");
-    const usedTraffic = ((member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0)) / (1024 * 1024 * 1024);
+    const usedTraffic =
+      ((member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0)) /
+      (1024 * 1024 * 1024);
 
     setInstanceConfigSaving(false);
     setUsedTrafficDirty(false);
@@ -2018,9 +2213,15 @@ export default function NodePage() {
       displayName: member.displayName?.trim() || "",
       remark: member.remark?.trim() || "",
       portRange: member.portRange?.trim() || "",
-      renewalCycle: renewalCycle === "halfyear" ? "halfYear" : (renewalCycle as NodeRenewalCycle),
+      renewalCycle:
+        renewalCycle === "halfyear"
+          ? "halfYear"
+          : (renewalCycle as NodeRenewalCycle),
       expiryDate: formatDateInputValue(member.expiryTime),
-      flowResetTime: member.flowResetTime === undefined || member.flowResetTime === null ? "" : String(member.flowResetTime),
+      flowResetTime:
+        member.flowResetTime === undefined || member.flowResetTime === null
+          ? ""
+          : String(member.flowResetTime),
       trafficLimit: String(member.trafficLimit || 0),
       trafficLimitMode: member.trafficLimitMode ?? 1,
       usedTraffic: usedTraffic.toFixed(2),
@@ -2031,50 +2232,73 @@ export default function NodePage() {
     if (!instanceConfigTarget?.instanceId) return;
     const expiryTime = parseDateInputValue(instanceConfigForm.expiryDate);
     const renewalCycle = instanceConfigForm.renewalCycle.trim();
-    const flowResetTime = Number(instanceConfigForm.flowResetTime === "" ? 0 : instanceConfigForm.flowResetTime);
+    const flowResetTime = Number(
+      instanceConfigForm.flowResetTime === ""
+        ? 0
+        : instanceConfigForm.flowResetTime,
+    );
     const trafficLimit = Number(instanceConfigForm.trafficLimit || 0);
     const usedTrafficGB = Number(instanceConfigForm.usedTraffic || 0);
     const displayName = instanceConfigForm.displayName.trim();
     const remark = instanceConfigForm.remark.trim();
-    const portRange = instanceConfigForm.portRange.trim() || DEFAULT_INSTANCE_PORT_RANGE;
+    const portRange =
+      instanceConfigForm.portRange.trim() || DEFAULT_INSTANCE_PORT_RANGE;
+
     if (displayName.length > 100) {
       toast.error("实例名称不能超过 100 个字符");
+
       return;
     }
     if (remark.length > 200) {
       toast.error("实例备注不能超过 200 个字符");
+
       return;
     }
-    if ((expiryTime > 0 && !renewalCycle) || (expiryTime <= 0 && renewalCycle)) {
+    if (
+      (expiryTime > 0 && !renewalCycle) ||
+      (expiryTime <= 0 && renewalCycle)
+    ) {
       toast.error("请同时设置续费周期和到期时间");
+
       return;
     }
-    if (!Number.isFinite(flowResetTime) || flowResetTime < 0 || flowResetTime > 31) {
+    if (
+      !Number.isFinite(flowResetTime) ||
+      flowResetTime < 0 ||
+      flowResetTime > 31
+    ) {
       toast.error("流量归零日必须在 0-31 之间，0 表示不归零");
+
       return;
     }
     if (!Number.isFinite(trafficLimit) || trafficLimit < 0) {
       toast.error("流量限额不能小于 0");
+
       return;
     }
     if (!Number.isFinite(usedTrafficGB) || usedTrafficGB < 0) {
       toast.error("已用流量不能小于 0");
+
       return;
     }
     const trafficLimitMode = instanceConfigForm.trafficLimitMode ?? 1;
 
     // 计算已用流量差值（GB -> bytes）
-    const currentUsedBytes = (instanceConfigTarget.totalInFlow ?? 0) + (instanceConfigTarget.totalOutFlow ?? 0);
+    const currentUsedBytes =
+      (instanceConfigTarget.totalInFlow ?? 0) +
+      (instanceConfigTarget.totalOutFlow ?? 0);
     const targetUsedBytes = Math.round(usedTrafficGB * 1024 * 1024 * 1024);
     const diffBytes = usedTrafficDirty ? targetUsedBytes - currentUsedBytes : 0;
 
     // 按比例分配到上行/下行
     let inFlowAdjust = 0;
     let outFlowAdjust = 0;
+
     if (Math.abs(diffBytes) > 0) {
       const currentIn = instanceConfigTarget.totalInFlow ?? 0;
       const currentOut = instanceConfigTarget.totalOutFlow ?? 0;
       const total = currentIn + currentOut;
+
       if (total > 0) {
         // 按当前比例分配
         inFlowAdjust = Math.round(diffBytes * (currentIn / total));
@@ -2092,7 +2316,10 @@ export default function NodePage() {
         instanceId: instanceConfigTarget.instanceId,
         displayName,
         remark,
-        weight: instanceConfigForm.weight.trim() === "" ? 1 : Number(instanceConfigForm.weight),
+        weight:
+          instanceConfigForm.weight.trim() === ""
+            ? 1
+            : Number(instanceConfigForm.weight),
         portRange,
         flowResetTime: Math.floor(flowResetTime),
         trafficLimit: Math.floor(trafficLimit),
@@ -2100,11 +2327,13 @@ export default function NodePage() {
         inFlowAdjust: Math.round(inFlowAdjust),
         outFlowAdjust: Math.round(outFlowAdjust),
       };
+
       if (expiryTime > 0 && renewalCycle) {
         payload.expiryTime = expiryTime;
         payload.renewalCycle = renewalCycle;
       }
       const res = await updateNodeInstanceProfile(payload);
+
       if (res.code === 0) {
         toast.success("实例配置已保存");
         setInstanceConfigSaving(false);
@@ -2125,10 +2354,16 @@ export default function NodePage() {
     if (!instanceDeleteTarget?.instanceId) return;
     setInstanceDeleteSaving(true);
     try {
-      const res = await deleteNodeInstancePort(instanceDeleteTarget.nodeId, instanceDeleteTarget.instanceId);
+      const res = await deleteNodeInstancePort(
+        instanceDeleteTarget.nodeId,
+        instanceDeleteTarget.instanceId,
+      );
+
       if (res.code === 0) {
         toast.success("实例已删除");
-        const warning = (res.data as { uninstallWarning?: string } | undefined)?.uninstallWarning;
+        const warning = (res.data as { uninstallWarning?: string } | undefined)
+          ?.uninstallWarning;
+
         if (warning) {
           toast(String(warning));
         }
@@ -2155,13 +2390,16 @@ export default function NodePage() {
         reason: "管理员手动归零",
       });
       const result = res.data?.[0];
+
       if (res.code === 0 && result?.success) {
         toast.success("实例流量归零成功");
         setInstanceResetTarget(null);
         setRealtimeNodeInstanceMetrics((prev) => {
           const key = `${member.nodeId}:${member.instanceId}`;
           const metric = prev[key];
+
           if (!metric) return prev;
+
           return {
             ...prev,
             [key]: {
@@ -2188,6 +2426,7 @@ export default function NodePage() {
   // 查看节点流量归零日志
   const handleViewNodeTrafficLogs = async (node: Node) => {
     const generation = ++nodeTrafficLogsGenerationRef.current;
+
     setNodeTrafficLogsLoading(true);
     setCurrentLogNode(node);
     try {
@@ -2218,8 +2457,12 @@ export default function NodePage() {
   // 暂停/启用节点
   const handleTogglePause = async (node: Node) => {
     const isPaused = node.paused === 1;
+
     try {
-      const res = isPaused ? await resumeNode(node.id) : await pauseNode(node.id);
+      const res = isPaused
+        ? await resumeNode(node.id)
+        : await pauseNode(node.id);
+
       if (res.code === 0) {
         toast.success(isPaused ? "节点已启用" : "节点已暂停");
         setNodeList((prev) =>
@@ -2239,15 +2482,18 @@ export default function NodePage() {
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => {
     const isPaused = member.weight <= 0;
+
     try {
       const res = isPaused
         ? await resumeInstance(member.nodeId, member.instanceId || "")
         : await pauseInstance(member.nodeId, member.instanceId || "");
+
       if (res.code === 0) {
         toast.success(isPaused ? "实例已启用" : "实例已暂停");
         setNodeInstanceMembers((prev) => {
           const next = { ...prev };
           const key = member.nodeId;
+
           if (next[key]) {
             next[key] = next[key].map((m) =>
               m.instanceId === member.instanceId
@@ -2255,6 +2501,7 @@ export default function NodePage() {
                 : m,
             );
           }
+
           return next;
         });
       } else {
@@ -2275,12 +2522,15 @@ export default function NodePage() {
       );
 
       const result = res.data?.[0];
+
       if (res.code === 0 && result?.success) {
         toast.success("流量归零成功");
         onResetTrafficModalClose();
         setRealtimeNodeMetrics((prev) => {
           const metric = prev[nodeToReset.id];
+
           if (!metric) return prev;
+
           return {
             ...prev,
             [nodeToReset.id]: {
@@ -2298,7 +2548,9 @@ export default function NodePage() {
             prev,
             new Set([nodeToReset.id]),
           );
+
           realtimeNodeInstanceMetricsRef.current = next;
+
           return next;
         });
         // 静默刷新节点列表，保持当前滚动位置
@@ -2417,7 +2669,7 @@ export default function NodePage() {
           setOverseasCommand(res.data);
         }
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [overseasModalOpen, overseasNodeId, overseasChannel, overseasVersion]);
   const copyToClipboard = (text: string, label: string) => {
     try {
@@ -2580,10 +2832,10 @@ export default function NodePage() {
         prev.map((node) =>
           offlineIds.has(node.id)
             ? {
-              ...node,
-              connectionStatus: "offline" as const,
-              systemInfo: null,
-            }
+                ...node,
+                connectionStatus: "offline" as const,
+                systemInfo: null,
+              }
             : node,
         ),
       );
@@ -2650,7 +2902,9 @@ export default function NodePage() {
           const offlineNodeIds = results
             .filter(
               (item: any) =>
-                item && item.success === false && isNodeNotOnlineMessage(item.message),
+                item &&
+                item.success === false &&
+                isNodeNotOnlineMessage(item.message),
             )
             .map((item: any) => Number(item.id))
             .filter((id: number) => Number.isFinite(id));
@@ -2673,17 +2927,26 @@ export default function NodePage() {
       }
     }
   };
+
   function getMimicFixCommand(errMsg: string): string {
     if (errMsg.includes("404") || errMsg.includes("Failed to fetch"))
       return "apt-get update";
-    if (errMsg.includes("已安装"))
-      return "reboot";
-    if (errMsg.includes("linux-headers") || errMsg.includes("头文件") || errMsg.includes("已不存在"))
+    if (errMsg.includes("已安装")) return "reboot";
+    if (
+      errMsg.includes("linux-headers") ||
+      errMsg.includes("头文件") ||
+      errMsg.includes("已不存在")
+    )
       return "apt-get install -y linux-image-amd64 linux-headers-amd64 && reboot";
-    if (errMsg.includes("BUILD_EXCLUSIVE") || errMsg.includes("DKMS") || errMsg.includes("被 DKMS 拒绝"))
+    if (
+      errMsg.includes("BUILD_EXCLUSIVE") ||
+      errMsg.includes("DKMS") ||
+      errMsg.includes("被 DKMS 拒绝")
+    )
       return "apt-get install -y linux-image-cloud-amd64 linux-headers-cloud-amd64 && reboot";
     if (errMsg.includes("不支持的包管理器"))
       return "请手动安装：bubblewrap pahole clang-16 bpftool libbpf-dev libffi-dev";
+
     return "apt-get install -f -y && systemctl restart flox_agent1";
   }
   const handleBatchMimicDeps = async (targetIds?: number[]) => {
@@ -2691,13 +2954,16 @@ export default function NodePage() {
 
     if (selectedLocalIds.length === 0) {
       toast.error("请选择节点");
+
       return;
     }
 
     // 存下名字，万一 API 失败也能在弹窗里显示
     const nameMap = new Map<number, string>();
+
     selectedLocalIds.forEach((id) => {
       const node = nodeList.find((n) => n.id === id);
+
       if (node) nameMap.set(id, node.name);
     });
 
@@ -2735,6 +3001,7 @@ export default function NodePage() {
   const requestMimicDepsInstall = (nodes: Node[]) => {
     if (nodes.length === 0) {
       toast.error("请选择节点");
+
       return;
     }
     setMimicConfirmNodes(nodes);
@@ -2758,6 +3025,7 @@ export default function NodePage() {
       if (res.code === 0) {
         const successCount = res.data?.filter((r) => r.success).length || 0;
         const successfulIds = new Set<number>();
+
         for (const result of res.data || []) {
           if (result.success && result.nodeId !== undefined) {
             successfulIds.add(result.nodeId);
@@ -2772,6 +3040,7 @@ export default function NodePage() {
         setSelectedIds(new Set());
         setRealtimeNodeMetrics((prev) => {
           const next = { ...prev };
+
           for (const nodeId of successfulIds) {
             if (nodeId === undefined || !next[nodeId]) continue;
             next[nodeId] = {
@@ -2783,11 +3052,14 @@ export default function NodePage() {
               },
             };
           }
+
           return next;
         });
         setRealtimeNodeInstanceMetrics((prev) => {
           const next = resetRealtimeNodeInstanceMetrics(prev, successfulIds);
+
           realtimeNodeInstanceMetricsRef.current = next;
+
           return next;
         });
         await loadNodes({ silent: true });
@@ -2802,6 +3074,7 @@ export default function NodePage() {
   };
   const handleBatchBootstrapSDWAN = async () => {
     const ids = getSelectedLocalIds();
+
     if (ids.length === 0) return;
     setBatchSDWANLoading(true);
     try {
@@ -2824,16 +3097,21 @@ export default function NodePage() {
   const handleSubmit = async () => {
     if (!validateForm()) return;
     const dnsAddress = form.serverIpV4.trim();
+
     if (form.dnsEnabled && (!dnsAddress || validateIpv4Literal(dnsAddress))) {
       setErrors((prev) => ({
         ...prev,
         serverIpV4: "启用 DNS 容灾时必须填写域名，不能填写 IP 地址",
       }));
       toast.error("启用 DNS 容灾时，请填写域名而不是 IP 地址");
+
       return;
     }
     if (form.dnsEnabled && !dnsProviderAvailability[form.dnsProvider]) {
-      toast.error(`${form.dnsProvider === "aliyun" ? "阿里云" : "Cloudflare"} DNS 尚未配置`);
+      toast.error(
+        `${form.dnsProvider === "aliyun" ? "阿里云" : "Cloudflare"} DNS 尚未配置`,
+      );
+
       return;
     }
     setSubmitLoading(true);
@@ -2864,6 +3142,7 @@ export default function NodePage() {
         dnsManageAAAA: _dnsManageAAAA,
         ...rest
       } = form;
+
       void _dnsEnabled;
       void _dnsProvider;
       void _dnsManageA;
@@ -2901,7 +3180,9 @@ export default function NodePage() {
       const res = await apiCall(data);
 
       if (res.code === 0) {
-        const savedNodeId = form.id || Number((res.data as { id?: number })?.id || 0);
+        const savedNodeId =
+          form.id || Number((res.data as { id?: number })?.id || 0);
+
         if (savedNodeId > 0) {
           const dnsRes = await saveNodeDNSConfig({
             nodeId: savedNodeId,
@@ -2912,8 +3193,10 @@ export default function NodePage() {
             manageAAAA: form.dnsManageAAAA,
             providerConfig: {},
           });
+
           if (dnsRes.code !== 0) {
             toast.error(dnsRes.msg || "DNS 配置保存失败");
+
             return;
           }
         }
@@ -2927,27 +3210,27 @@ export default function NodePage() {
             prev.map((n) =>
               n.id === form.id
                 ? ({
-                  ...n,
-                  name: form.name,
-                  remark: form.remark.trim(),
-                  groupId: form.groupId,
-                  intranetIp: form.intranetIp?.trim(),
-                  serverIpV4: form.serverIpV4,
-                  serverIpV6: form.serverIpV6,
-                  port: form.port,
-                  tcpListenAddr: form.tcpListenAddr,
-                  udpListenAddr: form.udpListenAddr,
-                  interfaceName: form.interfaceName,
-                  remoteConfig: nextRemoteConfig,
-                  secret: form.secret || n.secret,
-                  http: form.http,
-                  tls: form.tls,
-                  socks: form.socks,
-                  trafficRatio: form.trafficRatio,
-                  expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
-                  expiryReminderDismissedUntil:
-                    n.expiryReminderDismissedUntil ?? null,
-                } as Node)
+                    ...n,
+                    name: form.name,
+                    remark: form.remark.trim(),
+                    groupId: form.groupId,
+                    intranetIp: form.intranetIp?.trim(),
+                    serverIpV4: form.serverIpV4,
+                    serverIpV6: form.serverIpV6,
+                    port: form.port,
+                    tcpListenAddr: form.tcpListenAddr,
+                    udpListenAddr: form.udpListenAddr,
+                    interfaceName: form.interfaceName,
+                    remoteConfig: nextRemoteConfig,
+                    secret: form.secret || n.secret,
+                    http: form.http,
+                    tls: form.tls,
+                    socks: form.socks,
+                    trafficRatio: form.trafficRatio,
+                    expiryReminderDismissed: n.expiryReminderDismissed ?? 0,
+                    expiryReminderDismissedUntil:
+                      n.expiryReminderDismissedUntil ?? null,
+                  } as Node)
                 : n,
             ),
           );
@@ -3034,7 +3317,13 @@ export default function NodePage() {
   };
   const handleSelectAllToggle = (isSelected: boolean) => {
     if (isSelected) {
-      setSelectedIds(new Set(displayNodes.filter((node) => node.isRemote !== 1).map((node) => node.id)));
+      setSelectedIds(
+        new Set(
+          displayNodes
+            .filter((node) => node.isRemote !== 1)
+            .map((node) => node.id),
+        ),
+      );
       if (!selectMode) {
         setSelectMode(true);
       }
@@ -3044,7 +3333,13 @@ export default function NodePage() {
     }
   };
   const selectAll = () => {
-    setSelectedIds(new Set(displayNodes.filter((node) => node.isRemote !== 1).map((node) => node.id)));
+    setSelectedIds(
+      new Set(
+        displayNodes
+          .filter((node) => node.isRemote !== 1)
+          .map((node) => node.id),
+      ),
+    );
   };
   const deselectAll = () => {
     setSelectedIds(new Set());
@@ -3052,6 +3347,7 @@ export default function NodePage() {
   };
   const handleBatchDelete = async () => {
     const selectedLocalIds = getSelectedLocalIds();
+
     if (selectedLocalIds.length === 0) return;
     setBatchLoading(true);
     try {
@@ -3060,6 +3356,7 @@ export default function NodePage() {
       if (res.code === 0) {
         toast.success(`成功删除 ${selectedLocalIds.length} 个节点`);
         const deletedIds = new Set(selectedLocalIds);
+
         setNodeList((prev) => prev.filter((node) => !deletedIds.has(node.id)));
         setSelectedIds(new Set());
         setBatchDeleteModalOpen(false);
@@ -3150,15 +3447,17 @@ export default function NodePage() {
     const groupFiltered =
       filterGroupId !== null
         ? keywordFiltered.filter((node) => {
-          if (filterGroupId === NODE_GROUP_REMOTE) {
-            return node.isRemote === 1;
-          }
-          if (filterGroupId === NODE_GROUP_NONE) {
-            return node.isRemote !== 1 && (!node.groupId || node.groupId === 0);
-          }
+            if (filterGroupId === NODE_GROUP_REMOTE) {
+              return node.isRemote === 1;
+            }
+            if (filterGroupId === NODE_GROUP_NONE) {
+              return (
+                node.isRemote !== 1 && (!node.groupId || node.groupId === 0)
+              );
+            }
 
-          return node.groupId === filterGroupId;
-        })
+            return node.groupId === filterGroupId;
+          })
         : keywordFiltered;
 
     if (nodeFilterMode === "all") {
@@ -3218,11 +3517,12 @@ export default function NodePage() {
     });
     groupsMap.set("none", { group: null, nodes: [] });
     displayNodes.forEach((node) => {
-      const groupId = node.isRemote === 1
-        ? NODE_GROUP_REMOTE
-        : node.groupId && node.groupId > 0
-          ? Number(node.groupId)
-          : "none";
+      const groupId =
+        node.isRemote === 1
+          ? NODE_GROUP_REMOTE
+          : node.groupId && node.groupId > 0
+            ? Number(node.groupId)
+            : "none";
 
       if (groupId === NODE_GROUP_REMOTE && !groupsMap.has(NODE_GROUP_REMOTE)) {
         groupsMap.set(NODE_GROUP_REMOTE, {
@@ -3248,13 +3548,18 @@ export default function NodePage() {
   const renderNodeCard = (node: Node, listeners: any) => {
     const expiryTarget =
       node.expiryInstances?.find(
-        (item) => item.expiryTime === node.expiryTime && item.renewalCycle === node.renewalCycle,
+        (item) =>
+          item.expiryTime === node.expiryTime &&
+          item.renewalCycle === node.renewalCycle,
       ) ?? node.expiryInstances?.[0];
     const expiryMeta = getNodeExpiryMeta(
       expiryTarget?.expiryTime ?? node.expiryTime,
       expiryTarget?.renewalCycle ?? node.renewalCycle,
     );
-    const visualMeta = deriveNodeVisualState(nodeInstanceMembers[node.id], node.paused);
+    const visualMeta = deriveNodeVisualState(
+      nodeInstanceMembers[node.id],
+      node.paused,
+    );
     const remoteVisualMembers = (node.remoteInstances || [])
       .filter((instance) => instance.inScope)
       .map((instance) => ({
@@ -3271,29 +3576,33 @@ export default function NodePage() {
     const remoteDisplayMeta = remoteOnline ? remoteVisualMeta : null;
     const remoteDisplayState = getRemoteDisplayState(node, remoteVisualMeta);
     const remoteStatusMeta = getRemoteDisplayMeta(remoteDisplayState);
-    const remoteExpiryTime = node.remoteExpiryTime && node.remoteExpiryTime > 0
-      ? (node.remoteExpiryTime < 100000000000 ? node.remoteExpiryTime * 1000 : node.remoteExpiryTime)
-      : 0;
+    const remoteExpiryTime =
+      node.remoteExpiryTime && node.remoteExpiryTime > 0
+        ? node.remoteExpiryTime < 100000000000
+          ? node.remoteExpiryTime * 1000
+          : node.remoteExpiryTime
+        : 0;
     const remoteExpiryDays = remoteExpiryTime
       ? Math.ceil((remoteExpiryTime - Date.now()) / 86400000)
       : null;
     const remoteExpiryLabel = remoteExpiryTime
       ? new Date(remoteExpiryTime).toLocaleDateString("zh-CN")
       : "永久";
-    const remoteExpiryClass = remoteExpiryDays === null || remoteExpiryDays > 7
-      ? "bg-success-500/10 text-success-600 dark:text-success-400"
-      : remoteExpiryDays <= 0
-        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-        : "bg-warning-500/10 text-warning-600 dark:text-warning-400";
+    const remoteExpiryClass =
+      remoteExpiryDays === null || remoteExpiryDays > 7
+        ? "bg-success-500/10 text-success-600 dark:text-success-400"
+        : remoteExpiryDays <= 0
+          ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+          : "bg-warning-500/10 text-warning-600 dark:text-warning-400";
     const hasRemark = Boolean(node.remark?.trim());
     const hasExpiryInfo = Boolean(
       node.isRemote !== 1 &&
-      expiryTarget?.expiryTime &&
-      expiryTarget.expiryTime > 0 &&
-      expiryTarget.renewalCycle &&
-      (expiryTarget.expiryReminderDismissed !== 1 ||
-        (expiryTarget.expiryReminderDismissedUntil &&
-          expiryTarget.expiryReminderDismissedUntil < Date.now())),
+        expiryTarget?.expiryTime &&
+        expiryTarget.expiryTime > 0 &&
+        expiryTarget.renewalCycle &&
+        (expiryTarget.expiryReminderDismissed !== 1 ||
+          (expiryTarget.expiryReminderDismissedUntil &&
+            expiryTarget.expiryReminderDismissedUntil < Date.now())),
     );
     const hasInfoTrigger = hasRemark || hasExpiryInfo;
     const infoPlacement = infoPopoverPlacement[node.id] ?? "left";
@@ -3301,18 +3610,21 @@ export default function NodePage() {
     return (
       <Card
         key={node.id}
-        className={`group relative overflow-visible shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 h-full flex flex-col ${node.expiryReminderDismissed ? "" : expiryMeta.accentClassName
-          }`}
+        className={`group relative overflow-visible shadow-sm border border-divider hover:shadow-md transition-shadow duration-200 h-full flex flex-col ${
+          node.expiryReminderDismissed ? "" : expiryMeta.accentClassName
+        }`}
         data-node-card="true"
       >
         <CardHeader className="pb-3 md:pb-3">
           <div className="flex flex-col gap-2 w-full">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
-                {node.isRemote !== 1 && <Checkbox
-                  isSelected={selectedIds.has(node.id)}
-                  onValueChange={() => toggleSelect(node.id)}
-                />}
+                {node.isRemote !== 1 && (
+                  <Checkbox
+                    isSelected={selectedIds.has(node.id)}
+                    onValueChange={() => toggleSelect(node.id)}
+                  />
+                )}
                 <div
                   className="cursor-grab active:cursor-grabbing p-1 text-default-400 hover:text-default-600 transition-colors"
                   {...listeners}
@@ -3329,13 +3641,18 @@ export default function NodePage() {
                   </svg>
                 </div>
                 {/* WGM 状态 */}
-                {node.mimicStatus === "ok" || node.mimicStatus === "deps_ready" ? (
-                  <span className="text-green-500 text-sm" title="WGM 就绪">✅</span>
+                {node.mimicStatus === "ok" ||
+                node.mimicStatus === "deps_ready" ? (
+                  <span className="text-green-500 text-sm" title="WGM 就绪">
+                    ✅
+                  </span>
                 ) : node.mimicStatus ? (
                   <span
                     className="text-red-500 text-sm cursor-help"
                     title={node.mimicError || "WGM 未就绪"}
-                  >❌</span>
+                  >
+                    ❌
+                  </span>
                 ) : null}
               </div>
               {node.isRemote === 1 ? (
@@ -3428,7 +3745,10 @@ export default function NodePage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               e.nativeEvent.stopImmediatePropagation();
-                              handleDismissExpiryReminder?.(node.id, expiryTarget?.instanceId);
+                              handleDismissExpiryReminder?.(
+                                node.id,
+                                expiryTarget?.instanceId,
+                              );
                               setInfoPopoverOpenId(null);
                             }}
                           >
@@ -3445,9 +3765,11 @@ export default function NodePage() {
               {node.isRemote === 1 ? (
                 <div
                   className="flex items-center gap-0.5"
-                  title={remoteDisplayState === "online" && remoteDisplayMeta
-                    ? `在线${remoteDisplayMeta.onlineCount}/禁用${remoteDisplayMeta.disabledCount}/全部${remoteDisplayMeta.totalCount}`
-                    : remoteStatusMeta.label}
+                  title={
+                    remoteDisplayState === "online" && remoteDisplayMeta
+                      ? `在线${remoteDisplayMeta.onlineCount}/禁用${remoteDisplayMeta.disabledCount}/全部${remoteDisplayMeta.totalCount}`
+                      : remoteStatusMeta.label
+                  }
                 >
                   <StatusDot
                     active={remoteDisplayState === "online"}
@@ -3460,10 +3782,17 @@ export default function NodePage() {
                   </span>
                 </div>
               ) : (
-                <div className="flex items-center gap-0.5" title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}>
-                  <StatusDot active={visualMeta.state !== "offline"} tone={visualMeta.color} />
+                <div
+                  className="flex items-center gap-0.5"
+                  title={`在线${visualMeta.onlineCount}/禁用${visualMeta.disabledCount}/全部${visualMeta.totalCount}`}
+                >
+                  <StatusDot
+                    active={visualMeta.state !== "offline"}
+                    tone={visualMeta.color}
+                  />
                   <span className="text-xs font-mono tabular-nums text-default-500">
-                    {visualMeta.onlineCount}/{visualMeta.disabledCount}/{visualMeta.totalCount}
+                    {visualMeta.onlineCount}/{visualMeta.disabledCount}/
+                    {visualMeta.totalCount}
                   </span>
                 </div>
               )}
@@ -3549,9 +3878,10 @@ export default function NodePage() {
                   ? formatTraffic(remoteTotalFlow)
                   : realtimeNodeMetrics[node.id]
                     ? formatTraffic(
-                      (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
-                      (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0),
-                    )
+                        (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
+                          (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ??
+                            0),
+                      )
                     : "-"}
               </span>
             </div>
@@ -3577,95 +3907,99 @@ export default function NodePage() {
                       : "不限"}
                   </span>
                 </div>
-                <div className={`mt-1 inline-flex rounded-lg px-2.5 py-1 ${remoteExpiryClass}`}>
+                <div
+                  className={`mt-1 inline-flex rounded-lg px-2.5 py-1 ${remoteExpiryClass}`}
+                >
                   {remoteExpiryLabel}
                 </div>
               </div>
-            ) : realtimeNodeMetrics[node.id]?.periodTraffic && (
-              <div className="text-xs text-default-500 space-y-0.5 mt-1">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <span>↑ 上行</span>
-                    <span className="font-medium text-success-600 dark:text-success-400">
-                      {formatTraffic(
-                        realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0,
-                      )}
-                    </span>
+            ) : (
+              realtimeNodeMetrics[node.id]?.periodTraffic && (
+                <div className="text-xs text-default-500 space-y-0.5 mt-1">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span>↑ 上行</span>
+                      <span className="font-medium text-success-600 dark:text-success-400">
+                        {formatTraffic(
+                          realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span>↓ 下行</span>
+                      <span className="font-medium text-primary-600 dark:text-primary-400">
+                        {formatTraffic(
+                          realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0,
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span>↓ 下行</span>
-                    <span className="font-medium text-primary-600 dark:text-primary-400">
-                      {formatTraffic(
-                        realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0,
-                      )}
-                    </span>
-                  </div>
-                </div>
-                {(() => {
-                  const pt = realtimeNodeMetrics[node.id]?.periodTraffic;
+                  {(() => {
+                    const pt = realtimeNodeMetrics[node.id]?.periodTraffic;
 
-                  if (!pt) return null;
+                    if (!pt) return null;
 
-                  // 智能解析后端时间
-                  const parseBackendTime = (ts: any) => {
-                    if (!ts) return 0;
-                    let num = Number(ts);
+                    // 智能解析后端时间
+                    const parseBackendTime = (ts: any) => {
+                      if (!ts) return 0;
+                      let num = Number(ts);
 
-                    if (isNaN(num)) return 0;
-                    if (Math.abs(num) < 100000000000) num *= 1000;
+                      if (isNaN(num)) return 0;
+                      if (Math.abs(num) < 100000000000) num *= 1000;
 
-                    return num > 0 && new Date(num).getFullYear() > 1970
-                      ? num
-                      : 0;
-                  };
+                      return num > 0 && new Date(num).getFullYear() > 1970
+                        ? num
+                        : 0;
+                    };
 
-                  const backendSince = parseBackendTime(pt.since);
-                  const backendNext = parseBackendTime(pt.nextReset);
-                  const displayNext =
-                    backendNext > 0 ? backendNext : expiryMeta?.nextDueTime;
+                    const backendSince = parseBackendTime(pt.since);
+                    const backendNext = parseBackendTime(pt.nextReset);
+                    const displayNext =
+                      backendNext > 0 ? backendNext : expiryMeta?.nextDueTime;
 
-                  // 核心修改：精准干掉时分秒，只保留年月日 (YYYY/M/D)
-                  const formatDateOnly = (ts: any) => {
-                    if (!ts) return "-";
-                    const d = new Date(ts);
+                    // 核心修改：精准干掉时分秒，只保留年月日 (YYYY/M/D)
+                    const formatDateOnly = (ts: any) => {
+                      if (!ts) return "-";
+                      const d = new Date(ts);
+
+                      return (
+                        d.getFullYear() +
+                        "/" +
+                        (d.getMonth() + 1) +
+                        "/" +
+                        d.getDate()
+                      );
+                    };
+
+                    if (!backendSince && !displayNext) return null;
 
                     return (
-                      d.getFullYear() +
-                      "/" +
-                      (d.getMonth() + 1) +
-                      "/" +
-                      d.getDate()
+                      <div className="flex justify-between items-center mt-1">
+                        {backendSince > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            <span>周期始于</span>
+                            <span className="font-medium text-foreground">
+                              {formatDateOnly(backendSince)}
+                            </span>
+                          </div>
+                        ) : (
+                          <div />
+                        )}
+                        {displayNext && displayNext > 0 ? (
+                          <div className="flex items-center gap-1.5">
+                            <span>下次归零</span>
+                            <span className="font-medium text-primary">
+                              {formatDateOnly(displayNext)}
+                            </span>
+                          </div>
+                        ) : (
+                          <div />
+                        )}
+                      </div>
                     );
-                  };
-
-                  if (!backendSince && !displayNext) return null;
-
-                  return (
-                    <div className="flex justify-between items-center mt-1">
-                      {backendSince > 0 ? (
-                        <div className="flex items-center gap-1.5">
-                          <span>周期始于</span>
-                          <span className="font-medium text-foreground">
-                            {formatDateOnly(backendSince)}
-                          </span>
-                        </div>
-                      ) : (
-                        <div />
-                      )}
-                      {displayNext && displayNext > 0 ? (
-                        <div className="flex items-center gap-1.5">
-                          <span>下次归零</span>
-                          <span className="font-medium text-primary">
-                            {formatDateOnly(displayNext)}
-                          </span>
-                        </div>
-                      ) : (
-                        <div />
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
+                  })()}
+                </div>
+              )
             )}
             {upgradeProgress[node.id] &&
               upgradeProgress[node.id].percent < 100 && (
@@ -3684,98 +4018,15 @@ export default function NodePage() {
           <div className="space-y-3">
             {node.isRemote === 1 ? (
               <div className="grid grid-cols-2 gap-2">
-                <Button color="secondary" size="sm" variant="flat" onPress={() => setRemoteDetailNode(node)}>详情</Button>
-                <Button color="danger" size="sm" variant="flat" onPress={() => handleDelete(node)}>删除</Button>
-              </div>
-            ) : <>
-              <div className="grid gap-2 grid-cols-3">
-                <div className="w-full">
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button
-                        className="min-h-8 w-full"
-                        color="success"
-                        isLoading={node.copyLoading}
-                        size="sm"
-                        variant="flat"
-                      >
-                        对接
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu aria-label="对接方式">
-                      <DropdownItem
-                        key="auto"
-                        onPress={() => handleCopyAutoInstallCommand(node)}
-                      >
-                        🔘 自动探测线路
-                      </DropdownItem>
-                      <DropdownItem
-                        key="overseas"
-                        onPress={() => handleCopyOverseasInstallCommand(node)}
-                      >
-                        🌏 国外机主线路
-                      </DropdownItem>
-                      <DropdownMenuSeparator />
-                      <DropdownItem
-                        key="offline"
-                        onPress={() => handleCopyOfflineInstallCommand(node)}
-                      >
-                        📦 离线部署
-                      </DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
                 <Button
-                  className="min-h-8 w-full"
-                  color="warning"
-                  isDisabled={node.connectionStatus !== "online"}
-                  isLoading={node.upgradeLoading}
+                  color="secondary"
                   size="sm"
                   variant="flat"
-                  onPress={() => openUpgradeModal("single", node.id)}
+                  onPress={() => setRemoteDetailNode(node)}
                 >
-                  更新
+                  详情
                 </Button>
                 <Button
-                  className="min-h-8 w-full"
-                  color={shareCounts[node.id] ? "success" : "default"}
-                  size="sm"
-                  variant="flat"
-                  onPress={() => void openNodeSharing(node)}
-                >
-                  分享
-                </Button>
-              </div>
-              <div className="grid gap-2 grid-cols-4">
-                <Button
-                  className="min-h-8 w-full"
-                  color="primary"
-                  size="sm"
-                  variant="flat"
-                  onPress={() => handleEdit(node)}
-                >
-                  编辑
-                </Button>
-                <Button
-                  className="min-h-8 w-full"
-                  color="success"
-                  size="sm"
-                  variant="flat"
-                  onPress={() => handleResetNodeTraffic(node)}
-                >
-                  归零
-                </Button>
-                <Button
-                  className="min-h-8 w-full"
-                  color={node.paused ? "success" : "warning"}
-                  size="sm"
-                  variant="flat"
-                  onPress={() => handleTogglePause(node)}
-                >
-                  {node.paused ? "启用" : "暂停"}
-                </Button>
-                <Button
-                  className="min-h-8 w-full"
                   color="danger"
                   size="sm"
                   variant="flat"
@@ -3784,7 +4035,106 @@ export default function NodePage() {
                   删除
                 </Button>
               </div>
-            </>}
+            ) : (
+              <>
+                <div className="grid gap-2 grid-cols-3">
+                  <div className="w-full">
+                    <Dropdown>
+                      <DropdownTrigger>
+                        <Button
+                          className="min-h-8 w-full"
+                          color="success"
+                          isLoading={node.copyLoading}
+                          size="sm"
+                          variant="flat"
+                        >
+                          对接
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownMenu aria-label="对接方式">
+                        <DropdownItem
+                          key="auto"
+                          onPress={() => handleCopyAutoInstallCommand(node)}
+                        >
+                          🔘 自动探测线路
+                        </DropdownItem>
+                        <DropdownItem
+                          key="overseas"
+                          onPress={() => handleCopyOverseasInstallCommand(node)}
+                        >
+                          🌏 国外机主线路
+                        </DropdownItem>
+                        <DropdownMenuSeparator />
+                        <DropdownItem
+                          key="offline"
+                          onPress={() => handleCopyOfflineInstallCommand(node)}
+                        >
+                          📦 离线部署
+                        </DropdownItem>
+                      </DropdownMenu>
+                    </Dropdown>
+                  </div>
+                  <Button
+                    className="min-h-8 w-full"
+                    color="warning"
+                    isDisabled={node.connectionStatus !== "online"}
+                    isLoading={node.upgradeLoading}
+                    size="sm"
+                    variant="flat"
+                    onPress={() => openUpgradeModal("single", node.id)}
+                  >
+                    更新
+                  </Button>
+                  <Button
+                    className="min-h-8 w-full"
+                    color={shareCounts[node.id] ? "success" : "default"}
+                    size="sm"
+                    variant="flat"
+                    onPress={() => void openNodeSharing(node)}
+                  >
+                    分享
+                  </Button>
+                </div>
+                <div className="grid gap-2 grid-cols-4">
+                  <Button
+                    className="min-h-8 w-full"
+                    color="primary"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => handleEdit(node)}
+                  >
+                    编辑
+                  </Button>
+                  <Button
+                    className="min-h-8 w-full"
+                    color="success"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => handleResetNodeTraffic(node)}
+                  >
+                    归零
+                  </Button>
+                  <Button
+                    className="min-h-8 w-full"
+                    color={node.paused ? "success" : "warning"}
+                    size="sm"
+                    variant="flat"
+                    onPress={() => handleTogglePause(node)}
+                  >
+                    {node.paused ? "启用" : "暂停"}
+                  </Button>
+                  <Button
+                    className="min-h-8 w-full"
+                    color="danger"
+                    size="sm"
+                    variant="flat"
+                    onPress={() => handleDelete(node)}
+                  >
+                    删除
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
           {/* 备注和到期提醒 */}
           {(node.remark?.trim() || hasExpiryInfo) && (
@@ -3810,14 +4160,15 @@ export default function NodePage() {
               {hasExpiryInfo && (
                 <div className="flex items-center text-xs ml-auto flex-shrink-0">
                   <span
-                    className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${expiryMeta.tone === "danger"
-                      ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
-                      : expiryMeta.tone === "warning"
-                        ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
-                        : expiryMeta.tone === "success"
-                          ? "bg-success-500/10 text-success-600 dark:text-success-400"
-                          : "bg-default-500/10 text-default-500"
-                      }`}
+                    className={`text-[10px] py-0.5 px-1.5 rounded font-medium ${
+                      expiryMeta.tone === "danger"
+                        ? "bg-danger-500/10 text-danger-600 dark:text-danger-400"
+                        : expiryMeta.tone === "warning"
+                          ? "bg-warning-500/10 text-warning-600 dark:text-warning-400"
+                          : expiryMeta.tone === "success"
+                            ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                            : "bg-default-500/10 text-default-500"
+                    }`}
                   >
                     {expiryMeta.label}
                   </span>
@@ -3892,7 +4243,8 @@ export default function NodePage() {
                     onPress={() =>
                       requestMimicDepsInstall(
                         nodeList.filter(
-                          (node) => selectedIds.has(node.id) && node.isRemote !== 1,
+                          (node) =>
+                            selectedIds.has(node.id) && node.isRemote !== 1,
                         ),
                       )
                     }
@@ -4007,19 +4359,19 @@ export default function NodePage() {
                   {(nodeFilterMode !== "all" ||
                     filterGroupId !== null ||
                     localSearchKeyword.trim()) && (
-                      <Button
-                        color="warning"
-                        size="sm"
-                        variant="flat"
-                        onPress={() => {
-                          resetNodeFilterMode();
-                          setFilterGroupId(null);
-                          setLocalSearchKeyword("");
-                        }}
-                      >
-                        重置
-                      </Button>
-                    )}
+                    <Button
+                      color="warning"
+                      size="sm"
+                      variant="flat"
+                      onPress={() => {
+                        resetNodeFilterMode();
+                        setFilterGroupId(null);
+                        setLocalSearchKeyword("");
+                      }}
+                    >
+                      重置
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -4248,37 +4600,31 @@ export default function NodePage() {
                                         handleResetNodeTraffic={
                                           handleResetNodeTraffic
                                         }
-                                        handleTogglePause={
-                                          handleTogglePause
-                                        }
+                                        handleTogglePause={handleTogglePause}
                                         handleViewNodeTrafficLogs={
                                           handleViewNodeTrafficLogs
                                         }
-                                        nodeInstanceMembers={nodeInstanceMembers}
                                         nodeExpiryStats={nodeExpiryStats}
                                         nodeFilterMode={nodeFilterMode}
                                         nodeGroups={nodeGroups}
-                                        onConfigureInstance={openInstanceConfigEditor}
-                                        onDeleteInstance={setInstanceDeleteTarget}
-                                        onResetInstanceTraffic={setInstanceResetTarget}
-                                        onToggleInstancePause={handleToggleInstancePause}
-                                        onReorderInstances={reorderNodeInstances}
-                                        onInstallMimicDeps={(node) =>
-                                          requestMimicDepsInstall([node])
+                                        nodeInstanceMembers={
+                                          nodeInstanceMembers
                                         }
-                                        onShareNode={(node) => void openNodeSharing(node)}
-                                        onViewRemoteDetail={setRemoteDetailNode}
-                                        openInstallSelector={openInstallSelector}
+                                        openInstallSelector={
+                                          openInstallSelector
+                                        }
                                         openUpgradeModal={openUpgradeModal}
-                                        realtimeNodeMetrics={realtimeNodeMetrics}
                                         realtimeNodeInstanceMetrics={
                                           realtimeNodeInstanceMetrics
                                         }
-                                        selectedIds={selectedIds}
-                                        shareCounts={shareCounts}
+                                        realtimeNodeMetrics={
+                                          realtimeNodeMetrics
+                                        }
                                         remoteUsageByNode={remoteUsageByNode}
+                                        selectedIds={selectedIds}
                                         setFilterGroupId={setFilterGroupId}
                                         setNodeFilterMode={setNodeFilterMode}
+                                        shareCounts={shareCounts}
                                         toggleSelect={toggleSelect}
                                         toggleSelectAll={(
                                           isSelected: boolean,
@@ -4288,10 +4634,15 @@ export default function NodePage() {
                                               (prev) =>
                                                 new Set([
                                                   ...prev,
-                                                  ...nodes.filter((n) => n.isRemote !== 1).map((n) => n.id),
+                                                  ...nodes
+                                                    .filter(
+                                                      (n) => n.isRemote !== 1,
+                                                    )
+                                                    .map((n) => n.id),
                                                 ]),
                                             );
-                                            if (!selectMode) setSelectMode(true);
+                                            if (!selectMode)
+                                              setSelectMode(true);
                                           } else {
                                             setSelectedIds((prev) => {
                                               const next = new Set(prev);
@@ -4307,6 +4658,28 @@ export default function NodePage() {
                                           }
                                         }}
                                         upgradeProgress={upgradeProgress}
+                                        onConfigureInstance={
+                                          openInstanceConfigEditor
+                                        }
+                                        onDeleteInstance={
+                                          setInstanceDeleteTarget
+                                        }
+                                        onInstallMimicDeps={(node) =>
+                                          requestMimicDepsInstall([node])
+                                        }
+                                        onReorderInstances={
+                                          reorderNodeInstances
+                                        }
+                                        onResetInstanceTraffic={
+                                          setInstanceResetTarget
+                                        }
+                                        onShareNode={(node) =>
+                                          void openNodeSharing(node)
+                                        }
+                                        onToggleInstancePause={
+                                          handleToggleInstancePause
+                                        }
+                                        onViewRemoteDetail={setRemoteDetailNode}
                                       />
                                     </div>
                                   </SortableContext>
@@ -4346,30 +4719,32 @@ export default function NodePage() {
                     handleResetNodeTraffic={handleResetNodeTraffic}
                     handleTogglePause={handleTogglePause}
                     handleViewNodeTrafficLogs={handleViewNodeTrafficLogs}
-                    nodeInstanceMembers={nodeInstanceMembers}
                     nodeExpiryStats={nodeExpiryStats}
                     nodeFilterMode={nodeFilterMode}
                     nodeGroups={nodeGroups}
-                    onConfigureInstance={openInstanceConfigEditor}
-                    onDeleteInstance={setInstanceDeleteTarget}
-                    onResetInstanceTraffic={setInstanceResetTarget}
-                    onToggleInstancePause={handleToggleInstancePause}
-                    onReorderInstances={reorderNodeInstances}
-                    onInstallMimicDeps={(node) => requestMimicDepsInstall([node])}
-                    onShareNode={(node) => void openNodeSharing(node)}
-                    onViewRemoteDetail={setRemoteDetailNode}
+                    nodeInstanceMembers={nodeInstanceMembers}
                     openInstallSelector={openInstallSelector}
                     openUpgradeModal={openUpgradeModal}
-                    realtimeNodeMetrics={realtimeNodeMetrics}
                     realtimeNodeInstanceMetrics={realtimeNodeInstanceMetrics}
-                    selectedIds={selectedIds}
-                    shareCounts={shareCounts}
+                    realtimeNodeMetrics={realtimeNodeMetrics}
                     remoteUsageByNode={remoteUsageByNode}
+                    selectedIds={selectedIds}
                     setFilterGroupId={setFilterGroupId}
                     setNodeFilterMode={setNodeFilterMode}
+                    shareCounts={shareCounts}
                     toggleSelect={toggleSelect}
                     toggleSelectAll={handleSelectAllToggle}
                     upgradeProgress={upgradeProgress}
+                    onConfigureInstance={openInstanceConfigEditor}
+                    onDeleteInstance={setInstanceDeleteTarget}
+                    onInstallMimicDeps={(node) =>
+                      requestMimicDepsInstall([node])
+                    }
+                    onReorderInstances={reorderNodeInstances}
+                    onResetInstanceTraffic={setInstanceResetTarget}
+                    onShareNode={(node) => void openNodeSharing(node)}
+                    onToggleInstancePause={handleToggleInstancePause}
+                    onViewRemoteDetail={setRemoteDetailNode}
                   />
                 </SortableContext>
               </DndContext>
@@ -4423,7 +4798,10 @@ export default function NodePage() {
                         value={form.remark}
                         variant="bordered"
                         onChange={(e) =>
-                          setForm((prev) => ({ ...prev, remark: e.target.value }))
+                          setForm((prev) => ({
+                            ...prev,
+                            remark: e.target.value,
+                          }))
                         }
                       />
                     </div>
@@ -4493,10 +4871,7 @@ export default function NodePage() {
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <FieldContainer
-                          description=""
-                          label="密钥"
-                        >
+                        <FieldContainer description="" label="密钥">
                           <div className="flex items-center gap-2">
                             <BaseInput
                               className="flex-1"
@@ -4529,21 +4904,34 @@ export default function NodePage() {
                           <div className="flex w-full items-center justify-between gap-3">
                             <span>DNS 容灾设置</span>
                             <span
-                              aria-disabled={!form.id || !form.dnsEnabled || dnsSyncLoading}
+                              aria-disabled={
+                                !form.id || !form.dnsEnabled || dnsSyncLoading
+                              }
                               className={`rounded-md px-2.5 py-1 text-xs font-medium ${!form.id || !form.dnsEnabled || dnsSyncLoading ? "cursor-not-allowed text-default-400" : "cursor-pointer text-primary hover:bg-primary-100/70"}`}
                               role="button"
                               tabIndex={0}
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                if (!form.id || !form.dnsEnabled || dnsSyncLoading) return;
+                                if (
+                                  !form.id ||
+                                  !form.dnsEnabled ||
+                                  dnsSyncLoading
+                                )
+                                  return;
                                 void handleManualDNSSync(event);
                               }}
                               onKeyDown={(event) => {
-                                if (event.key !== "Enter" && event.key !== " ") return;
+                                if (event.key !== "Enter" && event.key !== " ")
+                                  return;
                                 event.preventDefault();
                                 event.stopPropagation();
-                                if (!form.id || !form.dnsEnabled || dnsSyncLoading) return;
+                                if (
+                                  !form.id ||
+                                  !form.dnsEnabled ||
+                                  dnsSyncLoading
+                                )
+                                  return;
                                 void handleManualDNSSync(event);
                               }}
                             >
@@ -4559,7 +4947,11 @@ export default function NodePage() {
                               isDisabled={!dnsProviderAvailability.aliyun}
                               isSelected={form.dnsProvider === "aliyun"}
                               onValueChange={(selected) => {
-                                if (selected) setForm((prev) => ({ ...prev, dnsProvider: "aliyun" }));
+                                if (selected)
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    dnsProvider: "aliyun",
+                                  }));
                               }}
                             >
                               {/* 核心护盾：绝对不许换行 */}
@@ -4570,32 +4962,50 @@ export default function NodePage() {
                               isDisabled={!dnsProviderAvailability.cloudflare}
                               isSelected={form.dnsProvider === "cloudflare"}
                               onValueChange={(selected) => {
-                                if (selected) setForm((prev) => ({ ...prev, dnsProvider: "cloudflare" }));
+                                if (selected)
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    dnsProvider: "cloudflare",
+                                  }));
                               }}
                             >
-                              <span className="whitespace-nowrap">Cloudflare</span>
+                              <span className="whitespace-nowrap">
+                                Cloudflare
+                              </span>
                             </Checkbox>
 
                             <Checkbox
                               isSelected={form.dnsManageA}
-                              onValueChange={(dnsManageA) => setForm((prev) => ({ ...prev, dnsManageA }))}
+                              onValueChange={(dnsManageA) =>
+                                setForm((prev) => ({ ...prev, dnsManageA }))
+                              }
                             >
                               <span className="whitespace-nowrap">管理V4</span>
                             </Checkbox>
 
                             <Checkbox
                               isSelected={form.dnsManageAAAA}
-                              onValueChange={(dnsManageAAAA) => setForm((prev) => ({ ...prev, dnsManageAAAA }))}
+                              onValueChange={(dnsManageAAAA) =>
+                                setForm((prev) => ({ ...prev, dnsManageAAAA }))
+                              }
                             >
                               <span className="whitespace-nowrap">管理V6</span>
                             </Checkbox>
                           </div>
-                          <div className="text-sm text-default-700">启用/关闭 DNS 容灾</div>
-                          <Checkbox isSelected={form.dnsEnabled} onValueChange={(dnsEnabled) => setForm((prev) => ({ ...prev, dnsEnabled }))}>
+                          <div className="text-sm text-default-700">
+                            启用/关闭 DNS 容灾
+                          </div>
+                          <Checkbox
+                            isSelected={form.dnsEnabled}
+                            onValueChange={(dnsEnabled) =>
+                              setForm((prev) => ({ ...prev, dnsEnabled }))
+                            }
+                          >
                             DNS容灾
                           </Checkbox>
                           <div className="text-xs text-warning-800">
-                            DNS 记录名默认使用“域名/公网 IPv4 地址”，启用 DNS 容灾时必须填写域名，不能填写 IP 地址
+                            DNS 记录名默认使用“域名/公网 IPv4 地址”，启用 DNS
+                            容灾时必须填写域名，不能填写 IP 地址
                           </div>
                         </div>
                       </AccordionItem>
@@ -4665,7 +5075,10 @@ export default function NodePage() {
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-                      <span className="text-xs text-warning-800">多实例出口节点可以不填 IP，监控和权重使用各个 agent 自动上报的实例公网 IP 地址</span>
+                      <span className="text-xs text-warning-800">
+                        多实例出口节点可以不填 IP，监控和权重使用各个 agent
+                        自动上报的实例公网 IP 地址
+                      </span>
                     </div>
                     <Accordion variant="bordered">
                       <AccordionItem
@@ -4773,10 +5186,10 @@ export default function NodePage() {
           isOpen={dnsFailoverModalOpen}
           node={dnsFailoverNode}
           nodes={nodeList}
-          onOpenChange={setDNSFailoverModalOpen}
           selectedNodeIds={dnsFailoverSelectedNodeIds}
-          onSelectedNodeIdsChange={setDNSFailoverSelectedNodeIds}
+          onOpenChange={setDNSFailoverModalOpen}
           onSaved={loadDNSProviderAvailability}
+          onSelectedNodeIdsChange={setDNSFailoverSelectedNodeIds}
         />
         {/* 删除确认弹窗 */}
         <Modal
@@ -5140,7 +5553,8 @@ export default function NodePage() {
                           selectedKeys={[releaseChannel]}
                           onSelectionChange={(keys) => {
                             const selected =
-                              (Array.from(keys)[0] as ReleaseChannel) || "stable";
+                              (Array.from(keys)[0] as ReleaseChannel) ||
+                              "stable";
 
                             setReleaseChannel(selected);
                             setSelectedVersion("");
@@ -5157,7 +5571,9 @@ export default function NodePage() {
                         <Select
                           label="选择版本"
                           placeholder="留空使用最新版本"
-                          selectedKeys={selectedVersion ? [selectedVersion] : []}
+                          selectedKeys={
+                            selectedVersion ? [selectedVersion] : []
+                          }
                           onSelectionChange={(keys) => {
                             const selected = Array.from(keys)[0] as string;
 
@@ -5170,7 +5586,9 @@ export default function NodePage() {
                                 <span>{r.version}</span>
                                 <span className="text-xs text-default-400">
                                   {r.publishedAt
-                                    ? new Date(r.publishedAt).toLocaleDateString()
+                                    ? new Date(
+                                        r.publishedAt,
+                                      ).toLocaleDateString()
                                     : ""}
                                   {r.channel === "dev" && (
                                     <div className="ml-1 shrink-0 whitespace-nowrap inline-flex items-center justify-center bg-warning-500/10 text-warning-600 dark:text-warning-400 px-1.5 py-0.5 rounded text-[11px] font-medium">
@@ -5354,7 +5772,14 @@ export default function NodePage() {
                                 归零范围
                               </span>
                               <span className="text-default-700 text-sm font-medium dark:text-default-300">
-                                {log.instanceName || log.instanceId || (String(log.nodeName || "").includes(" / ") ? String(log.nodeName || "").split(" / ").slice(1).join(" / ") : "全部实例")}
+                                {log.instanceName ||
+                                  log.instanceId ||
+                                  (String(log.nodeName || "").includes(" / ")
+                                    ? String(log.nodeName || "")
+                                        .split(" / ")
+                                        .slice(1)
+                                        .join(" / ")
+                                    : "全部实例")}
                               </span>
                             </div>
                             <div className="w-full">
@@ -5372,7 +5797,7 @@ export default function NodePage() {
                                   总{" "}
                                   {formatTraffic(
                                     (log.inFlowBefore || 0) +
-                                    (log.outFlowBefore || 0),
+                                      (log.outFlowBefore || 0),
                                   )}
                                 </span>
                               </div>
@@ -5449,19 +5874,41 @@ export default function NodePage() {
           </ModalContent>
         </Modal>
 
-        <Modal isDismissable={false} isOpen={!!instanceConfigTarget} placement="center" onOpenChange={(open) => open && setInstanceConfigTarget(instanceConfigTarget)}>
+        <Modal
+          isDismissable={false}
+          isOpen={!!instanceConfigTarget}
+          placement="center"
+          onOpenChange={(open) =>
+            open && setInstanceConfigTarget(instanceConfigTarget)
+          }
+        >
           <ModalContent>
-            <ModalHeader>编辑 {getInstanceLabel(instanceConfigTarget)}</ModalHeader>
+            <ModalHeader>
+              编辑 {getInstanceLabel(instanceConfigTarget)}
+            </ModalHeader>
             <ModalBody>
               <div className="space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
-                    description={instanceConfigTarget ? `留空继承 ${getDefaultInstanceLabel(instanceConfigTarget)}` : "留空继承默认实例名称"}
+                    description={
+                      instanceConfigTarget
+                        ? `留空继承 ${getDefaultInstanceLabel(instanceConfigTarget)}`
+                        : "留空继承默认实例名称"
+                    }
                     label="实例名称"
-                    placeholder={instanceConfigTarget ? getDefaultInstanceLabel(instanceConfigTarget) : "实例 1"}
+                    placeholder={
+                      instanceConfigTarget
+                        ? getDefaultInstanceLabel(instanceConfigTarget)
+                        : "实例 1"
+                    }
                     value={instanceConfigForm.displayName}
                     variant="bordered"
-                    onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, displayName: e.target.value }))}
+                    onChange={(e) =>
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        displayName: e.target.value,
+                      }))
+                    }
                   />
                   <Input
                     description="仅用于实例的备注展示"
@@ -5469,11 +5916,30 @@ export default function NodePage() {
                     placeholder="填写实例备注"
                     value={instanceConfigForm.remark}
                     variant="bordered"
-                    onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, remark: e.target.value }))}
+                    onChange={(e) =>
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        remark: e.target.value,
+                      }))
+                    }
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Select label="续费周期" selectedKeys={instanceConfigForm.renewalCycle ? [instanceConfigForm.renewalCycle] : []} variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, renewalCycle: String(Array.from(keys)[0] || "") }))}>
+                  <Select
+                    label="续费周期"
+                    selectedKeys={
+                      instanceConfigForm.renewalCycle
+                        ? [instanceConfigForm.renewalCycle]
+                        : []
+                    }
+                    variant="bordered"
+                    onSelectionChange={(keys) =>
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        renewalCycle: String(Array.from(keys)[0] || ""),
+                      }))
+                    }
+                  >
                     <SelectItem key="month">月付</SelectItem>
                     <SelectItem key="quarter">季付</SelectItem>
                     <SelectItem key="halfYear">半年付</SelectItem>
@@ -5485,27 +5951,40 @@ export default function NodePage() {
                     placeholder={DEFAULT_INSTANCE_PORT_RANGE}
                     value={instanceConfigForm.portRange}
                     variant="bordered"
-                    onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, portRange: e.target.value }))}
+                    onChange={(e) =>
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        portRange: e.target.value,
+                      }))
+                    }
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input
                     description="0=不归零，1-31=日期"
                     label="流量归零日"
-                    min={0}
                     max={31}
+                    min={0}
                     type="number"
                     value={instanceConfigForm.flowResetTime}
-                    variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, flowResetTime: e.target.value }))}
+                    variant="bordered"
+                    onChange={(e) =>
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        flowResetTime: e.target.value,
+                      }))
+                    }
                   />
                   <DatePicker
                     showMonthAndYearPickers
                     label="续费基准时间"
                     value={timestampToCalendarDate(
-                      parseDateInputValue(instanceConfigForm.expiryDate) || null,
+                      parseDateInputValue(instanceConfigForm.expiryDate) ||
+                        null,
                     )}
                     onChange={(date) => {
-                      const timestamp = calendarDateToTimestamp(date, false) || 0;
+                      const timestamp =
+                        calendarDateToTimestamp(date, false) || 0;
 
                       setInstanceConfigForm((prev) => ({
                         ...prev,
@@ -5529,7 +6008,14 @@ export default function NodePage() {
                     label="流量限额 (GB)"
                     min={0}
                     type="number"
-                    value={instanceConfigForm.trafficLimit} variant="bordered" onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimit: e.target.value }))}
+                    value={instanceConfigForm.trafficLimit}
+                    variant="bordered"
+                    onChange={(e) =>
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        trafficLimit: e.target.value,
+                      }))
+                    }
                   />
                   <Input
                     description="输入目标值自动按比例分配上下行"
@@ -5537,21 +6023,43 @@ export default function NodePage() {
                     min={0}
                     step="0.01"
                     type="number"
-                     value={instanceConfigForm.usedTraffic} variant="bordered" onChange={(e) => {
-                       setUsedTrafficDirty(true);
-                       setInstanceConfigForm((prev) => ({ ...prev, usedTraffic: e.target.value }));
-                     }}
+                    value={instanceConfigForm.usedTraffic}
+                    variant="bordered"
+                    onChange={(e) => {
+                      setUsedTrafficDirty(true);
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        usedTraffic: e.target.value,
+                      }));
+                    }}
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Select
                     description="首次设置流量限额后不可更改"
-                    label="流量累计模式"
                     isDisabled={(instanceConfigTarget?.trafficLimit ?? 0) > 0}
+                    label="流量累计模式"
                     selectedKeys={[String(instanceConfigForm.trafficLimitMode)]}
-                    variant="bordered" onSelectionChange={(keys) => setInstanceConfigForm((prev) => ({ ...prev, trafficLimitMode: Number(Array.from(keys)[0] || 0) }))}>
-                    <SelectItem key="1" description="每月归零日自动重置累计流量">按月累计</SelectItem>
-                    <SelectItem key="0" description="流量一直累加，达到限额后暂停">终身累计</SelectItem>
+                    variant="bordered"
+                    onSelectionChange={(keys) =>
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        trafficLimitMode: Number(Array.from(keys)[0] || 0),
+                      }))
+                    }
+                  >
+                    <SelectItem
+                      key="1"
+                      description="每月归零日自动重置累计流量"
+                    >
+                      按月累计
+                    </SelectItem>
+                    <SelectItem
+                      key="0"
+                      description="流量一直累加，达到限额后暂停"
+                    >
+                      终身累计
+                    </SelectItem>
                   </Select>
                   <Input
                     description="权重为 0 时暂停转发"
@@ -5560,45 +6068,103 @@ export default function NodePage() {
                     type="number"
                     value={instanceConfigForm.weight}
                     variant="bordered"
-                    onChange={(e) => setInstanceConfigForm((prev) => ({ ...prev, weight: e.target.value }))}
+                    onChange={(e) =>
+                      setInstanceConfigForm((prev) => ({
+                        ...prev,
+                        weight: e.target.value,
+                      }))
+                    }
                   />
                 </div>
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button variant="flat" onPress={() => {
-                setUsedTrafficDirty(false);
-                setInstanceConfigTarget(null);
-              }}>取消</Button>
-              <Button color="primary" isLoading={instanceConfigSaving} onPress={saveInstanceConfig}>保存</Button>
+              <Button
+                variant="flat"
+                onPress={() => {
+                  setUsedTrafficDirty(false);
+                  setInstanceConfigTarget(null);
+                }}
+              >
+                取消
+              </Button>
+              <Button
+                color="primary"
+                isLoading={instanceConfigSaving}
+                onPress={saveInstanceConfig}
+              >
+                保存
+              </Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
 
-        <Modal isDismissable={!instanceResetSaving} isOpen={!!instanceResetTarget} placement="center" onOpenChange={(open) => !open && !instanceResetSaving && setInstanceResetTarget(null)}>
+        <Modal
+          isDismissable={!instanceResetSaving}
+          isOpen={!!instanceResetTarget}
+          placement="center"
+          onOpenChange={(open) =>
+            !open && !instanceResetSaving && setInstanceResetTarget(null)
+          }
+        >
           <ModalContent>
-            <ModalHeader>确认 {getInstanceLabel(instanceResetTarget)} 流量归零</ModalHeader>
+            <ModalHeader>
+              确认 {getInstanceLabel(instanceResetTarget)} 流量归零
+            </ModalHeader>
             <ModalBody>
               <p className="text-sm text-default-600">
-                确认将 {getInstanceLabel(instanceResetTarget)} 的周期流量归零？此操作不会修改实例配置。
+                确认将 {getInstanceLabel(instanceResetTarget)}{" "}
+                的周期流量归零？此操作不会修改实例配置。
               </p>
             </ModalBody>
             <ModalFooter>
-              <Button isDisabled={instanceResetSaving} variant="flat" onPress={() => setInstanceResetTarget(null)}>取消</Button>
-              <Button color="danger" isLoading={instanceResetSaving} onPress={resetInstanceTraffic}>确认</Button>
+              <Button
+                isDisabled={instanceResetSaving}
+                variant="flat"
+                onPress={() => setInstanceResetTarget(null)}
+              >
+                取消
+              </Button>
+              <Button
+                color="danger"
+                isLoading={instanceResetSaving}
+                onPress={resetInstanceTraffic}
+              >
+                确认
+              </Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
 
-        <Modal isOpen={!!instanceDeleteTarget} placement="center" onOpenChange={(open) => !open && setInstanceDeleteTarget(null)}>
+        <Modal
+          isOpen={!!instanceDeleteTarget}
+          placement="center"
+          onOpenChange={(open) => !open && setInstanceDeleteTarget(null)}
+        >
           <ModalContent>
-            <ModalHeader>删除实例 {getInstanceLabel(instanceDeleteTarget)}</ModalHeader>
+            <ModalHeader>
+              删除实例 {getInstanceLabel(instanceDeleteTarget)}
+            </ModalHeader>
             <ModalBody>
-              <p className="text-sm text-default-600">删除 {getInstanceLabel(instanceDeleteTarget)}系统会尝试卸载远程 Agent，并永久移除当前实例 ID；旧实例继续上报也不会重新出现。</p>
+              <p className="text-sm text-default-600">
+                删除 {getInstanceLabel(instanceDeleteTarget)}系统会尝试卸载远程
+                Agent，并永久移除当前实例 ID；旧实例继续上报也不会重新出现。
+              </p>
             </ModalBody>
             <ModalFooter>
-              <Button variant="flat" onPress={() => setInstanceDeleteTarget(null)}>取消</Button>
-              <Button color="danger" isLoading={instanceDeleteSaving} onPress={deleteInstanceConfig}>确认</Button>
+              <Button
+                variant="flat"
+                onPress={() => setInstanceDeleteTarget(null)}
+              >
+                取消
+              </Button>
+              <Button
+                color="danger"
+                isLoading={instanceDeleteSaving}
+                onPress={deleteInstanceConfig}
+              >
+                确认
+              </Button>
             </ModalFooter>
           </ModalContent>
         </Modal>
@@ -5623,7 +6189,10 @@ export default function NodePage() {
               </p>
             </ModalBody>
             <ModalFooter>
-              <Button variant="flat" onPress={() => setDeleteLogModalOpen(false)}>
+              <Button
+                variant="flat"
+                onPress={() => setDeleteLogModalOpen(false)}
+              >
                 取消
               </Button>
               <Button color="danger" onPress={handleDeleteLog}>
@@ -5687,7 +6256,8 @@ export default function NodePage() {
             <ModalHeader>确认安装 WGM 依赖</ModalHeader>
             <ModalBody>
               <p className="text-sm text-default-600">
-                将为 {mimicConfirmNodes.length} 个节点安装 WGM 依赖，节点下所有在线实例都会执行安装。是否继续？
+                将为 {mimicConfirmNodes.length} 个节点安装 WGM
+                依赖，节点下所有在线实例都会执行安装。是否继续？
               </p>
             </ModalBody>
             <ModalFooter>
@@ -5720,18 +6290,24 @@ export default function NodePage() {
           placement="center"
           scrollBehavior="inside"
           size="md"
-          onOpenChange={(open) => { if (!open) setMimicResultModalOpen(false); }}
+          onOpenChange={(open) => {
+            if (!open) setMimicResultModalOpen(false);
+          }}
         >
           <ModalContent>
             {(onClose) => {
               const successResults = mimicResults.filter((r) => r.success);
               const failResults = mimicResults.filter((r) => !r.success);
+
               return (
                 <>
                   <ModalHeader className="flex flex-col gap-1">
                     <h2 className="text-xl font-bold">WGM 依赖安装结果</h2>
                     <p className="text-small text-default-500">
-                      {successResults.length} 成功{mimicResults.length > 0 ? `，${failResults.length} 失败` : ""}
+                      {successResults.length} 成功
+                      {mimicResults.length > 0
+                        ? `，${failResults.length} 失败`
+                        : ""}
                     </p>
                   </ModalHeader>
                   <ModalBody>
@@ -5742,18 +6318,22 @@ export default function NodePage() {
                         {mimicResults.map((r) => (
                           <div
                             key={r.nodeId}
-                            className={`flex items-start gap-2 p-2 rounded ${r.success
-                              ? "bg-success-50 dark:bg-success-900/20"
-                              : "bg-danger-50 dark:bg-danger-900/20"
-                              }`}
+                            className={`flex items-start gap-2 p-2 rounded ${
+                              r.success
+                                ? "bg-success-50 dark:bg-success-900/20"
+                                : "bg-danger-50 dark:bg-danger-900/20"
+                            }`}
                           >
-                            <span className="text-lg">{r.success ? "✅" : "❌"}</span>
+                            <span className="text-lg">
+                              {r.success ? "✅" : "❌"}
+                            </span>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium">
                                 {r.nodeName || `节点 ${r.nodeId}`}
                               </div>
                               <div className="text-xs text-default-500 break-all">
-                                {r.message || (r.success ? "安装成功" : "安装失败")}
+                                {r.message ||
+                                  (r.success ? "安装成功" : "安装失败")}
                               </div>
                               {!r.success && (
                                 <div className="mt-1 flex items-center gap-1">
@@ -5771,7 +6351,14 @@ export default function NodePage() {
                                       )
                                     }
                                   >
-                                    <svg aria-hidden="true" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <svg
+                                      aria-hidden="true"
+                                      className="w-3 h-3"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      viewBox="0 0 24 24"
+                                    >
                                       <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                                     </svg>
                                   </Button>
@@ -5862,7 +6449,9 @@ export default function NodePage() {
           onOpenChange={setOfflineModalOpen}
         >
           <ModalContent>
-            <ModalHeader className="flex flex-col gap-1">ℹ️ 离线部署</ModalHeader>
+            <ModalHeader className="flex flex-col gap-1">
+              ℹ️ 离线部署
+            </ModalHeader>
             <ModalBody>
               {/* 1. 下载链接 */}
               <Alert
@@ -5987,7 +6576,9 @@ export default function NodePage() {
         </Modal>
         <NodeSharingModal
           formatTraffic={formatTraffic}
-          instances={sharingNode ? nodeInstanceMembers[sharingNode.id] || [] : []}
+          instances={
+            sharingNode ? nodeInstanceMembers[sharingNode.id] || [] : []
+          }
           isOpen={sharingNode !== null}
           node={sharingNode}
           onClose={() => setSharingNode(null)}
@@ -5995,17 +6586,26 @@ export default function NodePage() {
         />
         <NodeImportModal
           isOpen={importNodeOpen}
+          notifications={peerShareNotifications}
+          prefillToken={importPrefillToken}
+          prefillUrl={importPrefillUrl}
           onClose={() => {
             setImportNodeOpen(false);
             setImportPrefillUrl("");
             setImportPrefillToken("");
           }}
-          prefillUrl={importPrefillUrl}
-          prefillToken={importPrefillToken}
-          notifications={peerShareNotifications}
           onDismissNotification={async (id: number) => {
             await dismissPeerShareNotification(id);
-            setPeerShareNotifications(prev => prev.filter(n => n.id !== id));
+            setPeerShareNotifications((prev) =>
+              prev.filter((n) => n.id !== id),
+            );
+            try {
+              const channel = new BroadcastChannel("flox-peer-share-notifications");
+              channel.postMessage({ type: "dismissed", id });
+              channel.close();
+            } catch {
+              /* BroadcastChannel not supported */
+            }
           }}
           onImported={() => void loadNodes({ silent: true })}
         />
