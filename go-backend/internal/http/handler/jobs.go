@@ -992,6 +992,9 @@ func (h *Handler) cancelExpiredOrders() {
 			continue
 		}
 		cancelled++
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendOrderCancelled(o.OrderNo, o.UserName)
+		})
 	}
 
 	log.Printf("[orders] 已取消 %d 个超时未支付订单", cancelled)

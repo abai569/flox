@@ -2420,6 +2420,17 @@ func (h *Handler) backupExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	mode := req.Mode
+	if mode == "" {
+		mode = "full"
+	}
+	if len(req.Types) > 0 {
+		mode = strings.Join(req.Types, ",")
+	}
+	h.sendBotNotification(func(bot *telegram.Bot) {
+		bot.SendBackupComplete(mode)
+	})
+
 	w.Header().Set("Content-Disposition", "attachment; filename=backup.json")
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(backup); err != nil {
