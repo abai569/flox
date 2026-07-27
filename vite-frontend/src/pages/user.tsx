@@ -2348,25 +2348,18 @@ export default function UserPage() {
                                 </Button>
                               </div>
                             </div>
-                            {user.flow !== 99999 && usedFlow > 0 && (
-                              <Progress
-                                aria-label="已用流量比例"
-                                className="mt-1 ml-auto w-24 cursor-pointer"
-                                color={
-                                  usedFlow / (user.flow * 1024 * 1024 * 1024) >
-                                  0.8
-                                    ? "danger"
-                                    : "primary"
-                                }
-                                size="sm"
-                                value={Math.min(
-                                  (usedFlow /
-                                    (user.flow * 1024 * 1024 * 1024)) *
-                                    100,
-                                  100,
-                                )}
-                              />
-                            )}
+                            {user.flow !== 99999 && (() => {
+                              const usedPercent = (usedFlow / (user.flow * 1024 * 1024 * 1024)) * 100;
+                              return usedPercent >= 1 && (
+                                <Progress
+                                  aria-label="已用流量比例"
+                                  className="mt-1 ml-auto w-24 cursor-pointer"
+                                  color={usedPercent > 80 ? "danger" : "primary"}
+                                  size="sm"
+                                  value={Math.min(usedPercent, 100)}
+                                />
+                              );
+                            })()}
                           </TableCell>
                         </SmartTooltip>
                         <TableCell className="whitespace-nowrap">
