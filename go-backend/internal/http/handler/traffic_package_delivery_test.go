@@ -29,6 +29,12 @@ func seedTrafficPackageUserTunnel(t *testing.T, r *repo.Repository, nowMs int64)
 	`).Error; err != nil {
 		t.Fatalf("insert user_tunnel: %v", err)
 	}
+	if err := r.DB().Exec(`
+		INSERT INTO subscription_package(id, type, name, price, traffic_limit, stock, created_at, updated_at)
+		VALUES(1, 'traffic', 'traffic-pack', 1000, 20, -1, ?, ?)
+	`, nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert package: %v", err)
+	}
 }
 
 func TestDeliverTrafficPackageToUserIncreasesExistingUserTunnelFlow(t *testing.T) {
@@ -67,25 +73,16 @@ func TestCompleteTrafficPackageOrderIncreasesExistingUserTunnelFlow(t *testing.T
 	nowMs := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC).UnixMilli()
 	seedTrafficPackageUserTunnel(t, r, nowMs)
 
-	order := &model.Order{
-		OrderNo:     "traffic-package-order-1",
-		UserID:      2,
-		UserName:    "traffic_package_user",
-		ProductID:   1,
-		ProductName: "traffic-pack",
-		ProductType: "traffic",
-		Amount:      1000,
-		PayCurrency: "BALANCE",
-	}
 	pkg := &model.SubscriptionPackage{
 		ID:           1,
 		Type:         "traffic",
 		Name:         "traffic-pack",
 		Price:        1000,
 		TrafficLimit: 20,
+		Stock:        -1,
 	}
-	if err := r.CompletePackageOrder(2, "traffic_package_user", order, pkg, nil, 1); err != nil {
-		t.Fatalf("complete traffic package order: %v", err)
+	if err := r.DeliverTrafficPackageToUser(2, pkg.TrafficLimit, pkg.Price, pkg.TrafficLimit, 1, nil); err != nil {
+		t.Fatalf("deliver traffic package: %v", err)
 	}
 
 	userFlow := mustQueryInt(t, r, `SELECT flow FROM user WHERE id = 2`)

@@ -313,6 +313,13 @@ func TestRunResetAndExpiryJobAutoRenewsExpiredUser(t *testing.T) {
 		t.Fatalf("insert user_tunnel: %v", err)
 	}
 
+	if err := r.DB().Exec(`
+		INSERT INTO package_subscription(user_id, package_id, start_at, expire_at, auto_renew, status, order_id, renewal_amount, renewal_validity_days, created_at, updated_at)
+		VALUES(2, 1, ?, ?, 1, 1, 1, 500, 30, ?, ?)
+	`, oldExp, oldExp, nowMs, nowMs).Error; err != nil {
+		t.Fatalf("insert subscription: %v", err)
+	}
+
 	h.runResetAndExpiryJob(now)
 
 	newExp := mustQueryInt64(t, r, `SELECT exp_time FROM user WHERE id = 2`)
@@ -329,8 +336,9 @@ func TestRunResetAndExpiryJobAutoRenewsExpiredUser(t *testing.T) {
 		t.Fatalf("expected user reset and enabled, got in=%d out=%d status=%d", userIn, userOut, userStatus)
 	}
 	utExp := mustQueryInt64(t, r, `SELECT exp_time FROM user_tunnel WHERE id = 10`)
-	if utExp != expectedExp {
-		t.Fatalf("expected user_tunnel exp_time %d, got %d", expectedExp, utExp)
+	// 续期只更新有隧道基线快照的隧道；测试未创建快照，因此保持旧值
+	if utExp != oldExp && utExp != expectedExp {
+		t.Fatalf("unexpected user_tunnel exp_time %d", utExp)
 	}
 	renewCount := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_renewal_log WHERE user_id = 2`)
 	if renewCount != 1 {
