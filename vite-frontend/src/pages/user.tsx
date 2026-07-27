@@ -66,7 +66,6 @@ import { Switch } from "@/shadcn-bridge/heroui/switch";
 import { DatePicker } from "@/shadcn-bridge/heroui/date-picker";
 import { DatePresets } from "@/shadcn-bridge/heroui/date-presets";
 import { Spinner } from "@/shadcn-bridge/heroui/spinner";
-import { Progress } from "@/shadcn-bridge/heroui/progress";
 import { Alert } from "@/shadcn-bridge/heroui/alert";
 import { Chip } from "@/shadcn-bridge/heroui/chip";
 import {
@@ -2350,13 +2349,12 @@ export default function UserPage() {
                               const usedPercent = (usedFlow / (user.flow * 1024 * 1024 * 1024)) * 100;
                               if (usedPercent < 1) return null;
                               return (
-                                <Progress
-                                  aria-label="已用流量比例"
-                                  className="absolute bottom-0 right-0 w-24 cursor-pointer"
-                                  color={usedPercent > 80 ? "danger" : "primary"}
-                                  size="sm"
-                                  value={Math.min(usedPercent, 100)}
-                                />
+                                <div className="absolute bottom-0 right-0 w-24 h-1.5 rounded-full overflow-hidden bg-transparent">
+                                  <div
+                                    className={`h-full ${usedPercent > 80 ? 'bg-danger' : 'bg-primary'}`}
+                                    style={{ width: `${Math.min(usedPercent, 100)}%` }}
+                                  />
+                                </div>
                               );
                             })()}
                           </TableCell>
