@@ -82,7 +82,6 @@ func (r *Repository) GetAuthoritativeNodeFlowSnapshot(nodeID int64) (*Authoritat
 		return nil, nil
 	}
 
-	// 实时计算节点流量 = 所有实例流量之和 × 节点倍率
 	var instanceInFlow, instanceOutFlow int64
 	var instances []model.NodeInstance
 	where, args := validNodeInstanceWhere()
@@ -95,8 +94,8 @@ func (r *Repository) GetAuthoritativeNodeFlowSnapshot(nodeID int64) (*Authoritat
 		instanceInFlow += inst.TotalInFlow
 		instanceOutFlow += inst.TotalOutFlow
 	}
-	parentInFlow := int64(float64(instanceInFlow) * node.TrafficRatio)
-	parentOutFlow := int64(float64(instanceOutFlow) * node.TrafficRatio)
+	parentInFlow := instanceInFlow
+	parentOutFlow := instanceOutFlow
 
 	epoch := node.AuthoritativeFlowEpoch
 	if epoch <= 0 {

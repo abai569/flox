@@ -23,6 +23,7 @@ type GlobalTrafficManager struct {
 	cancel            context.CancelFunc
 	reportTicker      *time.Ticker
 	pendingReport     *pendingTrafficReport
+	persistMu         sync.Mutex
 }
 
 // ServiceTraffic 单个服务的流量累积
@@ -291,6 +292,9 @@ func (m *GlobalTrafficManager) persistState() {
 	if m == nil {
 		return
 	}
+	m.persistMu.Lock()
+	defer m.persistMu.Unlock()
+
 	m.mu.RLock()
 	path := m.statePath
 	state := businessTrafficState{
@@ -322,7 +326,11 @@ func (m *GlobalTrafficManager) persistState() {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return
 	}
-	_ = os.WriteFile(path, data, 0600)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return
+	}
+	_ = os.Rename(tmpPath, path)
 }
 
 // Stop 停止全局流量管理器

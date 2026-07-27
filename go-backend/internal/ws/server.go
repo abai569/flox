@@ -788,9 +788,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					// 解析 SystemInfo 并调用 hook
 					var sysInfo SystemInfo
 					if json.Unmarshal(envelope.Data, &sysInfo) == nil {
-						if strings.TrimSpace(sysInfo.InstanceID) == "" {
-							sysInfo.InstanceID = ns.instanceID
-						}
+						sysInfo.InstanceID = ns.instanceID
 						if strings.TrimSpace(sysInfo.Hostname) == "" {
 							sysInfo.Hostname = ns.hostname
 						}
@@ -799,7 +797,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 						if s.serviceConnections[nodeID] == nil {
 							s.serviceConnections[nodeID] = make(map[string]map[string]int)
 						}
-						s.serviceConnections[nodeID][strings.TrimSpace(sysInfo.InstanceID)] = sysInfo.ServiceConnections
+						s.serviceConnections[nodeID][ns.instanceID] = sysInfo.ServiceConnections
 						s.serviceConnUpdateTime[nodeID] = time.Now().Unix()
 						// 更新 service_name
 						if sysInfo.ServiceName != "" {
@@ -894,7 +892,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					if publicIPV4 != "" || publicIPV6 != "" {
 						if err := s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
 							NodeID:     nodeID,
-							InstanceID: defaultString(envelope.Data.InstanceID, ns.instanceID),
+							InstanceID: ns.instanceID,
 							Hostname:   defaultString(envelope.Data.Hostname, ns.hostname),
 							PublicIPV4: publicIPV4,
 							PublicIPV6: publicIPV6,
@@ -903,7 +901,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 						}); err != nil {
 							fmt.Printf("⚠️ 更新节点%d实例公网 IP 失败：%v\n", nodeID, err)
 						} else {
-							fmt.Printf("✅ 节点%d实例%s公网 IP 已更新\n", nodeID, defaultString(envelope.Data.InstanceID, ns.instanceID))
+							fmt.Printf("✅ 节点%d实例%s公网 IP 已更新\n", nodeID, ns.instanceID)
 						}
 					}
 				}
@@ -961,9 +959,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 		if looksLikeSystemInfoMessage(msg) {
 			var sysInfo SystemInfo
 			if err := json.Unmarshal([]byte(msg), &sysInfo); err == nil {
-				if strings.TrimSpace(sysInfo.InstanceID) == "" {
-					sysInfo.InstanceID = ns.instanceID
-				}
+				sysInfo.InstanceID = ns.instanceID
 				if strings.TrimSpace(sysInfo.Hostname) == "" {
 					sysInfo.Hostname = ns.hostname
 				}
@@ -972,7 +968,7 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 				if s.serviceConnections[nodeID] == nil {
 					s.serviceConnections[nodeID] = make(map[string]map[string]int)
 				}
-				s.serviceConnections[nodeID][strings.TrimSpace(sysInfo.InstanceID)] = sysInfo.ServiceConnections
+				s.serviceConnections[nodeID][ns.instanceID] = sysInfo.ServiceConnections
 				s.serviceConnUpdateTime[nodeID] = time.Now().Unix()
 				s.mu.Unlock()
 				_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{

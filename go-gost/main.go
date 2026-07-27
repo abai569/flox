@@ -133,24 +133,24 @@ func main() {
 		fmt.Printf("⚠️ 恢复业务流量状态失败：%v\n", err)
 	}
 
-	// 启动时检查基线文件是否存在，不存在则创建初始基线
 	baselinePath := configDir + "/traffic_baseline.json"
-	if _, err := os.Stat(baselinePath); os.IsNotExist(err) {
-		fmt.Printf("📝 检测到基线文件不存在，创建初始基线...\n")
-		// 使用 config.NodeID（可能为 0，表示未关联面板）
-		nodeID := config.NodeID
-		if nodeID <= 0 {
-			nodeID = 1 // 临时 ID，后续通过 WebSocket 更新
-		}
-		if _, err := traffic.InitBaselineManager(nodeID, baselinePath); err == nil {
-			if bm := traffic.GetManager(); bm != nil {
-				networkStats, _ := socket.ReadHostNetworkCounters()
-				if _, err := bm.CreateInitialBaseline(networkStats.BytesReceived, networkStats.BytesTransmitted, ""); err != nil {
-					fmt.Printf("⚠️ 创建初始基线失败：%v\n", err)
-				} else {
-					fmt.Printf("✅ 初始流量基线已创建（上行：%d, 下行：%d）\n", networkStats.BytesReceived, networkStats.BytesTransmitted)
-				}
+	nodeID := config.NodeID
+	if nodeID <= 0 {
+		nodeID = 1
+	}
+	if _, err := traffic.InitBaselineManager(nodeID, baselinePath); err != nil {
+		fmt.Printf("⚠️ 初始化基线管理器失败：%v\n", err)
+	} else if bm := traffic.GetManager(); bm != nil {
+		if bm.GetCurrentBaseline() == nil {
+			fmt.Printf("📝 检测到基线文件不存在，创建初始基线...\n")
+			networkStats, _ := socket.ReadHostNetworkCounters()
+			if _, err := bm.CreateInitialBaseline(networkStats.BytesReceived, networkStats.BytesTransmitted, ""); err != nil {
+				fmt.Printf("⚠️ 创建初始基线失败：%v\n", err)
+			} else {
+				fmt.Printf("✅ 初始流量基线已创建（上行：%d, 下行：%d）\n", networkStats.BytesReceived, networkStats.BytesTransmitted)
 			}
+		} else {
+			fmt.Printf("✅ 已加载现有流量基线\n")
 		}
 	}
 

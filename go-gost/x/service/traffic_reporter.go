@@ -105,9 +105,9 @@ func buildReportURLCandidates(addr string, secret string, instanceID ...string) 
 		normalizedAddr = strings.TrimSpace(addr)
 	}
 
-	schemes := []string{"https", "http"}
-	if mappedScheme := mapToHTTPScheme(explicitScheme); mappedScheme == "http" {
-		schemes = []string{"http", "https"}
+	scheme := "https"
+	if mappedScheme := mapToHTTPScheme(explicitScheme); mappedScheme != "" {
+		scheme = mappedScheme
 	}
 
 	uploadQuery := url.Values{"secret": []string{secret}}
@@ -115,12 +115,10 @@ func buildReportURLCandidates(addr string, secret string, instanceID ...string) 
 		uploadQuery.Set("instance_id", strings.TrimSpace(instanceID[0]))
 	}
 	upload = []string{
-		schemes[0] + "://" + normalizedAddr + "/flow/upload?" + uploadQuery.Encode(),
-		schemes[1] + "://" + normalizedAddr + "/flow/upload?" + uploadQuery.Encode(),
+		scheme + "://" + normalizedAddr + "/flow/upload?" + uploadQuery.Encode(),
 	}
 	config = []string{
-		schemes[0] + "://" + normalizedAddr + "/flow/config?secret=" + secret,
-		schemes[1] + "://" + normalizedAddr + "/flow/config?secret=" + secret,
+		scheme + "://" + normalizedAddr + "/flow/config?secret=" + secret,
 	}
 	return upload, config
 }

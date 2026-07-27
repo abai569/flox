@@ -4,6 +4,14 @@ import (
 	"time"
 )
 
+func clampDay(year int, month time.Month, day int) int {
+	last := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	if day > last {
+		return last
+	}
+	return day
+}
+
 // CalculateNextReset 根据续费周期计算下次归零时间
 // 返回零值 time.Time{} 表示不自动归零
 func CalculateNextReset(renewalCycle string, from time.Time) time.Time {
@@ -11,11 +19,9 @@ func CalculateNextReset(renewalCycle string, from time.Time) time.Time {
 
 	switch renewalCycle {
 	case "daily":
-		// 明天 00:00
 		return time.Date(from.Year(), from.Month(), from.Day()+1, 0, 0, 0, 0, loc)
 
 	case "weekly":
-		// 下周一 00:00
 		daysUntilMonday := (8 - int(from.Weekday())) % 7
 		if daysUntilMonday == 0 {
 			daysUntilMonday = 7
@@ -23,25 +29,41 @@ func CalculateNextReset(renewalCycle string, from time.Time) time.Time {
 		return time.Date(from.Year(), from.Month(), from.Day()+daysUntilMonday, 0, 0, 0, 0, loc)
 
 	case "monthly", "month":
-		// 下月同日 00:00
-		return time.Date(from.Year(), from.Month()+1, from.Day(), 0, 0, 0, 0, loc)
+		nextMonth := from.Month() + 1
+		nextYear := from.Year()
+		if nextMonth > 12 {
+			nextMonth = 1
+			nextYear++
+		}
+		day := clampDay(nextYear, nextMonth, from.Day())
+		return time.Date(nextYear, nextMonth, day, 0, 0, 0, 0, loc)
 
 	case "quarterly", "quarter":
-		// 下季度同日
 		currentQuarter := (int(from.Month()) - 1) / 3
 		nextQuarterMonth := time.Month(currentQuarter*3 + 4)
-		return time.Date(from.Year(), nextQuarterMonth, from.Day(), 0, 0, 0, 0, loc)
+		nextYear := from.Year()
+		if nextQuarterMonth > 12 {
+			nextQuarterMonth -= 12
+			nextYear++
+		}
+		day := clampDay(nextYear, nextQuarterMonth, from.Day())
+		return time.Date(nextYear, nextQuarterMonth, day, 0, 0, 0, 0, loc)
 
 	case "halfyear", "halfYear":
-		// 半年后同日
-		return time.Date(from.Year(), from.Month()+6, from.Day(), 0, 0, 0, 0, loc)
+		targetMonth := from.Month() + 6
+		targetYear := from.Year()
+		if targetMonth > 12 {
+			targetMonth -= 12
+			targetYear++
+		}
+		day := clampDay(targetYear, targetMonth, from.Day())
+		return time.Date(targetYear, targetMonth, day, 0, 0, 0, 0, loc)
 
 	case "yearly", "year":
-		// 明年同日
-		return time.Date(from.Year()+1, from.Month(), from.Day(), 0, 0, 0, 0, loc)
+		day := clampDay(from.Year()+1, from.Month(), from.Day())
+		return time.Date(from.Year()+1, from.Month(), day, 0, 0, 0, 0, loc)
 
 	default:
-		// once 或其他值：不自动归零
 		return time.Time{}
 	}
 }

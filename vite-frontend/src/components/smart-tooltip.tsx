@@ -28,8 +28,8 @@ export function SmartTooltip({ content, children, className = "" }: SmartTooltip
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     setPosition({
-      top: rect.top + window.scrollY,
-      left: rect.left + rect.width / 2 + window.scrollX,
+      top: rect.top,
+      left: rect.left + rect.width / 2,
     });
   }, []);
 
@@ -62,13 +62,12 @@ export function SmartTooltip({ content, children, className = "" }: SmartTooltip
     }
   };
 
-  // 移动端长按
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isMobile) return;
-    e.preventDefault();
     clearLongPress();
     updatePosition();
     longPressTimerRef.current = setTimeout(() => {
+      e.preventDefault();
       clearHideTimer();
       setShow(true);
       hideTimerRef.current = setTimeout(() => setShow(false), 3000);
