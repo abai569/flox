@@ -2348,7 +2348,8 @@ export default function UserPage() {
                             </div>
                             {user.flow !== 99999 && (() => {
                               const usedPercent = (usedFlow / (user.flow * 1024 * 1024 * 1024)) * 100;
-                              return usedPercent >= 1 && (
+                              if (usedPercent < 1) return null;
+                              return (
                                 <Progress
                                   aria-label="已用流量比例"
                                   className="absolute bottom-0 right-0 w-24 cursor-pointer"

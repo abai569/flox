@@ -45,9 +45,9 @@ export function Progress({
   value = 0,
 }: ProgressProps) {
   return (
-    <div className={cn("space-y-1", className)}>
+    <div className={cn(className)}>
       {label || showValueLabel ? (
-        <div className="flex items-center justify-between text-xs text-default-500">
+        <div className="mb-1 flex items-center justify-between text-xs text-default-500">
           <span>{label}</span>
           {showValueLabel ? <span>{Math.round(value)}%</span> : null}
         </div>
