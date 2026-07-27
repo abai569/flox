@@ -186,7 +186,7 @@ export const TableRow = React.forwardRef<
   return (
     <tr
       ref={ref}
-      className={cn("last:border-b-0", trClassName, className)}
+      className={cn(trClassName, className)}
       {...props}
     />
   );
