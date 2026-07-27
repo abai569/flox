@@ -1695,18 +1695,9 @@ export default function ForwardPage() {
   });
   const diagnosisAbortRef = useRef<AbortController | null>(null);
   const isTogglingRef = useRef(false);
-  const instanceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const instanceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingRef = useRef(loading);
-  const refreshForwardListRef = useRef(refreshForwardList);
-  const nodesRef = useRef(nodes);
-  const refreshNodesRef = useRef(refreshNodes);
-
   loadingRef.current = loading;
-  refreshForwardListRef.current = refreshForwardList;
-  nodesRef.current = nodes;
-  refreshNodesRef.current = refreshNodes;
   const [addressModalTitle, setAddressModalTitle] = useState("");
   const [addressList, setAddressList] = useState<ForwardAddressItem[]>([]);
   // 导出相关状态
@@ -2672,6 +2663,12 @@ export default function ForwardPage() {
       if (nodesRes.code === 0) setNodes((nodesRes.data || []) as Node[]);
     } catch {}
   }, [canUseManualTunnel]);
+  const nodesRef = useRef(nodes);
+  const refreshNodesRef = useRef(refreshNodes);
+  const refreshForwardListRef = useRef(refreshForwardList);
+  nodesRef.current = nodes;
+  refreshNodesRef.current = refreshNodes;
+  refreshForwardListRef.current = refreshForwardList;
   const handleNodeRealtimeMessage = useCallback(
     (message: { id?: string | number; type?: string; data?: unknown }) => {
       const nodeId = Number(message.id);
@@ -2687,7 +2684,7 @@ export default function ForwardPage() {
         if (instanceStatusTimerRef.current) {
           clearTimeout(instanceStatusTimerRef.current);
         }
-        instanceStatusTimerRef.current = window.setTimeout(() => {
+        instanceStatusTimerRef.current = setTimeout(() => {
           instanceStatusTimerRef.current = null;
           void refreshNodes();
         }, 500);

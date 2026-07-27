@@ -435,14 +435,7 @@ export default function TunnelPage() {
     timedOut: false,
   });
   const diagnosisAbortRef = useRef<AbortController | null>(null);
-  const instanceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const nodesRef = useRef(nodes);
-  const refreshNodesRef = useRef(refreshNodes);
-
-  nodesRef.current = nodes;
-  refreshNodesRef.current = refreshNodes;
+  const instanceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 表单状态（持久化草稿）
   const [form, setForm, resetDraft] = useLocalStorageState<TunnelForm>(
     "tunnel-create-draft",
@@ -602,6 +595,10 @@ export default function TunnelPage() {
       }
     } catch {}
   }, []);
+  const nodesRef = useRef(nodes);
+  const refreshNodesRef = useRef(refreshNodes);
+  nodesRef.current = nodes;
+  refreshNodesRef.current = refreshNodes;
   const renderNodeSelectHeader = () => (
     <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left">
       <span className="w-full text-left text-foreground font-semibold">
@@ -708,7 +705,7 @@ export default function TunnelPage() {
         if (instanceStatusTimerRef.current) {
           clearTimeout(instanceStatusTimerRef.current);
         }
-        instanceStatusTimerRef.current = window.setTimeout(() => {
+        instanceStatusTimerRef.current = setTimeout(() => {
           instanceStatusTimerRef.current = null;
           void refreshNodes();
         }, 500);
