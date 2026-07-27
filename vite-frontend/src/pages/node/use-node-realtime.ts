@@ -167,7 +167,21 @@ export const useNodeRealtime = ({
 
     connect();
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !websocketRef.current) {
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+          reconnectTimerRef.current = null;
+        }
+        reconnectAttemptsRef.current = 0;
+        setUsingPollingFallback(false);
+        connect();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       disconnect();
     };
   }, [connect, disconnect, enabled]);
