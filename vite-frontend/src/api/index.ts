@@ -74,6 +74,7 @@ import type {
   SubscriptionPackageApiItem,
   PeerShareApiItem,
   PeerShareMutationPayload,
+  PeerShareNotificationDeliveryApiItem,
   PeerShareTrafficResetLogApiItem,
   PeerRemoteUsageNodeApiItem,
   NodeInstanceOrderUpdatePayload,
@@ -716,10 +717,17 @@ export const removeGroupPermission = (id: number) =>
 export const getPeerShareList = () =>
   Network.post<PeerShareApiItem[]>("/federation/share/list");
 export const createPeerShare = (data: PeerShareMutationPayload) =>
-  Network.post("/federation/share/create", data);
+  Network.post<PeerShareNotificationDeliveryApiItem>(
+    "/federation/share/create",
+    data,
+  );
 export const updatePeerShare = (
   data: PeerShareMutationPayload & { id: number },
-) => Network.post("/federation/share/update", data);
+) =>
+  Network.post<PeerShareNotificationDeliveryApiItem>(
+    "/federation/share/update",
+    data,
+  );
 export const deletePeerShare = (id: number) =>
   Network.post("/federation/share/delete", { id });
 export const resetPeerShareFlow = (id: number, reason?: string) =>
@@ -1182,10 +1190,8 @@ export const getOrderStatus = (orderId: number) =>
 export const deleteOrder = (id: number, force?: boolean) =>
   Network.post("/order/admin/delete", { id, force });
 
-export const updateOrder = (data: {
-  id: number;
-  productName?: string;
-}) => Network.post("/order/admin/update", data);
+export const updateOrder = (data: { id: number; productName?: string }) =>
+  Network.post("/order/admin/update", data);
 
 export const refundOrder = (id: number) =>
   Network.post("/order/admin/refund", { id });

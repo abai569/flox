@@ -750,6 +750,7 @@ export default function NodePage() {
       maxBandwidth: number;
     }[]
   >([]);
+  const knownPeerShareNotificationIDsRef = useRef<Set<number>>(new Set());
 
   // 轮询分享通知
   useEffect(() => {
@@ -758,6 +759,18 @@ export default function NodePage() {
         const res = await listPeerShareNotifications();
 
         if (res.code === 0 && Array.isArray(res.data)) {
+          const newItems = res.data.filter(
+            (item) => !knownPeerShareNotificationIDsRef.current.has(item.id),
+          );
+          if (newItems.length > 0) {
+            toast.success(
+              `收到 ${newItems.length} 条远程节点分享通知，请点击“远程”导入`,
+              { duration: 6000 },
+            );
+          }
+          knownPeerShareNotificationIDsRef.current = new Set(
+            res.data.map((item) => item.id),
+          );
           setPeerShareNotifications(res.data);
         }
       } catch {
