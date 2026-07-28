@@ -1365,18 +1365,17 @@ export const updateTelegramConfig = (
 export const testTelegramBot = () => Network.post("/telegram/test");
 
 export const listPeerShareNotifications = () =>
-  Network.post<{
-    code: number;
-    data: {
-      id: number;
-      token: string;
-      providerUrl: string;
-      providerToken: string;
-      providerNodeName: string;
-      maxBandwidth: number;
-      createdTime: number;
-    }[];
-  }>("/federation/share/notify-list");
+	Network.post<
+	  {
+		id: number;
+		token: string;
+		providerUrl: string;
+		providerToken: string;
+		providerNodeName: string;
+		maxBandwidth: number;
+		createdTime: number;
+	  }[]
+	>("/federation/share/notify-list");
 
 export const dismissPeerShareNotification = (id: number) =>
   Network.post("/federation/share/notify-dismiss", { id });

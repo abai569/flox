@@ -748,34 +748,57 @@ export default function NodePage() {
       providerToken: string;
       providerNodeName: string;
       maxBandwidth: number;
+      createdTime: number;
     }[]
   >([]);
-  const knownPeerShareNotificationIDsRef = useRef<Set<number>>(new Set());
+  const notificationPollInFlightRef = useRef(false);
 
   // 轮询分享通知
   useEffect(() => {
-    const poll = async () => {
-      try {
-        const res = await listPeerShareNotifications();
+	const poll = async () => {
+	  if (notificationPollInFlightRef.current) return;
+	  notificationPollInFlightRef.current = true;
+	  try {
+		const res = await listPeerShareNotifications();
 
-        if (res.code === 0 && Array.isArray(res.data)) {
-          const newItems = res.data.filter(
-            (item) => !knownPeerShareNotificationIDsRef.current.has(item.id),
-          );
-          if (newItems.length > 0) {
-            toast.success(
-              `收到 ${newItems.length} 条远程节点分享通知，请点击“远程”导入`,
-              { duration: 6000 },
-            );
-          }
-          knownPeerShareNotificationIDsRef.current = new Set(
-            res.data.map((item) => item.id),
-          );
-          setPeerShareNotifications(res.data);
-        }
-      } catch {
-        /* ignore poll errors */
-      }
+		if (res.code === 0 && Array.isArray(res.data)) {
+		  const announceNewNotifications = () => {
+			const storageKey = "flox-peer-share-notification-seen";
+			let seenKeys = new Set<string>();
+			try {
+			  const stored = JSON.parse(localStorage.getItem(storageKey) || "[]");
+			  if (Array.isArray(stored)) {
+				seenKeys = new Set(stored.filter((key): key is string => typeof key === "string"));
+			  }
+			} catch {
+			  seenKeys = new Set();
+			}
+			const newItems = res.data.filter(
+			  (item) => !seenKeys.has(`${item.id}:${item.createdTime}`),
+			);
+			if (newItems.length === 0) return;
+			newItems.forEach((item) => seenKeys.add(`${item.id}:${item.createdTime}`));
+			localStorage.setItem(storageKey, JSON.stringify([...seenKeys].slice(-200)));
+			toast.success(
+			  `收到 ${newItems.length} 条远程节点分享通知，请点击“远程”导入`,
+			  { duration: 6000 },
+			);
+		  };
+		  if (navigator.locks) {
+			await navigator.locks.request(
+			  "flox-peer-share-notification-toast",
+			  announceNewNotifications,
+			);
+		  } else {
+			announceNewNotifications();
+		  }
+		  setPeerShareNotifications(res.data);
+		}
+	  } catch {
+		/* ignore poll errors */
+	  } finally {
+		notificationPollInFlightRef.current = false;
+	  }
     };
 
     poll();
@@ -6615,9 +6638,18 @@ export default function NodePage() {
             setImportPrefillUrl("");
             setImportPrefillToken("");
           }}
-          onDismissNotification={async (id: number) => {
-            await dismissPeerShareNotification(id);
-            setPeerShareNotifications((prev) =>
+		  onDismissNotification={async (id: number) => {
+			try {
+			  const res = await dismissPeerShareNotification(id);
+			  if (res.code !== 0) {
+				toast.error(res.msg || "关闭分享通知失败");
+				return;
+			  }
+			} catch {
+			  toast.error("关闭分享通知失败");
+			  return;
+			}
+			setPeerShareNotifications((prev) =>
               prev.filter((n) => n.id !== id),
             );
             try {
