@@ -168,7 +168,6 @@ export interface PeerShareApiItem {
   instances?: PeerShareInstanceApiItem[];
   flows?: PeerShareFlowApiItem[];
   consumerPanelUrl?: string;
-  consumerPanelTokenConfigured?: boolean;
 }
 
 export interface PeerShareInstanceApiItem {
@@ -242,7 +241,6 @@ export interface PeerShareMutationPayload {
   trafficRatio: number;
   minHealthyInstances?: number;
   consumerPanelUrl?: string;
-  consumerPanelToken?: string;
 }
 
 export interface PeerShareNotificationDeliveryApiItem {
