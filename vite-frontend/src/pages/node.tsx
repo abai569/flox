@@ -120,6 +120,7 @@ import {
   deriveNodeVisualState,
   getRemoteDisplayMeta,
   getRemoteDisplayState,
+  isInstanceTrafficLimitExceeded,
 } from "@/pages/node/display";
 import {
   getNodeRenewalSnapshot,
@@ -3609,9 +3610,12 @@ export default function NodePage() {
       expiryTarget?.expiryTime ?? node.expiryTime,
       expiryTarget?.renewalCycle ?? node.renewalCycle,
     );
-    const visualMeta = deriveNodeVisualState(
-      nodeInstanceMembers[node.id],
-      node.paused,
+	const visualMeta = deriveNodeVisualState(
+	  nodeInstanceMembers[node.id]?.map((member) => ({
+		...member,
+		unavailable: isInstanceTrafficLimitExceeded(member),
+	  })),
+	  node.paused,
     );
     const remoteVisualMembers = (node.remoteInstances || [])
       .filter((instance) => instance.inScope)
@@ -3696,16 +3700,12 @@ export default function NodePage() {
                 {/* WGM 状态 */}
                 {node.mimicStatus === "ok" ||
                 node.mimicStatus === "deps_ready" ? (
-                  <span className="text-green-500 text-sm" title="WGM 就绪">
-                    ✅
-                  </span>
+				  <StatusDot tone="success" title="WGM 就绪" />
                 ) : node.mimicStatus ? (
-                  <span
-                    className="text-red-500 text-sm cursor-help"
-                    title={node.mimicError || "WGM 未就绪"}
-                  >
-                    ❌
-                  </span>
+				  <StatusDot
+					tone="danger"
+					title={node.mimicError || "WGM 未就绪"}
+				  />
                 ) : null}
               </div>
               {node.isRemote === 1 ? (

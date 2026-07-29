@@ -25,6 +25,7 @@ import {
   deriveNodeVisualState,
   getRemoteDisplayMeta,
   getRemoteDisplayState,
+  isInstanceTrafficLimitExceeded,
   type RemoteDisplayState,
 } from "./display";
 import { getNodeRenewalSnapshot, formatNodeRenewalTime } from "./renewal";
@@ -505,10 +506,10 @@ function RemoteNodeInstanceRows({
                                 : "离线"
                         }
                         tone={
-                          !parentOnline
-                            ? parentMeta.tone
-                            : disabled
-                              ? "default"
+						  !parentOnline
+							? parentMeta.tone
+							: disabled
+							  ? "warning"
                               : online
                                 ? "success"
                                 : "danger"
@@ -755,23 +756,20 @@ function NodeInstanceRows({
                         <td className="px-1 py-3 text-center">
                           {(node as any).mimicStatus === "ok" ||
                           (node as any).mimicStatus === "deps_ready" ? (
-                            <span className="text-green-500" title="WGM 就绪">
-                              ✅
-                            </span>
+							<StatusDot tone="success" title="WGM 就绪" />
                           ) : (node as any).mimicStatus ? (
-                            <button
-                              className="inline-flex h-6 w-6 items-center justify-center rounded text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
+							<button
+							  className="inline-flex h-6 w-6 items-center justify-center rounded transition-colors hover:bg-red-50 dark:hover:bg-red-500/10"
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 onInstallMimicDeps?.(node);
                               }}
                             >
-                              <SmartTooltip
-                                content={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}
-                              >
-                                ❌
-                              </SmartTooltip>
+							  <StatusDot
+								tone="danger"
+								title={`${(node as any).mimicError || "WGM 未就绪"}，点击安装依赖`}
+							  />
                             </button>
                           ) : (
                             <span className="text-default-400">-</span>
@@ -782,16 +780,20 @@ function NodeInstanceRows({
                       <td className="px-2 py-2.5 text-center align-middle">
                         <StatusDot
                           active={member.weight > 0 && member.status === 1}
-                          title={
-                            member.weight <= 0
-                              ? "已禁用（权重为 0）"
+						  title={
+							member.weight <= 0
+							  ? isInstanceTrafficLimitExceeded(member)
+								? "流量超限，已暂停"
+								: "已禁用（权重为 0）"
                               : member.status === 1
                                 ? "在线"
                                 : "离线"
                           }
-                          tone={
-                            member.weight <= 0
-                              ? "default"
+						  tone={
+							member.weight <= 0
+							  ? isInstanceTrafficLimitExceeded(member)
+								? "danger"
+								: "warning"
                               : member.status === 1
                                 ? "success"
                                 : "danger"
@@ -1324,7 +1326,13 @@ function SortableTableRow({
       : isHighlighted
         ? "bg-default-100 dark:bg-default-100/20"
         : "";
-  const visualMeta = deriveNodeVisualState(instanceMembers, node.paused);
+  const visualMeta = deriveNodeVisualState(
+	instanceMembers.map((member: MonitorNodeInstanceGroupMemberApiItem) => ({
+	  ...member,
+	  unavailable: isInstanceTrafficLimitExceeded(member),
+	})),
+	node.paused,
+  );
   const expiryTarget =
     node.expiryInstances?.find(
       (item: NodeExpiryInstance) =>

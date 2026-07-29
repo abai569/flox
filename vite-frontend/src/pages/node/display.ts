@@ -67,7 +67,7 @@ export const getRemoteDisplayMeta = (
 };
 
 export const deriveNodeVisualState = (
-  members?: { status: number; weight?: number }[],
+  members?: { status: number; weight?: number; unavailable?: boolean }[],
   paused?: number,
 ): NodeVisualMeta => {
   const totalCount = members?.length ?? 0;
@@ -75,7 +75,7 @@ export const deriveNodeVisualState = (
   if (paused) {
     return {
       state: "offline",
-      color: "warning",
+      color: "default",
       text: "已暂停",
       onlineCount: 0,
       disabledCount: 0,
@@ -101,10 +101,12 @@ export const deriveNodeVisualState = (
   const enabledCount = enabled.length;
 
   if (enabled.length === 0) {
-    return {
-      state: "offline",
-      color: "default",
-      text: "已禁用",
+	const hasUnavailableMember = members.some((member) => member.unavailable);
+
+	return {
+	  state: "offline",
+	  color: hasUnavailableMember ? "danger" : "warning",
+	  text: hasUnavailableMember ? "不可用" : "已禁用",
       onlineCount: 0,
       disabledCount,
       totalCount,
@@ -114,10 +116,13 @@ export const deriveNodeVisualState = (
   const onlineCount = enabled.filter((m) => m.status === 1).length;
 
   if (onlineCount === enabled.length) {
-    return {
-      state: "online",
-      color: "success",
-      text: `全部在线 (${onlineCount})`,
+	return {
+	  state: disabledCount > 0 ? "partial" : "online",
+	  color: disabledCount > 0 ? "warning" : "success",
+	  text:
+		disabledCount > 0
+		  ? `存在禁用实例 (${disabledCount})`
+		  : `全部在线 (${onlineCount})`,
       onlineCount,
       disabledCount,
       totalCount,
@@ -145,4 +150,20 @@ export const deriveNodeVisualState = (
     totalCount,
     enabledCount,
   };
+};
+
+export const isInstanceTrafficLimitExceeded = (instance: {
+  weight?: number;
+  trafficLimit?: number;
+  periodNetInBytes?: number;
+  periodNetOutBytes?: number;
+}) => {
+  const limitGB = Number(instance.trafficLimit || 0);
+
+  if ((instance.weight ?? 1) > 0 || limitGB <= 0) return false;
+  const usedBytes =
+	Number(instance.periodNetInBytes || 0) +
+	Number(instance.periodNetOutBytes || 0);
+
+  return usedBytes >= limitGB * 1024 * 1024 * 1024;
 };
