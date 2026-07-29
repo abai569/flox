@@ -1,14 +1,18 @@
-import { useEffect } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef } from "react";
 
-export function usePullToRefresh(callback: () => void) {
-  useEffect(() => {
-    const handler = () => {
-      callback();
-      window.dispatchEvent(new CustomEvent("flox:pulltorefresh:done"));
-    };
+import { PullToRefreshContext } from "@/contexts/pull-to-refresh";
 
-    window.addEventListener("flox:pulltorefresh", handler);
+export function usePullToRefresh(callback: () => void | Promise<void>) {
+  const context = useContext(PullToRefreshContext);
+  const callbackRef = useRef(callback);
 
-    return () => window.removeEventListener("flox:pulltorefresh", handler);
+  useLayoutEffect(() => {
+    callbackRef.current = callback;
   }, [callback]);
+
+  useEffect(() => {
+    if (!context) return;
+
+    return context.register(() => callbackRef.current());
+  }, [context]);
 }

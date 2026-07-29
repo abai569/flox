@@ -59,6 +59,7 @@ interface TunnelMonitorViewProps {
   viewMode?: "list" | "grid";
   refreshTrigger?: number;
   onLoadingChange?: (loading: boolean) => void;
+  onRefreshReady?: (refresh: (() => Promise<void>) | null) => void;
 }
 
 const QUALITY_POLL_INTERVAL = 10_000; // 1 second
@@ -456,6 +457,7 @@ export function TunnelMonitorView({
   viewMode = "grid",
   refreshTrigger,
   onLoadingChange,
+  onRefreshReady,
 }: TunnelMonitorViewProps) {
   const [tunnels, setTunnels] = useState<MonitorTunnelApiItem[]>([]);
   const [tunnelsLoading, setTunnelsLoading] = useState(false);
@@ -757,6 +759,31 @@ export function TunnelMonitorView({
     },
     [tunnelRangeMs],
   );
+
+  const refreshVisibleData = useCallback(async () => {
+    await Promise.all([
+      loadTunnels(),
+      loadQuality(),
+      ...(detailTunnelId
+        ? [
+            loadQualityHistory(detailTunnelId),
+            loadTunnelMetrics(detailTunnelId),
+          ]
+        : []),
+    ]);
+  }, [
+    detailTunnelId,
+    loadQuality,
+    loadQualityHistory,
+    loadTunnelMetrics,
+    loadTunnels,
+  ]);
+
+  useEffect(() => {
+    onRefreshReady?.(refreshVisibleData);
+
+    return () => onRefreshReady?.(null);
+  }, [onRefreshReady, refreshVisibleData]);
 
   useEffect(() => {
     if (detailTunnelId) {

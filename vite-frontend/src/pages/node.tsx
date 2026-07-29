@@ -1154,6 +1154,7 @@ export default function NodePage() {
     const silent = options?.silent ?? false;
     const generation = ++loadNodesGenerationRef.current;
     const loadingGeneration = silent ? 0 : ++loadingGenerationRef.current;
+    let remoteUsagePromise: Promise<void> | null = null;
 
     if (!silent) {
       setLoading(true);
@@ -1204,7 +1205,7 @@ export default function NodePage() {
           const usageGeneration = ++remoteUsageGenerationRef.current;
 
           remoteUsageInFlightRef.current = true;
-          getPeerRemoteUsageList()
+          remoteUsagePromise = getPeerRemoteUsageList()
             .then((usageRes) => {
               if (
                 !pageActiveRef.current ||
@@ -1346,6 +1347,7 @@ export default function NodePage() {
           toast.error(res.msg || "加载节点列表失败");
         }
       }
+      if (remoteUsagePromise) await remoteUsagePromise;
     } catch {
       if (
         !silent &&
@@ -1749,9 +1751,16 @@ export default function NodePage() {
   useEffect(() => {
     void loadShareCounts();
   }, [loadShareCounts]);
-  usePullToRefresh(async () => {
-    await Promise.all([loadNodes(), loadShareCounts()]);
-  });
+  const refreshNodeData = useCallback(async () => {
+    await Promise.all([
+      loadNodes(),
+      loadShareCounts(),
+      loadNodeGroups(),
+      loadNodeInstances(),
+    ]);
+  }, [loadNodeGroups, loadNodeInstances, loadNodes, loadShareCounts]);
+
+  usePullToRefresh(refreshNodeData);
   const hasRemoteNodes = nodeList.some((node) => node.isRemote === 1);
 
   useEffect(() => {

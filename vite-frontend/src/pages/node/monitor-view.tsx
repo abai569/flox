@@ -102,6 +102,7 @@ interface MonitorViewProps {
   hideList?: boolean;
   viewMode?: "list" | "grid";
   onDetailClose?: () => void;
+  onRefreshReady?: (refresh: (() => Promise<void>) | null) => void;
 }
 
 type RealtimeNodeMetric = {
@@ -596,6 +597,7 @@ export function MonitorView({
   nodeMap,
   viewMode = "grid",
   onDetailClose,
+  onRefreshReady,
 }: MonitorViewProps) {
   const [internalDetailNodeId, setInternalDetailNodeId] = useState<
     number | null
@@ -1130,6 +1132,33 @@ export function MonitorView({
       setResultsLoading(false);
     }
   }, [loadMonitorResults, resultsLimit, resultsMonitorId]);
+
+  const refreshVisibleData = useCallback(async () => {
+    await Promise.all([
+      loadServiceMonitors(),
+      loadServiceMonitorLimits(),
+      loadLatestMonitorResults(),
+      ...(selectedNodeId
+        ? [loadMetrics(selectedNodeId, controlledDetailInstanceId)]
+        : []),
+      ...(resultsMonitorId ? [loadResultsForModal()] : []),
+    ]);
+  }, [
+    controlledDetailInstanceId,
+    loadLatestMonitorResults,
+    loadMetrics,
+    loadResultsForModal,
+    loadServiceMonitorLimits,
+    loadServiceMonitors,
+    resultsMonitorId,
+    selectedNodeId,
+  ]);
+
+  useEffect(() => {
+    onRefreshReady?.(refreshVisibleData);
+
+    return () => onRefreshReady?.(null);
+  }, [onRefreshReady, refreshVisibleData]);
 
   useEffect(() => {
     void loadServiceMonitors();

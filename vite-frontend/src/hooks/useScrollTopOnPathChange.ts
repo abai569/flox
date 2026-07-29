@@ -17,5 +17,6 @@ export const useScrollTopOnPathChange = (): void => {
 
     document.body.scrollTop = 0;
     document.documentElement.scrollTop = 0;
+    document.getElementById("h5-main")?.scrollTo({ top: 0, left: 0 });
   }, [pathname]);
 };

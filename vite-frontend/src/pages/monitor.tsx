@@ -845,6 +845,8 @@ export default function MonitorPage() {
   }, [activeTab]);
   const [tunnelsLoading, setTunnelsLoading] = useState(false);
   const [tunnelRefreshTrigger, setTunnelRefreshTrigger] = useState(0);
+  const tunnelRefreshRef = useRef<(() => Promise<void>) | null>(null);
+  const nodeDetailRefreshRef = useRef<(() => Promise<void>) | null>(null);
 
   const loadNodeInstanceGroups = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -881,7 +883,7 @@ export default function MonitorPage() {
 
       instanceRefreshTimersRef.current.set(nodeId, timer);
     },
-    [loadNodeInstanceGroups],
+    [],
   );
 
   const loadNodes = useCallback(
@@ -951,14 +953,34 @@ export default function MonitorPage() {
     [loadNodes, loadNodeInstanceGroups, loadServiceSummary],
   );
 
-  const refreshActiveTab = useCallback(() => {
+  const refreshActiveTab = useCallback(async () => {
     if (activeTab === "nodes") {
-      void loadNodeTab();
-
+      await Promise.all([
+        loadNodeTab(),
+        ...(nodeDetailRefreshRef.current
+          ? [nodeDetailRefreshRef.current()]
+          : []),
+      ]);
+      return;
+    }
+    if (tunnelRefreshRef.current) {
+      await tunnelRefreshRef.current();
       return;
     }
     setTunnelRefreshTrigger((prev) => prev + 1);
   }, [activeTab, loadNodeTab]);
+  const handleTunnelRefreshReady = useCallback(
+    (refresh: (() => Promise<void>) | null) => {
+      tunnelRefreshRef.current = refresh;
+    },
+    [],
+  );
+  const handleNodeDetailRefreshReady = useCallback(
+    (refresh: (() => Promise<void>) | null) => {
+      nodeDetailRefreshRef.current = refresh;
+    },
+    [],
+  );
 
   useEffect(() => {
     void loadNodes();
@@ -1480,6 +1502,7 @@ export default function MonitorPage() {
                   nodeMap={nodeMap}
                   viewMode={viewMode}
                   onDetailClose={() => setDetailTarget(null)}
+                  onRefreshReady={handleNodeDetailRefreshReady}
                 />
               )}
             </div>
@@ -1489,6 +1512,7 @@ export default function MonitorPage() {
               refreshTrigger={tunnelRefreshTrigger}
               viewMode={viewMode}
               onLoadingChange={setTunnelsLoading}
+              onRefreshReady={handleTunnelRefreshReady}
             />
           </div>
         </>

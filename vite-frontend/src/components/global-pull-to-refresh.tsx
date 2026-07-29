@@ -1,147 +1,193 @@
-import { useEffect, useState, useRef } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+
+import { PullToRefreshContext } from "@/contexts/pull-to-refresh";
+
+const MAX_PULL = 84;
+const THRESHOLD = 58;
+const DIRECTION_LOCK_DISTANCE = 8;
+const IGNORE_SELECTOR =
+  '[data-pull-to-refresh-ignore], [role="dialog"], input, textarea, select, [contenteditable="true"]';
+
+type GestureDirection = "pending" | "horizontal" | "vertical";
 
 export function GlobalPullToRefresh() {
+  const context = useContext(PullToRefreshContext);
   const [pullDistance, setPullDistance] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-
+  const startX = useRef(0);
   const startY = useRef(0);
-  const isPulling = useRef(false);
   const currentDistance = useRef(0);
-  const pullActivated = useRef(false);
-  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tracking = useRef(false);
+  const direction = useRef<GestureDirection>("pending");
 
   useEffect(() => {
-    const MAX_PULL = 80;
-    const THRESHOLD = 60;
-    const ACTIVATION_DELAY = 200;
+    const container = document.getElementById("h5-main");
 
-    const getScrollTop = (target: EventTarget | null) => {
-      let node = target as HTMLElement | null;
+    if (!container || !context) return;
 
-      while (
-        node &&
-        node !== document.body &&
-        node !== document.documentElement
-      ) {
-        if (node.scrollHeight > node.clientHeight) {
-          const overflowY = window.getComputedStyle(node).overflowY;
-
-          if (overflowY === "auto" || overflowY === "scroll") {
-            return node.scrollTop;
-          }
-        }
-        node = node.parentElement;
-      }
-
-      return window.scrollY || document.documentElement.scrollTop;
-    };
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (getScrollTop(e.target) <= 0) {
-        startY.current = e.touches[0].clientY;
-        isPulling.current = true;
-        pullActivated.current = false;
-        currentDistance.current = 0;
-        if (touchTimer.current) clearTimeout(touchTimer.current);
-        touchTimer.current = setTimeout(() => {
-          if (isPulling.current) {
-            pullActivated.current = true;
-          }
-        }, ACTIVATION_DELAY);
-      }
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!isPulling.current) return;
-      if (!pullActivated.current) return;
-
-      const y = e.touches[0].clientY;
-      const distance = y - startY.current;
-
-      if (distance > 0) {
-        if (e.cancelable) e.preventDefault();
-        currentDistance.current = Math.min(distance * 0.4, MAX_PULL);
-        setPullDistance(currentDistance.current);
-      } else {
-        isPulling.current = false;
-        pullActivated.current = false;
-        setPullDistance(0);
-        if (touchTimer.current) {
-          clearTimeout(touchTimer.current);
-          touchTimer.current = null;
-        }
-      }
-    };
-
-    const onTouchEnd = () => {
-      if (touchTimer.current) {
-        clearTimeout(touchTimer.current);
-        touchTimer.current = null;
-      }
-      if (!isPulling.current) return;
-      isPulling.current = false;
-      pullActivated.current = false;
-
-      if (currentDistance.current >= THRESHOLD) {
-        setRefreshing(true);
-        setPullDistance(THRESHOLD - 20);
-        window.dispatchEvent(new CustomEvent("flox:pulltorefresh"));
-      } else {
-        setPullDistance(0);
-        currentDistance.current = 0;
-      }
-    };
-
-    const onRefreshDone = () => {
-      setRefreshing(false);
-      setPullDistance(0);
+    const resetGesture = () => {
+      tracking.current = false;
+      direction.current = "pending";
       currentDistance.current = 0;
+      if (!refreshing) setPullDistance(0);
     };
 
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
-    document.addEventListener("touchend", onTouchEnd);
-    window.addEventListener("flox:pulltorefresh:done", onRefreshDone);
+    const hasNestedScrollContainer = (target: EventTarget | null) => {
+      let element = target instanceof HTMLElement ? target : null;
+
+      while (element && element !== container) {
+        const style = window.getComputedStyle(element);
+        const scrollable =
+          (style.overflowY === "auto" || style.overflowY === "scroll") &&
+          element.scrollHeight > element.clientHeight + 1;
+
+        if (scrollable) return true;
+        element = element.parentElement;
+      }
+
+      return false;
+    };
+
+    const shouldIgnoreTarget = (target: EventTarget | null) =>
+      target instanceof Element &&
+      (target.closest(IGNORE_SELECTOR) !== null ||
+        hasNestedScrollContainer(target));
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (
+        refreshing ||
+        event.touches.length !== 1 ||
+        container.scrollTop > 0 ||
+        shouldIgnoreTarget(event.target)
+      ) {
+        resetGesture();
+        return;
+      }
+
+      startX.current = event.touches[0].clientX;
+      startY.current = event.touches[0].clientY;
+      currentDistance.current = 0;
+      direction.current = "pending";
+      tracking.current = true;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!tracking.current) return;
+      if (event.touches.length !== 1) {
+        resetGesture();
+        return;
+      }
+
+      const deltaX = event.touches[0].clientX - startX.current;
+      const deltaY = event.touches[0].clientY - startY.current;
+
+      if (direction.current === "pending") {
+        if (
+          Math.abs(deltaX) < DIRECTION_LOCK_DISTANCE &&
+          Math.abs(deltaY) < DIRECTION_LOCK_DISTANCE
+        ) {
+          return;
+        }
+        direction.current =
+          deltaY > 0 && deltaY > Math.abs(deltaX) * 1.25
+            ? "vertical"
+            : "horizontal";
+      }
+
+      if (direction.current !== "vertical") {
+        if (direction.current === "horizontal") tracking.current = false;
+        return;
+      }
+
+      if (deltaY <= 0 || container.scrollTop > 0) {
+        resetGesture();
+        return;
+      }
+
+      if (event.cancelable) event.preventDefault();
+      currentDistance.current = Math.min(deltaY * 0.42, MAX_PULL);
+      setPullDistance(currentDistance.current);
+    };
+
+    const finishGesture = async (event: TouchEvent) => {
+      if (event.touches.length > 0) {
+        resetGesture();
+        return;
+      }
+      if (!tracking.current) return;
+
+      const shouldRefresh =
+        direction.current === "vertical" &&
+        currentDistance.current >= THRESHOLD;
+
+      tracking.current = false;
+      direction.current = "pending";
+
+      if (!shouldRefresh) {
+        currentDistance.current = 0;
+        setPullDistance(0);
+        return;
+      }
+
+      setRefreshing(true);
+      setPullDistance(40);
+      const started = await context.refresh();
+
+      if (!started) {
+        setRefreshing(false);
+        currentDistance.current = 0;
+        setPullDistance(0);
+        return;
+      }
+
+      setRefreshing(false);
+      currentDistance.current = 0;
+      setPullDistance(0);
+    };
+
+    const cancelGesture = () => resetGesture();
+
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", finishGesture);
+    container.addEventListener("touchcancel", cancelGesture);
 
     return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchmove", onTouchMove);
-      document.removeEventListener("touchend", onTouchEnd);
-      window.removeEventListener("flox:pulltorefresh:done", onRefreshDone);
-      if (touchTimer.current) clearTimeout(touchTimer.current);
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", finishGesture);
+      container.removeEventListener("touchcancel", cancelGesture);
     };
-  }, []);
+  }, [context, refreshing]);
 
   if (pullDistance === 0 && !refreshing) return null;
 
   return (
     <div
-      className="fixed top-0 left-0 w-full flex justify-center items-start pt-6 z-[9999] pointer-events-none transition-transform duration-200"
+      className="fixed top-0 left-0 w-full flex justify-center items-start pt-6 z-[9999] pointer-events-none transition-[transform,opacity] duration-200"
       style={{
         transform: `translateY(${refreshing ? 40 : pullDistance}px)`,
-        opacity: pullDistance / 80 || (refreshing ? 1 : 0),
+        opacity: Math.min(pullDistance / MAX_PULL, 1) || (refreshing ? 1 : 0),
         marginTop: "-40px",
       }}
     >
-      <div className="flex justify-center">
-        <div className="w-10 h-10 bg-white dark:bg-neutral-800 rounded-full flex items-center justify-center shadow-md ring-1 ring-gray-100 dark:ring-neutral-700">
-          <svg
-            className={`w-8 h-8 text-[#3b5998] dark:text-slate-400 ${refreshing ? "animate-spin" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            style={{
-              transform: !refreshing
-                ? `rotate(${pullDistance * 4}deg)`
-                : undefined,
-            }}
-            viewBox="0 0 24 24"
-          >
-            <path d="M 16.5 4.21 A 9 9 0 1 1 7.5 4.21" />
-          </svg>
-        </div>
+      <div className="w-10 h-10 bg-white dark:bg-neutral-800 rounded-full flex items-center justify-center shadow-md ring-1 ring-gray-100 dark:ring-neutral-700">
+        <svg
+          className={`w-8 h-8 text-[#3b5998] dark:text-slate-400 ${refreshing ? "animate-spin" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          style={{
+            transform: !refreshing
+              ? `rotate(${pullDistance * 4}deg)`
+              : undefined,
+          }}
+          viewBox="0 0 24 24"
+        >
+          <path d="M 16.5 4.21 A 9 9 0 1 1 7.5 4.21" />
+        </svg>
       </div>
     </div>
   );

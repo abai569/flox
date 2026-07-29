@@ -35,6 +35,7 @@ import { getAdminFlag, getSessionName } from "@/utils/session";
 import { useScrollTopOnPathChange } from "@/hooks/useScrollTopOnPathChange";
 import { useThemeContext } from "@/themes/context";
 import { GlobalPullToRefresh } from "@/components/global-pull-to-refresh";
+import { PullToRefreshProvider } from "@/contexts/pull-to-refresh";
 
 interface MenuItem {
   path: string;
@@ -485,7 +486,8 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-100 dark:bg-black overflow-x-hidden">
+    <PullToRefreshProvider>
+    <div className="flex flex-col h-dvh min-h-0 bg-gray-100 dark:bg-black overflow-hidden">
       {/* 顶部导航栏 */}
       <header className="fixed top-0 left-0 w-full bg-white dark:bg-black shadow-sm border-b border-gray-200 dark:border-gray-600 h-14 flex-shrink-0 flex items-center justify-between px-3 sm:px-4 z-40">
         <div className="flex items-center gap-2 sm:gap-3">
@@ -779,7 +781,7 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
       </aside>
       {/* 主内容区域 */}
       <main
-        className="flex-1 bg-gray-100 dark:bg-black relative pb-8 pt-14 overflow-y-auto"
+        className="flex-1 min-h-0 bg-gray-100 dark:bg-black relative pb-8 pt-14 overflow-y-auto overscroll-y-contain overflow-x-hidden"
         id="h5-main"
       >
         <GlobalPullToRefresh />
@@ -879,5 +881,6 @@ export default function H5Layout({ children }: { children: React.ReactNode }) {
         </ModalContent>
       </Modal>
     </div>
+    </PullToRefreshProvider>
   );
 }

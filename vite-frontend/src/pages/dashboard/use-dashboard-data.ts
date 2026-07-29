@@ -116,7 +116,7 @@ interface DashboardDataState {
   quotaHistory: UserQuotaHistoryItem[];
   fetchQuotaHistory: () => Promise<void>;
   deleteQuotaHistory: (id: number) => Promise<void>;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
 const checkExpirationNotifications = (
@@ -416,16 +416,6 @@ export const useDashboardData = (): DashboardDataState => {
     };
   }, [loadAnnouncement, loadNodeExpiryData, loadPackageData]);
 
-  const refresh = useCallback(() => {
-    void loadPackageData({ notifyOnError: true });
-    void loadAnnouncement();
-    if (isAdmin) {
-      void loadNodeExpiryData();
-    }
-  }, [isAdmin, loadAnnouncement, loadNodeExpiryData, loadPackageData]);
-
-  usePullToRefresh(refresh);
-
   const fetchQuotaHistory = useCallback(async () => {
     try {
       const res = await getUserQuotaHistory(userInfo.id, 50);
@@ -437,6 +427,23 @@ export const useDashboardData = (): DashboardDataState => {
       // silent
     }
   }, [userInfo.id]);
+
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      loadPackageData({ notifyOnError: true }),
+      loadAnnouncement(),
+      fetchQuotaHistory(),
+      ...(isAdmin ? [loadNodeExpiryData()] : []),
+    ]);
+  }, [
+    fetchQuotaHistory,
+    isAdmin,
+    loadAnnouncement,
+    loadNodeExpiryData,
+    loadPackageData,
+  ]);
+
+  usePullToRefresh(refresh);
 
   const deleteQuotaHistory = useCallback(async (id: number) => {
     try {

@@ -2539,7 +2539,7 @@ export default function ForwardPage() {
         saveOrder(FORWARD_ORDER_KEY, order);
       }
     },
-    [isAdmin],
+    [],
   );
   const refreshForwardList = useCallback(
     async (lod = true) => {
@@ -2635,7 +2635,7 @@ export default function ForwardPage() {
         setLoading(false);
       }
     },
-    [canUseManualTunnel, applyForwardList],
+    [applyForwardList, canUseManualTunnel, isAdmin],
   );
 
   useEffect(() => {

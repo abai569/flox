@@ -809,7 +809,7 @@ export default function UserPage() {
         if (showLoading && requestID === usersRequestRef.current) setLoading(false);
       }
     },
-    [pagination.current, pagination.size],
+    [pagination.current, pagination.size, searchKeyword],
   );
 
   // 初始化 sortableUserIds
@@ -942,7 +942,12 @@ export default function UserPage() {
     void loadSpeedLimits();
     void loadTunnelGroups();
     void loadMonitorPermissions();
-  }, [loadSpeedLimits, loadTunnels, loadTunnelGroups]);
+  }, [
+    loadMonitorPermissions,
+    loadSpeedLimits,
+    loadTunnelGroups,
+    loadTunnels,
+  ]);
   useEffect(() => {
     void loadUsers();
 
@@ -985,7 +990,23 @@ export default function UserPage() {
 
     return () => window.removeEventListener("configUpdated", loadReg);
   }, []);
-  usePullToRefresh(loadUsers);
+  const refreshUserData = useCallback(async () => {
+    await Promise.all([
+      loadUsers(),
+      loadTunnels(),
+      loadSpeedLimits(),
+      loadTunnelGroups(),
+      loadMonitorPermissions(),
+    ]);
+  }, [
+    loadMonitorPermissions,
+    loadSpeedLimits,
+    loadTunnelGroups,
+    loadTunnels,
+    loadUsers,
+  ]);
+
+  usePullToRefresh(refreshUserData);
   useEffect(() => {
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);

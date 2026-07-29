@@ -2,7 +2,7 @@
 
 - 范围：`vite-frontend/src`、`closed/vite-frontend/src/pages`
 - 计划日期：2026-07-29
-- 当前状态：待实施
+- 当前状态：代码已实施，待真机验证
 - 验证命令：`npm run build`
 
 ## 1. 背景
@@ -32,6 +32,8 @@
 ### 2.2 不纳入修复
 
 - `/tz` 不增加下拉刷新：该页面数据通过实时机制更新，不需要手动下拉
+- `/config` 不增加下拉刷新：页面包含未保存表单，下拉重载可能覆盖编辑内容
+- `/admin/payment`、`/admin/telegram` 不增加下拉刷新：配置编辑表单存在相同覆盖风险
 - 登录页、修改密码页和面板地址页不增加下拉刷新
 - 不为本次修复引入 TanStack Query 或其他全局数据缓存框架
 - 不重构页面无关的数据请求和 UI 结构
@@ -136,46 +138,46 @@ usePullToRefresh(async ({ signal }) => {
 | `/node` | 节点、分享计数、节点组、节点实例及当前可见远程用量 | 把脱离 Promise 链的请求纳入刷新完成周期 |
 | `/sdwan` | SDWAN 分组和节点 | 与 30 秒轮询互斥或使用请求序号避免旧响应覆盖 |
 | `/user` | 当前筛选和分页用户、页面操作依赖数据 | 修复 `searchKeyword` 闭包依赖；按需刷新权限和配置数据 |
-| `/config` | 配置、公告、授权信息 | 使用 `Promise.all` 或等价方式统一等待 |
+| `/config` | 不启用下拉刷新 | 避免覆盖尚未保存的配置、公告和授权表单 |
 | `/shop` | 支付配置、套餐、当前订阅、套餐组 | 保持现有范围并等待完成 |
 | `/myhome` | 当前筛选和分页订单、订阅、用户套餐信息 | 保留请求序号保护并接入统一刷新生命周期 |
 | `/admin/plans` | 套餐、隧道组、套餐组 | 去除初始化阶段重复请求套餐组的问题 |
 | `/admin/orders` | 当前筛选和分页订单、统计、必要用户筛选数据 | 用户列表可按缓存时效刷新，避免每次拉取 1000 条 |
-| `/admin/payment` | 当前主 Tab 数据及跨 Tab 公共统计 | 不再每次无条件刷新支付和账务两个大数据域 |
-| `/admin/telegram` | Telegram 配置和授权信息 | 保持现有范围并等待完成 |
+| `/admin/payment` | 不启用下拉刷新 | 避免覆盖未保存的支付网关、密钥和回调地址 |
+| `/admin/telegram` | 不启用下拉刷新 | 避免覆盖未保存的机器人 Token、Chat ID 和开关状态 |
 
 ## 6. 实施阶段
 
 ### Phase A：修复基础机制
 
-- [ ] A1. 将 `usePullToRefresh` 改为 Promise 感知的处理器注册接口
-- [ ] A2. 在 H5 布局建立 Provider，并移除全局刷新 DOM 事件广播
-- [ ] A3. 增加刷新互斥、15 秒超时、异常复位和卸载清理
-- [ ] A4. 增加方向锁、`touchcancel`、多点触控和忽略区域处理
-- [ ] A5. 明确 `#h5-main` 为唯一纵向主滚动容器
-- [ ] A6. 删除 `/tz` 的无效下拉刷新注册
+- [x] A1. 将 `usePullToRefresh` 改为 Promise 感知的处理器注册接口
+- [x] A2. 在 H5 布局建立 Provider，并移除全局刷新 DOM 事件广播
+- [x] A3. 增加刷新互斥、15 秒超时、异常复位和卸载清理
+- [x] A4. 增加方向锁、`touchcancel`、多点触控和忽略区域处理
+- [x] A5. 明确 `#h5-main` 为唯一纵向主滚动容器
+- [x] A6. 删除 `/tz` 的无效下拉刷新注册
 
 ### Phase B：修复开源页面数据覆盖
 
-- [ ] B1. `/dashboard` 返回并等待完整刷新 Promise，补齐当前展示数据
-- [ ] B2. `/monitor` 按当前 Tab 和当前详情刷新
-- [ ] B3. `/forward`、`/tunnel` 接入统一生命周期并处理并发请求
-- [ ] B4. `/node` 补齐节点组、实例和远程用量刷新链路
-- [ ] B5. `/user` 修复搜索闭包并补齐必要支撑数据
-- [ ] B6. `/config` 合并分散异步请求
+- [x] B1. `/dashboard` 返回并等待完整刷新 Promise，补齐当前展示数据
+- [x] B2. `/monitor` 按当前 Tab 和当前详情刷新
+- [x] B3. `/forward`、`/tunnel` 接入统一生命周期并处理并发请求
+- [x] B4. `/node` 补齐节点组、实例和远程用量刷新链路
+- [x] B5. `/user` 修复搜索闭包并补齐必要支撑数据
+- [x] B6. `/config` 移除下拉刷新，保护未保存表单
 
 ### Phase C：修复闭源页面数据覆盖
 
-- [ ] C1. 先运行 `scripts/merge-closed.ps1` 恢复闭源页面
-- [ ] C2. `/sdwan`、`/shop`、`/myhome` 接入统一生命周期
-- [ ] C3. `/admin/plans`、`/admin/orders` 修复重复或缺失请求
-- [ ] C4. `/admin/payment` 改为按当前 Tab 刷新
-- [ ] C5. `/admin/telegram` 接入统一生命周期
+- [x] C1. 先运行 `scripts/merge-closed.ps1` 恢复闭源页面
+- [x] C2. `/sdwan`、`/shop`、`/myhome` 接入统一生命周期
+- [x] C3. `/admin/plans`、`/admin/orders` 修复重复或缺失请求
+- [x] C4. `/admin/payment` 移除下拉刷新，保护未保存表单
+- [x] C5. `/admin/telegram` 移除下拉刷新，保护未保存表单
 - [ ] C6. 修改闭源文件后按项目闭源流程同步回 `closed`
 
 ### Phase D：验证与收尾
 
-- [ ] D1. 执行 `npm run build`
+- [x] D1. 执行 `npm run build`
 - [ ] D2. 在窄屏浏览器验证所有业务路由的触发和完成状态
 - [ ] D3. 在 Android WebView 验证下拉、横向滚动、弹窗和拖拽冲突
 - [ ] D4. 在 iOS Safari 或等价 WebKit 环境验证滚动边界和系统回弹

@@ -12,7 +12,6 @@ import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { getMonitorPublicNodeInstanceGroups } from "@/api";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import { MoonFilledIcon, SunFilledIcon } from "@/components/icons";
 import { useThemeContext } from "@/themes/context";
@@ -669,8 +668,6 @@ export default function TZPage() {
       instanceRefreshTimersRef.current.clear();
     };
   }, []);
-  usePullToRefresh(loadGroups);
-
   const displayGroups = useMemo(
     () =>
       groups.map((group) => ({
