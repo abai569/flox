@@ -792,7 +792,7 @@ function NodeInstanceRows({
 						  tone={
 							member.weight <= 0
 							  ? isInstanceTrafficLimitExceeded(member)
-								? "danger"
+								? "default"
 								: "warning"
                               : member.status === 1
                                 ? "success"

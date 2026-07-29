@@ -105,8 +105,8 @@ export const deriveNodeVisualState = (
 
 	return {
 	  state: "offline",
-	  color: hasUnavailableMember ? "danger" : "warning",
-	  text: hasUnavailableMember ? "不可用" : "已禁用",
+	  color: hasUnavailableMember ? "default" : "warning",
+	  text: hasUnavailableMember ? "已暂停" : "已禁用",
       onlineCount: 0,
       disabledCount,
       totalCount,
