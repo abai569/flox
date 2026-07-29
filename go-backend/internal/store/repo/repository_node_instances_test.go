@@ -195,6 +195,95 @@ func TestUpsertNodeInstanceClearsRuntimeTrafficWhenOfflineInstanceMovesServer(t 
 	}
 }
 
+func TestGetNodeInstanceTrafficLimitInfoMapsLimitAndNotificationMask(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	node := model.Node{Name: "limited-node", Secret: "secret", CreatedTime: 1}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	instance := model.NodeInstance{
+		NodeID:              node.ID,
+		InstanceID:          "instance-a",
+		DisplayIndex:        1,
+		Weight:              2,
+		TrafficLimit:        2000,
+		TrafficNotifiedMask: 5,
+		TotalInFlow:         11,
+		TotalOutFlow:        22,
+		PeriodNetInBytes:    1600 * 1024 * 1024 * 1024,
+		PeriodNetOutBytes:   1620 * 1024 * 1024 * 1024,
+		CreatedTime:         1,
+		UpdatedTime:         1,
+	}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatalf("create node instance: %v", err)
+	}
+
+	info, err := r.GetNodeInstanceTrafficLimitInfo(node.ID, instance.InstanceID)
+	if err != nil {
+		t.Fatalf("get traffic limit info: %v", err)
+	}
+	if info == nil {
+		t.Fatal("expected traffic limit info")
+	}
+	if info.LimitGB != 2000 || info.Mask != 5 {
+		t.Fatalf("expected limit=2000 and mask=5, got limit=%d mask=%d", info.LimitGB, info.Mask)
+	}
+	if info.PeriodNetInBytes != instance.PeriodNetInBytes || info.PeriodNetOutBytes != instance.PeriodNetOutBytes {
+		t.Fatalf("expected period traffic (%d,%d), got (%d,%d)", instance.PeriodNetInBytes, instance.PeriodNetOutBytes, info.PeriodNetInBytes, info.PeriodNetOutBytes)
+	}
+}
+
+func TestPauseNodeInstanceRoutingPreservesWeightForResume(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	instance := model.NodeInstance{NodeID: 1, InstanceID: "instance-a", Weight: 3, CreatedTime: 1, UpdatedTime: 1}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatalf("create node instance: %v", err)
+	}
+
+	changed, err := r.PauseNodeInstanceRouting(1, instance.InstanceID, 2)
+	if err != nil {
+		t.Fatalf("pause node instance routing: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected routing pause to change the instance")
+	}
+
+	var paused model.NodeInstance
+	if err := r.db.Where("node_id = ? AND instance_id = ?", 1, instance.InstanceID).First(&paused).Error; err != nil {
+		t.Fatalf("load paused instance: %v", err)
+	}
+	if paused.Weight != 0 || !paused.PauseRestoreWeight.Valid || paused.PauseRestoreWeight.Int64 != 3 {
+		t.Fatalf("expected weight=0 with restore weight=3, got weight=%d restore=%+v", paused.Weight, paused.PauseRestoreWeight)
+	}
+
+	changed, err = r.ResumeNodeInstanceRouting(1, instance.InstanceID, 3)
+	if err != nil {
+		t.Fatalf("resume node instance routing: %v", err)
+	}
+	if !changed {
+		t.Fatal("expected routing resume to change the instance")
+	}
+
+	var resumed model.NodeInstance
+	if err := r.db.Where("node_id = ? AND instance_id = ?", 1, instance.InstanceID).First(&resumed).Error; err != nil {
+		t.Fatalf("load resumed instance: %v", err)
+	}
+	if resumed.Weight != 3 || resumed.PauseRestoreWeight.Valid {
+		t.Fatalf("expected restored weight=3 with no pending restore, got weight=%d restore=%+v", resumed.Weight, resumed.PauseRestoreWeight)
+	}
+}
+
 func TestSyncRemoteNodeInstancesReplacesLocalTrafficRatio(t *testing.T) {
 	r, err := Open(filepath.Join(t.TempDir(), "remote-instance-ratio.db"))
 	if err != nil {

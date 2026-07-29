@@ -268,7 +268,7 @@ func (h *Handler) maybeCheckNodeTraffic(nodeID int64, instanceID string, periodR
 	}
 }
 
-func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, periodRx, periodTx uint64) {
+func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, periodNetIn, periodNetOut int64) {
 	if h == nil || h.repo == nil || nodeID <= 0 {
 		return
 	}
@@ -285,22 +285,28 @@ func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, perio
 		return
 	}
 
+	if periodNetIn < 0 || periodNetOut < 0 {
+		return
+	}
 	totalUsed := info.PeriodNetInBytes + info.PeriodNetOutBytes
+	if reportedUsed := periodNetIn + periodNetOut; reportedUsed > totalUsed {
+		totalUsed = reportedUsed
+	}
 	limitBytes := info.LimitGB * 1024 * 1024 * 1024
 
 	if totalUsed >= limitBytes {
-		disabled, err := h.repo.DisableNodeInstance(nodeID, instanceID, time.Now().UnixMilli())
+		paused, err := h.repo.PauseNodeInstanceRouting(nodeID, instanceID, time.Now().UnixMilli())
 		if err != nil {
-			log.Printf("WARN: disable node %d instance %s after traffic limit exceeded: %v", nodeID, instanceID, err)
+			log.Printf("WARN: pause routing for node %d instance %s after traffic limit exceeded: %v", nodeID, instanceID, err)
 			return
 		}
-		if !disabled {
+		if !paused {
 			return
 		}
-		log.Printf("Node %d instance %s traffic limit exceeded, weight set to 0: %.2f GB / %.2f GB", nodeID, instanceID, float64(totalUsed)/(1024*1024*1024), float64(limitBytes)/(1024*1024*1024))
+		log.Printf("Node %d instance %s traffic limit exceeded, routing paused: %.2f GB / %.2f GB", nodeID, instanceID, float64(totalUsed)/(1024*1024*1024), float64(limitBytes)/(1024*1024*1024))
 		go func() {
 			if err := h.redeployNodeRuntime(nodeID); err != nil {
-				log.Printf("WARN: redeploy node %d after disabling instance %s: %v", nodeID, instanceID, err)
+				log.Printf("WARN: redeploy node %d after pausing instance %s: %v", nodeID, instanceID, err)
 			}
 		}()
 		h.sendBotNotification(func(bot *telegram.Bot) {
@@ -511,7 +517,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		}
 		h.metrics.RecordNodeMetric(nodeID, metricInfo)
 		h.maybeCheckNodeTraffic(nodeID, info.InstanceID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
-		h.enforceNodeTrafficLimit(nodeID, info.InstanceID, info.PeriodBytesReceived, info.PeriodBytesTransmitted)
+		h.enforceNodeTrafficLimit(nodeID, info.InstanceID, info.PeriodNetInBytes, info.PeriodNetOutBytes)
 	})
 	h.nodeGroupHandler = NewNodeGroupHandler(repo)
 	h.nodeTagHandler = NewNodeTagHandler(repo)
