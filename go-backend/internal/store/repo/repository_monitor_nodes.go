@@ -85,7 +85,8 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64, includeRemot
 		return nil, err
 	}
 
-	where, args := validNodeInstanceWhere()
+	where := "TRIM(nsi.instance_id) <> '' AND LOWER(TRIM(nsi.instance_id)) <> ?"
+	args := []interface{}{"default"}
 	query := r.db.Table("node AS n").
 		Select(`
 			COALESCE(n.inx, 0) AS inx,
