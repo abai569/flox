@@ -439,12 +439,14 @@ const buildRealtimeNodeMetric = (
   return {
     uploadTraffic: Number(
       metric.netOutBytes ??
+        metric.net_out_bytes ??
         metric.bytes_transmitted ??
         previous?.uploadTraffic ??
         0,
     ),
     downloadTraffic: Number(
       metric.netInBytes ??
+        metric.net_in_bytes ??
         metric.bytes_received ??
         previous?.downloadTraffic ??
         0,
@@ -1394,6 +1396,14 @@ export default function NodePage() {
 
             metrics[key] = {
               ...buildRealtimeNodeMetric({
+                netInBytes:
+                  (member.netInBytes ?? 0) > 0
+                    ? member.netInBytes
+                    : undefined,
+                netOutBytes:
+                  (member.netOutBytes ?? 0) > 0
+                    ? member.netOutBytes
+                    : undefined,
                 periodNetInBytes: member.periodNetInBytes ?? 0,
                 periodNetOutBytes: member.periodNetOutBytes ?? 0,
                 netInSpeed: member.netInSpeed ?? 0,
@@ -1401,7 +1411,7 @@ export default function NodePage() {
                 uptime: member.uptime ?? 0,
                 tcpConns: member.tcpConns ?? 0,
                 udpConns: member.udpConns ?? 0,
-              }),
+              }, metrics[key]),
               nodeId: member.nodeId,
               instanceId,
               receivedAt,

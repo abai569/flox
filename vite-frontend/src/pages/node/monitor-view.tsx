@@ -843,9 +843,17 @@ export function MonitorView({
           cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
           memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
           diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
-          netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
+          netInBytes: Number(
+            metric.netInBytes ??
+              metric.net_in_bytes ??
+              metric.bytes_received ??
+              0,
+          ),
           netOutBytes: Number(
-            metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
+            metric.netOutBytes ??
+              metric.net_out_bytes ??
+              metric.bytes_transmitted ??
+              0,
           ),
           periodNetInBytes: Number(
             metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0,
@@ -878,9 +886,17 @@ export function MonitorView({
             cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
             memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
             diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
-            netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
+            netInBytes: Number(
+              metric.netInBytes ??
+                metric.net_in_bytes ??
+                metric.bytes_received ??
+                0,
+            ),
             netOutBytes: Number(
-              metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
+              metric.netOutBytes ??
+                metric.net_out_bytes ??
+                metric.bytes_transmitted ??
+                0,
             ),
             periodNetInBytes: Number(
               metric.periodNetInBytes ?? metric.period_net_in_bytes ?? 0,

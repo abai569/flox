@@ -365,10 +365,10 @@ function InstanceRow({
         <div className="truncate">{formatUptime(member.uptime)}</div>
       </td>
       <td className="group relative px-1 py-3 text-center align-middle font-mono text-xs">
-        <div className="truncate">{formatBytes(member.periodNetOutBytes)}↑</div>
-        <div className="truncate">{formatBytes(member.periodNetInBytes)}↓</div>
+        <div className="truncate">{formatBytes(member.netOutBytes)}↑</div>
+        <div className="truncate">{formatBytes(member.netInBytes)}↓</div>
         <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
-          总量:{formatBytes(member.periodNetOutBytes + member.periodNetInBytes)}
+          总量:{formatBytes(member.netOutBytes + member.netInBytes)}
         </div>
       </td>
       <td className="px-1 py-3 align-middle">
@@ -586,9 +586,17 @@ export default function TZPage() {
         receivedAt: Date.now(),
         netInSpeed: Number(metric.netInSpeed ?? metric.net_in_speed ?? 0),
         netOutSpeed: Number(metric.netOutSpeed ?? metric.net_out_speed ?? 0),
-        netInBytes: Number(metric.netInBytes ?? metric.bytes_received ?? 0),
+        netInBytes: Number(
+          metric.netInBytes ??
+            metric.net_in_bytes ??
+            metric.bytes_received ??
+            0,
+        ),
         netOutBytes: Number(
-          metric.netOutBytes ?? metric.bytes_transmitted ?? 0,
+          metric.netOutBytes ??
+            metric.net_out_bytes ??
+            metric.bytes_transmitted ??
+            0,
         ),
         periodRx: Number(metric.periodRx ?? metric.period_bytes_received ?? 0),
         periodTx: Number(

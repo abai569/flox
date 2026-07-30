@@ -61,6 +61,8 @@ import {
 import { MonitorTerminalButton } from "@/pages/monitor-terminal";
 import { SmartTooltip } from "@/components/smart-tooltip";
 interface RealtimeInstanceMetric {
+  uploadTraffic: number;
+  downloadTraffic: number;
   tcpConns: number;
   udpConns: number;
   periodTraffic?: {
@@ -694,6 +696,17 @@ function NodeInstanceRows({
     };
   };
 
+  const getNetworkTraffic = (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => {
+    const realtime = getRealtimeMetric(member);
+
+    return {
+      rx: realtime?.downloadTraffic ?? member.netInBytes ?? 0,
+      tx: realtime?.uploadTraffic ?? member.netOutBytes ?? 0,
+    };
+  };
+
   useEffect(() => {
     if (!openExpiryInstanceId) return;
     const closePopover = () => setOpenExpiryInstanceId(null);
@@ -931,7 +944,7 @@ function NodeInstanceRows({
                       >
                         {(member.trafficLimit ?? 0) > 0
                           ? (() => {
-                              const traffic = getPeriodNetTraffic(member);
+                              const traffic = getNetworkTraffic(member);
                               const used = traffic.rx + traffic.tx;
                               const limitBytes =
                                 (member.trafficLimit ?? 0) * 1024 * 1024 * 1024;
@@ -947,7 +960,7 @@ function NodeInstanceRows({
                               );
                             })()
                           : (() => {
-                              const traffic = getPeriodNetTraffic(member);
+                              const traffic = getNetworkTraffic(member);
                               const used = traffic.rx + traffic.tx;
                               const title = `已用：${formatTraffic(used)}\n可用：不限\n总量：不限`;
 
