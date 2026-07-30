@@ -228,7 +228,7 @@ func TestGetNodeInstancePublicIPs(t *testing.T) {
 	}
 }
 
-func TestAccumulateNodeInstancePeriodNetTrafficStartsFromFirstSampleBaseline(t *testing.T) {
+func TestAccumulateNodeInstancePeriodNetTrafficStartsFromFirstSampleTotal(t *testing.T) {
 	r, err := Open(":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -243,15 +243,15 @@ func TestAccumulateNodeInstancePeriodNetTrafficStartsFromFirstSampleBaseline(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.InBytes != 0 || first.OutBytes != 0 {
-		t.Fatalf("first sample period = (%d,%d), want (0,0)", first.InBytes, first.OutBytes)
+	if first.InBytes != 800_000 || first.OutBytes != 900_000 {
+		t.Fatalf("first sample period = (%d,%d), want (800000,900000)", first.InBytes, first.OutBytes)
 	}
 	second, err := r.AccumulateNodeInstancePeriodNetTraffic(21, instance.InstanceID, 800_120, 900_230, 10, "eth0", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.InBytes != 120 || second.OutBytes != 230 {
-		t.Fatalf("second sample period = (%d,%d), want (120,230)", second.InBytes, second.OutBytes)
+	if second.InBytes != 800_120 || second.OutBytes != 900_230 {
+		t.Fatalf("second sample period = (%d,%d), want (800120,900230)", second.InBytes, second.OutBytes)
 	}
 
 	var stored model.NodeInstance
@@ -283,15 +283,15 @@ func TestAccumulateNodeInstancePeriodNetTrafficRebaselinesChangedInterface(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	if changed.InBytes != 100 || changed.OutBytes != 200 {
-		t.Fatalf("interface change period = (%d,%d), want preserved (100,200)", changed.InBytes, changed.OutBytes)
+	if changed.InBytes != 1100 || changed.OutBytes != 2200 {
+		t.Fatalf("interface change period = (%d,%d), want preserved (1100,2200)", changed.InBytes, changed.OutBytes)
 	}
 	next, err := r.AccumulateNodeInstancePeriodNetTraffic(22, instance.InstanceID, 900_050, 800_075, 11, "eth1", 5)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.InBytes != 150 || next.OutBytes != 275 {
-		t.Fatalf("post-change period = (%d,%d), want (150,275)", next.InBytes, next.OutBytes)
+	if next.InBytes != 1150 || next.OutBytes != 2275 {
+		t.Fatalf("post-change period = (%d,%d), want (1150,2275)", next.InBytes, next.OutBytes)
 	}
 }
 
@@ -315,12 +315,12 @@ func TestAccumulateNodeInstancePeriodNetTrafficContinuesAcrossReboot(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if restarted.InBytes != 140 || restarted.OutBytes != 260 {
-		t.Fatalf("restarted period = (%d,%d), want (140,260)", restarted.InBytes, restarted.OutBytes)
+	if restarted.InBytes != 1140 || restarted.OutBytes != 2260 {
+		t.Fatalf("restarted period = (%d,%d), want (1140,2260)", restarted.InBytes, restarted.OutBytes)
 	}
 }
 
-func TestAccumulateNodeInstancePeriodNetTrafficRepairsLegacyBaselineContamination(t *testing.T) {
+func TestAccumulateNodeInstancePeriodNetTrafficPreservesFirstSampleTotal(t *testing.T) {
 	r, err := Open(":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -336,19 +336,19 @@ func TestAccumulateNodeInstancePeriodNetTrafficRepairsLegacyBaselineContaminatio
 		t.Fatal(err)
 	}
 
-	repaired, err := r.AccumulateNodeInstancePeriodNetTraffic(24, instance.InstanceID, 800_120, 900_230, 10, "eth0", 2)
+	updated, err := r.AccumulateNodeInstancePeriodNetTraffic(24, instance.InstanceID, 800_120, 900_230, 10, "eth0", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if repaired.InBytes != 0 || repaired.OutBytes != 0 {
-		t.Fatalf("repaired period = (%d,%d), want (0,0)", repaired.InBytes, repaired.OutBytes)
+	if updated.InBytes != 800_120 || updated.OutBytes != 900_230 {
+		t.Fatalf("updated period = (%d,%d), want (800120,900230)", updated.InBytes, updated.OutBytes)
 	}
 	next, err := r.AccumulateNodeInstancePeriodNetTraffic(24, instance.InstanceID, 800_150, 900_280, 10, "eth0", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.InBytes != 30 || next.OutBytes != 50 {
-		t.Fatalf("post-repair period = (%d,%d), want (30,50)", next.InBytes, next.OutBytes)
+	if next.InBytes != 800_150 || next.OutBytes != 900_280 {
+		t.Fatalf("next period = (%d,%d), want (800150,900280)", next.InBytes, next.OutBytes)
 	}
 }
 
