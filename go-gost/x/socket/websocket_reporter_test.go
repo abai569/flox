@@ -13,9 +13,15 @@ import (
 )
 
 func TestHandleTcpProbeListenAcceptsConnection(t *testing.T) {
+	portListener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := portListener.Addr().(*net.TCPAddr).Port
+	_ = portListener.Close()
 	reporter := &WebSocketReporter{}
 	response, err := reporter.handleTcpProbeListen(map[string]interface{}{
-		"family": "ipv4", "durationSec": 5,
+		"family": "ipv4", "durationSec": 5, "portRange": fmt.Sprint(port),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -28,6 +34,22 @@ func TestHandleTcpProbeListenAcceptsConnection(t *testing.T) {
 		t.Fatalf("connect probe listener: %v", err)
 	}
 	_ = conn.Close()
+}
+
+func TestParseTcpProbePortsPreservesConfiguredSegments(t *testing.T) {
+	ports, err := parseTcpProbePorts("12000-12002,13000,12001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []int{12000, 12001, 12002, 13000}
+	if len(ports) != len(want) {
+		t.Fatalf("ports = %v", ports)
+	}
+	for i := range want {
+		if ports[i] != want[i] {
+			t.Fatalf("ports = %v, want %v", ports, want)
+		}
+	}
 }
 
 func TestBuildWebSocketCandidatesSecureFirst(t *testing.T) {

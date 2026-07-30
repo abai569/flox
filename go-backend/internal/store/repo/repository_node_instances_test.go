@@ -228,6 +228,130 @@ func TestGetNodeInstancePublicIPs(t *testing.T) {
 	}
 }
 
+func TestAccumulateNodeInstancePeriodNetTrafficStartsFromFirstSampleBaseline(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	instance := model.NodeInstance{NodeID: 21, InstanceID: "traffic-a", Status: 1, Weight: 1, CreatedTime: 1, UpdatedTime: 1}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := r.AccumulateNodeInstancePeriodNetTraffic(21, instance.InstanceID, 800_000, 900_000, 10, "eth0", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.InBytes != 0 || first.OutBytes != 0 {
+		t.Fatalf("first sample period = (%d,%d), want (0,0)", first.InBytes, first.OutBytes)
+	}
+	second, err := r.AccumulateNodeInstancePeriodNetTraffic(21, instance.InstanceID, 800_120, 900_230, 10, "eth0", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.InBytes != 120 || second.OutBytes != 230 {
+		t.Fatalf("second sample period = (%d,%d), want (120,230)", second.InBytes, second.OutBytes)
+	}
+
+	var stored model.NodeInstance
+	if err := r.db.Where("node_id = ? AND instance_id = ?", 21, instance.InstanceID).First(&stored).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.LastSyncNetInBytes != 800_120 || stored.LastSyncNetOutBytes != 900_230 || stored.PeriodNetInitialized != 1 {
+		t.Fatalf("stored baseline = in %d out %d initialized %d", stored.LastSyncNetInBytes, stored.LastSyncNetOutBytes, stored.PeriodNetInitialized)
+	}
+}
+
+func TestAccumulateNodeInstancePeriodNetTrafficRebaselinesChangedInterface(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	instance := model.NodeInstance{NodeID: 22, InstanceID: "traffic-b", Status: 1, Weight: 1, CreatedTime: 1, UpdatedTime: 1}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.AccumulateNodeInstancePeriodNetTraffic(22, instance.InstanceID, 1000, 2000, 10, "eth0", 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.AccumulateNodeInstancePeriodNetTraffic(22, instance.InstanceID, 1100, 2200, 10, "eth0", 3); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := r.AccumulateNodeInstancePeriodNetTraffic(22, instance.InstanceID, 900_000, 800_000, 11, "eth1", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.InBytes != 100 || changed.OutBytes != 200 {
+		t.Fatalf("interface change period = (%d,%d), want preserved (100,200)", changed.InBytes, changed.OutBytes)
+	}
+	next, err := r.AccumulateNodeInstancePeriodNetTraffic(22, instance.InstanceID, 900_050, 800_075, 11, "eth1", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.InBytes != 150 || next.OutBytes != 275 {
+		t.Fatalf("post-change period = (%d,%d), want (150,275)", next.InBytes, next.OutBytes)
+	}
+}
+
+func TestAccumulateNodeInstancePeriodNetTrafficContinuesAcrossReboot(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	instance := model.NodeInstance{NodeID: 23, InstanceID: "traffic-c", Status: 1, Weight: 1, CreatedTime: 1, UpdatedTime: 1}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.AccumulateNodeInstancePeriodNetTraffic(23, instance.InstanceID, 1000, 2000, 10, "eth0", 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.AccumulateNodeInstancePeriodNetTraffic(23, instance.InstanceID, 1100, 2200, 10, "eth0", 3); err != nil {
+		t.Fatal(err)
+	}
+	restarted, err := r.AccumulateNodeInstancePeriodNetTraffic(23, instance.InstanceID, 40, 60, 11, "eth0", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restarted.InBytes != 140 || restarted.OutBytes != 260 {
+		t.Fatalf("restarted period = (%d,%d), want (140,260)", restarted.InBytes, restarted.OutBytes)
+	}
+}
+
+func TestAccumulateNodeInstancePeriodNetTrafficRepairsLegacyBaselineContamination(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	instance := model.NodeInstance{
+		NodeID: 24, InstanceID: "traffic-legacy", Status: 1, Weight: 1,
+		PeriodNetInitialized: 1, PeriodNetInBytes: 800_000, PeriodNetOutBytes: 900_000,
+		LastSyncNetInBytes: 800_000, LastSyncNetOutBytes: 900_000, LastSyncNetBootID: 10,
+		LastSyncNetInterfaceKey: "eth0", CreatedTime: 1, UpdatedTime: 1,
+	}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	repaired, err := r.AccumulateNodeInstancePeriodNetTraffic(24, instance.InstanceID, 800_120, 900_230, 10, "eth0", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repaired.InBytes != 0 || repaired.OutBytes != 0 {
+		t.Fatalf("repaired period = (%d,%d), want (0,0)", repaired.InBytes, repaired.OutBytes)
+	}
+	next, err := r.AccumulateNodeInstancePeriodNetTraffic(24, instance.InstanceID, 800_150, 900_280, 10, "eth0", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.InBytes != 30 || next.OutBytes != 50 {
+		t.Fatalf("post-repair period = (%d,%d), want (30,50)", next.InBytes, next.OutBytes)
+	}
+}
+
 func TestGetNodeInstanceTrafficLimitInfoMapsLimitAndNotificationMask(t *testing.T) {
 	r, err := Open(":memory:")
 	if err != nil {
