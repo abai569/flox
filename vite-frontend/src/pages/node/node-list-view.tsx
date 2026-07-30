@@ -1292,6 +1292,19 @@ function SortableTableRow({
   );
   const trafficRatio =
     node.trafficRatio && node.trafficRatio > 0 ? node.trafficRatio : 1;
+  const crossBorderLabel =
+    node.crossBorderStatus === "blocked"
+      ? "被墙，实例已隔离"
+      : node.crossBorderStatus === "reverse_blocked"
+        ? "反向墙，实例已隔离"
+        : node.crossBorderStatus === "pending_failure"
+          ? "跨境检测异常，等待复核"
+          : node.crossBorderStatus === "healthy"
+            ? "跨境连通正常"
+            : "跨境状态未知";
+  const crossBorderBlocked =
+    node.crossBorderStatus === "blocked" ||
+    node.crossBorderStatus === "reverse_blocked";
   const localPeriodNetTraffic = instanceMembers.reduce(
     (
       total: { rx: number; tx: number },
@@ -1511,9 +1524,28 @@ function SortableTableRow({
                     <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">
                       (Rem)
                     </span>
-                  )}
+                    )}
               </span>
             </SmartTooltip>
+            {node.networkRegion && (
+              <SmartTooltip
+                content={
+                  node.networkRegion === "mainland"
+                    ? "国内IP"
+                    : `国外IP：${crossBorderLabel}${node.crossBorderError ? `；${node.crossBorderError}` : ""}`
+                }
+              >
+                <span
+                  className={`inline-flex max-w-[48px] shrink-0 truncate rounded px-1 py-0.5 text-[10px] font-medium ${
+                    crossBorderBlocked
+                      ? "bg-danger-100 text-danger-700"
+                      : "bg-default-100 text-default-600"
+                  }`}
+                >
+                  {node.networkRegion === "mainland" ? "国内IP" : "国外IP"}
+                </span>
+              </SmartTooltip>
+            )}
           </div>
         </TableCell>
         <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>

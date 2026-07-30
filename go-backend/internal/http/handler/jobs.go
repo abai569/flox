@@ -46,6 +46,7 @@ func (h *Handler) StartBackgroundJobs() {
 		h.runFederationTunnelReleaseRetryLoop,
 		h.runAuthoritativeFlowResendLoop,
 		h.runFlowRelayOutboxLoop,
+		h.runCrossBorderLoop,
 	}
 	h.jobsCancel = cancel
 	h.jobsStarted = true

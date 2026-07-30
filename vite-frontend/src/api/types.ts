@@ -15,6 +15,10 @@ export interface NodeApiItem {
   expiryInstances?: NodeExpiryInstanceApiItem[];
   weight?: number;
   trafficRatio?: number;
+  networkRegion?: "mainland" | "overseas" | "";
+  crossBorderStatus?: string;
+  crossBorderCheckedAt?: number;
+  crossBorderError?: string;
   onlineCount?: number;
   isRemote?: number;
   remoteUrl?: string;
@@ -592,6 +596,7 @@ export interface NodeMutationPayload {
   tls?: number;
   socks?: number;
   trafficRatio?: number;
+  networkRegion?: "mainland" | "overseas";
   trafficLimit?: number;
 }
 

@@ -184,6 +184,7 @@ interface NodeForm {
   renewalCycle: NodeRenewalCycle;
   flowResetTime: number;
   groupId: number | null;
+  networkRegion: "mainland" | "overseas" | "";
   intranetIp: string;
   serverIpV4: string;
   serverIpV6: string;
@@ -834,6 +835,7 @@ export default function NodePage() {
       expiryTime: 0,
       renewalCycle: "",
       groupId: null,
+      networkRegion: "",
       intranetIp: "",
       serverIpV4: "",
       serverIpV6: "",
@@ -1905,6 +1907,9 @@ export default function NodePage() {
     } else if (form.name.trim().length > 50) {
       newErrors.name = "节点名称长度不能超过50位";
     }
+    if (!form.networkRegion) {
+      newErrors.networkRegion = "请选择网络";
+    }
     const v4 = form.serverIpV4.trim();
     const v6 = form.serverIpV6.trim();
     const intranet = form.intranetIp.trim();
@@ -1953,6 +1958,10 @@ export default function NodePage() {
       expiryTime: node.expiryTime || 0,
       renewalCycle: node.renewalCycle || "",
       groupId: node.groupId || null,
+      networkRegion:
+        node.networkRegion === "mainland" || node.networkRegion === "overseas"
+          ? node.networkRegion
+          : "",
       intranetIp: node.intranetIp || "",
       serverIpV4: node.serverIpV4 || "",
       serverIpV6: node.serverIpV6 || "",
@@ -3221,6 +3230,7 @@ export default function NodePage() {
       );
       const data = {
         ...rest,
+        networkRegion: form.networkRegion as "mainland" | "overseas",
         ...(secret && secret.trim() !== "" ? { secret: secret.trim() } : {}),
         remark: form.remark.trim(),
         groupId: form.groupId,
@@ -3268,6 +3278,7 @@ export default function NodePage() {
                     name: form.name,
                     remark: form.remark.trim(),
                     groupId: form.groupId,
+                    networkRegion: form.networkRegion,
                     intranetIp: form.intranetIp?.trim(),
                     serverIpV4: form.serverIpV4,
                     serverIpV6: form.serverIpV6,
@@ -4826,12 +4837,13 @@ export default function NodePage() {
                 <ModalHeader>{dialogTitle}</ModalHeader>
                 <ModalBody>
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-[5fr_5fr_8fr_2fr]">
+                      <div className="md:col-span-2">
                       <Input
                         description=""
                         errorMessage={errors.name}
                         isInvalid={!!errors.name}
-                        label="节点名称"
+                        label="名称"
                         placeholder="请输入节点名称"
                         value={form.name}
                         variant="bordered"
@@ -4839,6 +4851,8 @@ export default function NodePage() {
                           setForm((prev) => ({ ...prev, name: e.target.value }))
                         }
                       />
+                      </div>
+                      <div>
                       <Textarea
                         classNames={{
                           inputWrapper: "!min-h-[20px] py-1.5",
@@ -4857,9 +4871,28 @@ export default function NodePage() {
                           }))
                         }
                       />
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                      <div className="md:col-span-1">
+                      </div>
+                      <div>
+                        <Input
+                          description=""
+                          errorMessage={errors.trafficRatio}
+                          isInvalid={!!errors.trafficRatio}
+                          label="倍率"
+                          min={0.01}
+                          placeholder="1"
+                          step="0.01"
+                          type="number"
+                          value={String(form.trafficRatio)}
+                          variant="bordered"
+                          onChange={(e) =>
+                            setForm((prev) => ({
+                              ...prev,
+                              trafficRatio: parseFloat(e.target.value) || 0,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
                         <Select
                           description=""
                           label="分组"
@@ -4903,50 +4936,62 @@ export default function NodePage() {
                           ))}
                         </Select>
                       </div>
-                      <div className="md:col-span-1">
-                        <Input
+                      <div>
+                        <Select
                           description=""
-                          errorMessage={errors.trafficRatio}
-                          isInvalid={!!errors.trafficRatio}
-                          label="节点倍率"
-                          min={0.01}
-                          placeholder="1"
-                          step="0.01"
-                          type="number"
-                          value={String(form.trafficRatio)}
+                          errorMessage={errors.networkRegion}
+                          isInvalid={!!errors.networkRegion}
+                          label="网络"
+                          placeholder="未选择"
+                          selectedKeys={
+                            form.networkRegion ? [form.networkRegion] : []
+                          }
                           variant="bordered"
-                          onChange={(e) =>
+                          onSelectionChange={(keys) => {
+                            const selected = Array.from(keys)[0] as
+                              | "mainland"
+                              | "overseas"
+                              | undefined;
+
                             setForm((prev) => ({
                               ...prev,
-                              trafficRatio: parseFloat(e.target.value) || 0,
-                            }))
-                          }
-                        />
+                              networkRegion: selected || "",
+                            }));
+                          }}
+                        >
+                          <SelectItem key="mainland" textValue="国内IP">
+                            国内IP
+                          </SelectItem>
+                          <SelectItem key="overseas" textValue="国外IP">
+                            国外IP
+                          </SelectItem>
+                        </Select>
                       </div>
-                      <div className="md:col-span-2">
+                      <div>
                         <FieldContainer description="" label="密钥">
-                          <div className="flex items-center gap-2">
-                            <BaseInput
-                              className="flex-1"
-                              placeholder="留空自动生成或输入密钥"
-                              value={form.secret}
-                              onChange={(e) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  secret: e.target.value,
-                                }))
-                              }
-                            />
-                            <Button
-                              color="primary"
-                              size="sm"
-                              variant="flat"
-                              onClick={handleRegenerateSecret}
-                            >
-                              随机生成
-                            </Button>
-                          </div>
+                          <BaseInput
+                            className="w-full"
+                            placeholder="留空自动生成或输入密钥"
+                            value={form.secret}
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                secret: e.target.value,
+                              }))
+                            }
+                          />
                         </FieldContainer>
+                      </div>
+                      <div className="flex h-full items-end">
+                        <Button
+                          className="w-full"
+                          color="primary"
+                          size="sm"
+                          variant="flat"
+                          onClick={handleRegenerateSecret}
+                        >
+                          随机生成
+                        </Button>
                       </div>
                     </div>
                     <Accordion variant="bordered">
@@ -4994,68 +5039,105 @@ export default function NodePage() {
                         }
                       >
                         <div className="space-y-3 px-[12px] pb-2">
-                          {/* 移动端 2 列 (grid-cols-2)，中等及以上屏幕 4 列 (md:grid-cols-4) */}
-                          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-                            <Checkbox
-                              isDisabled={!dnsProviderAvailability.aliyun}
-                              isSelected={form.dnsProvider === "aliyun"}
-                              onValueChange={(selected) => {
-                                if (selected)
-                                  setForm((prev) => ({
-                                    ...prev,
-                                    dnsProvider: "aliyun",
-                                  }));
-                              }}
-                            >
-                              {/* 核心护盾：绝对不许换行 */}
-                              <span className="whitespace-nowrap">阿里云</span>
-                            </Checkbox>
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                            <Select
+                              disabledKeys={[
+                                ...(!dnsProviderAvailability.aliyun
+                                  ? ["aliyun"]
+                                  : []),
+                                ...(!dnsProviderAvailability.cloudflare
+                                  ? ["cloudflare"]
+                                  : []),
+                              ]}
+                              label="DNS 服务商"
+                              selectedKeys={new Set([form.dnsProvider])}
+                              size="sm"
+                              variant="bordered"
+                              onSelectionChange={(keys) => {
+                                const provider = Array.from(keys)[0];
 
-                            <Checkbox
-                              isDisabled={!dnsProviderAvailability.cloudflare}
-                              isSelected={form.dnsProvider === "cloudflare"}
-                              onValueChange={(selected) => {
-                                if (selected)
+                                if (
+                                  provider === "aliyun" ||
+                                  provider === "cloudflare"
+                                ) {
                                   setForm((prev) => ({
                                     ...prev,
-                                    dnsProvider: "cloudflare",
+                                    dnsProvider: provider,
                                   }));
+                                }
                               }}
                             >
-                              <span className="whitespace-nowrap">
+                              <SelectItem key="aliyun" textValue="阿里云">
+                                阿里云
+                              </SelectItem>
+                              <SelectItem
+                                key="cloudflare"
+                                textValue="Cloudflare"
+                              >
                                 Cloudflare
-                              </span>
-                            </Checkbox>
+                              </SelectItem>
+                            </Select>
+                            <Select
+                              label="解析类型"
+                              selectedKeys={new Set([
+                                form.dnsManageA && form.dnsManageAAAA
+                                  ? "both"
+                                  : form.dnsManageA
+                                    ? "ipv4"
+                                    : form.dnsManageAAAA
+                                      ? "ipv6"
+                                      : "none",
+                              ])}
+                              size="sm"
+                              variant="bordered"
+                              onSelectionChange={(keys) => {
+                                const mode = Array.from(keys)[0];
 
-                            <Checkbox
-                              isSelected={form.dnsManageA}
-                              onValueChange={(dnsManageA) =>
-                                setForm((prev) => ({ ...prev, dnsManageA }))
-                              }
+                                setForm((prev) => ({
+                                  ...prev,
+                                  dnsManageA: mode === "ipv4" || mode === "both",
+                                  dnsManageAAAA:
+                                    mode === "ipv6" || mode === "both",
+                                }));
+                              }}
                             >
-                              <span className="whitespace-nowrap">管理V4</span>
-                            </Checkbox>
+                              <SelectItem key="ipv4" textValue="仅管理 V4">
+                                仅管理 V4
+                              </SelectItem>
+                              <SelectItem key="ipv6" textValue="仅管理 V6">
+                                仅管理 V6
+                              </SelectItem>
+                              <SelectItem key="both" textValue="管理 V4 和 V6">
+                                管理 V4 和 V6
+                              </SelectItem>
+                              <SelectItem key="none" textValue="不管理解析">
+                                不管理解析
+                              </SelectItem>
+                            </Select>
+                            <Select
+                              label="DNS 容灾"
+                              selectedKeys={new Set([
+                                form.dnsEnabled ? "enabled" : "disabled",
+                              ])}
+                              size="sm"
+                              variant="bordered"
+                              onSelectionChange={(keys) => {
+                                const value = Array.from(keys)[0];
 
-                            <Checkbox
-                              isSelected={form.dnsManageAAAA}
-                              onValueChange={(dnsManageAAAA) =>
-                                setForm((prev) => ({ ...prev, dnsManageAAAA }))
-                              }
+                                setForm((prev) => ({
+                                  ...prev,
+                                  dnsEnabled: value === "enabled",
+                                }));
+                              }}
                             >
-                              <span className="whitespace-nowrap">管理V6</span>
-                            </Checkbox>
+                              <SelectItem key="enabled" textValue="启用">
+                                启用
+                              </SelectItem>
+                              <SelectItem key="disabled" textValue="关闭">
+                                关闭
+                              </SelectItem>
+                            </Select>
                           </div>
-                          <div className="text-sm text-default-700">
-                            启用/关闭 DNS 容灾
-                          </div>
-                          <Checkbox
-                            isSelected={form.dnsEnabled}
-                            onValueChange={(dnsEnabled) =>
-                              setForm((prev) => ({ ...prev, dnsEnabled }))
-                            }
-                          >
-                            DNS容灾
-                          </Checkbox>
                           <div className="text-xs text-warning-800">
                             DNS 记录名默认使用“域名/公网 IPv4 地址”，启用 DNS
                             容灾时必须填写域名，不能填写 IP 地址
