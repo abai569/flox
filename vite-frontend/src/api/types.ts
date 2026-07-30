@@ -798,6 +798,7 @@ export interface MonitorNodeApiItem {
 export interface MonitorNodeInstanceGroupMemberApiItem {
   nodeId: number;
   nodeName: string;
+  networkRegion?: "mainland" | "overseas" | "";
   instanceId?: string;
   displayIndex?: number;
   displayName?: string;
@@ -836,6 +837,9 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   cpuUsage: number;
   memoryUsage: number;
   diskUsage: number;
+  crossBorderStatus?: string;
+  crossBorderError?: string;
+  crossBorderCheckedAt?: number;
 }
 
 export interface MonitorNodeInstanceGroupApiItem {

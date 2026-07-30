@@ -11,6 +11,7 @@ type MonitorNodeInstanceGroupRow struct {
 	NodeID                       int64   `gorm:"column:node_id"`
 	NodeName                     string  `gorm:"column:node_name"`
 	NodeStatus                   int     `gorm:"column:node_status"`
+	NetworkRegion                string  `gorm:"column:network_region"`
 	InstanceID                   string  `gorm:"column:instance_id"`
 	DisplayIndex                 int     `gorm:"column:display_index"`
 	DisplayName                  string  `gorm:"column:display_name"`
@@ -44,6 +45,9 @@ type MonitorNodeInstanceGroupRow struct {
 	CPUUsage                     float64 `gorm:"column:cpu_usage"`
 	MemUsage                     float64 `gorm:"column:mem_usage"`
 	DiskUsage                    float64 `gorm:"column:disk_usage"`
+	CrossBorderStatus            string  `gorm:"column:cross_border_status"`
+	CrossBorderError             string  `gorm:"column:cross_border_error"`
+	CrossBorderCheckedAt         int64   `gorm:"column:cross_border_checked_at"`
 }
 
 func (r *Repository) ListMonitorNodes() ([]model.Node, error) {
@@ -88,6 +92,7 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64, includeRemot
 			n.id AS node_id,
 			n.name AS node_name,
 			n.status AS node_status,
+			COALESCE(n.network_region, '') AS network_region,
 			nsi.instance_id AS instance_id,
 			nsi.display_index AS display_index,
 			COALESCE(nsi.display_name, '') AS display_name,
@@ -120,9 +125,16 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64, includeRemot
 			nsi.period_tx AS period_tx,
 			nsi.cpu_usage AS cpu_usage,
 			nsi.mem_usage AS mem_usage,
-			nsi.disk_usage AS disk_usage
+			nsi.disk_usage AS disk_usage,
+			CASE
+				WHEN cb.quarantined = TRUE AND COALESCE(cb.quarantine_reason, '') <> '' THEN cb.quarantine_reason
+				ELSE COALESCE(cb.status, 'unknown')
+			END AS cross_border_status,
+			COALESCE(cb.last_error, '') AS cross_border_error,
+			COALESCE(cb.last_checked_at, 0) AS cross_border_checked_at
 		`).
 		Joins("JOIN node_instance AS nsi ON nsi.node_id = n.id").
+		Joins("LEFT JOIN cross_border_instance_state AS cb ON cb.node_id = nsi.node_id AND cb.instance_id = nsi.instance_id").
 		Where(where, args...)
 	if !includeRemote {
 		query = query.Where("n.is_remote = ?", 0)

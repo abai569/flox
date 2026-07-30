@@ -2552,7 +2552,7 @@ export default function NodePage() {
         : await pauseInstance(member.nodeId, member.instanceId || "");
 
       if (res.code === 0) {
-        toast.success(isPaused ? "实例已启用" : "实例已暂停");
+        toast.success(isPaused ? "实例已启用，正在检测跨境状态" : "实例已暂停");
         setNodeInstanceMembers((prev) => {
           const next = { ...prev };
           const key = member.nodeId;
@@ -2560,7 +2560,18 @@ export default function NodePage() {
           if (next[key]) {
             next[key] = next[key].map((m) =>
               m.instanceId === member.instanceId
-                ? { ...m, weight: isPaused ? 1 : 0 }
+                ? {
+                    ...m,
+                    weight:
+                      isPaused &&
+                      !(res.data as { noop?: boolean } | undefined)?.noop
+                        ? 1
+                        : 0,
+                    crossBorderStatus: isPaused
+                      ? "unknown"
+                      : m.crossBorderStatus,
+                    crossBorderError: isPaused ? "正在检测" : m.crossBorderError,
+                  }
                 : m,
             );
           }

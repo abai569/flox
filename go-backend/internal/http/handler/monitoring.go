@@ -615,6 +615,7 @@ func (h *Handler) monitorTunnelListHandler(w http.ResponseWriter, r *http.Reques
 type monitorNodeInstanceGroupMember struct {
 	NodeID                       int64   `json:"nodeId"`
 	NodeName                     string  `json:"nodeName"`
+	NetworkRegion                string  `json:"networkRegion"`
 	InstanceID                   string  `json:"instanceId"`
 	DisplayIndex                 int     `json:"displayIndex"`
 	DisplayName                  string  `json:"displayName"`
@@ -653,6 +654,9 @@ type monitorNodeInstanceGroupMember struct {
 	CPUUsage                     float64 `json:"cpuUsage"`
 	MemoryUsage                  float64 `json:"memoryUsage"`
 	DiskUsage                    float64 `json:"diskUsage"`
+	CrossBorderStatus            string  `json:"crossBorderStatus"`
+	CrossBorderError             string  `json:"crossBorderError"`
+	CrossBorderCheckedAt         int64   `json:"crossBorderCheckedAt"`
 }
 
 type monitorNodeInstanceGroupItem struct {
@@ -758,6 +762,7 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 		member := monitorNodeInstanceGroupMember{
 			NodeID:                       row.NodeID,
 			NodeName:                     row.NodeName,
+			NetworkRegion:                row.NetworkRegion,
 			InstanceID:                   row.InstanceID,
 			DisplayIndex:                 row.DisplayIndex,
 			DisplayName:                  strings.TrimSpace(row.DisplayName),
@@ -796,6 +801,9 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			CPUUsage:                     row.CPUUsage,
 			MemoryUsage:                  row.MemUsage,
 			DiskUsage:                    row.DiskUsage,
+			CrossBorderStatus:            row.CrossBorderStatus,
+			CrossBorderError:             row.CrossBorderError,
+			CrossBorderCheckedAt:         row.CrossBorderCheckedAt,
 		}
 		groups[idx].Members = append(groups[idx].Members, member)
 		groups[idx].TotalInSpeed += row.NetInSpeed
