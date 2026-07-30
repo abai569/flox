@@ -2315,7 +2315,7 @@ export default function NodePage() {
   ) => {
     const renewalCycle = String(member.renewalCycle || "");
     const usedTraffic =
-      ((member.totalInFlow ?? 0) + (member.totalOutFlow ?? 0)) /
+      ((member.periodNetInBytes ?? 0) + (member.periodNetOutBytes ?? 0)) /
       (1024 * 1024 * 1024);
 
     setInstanceConfigSaving(false);
@@ -2395,10 +2395,10 @@ export default function NodePage() {
     }
     const trafficLimitMode = instanceConfigForm.trafficLimitMode ?? 1;
 
-    // 计算已用流量差值（GB -> bytes）
+    // 计算本周期网卡流量差值（GB -> bytes）
     const currentUsedBytes =
-      (instanceConfigTarget.totalInFlow ?? 0) +
-      (instanceConfigTarget.totalOutFlow ?? 0);
+      (instanceConfigTarget.periodNetInBytes ?? 0) +
+      (instanceConfigTarget.periodNetOutBytes ?? 0);
     const targetUsedBytes = Math.round(usedTrafficGB * 1024 * 1024 * 1024);
     const diffBytes = usedTrafficDirty ? targetUsedBytes - currentUsedBytes : 0;
 
@@ -2407,8 +2407,8 @@ export default function NodePage() {
     let outFlowAdjust = 0;
 
     if (Math.abs(diffBytes) > 0) {
-      const currentIn = instanceConfigTarget.totalInFlow ?? 0;
-      const currentOut = instanceConfigTarget.totalOutFlow ?? 0;
+      const currentIn = instanceConfigTarget.periodNetInBytes ?? 0;
+      const currentOut = instanceConfigTarget.periodNetOutBytes ?? 0;
       const total = currentIn + currentOut;
 
       if (total > 0) {

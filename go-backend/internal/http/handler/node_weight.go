@@ -121,6 +121,9 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 			if err := h.repo.AdjustNodeInstanceTraffic(req.NodeID, instanceID, req.InFlowAdjust, req.OutFlowAdjust); err != nil {
 				log.Printf("WARN: adjust node %d instance %s traffic failed: %v", req.NodeID, instanceID, err)
 			}
+			if err := h.repo.AdjustNodeInstancePeriodNetTraffic(req.NodeID, instanceID, req.InFlowAdjust, req.OutFlowAdjust); err != nil {
+				log.Printf("WARN: adjust node %d instance %s period network traffic failed: %v", req.NodeID, instanceID, err)
+			}
 		}
 
 		h.deleteNodeInstanceTrafficCacheEntry(req.NodeID, instanceID)
