@@ -2801,6 +2801,24 @@ func (h *Handler) nodeReportIP(w http.ResponseWriter, r *http.Request) {
 		response.WriteJSON(w, response.Err(404, "节点不存在"))
 		return
 	}
+	previousIPV4, previousIPV6, _, err := h.repo.GetNodeInstancePublicIPs(node.ID, req.InstanceID)
+	if err != nil {
+		response.WriteJSON(w, response.Err(-1, fmt.Sprintf("读取实例 IP 失败：%v", err)))
+		return
+	}
+	scheduleIfIPChanged := func(publicIPV4, publicIPV6 string) {
+		publicIPV4 = strings.TrimSpace(publicIPV4)
+		publicIPV6 = strings.TrimSpace(publicIPV6)
+		if publicIPV4 == "" {
+			publicIPV4 = previousIPV4
+		}
+		if publicIPV6 == "" {
+			publicIPV6 = previousIPV6
+		}
+		if publicIPV4 != previousIPV4 || publicIPV6 != previousIPV6 {
+			h.scheduleCrossBorderCheckForInstance(node.ID, req.InstanceID, 3*time.Second)
+		}
+	}
 
 	// 支持新格式 (public_ip_v4 + public_ip_v6) 和旧格式 (public_ip)，均写入节点实例表。
 	if req.PublicIPV4 != "" || req.PublicIPV6 != "" {
@@ -2815,6 +2833,7 @@ func (h *Handler) nodeReportIP(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.Err(-1, fmt.Sprintf("更新 IP 失败：%v", err)))
 			return
 		}
+		scheduleIfIPChanged(req.PublicIPV4, req.PublicIPV6)
 		response.WriteJSON(w, response.OK(map[string]interface{}{
 			"node_id":      node.ID,
 			"instance_id":  req.InstanceID,
@@ -2839,6 +2858,7 @@ func (h *Handler) nodeReportIP(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.Err(-1, fmt.Sprintf("更新 IP 失败：%v", err)))
 			return
 		}
+		scheduleIfIPChanged(publicIPV4, publicIPV6)
 		response.WriteJSON(w, response.OK(map[string]interface{}{
 			"node_id":     node.ID,
 			"instance_id": req.InstanceID,

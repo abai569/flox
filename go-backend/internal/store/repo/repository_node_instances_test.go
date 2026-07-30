@@ -195,6 +195,39 @@ func TestUpsertNodeInstanceClearsRuntimeTrafficWhenOfflineInstanceMovesServer(t 
 	}
 }
 
+func TestGetNodeInstancePublicIPs(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	instance := model.NodeInstance{
+		NodeID:      7,
+		InstanceID:  "instance-ip",
+		PublicIPV4:  "8.8.8.8",
+		PublicIPV6:  "2001:4860:4860::8888",
+		Status:      1,
+		CreatedTime: 1,
+		UpdatedTime: 1,
+	}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	ipv4, ipv6, exists, err := r.GetNodeInstancePublicIPs(7, "instance-ip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !exists || ipv4 != "8.8.8.8" || ipv6 != "2001:4860:4860::8888" {
+		t.Fatalf("public IPs = %q %q exists=%v", ipv4, ipv6, exists)
+	}
+	_, _, exists, err = r.GetNodeInstancePublicIPs(7, "missing")
+	if err != nil || exists {
+		t.Fatalf("missing instance exists=%v err=%v", exists, err)
+	}
+}
+
 func TestGetNodeInstanceTrafficLimitInfoMapsLimitAndNotificationMask(t *testing.T) {
 	r, err := Open(":memory:")
 	if err != nil {

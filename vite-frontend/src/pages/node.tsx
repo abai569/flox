@@ -142,6 +142,7 @@ declare global {
   }
 }
 const NODE_FALLBACK_REFRESH_INTERVAL_MS = 20000;
+const NODE_INSTANCE_REFRESH_INTERVAL_MS = 30000;
 const REMOTE_NODE_REFRESH_INTERVAL_MS = 20000;
 const REALTIME_NODE_METRIC_STALE_MS = 90_000;
 
@@ -1462,6 +1463,13 @@ export default function NodePage() {
   useEffect(() => {
     void loadNodeInstances();
   }, [loadNodeInstances]);
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (!document.hidden) void loadNodeInstances();
+    }, NODE_INSTANCE_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(interval);
+  }, [loadNodeInstances]);
   const syncNodeInstanceStatus = (
     nodeId: number,
     instanceId: string,
@@ -1687,6 +1695,37 @@ export default function NodePage() {
       const status = Number(payload?.status ?? 0) === 1 ? 1 : 0;
 
       syncNodeInstanceStatus(nodeId, instanceId, status);
+    } else if (type === "cross_border_status") {
+      let payload = messageData;
+
+      if (typeof payload === "string") {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          return;
+        }
+      }
+      if (!payload || typeof payload !== "object") return;
+      const instanceId = String(
+        payload?.instanceId ?? payload?.instance_id ?? "",
+      ).trim();
+
+      if (!instanceId) return;
+      setNodeInstanceMembers((prev) => {
+        const members = prev[nodeId] || [];
+        const nextMembers = members.map((member) =>
+          (member.instanceId || "").trim() === instanceId
+            ? {
+                ...member,
+                crossBorderStatus: String(payload?.status || "unknown"),
+                crossBorderError: String(payload?.error || ""),
+                crossBorderCheckedAt: Number(payload?.checkedAt || 0),
+              }
+            : member,
+        );
+
+        return { ...prev, [nodeId]: nextMembers };
+      });
     } else if (type === "metric") {
       clearOfflineTimer(nodeId);
       const metric =

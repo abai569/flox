@@ -94,47 +94,65 @@ export const deriveNodeVisualState = (
       enabledCount: 0,
     };
   }
+  const offlineCount = members.filter((m) => m.status !== 1).length;
   const disabledCount = members.filter(
-    (m) => m.weight !== undefined && m.weight <= 0,
+    (m) => m.status === 1 && m.weight !== undefined && m.weight <= 0,
   ).length;
   const enabled = members.filter((m) => m.weight === undefined || m.weight > 0);
   const enabledCount = enabled.length;
+  const onlineEnabledCount = members.filter(
+    (m) => m.status === 1 && (m.weight === undefined || m.weight > 0),
+  ).length;
 
-  if (enabled.length === 0) {
+	if (offlineCount === totalCount) {
+	  return {
+		state: "offline",
+		color: "danger",
+		text: "离线",
+		onlineCount: 0,
+		disabledCount,
+		totalCount,
+		enabledCount,
+	  };
+	}
+
+  if (onlineEnabledCount === 0) {
 	const hasUnavailableMember = members.some((member) => member.unavailable);
 
 	return {
-	  state: "offline",
+	  state: offlineCount > 0 ? "partial" : "offline",
 	  color: hasUnavailableMember ? "default" : "warning",
-	  text: hasUnavailableMember ? "已暂停" : "已禁用",
+	  text: hasUnavailableMember
+		? "已暂停"
+		: offlineCount > 0
+		  ? "存在离线和禁用实例"
+		  : "已禁用",
       onlineCount: 0,
       disabledCount,
       totalCount,
       enabledCount: 0,
     };
   }
-  const onlineCount = enabled.filter((m) => m.status === 1).length;
-
-  if (onlineCount === enabled.length) {
+	if (onlineEnabledCount === enabled.length && offlineCount === 0) {
 	return {
 	  state: disabledCount > 0 ? "partial" : "online",
 	  color: disabledCount > 0 ? "warning" : "success",
 	  text:
 		disabledCount > 0
 		  ? `存在禁用实例 (${disabledCount})`
-		  : `全部在线 (${onlineCount})`,
-      onlineCount,
+		  : `全部在线 (${onlineEnabledCount})`,
+      onlineCount: onlineEnabledCount,
       disabledCount,
       totalCount,
       enabledCount,
     };
   }
-  if (onlineCount > 0) {
+  if (onlineEnabledCount > 0) {
     return {
       state: "partial",
       color: "warning",
-      text: `部分在线 (${onlineCount}/${enabled.length})`,
-      onlineCount,
+      text: `部分在线 (${onlineEnabledCount}/${totalCount})`,
+      onlineCount: onlineEnabledCount,
       disabledCount,
       totalCount,
       enabledCount,

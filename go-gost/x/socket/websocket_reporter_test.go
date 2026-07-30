@@ -2,13 +2,33 @@ package socket
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/gorilla/websocket"
 )
+
+func TestHandleTcpProbeListenAcceptsConnection(t *testing.T) {
+	reporter := &WebSocketReporter{}
+	response, err := reporter.handleTcpProbeListen(map[string]interface{}{
+		"family": "ipv4", "durationSec": 5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Port <= 0 {
+		t.Fatalf("probe listener port = %d", response.Port)
+	}
+	conn, err := net.Dial("tcp4", net.JoinHostPort("127.0.0.1", fmt.Sprint(response.Port)))
+	if err != nil {
+		t.Fatalf("connect probe listener: %v", err)
+	}
+	_ = conn.Close()
+}
 
 func TestBuildWebSocketCandidatesSecureFirst(t *testing.T) {
 	candidates := buildWebSocketCandidates("panel.example.com:443", "abc", "2.0.2", 1, 0, 1, 0, "", "")

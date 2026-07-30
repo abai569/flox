@@ -529,20 +529,20 @@ function RemoteNodeInstanceRows({
                         title={
                           !parentOnline
                             ? parentMeta.label
-                            : disabled
-                              ? "已禁用"
-                              : online
-                                ? "在线"
-                                : "离线"
+                            : !online
+                              ? "离线"
+                              : disabled
+                                ? "已禁用"
+                                : "在线"
                         }
                         tone={
 						  !parentOnline
 							? parentMeta.tone
-							: disabled
-							  ? "warning"
-                              : online
-                                ? "success"
-                                : "danger"
+							: !online
+							  ? "danger"
+							  : disabled
+								? "warning"
+								: "success"
                         }
                       />
                     )}
@@ -809,24 +809,24 @@ function NodeInstanceRows({
                     >
                       <td className="px-2 py-2.5 text-center align-middle">
                         <StatusDot
-                          active={member.weight > 0 && member.status === 1}
+						  active={member.status === 1 && member.weight > 0}
 						  title={
-							member.weight <= 0
+							member.status !== 1
+							  ? "离线"
+							  : member.weight <= 0
 							  ? isInstanceTrafficLimitExceeded(member)
 								? "流量超限，已暂停"
 								: "已禁用（权重为 0）"
-                              : member.status === 1
-                                ? "在线"
-                                : "离线"
+								  : "在线"
                           }
 						  tone={
-							member.weight <= 0
+							member.status !== 1
+							  ? "danger"
+							  : member.weight <= 0
 							  ? isInstanceTrafficLimitExceeded(member)
 								? "default"
 								: "warning"
-                              : member.status === 1
-                                ? "success"
-                                : "danger"
+								  : "success"
                           }
                         />
                       </td>
