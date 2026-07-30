@@ -83,7 +83,7 @@ func TestPostgresNodeCreateRepairsMissingIDDefaultContract(t *testing.T) {
 		t.Fatalf("generate admin token: %v", err)
 	}
 
-	body := strings.NewReader(`{"name":"pg-repair-node","serverIp":"10.77.0.10"}`)
+	body := strings.NewReader(`{"name":"pg-repair-node","serverIp":"10.77.0.10","networkRegion":"mainland"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/node/create", body)
 	req.Header.Set("Authorization", token)
 	req.Header.Set("Content-Type", "application/json")
