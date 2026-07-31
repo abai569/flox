@@ -458,6 +458,9 @@ func TestAutoRenewLegacyUserWithoutSubscriptionSnapshotSucceeds(t *testing.T) {
 	if err := r.DB().Exec(`INSERT INTO user(id,user,pwd,role_id,exp_time,flow,in_flow,out_flow,flow_reset_time,num,created_time,updated_time,status,renewal_amount,balance,auto_renew) VALUES(2,'legacy','x',1,?,4000,0,0,1,37,?,?,1,36000,50000,1)`, expires, nowMs, nowMs).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := r.DB().Exec(`INSERT INTO user_tunnel(user_id,tunnel_id,num,flow,in_flow,out_flow,flow_reset_time,exp_time,status) VALUES(2,99,37,4000,1234,5678,1,?,1)`, expires).Error; err != nil {
+		t.Fatal(err)
+	}
 
 	h.disableExpiredUsers(nowMs)
 
@@ -473,5 +476,23 @@ func TestAutoRenewLegacyUserWithoutSubscriptionSnapshotSucceeds(t *testing.T) {
 	}
 	if got := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_renewal_log WHERE user_id=2`); got != 1 {
 		t.Fatalf("expected one renewal log, got %d", got)
+	}
+	newTunnelExp := mustQueryInt64(t, r, `SELECT exp_time FROM user_tunnel WHERE user_id=2 AND tunnel_id=99`)
+	if newTunnelExp != expectedExp {
+		t.Fatalf("expected tunnel expiry %d, got %d", expectedExp, newTunnelExp)
+	}
+	var tunnelInFlow, tunnelOutFlow int64
+	if err := r.DB().Raw(`SELECT in_flow, out_flow FROM user_tunnel WHERE user_id=2 AND tunnel_id=99`).Row().Scan(&tunnelInFlow, &tunnelOutFlow); err != nil {
+		t.Fatal(err)
+	}
+	if tunnelInFlow != 1234 || tunnelOutFlow != 5678 {
+		t.Fatalf("expected tunnel flow preserved before original expiry, got %d/%d", tunnelInFlow, tunnelOutFlow)
+	}
+	h.disableExpiredUsers(expires)
+	if err := r.DB().Raw(`SELECT in_flow, out_flow FROM user_tunnel WHERE user_id=2 AND tunnel_id=99`).Row().Scan(&tunnelInFlow, &tunnelOutFlow); err != nil {
+		t.Fatal(err)
+	}
+	if tunnelInFlow != 0 || tunnelOutFlow != 0 {
+		t.Fatalf("expected tunnel flow reset at original expiry, got %d/%d", tunnelInFlow, tunnelOutFlow)
 	}
 }
