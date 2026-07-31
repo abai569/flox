@@ -164,9 +164,9 @@ func createUserQuotaHistory(tx *gorm.DB, userID int64, periodType string, period
 	return tx.Create(history).Error
 }
 
-func (r *Repository) RecordFlowResetHistory(snapshots []model.UserFlowSnapshot, periodKey int64, nowMs int64, resetReason string) {
+func (r *Repository) RecordFlowResetHistory(snapshots []model.UserFlowSnapshot, periodKey int64, nowMs int64, resetReason string) error {
 	if r == nil || r.db == nil {
-		return
+		return errors.New("repository not initialized")
 	}
 	for _, s := range snapshots {
 		totalBytes := s.InFlow + s.OutFlow
@@ -181,8 +181,11 @@ func (r *Repository) RecordFlowResetHistory(snapshots []model.UserFlowSnapshot, 
 			CreatedTime:   nowMs,
 			ResetReason:   resetReason,
 		}
-		_ = r.db.Create(history).Error
+		if err := r.db.Create(history).Error; err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (r *Repository) SaveUserQuotaConfigTx(tx *gorm.DB, userID, dailyLimitGB, monthlyLimitGB int64, now int64) error {

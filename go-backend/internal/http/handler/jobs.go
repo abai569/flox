@@ -562,9 +562,15 @@ func (h *Handler) resetMonthlyFlow(now time.Time) {
 	if err == nil && len(snapshots) > 0 {
 		periodKey := int64(now.Year()*100 + int(now.Month()))
 		nowMs := now.UnixMilli()
-		h.repo.RecordFlowResetHistory(snapshots, periodKey, nowMs, "自动周期归零")
+		if err := h.repo.RecordFlowResetHistory(snapshots, periodKey, nowMs, "自动周期归零"); err != nil {
+			log.Printf("[月度流量归零] 写入归零历史失败: %v", err)
+		}
+	} else if err != nil {
+		log.Printf("[月度流量归零] 用户流量归零失败: %v", err)
 	}
-	_ = h.repo.ResetUserTunnelMonthlyFlow(currentDay, lastDay, now)
+	if err := h.repo.ResetUserTunnelMonthlyFlow(currentDay, lastDay, now); err != nil {
+		log.Printf("[月度流量归零] 隧道流量归零失败: %v", err)
+	}
 }
 
 func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
