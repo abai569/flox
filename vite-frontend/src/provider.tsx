@@ -5,6 +5,7 @@ import { I18nProvider } from "@react-aria/i18n";
 
 import { HeroUIProvider } from "@/shadcn-bridge/heroui/system";
 import { ThemeProvider } from "@/components/theme-provider";
+import { UserNotificationModal } from "@/components/user-notification-modal";
 
 export interface ProvidersProps {
   children: React.ReactNode;
@@ -18,6 +19,7 @@ export function Provider({ children }: ProvidersProps) {
       <HeroUIProvider navigate={navigate} useHref={useHref}>
         <ThemeProvider>
           {children}
+          <UserNotificationModal />
           <Toaster
             position="top-center"
             toastOptions={{

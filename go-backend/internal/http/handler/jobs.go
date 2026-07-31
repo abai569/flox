@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -28,6 +29,7 @@ func (h *Handler) StartBackgroundJobs() {
 	jobs := []func(context.Context){
 		h.runHourlyStatsLoop,
 		h.runDailyMaintenanceLoop,
+		h.runAutoRenewLoop,
 		h.runAutoBuyTrafficLoop,
 		h.runNodeRenewalCycleLoop,
 		h.runMetricsIngestion,
@@ -698,7 +700,8 @@ func addCalendarMonthsClamped(value time.Time, months int) time.Time {
 }
 
 func (h *Handler) disableExpiredUsers(nowMs int64) {
-	userIDs, err := h.repo.ListExpiredActiveUserIDs(nowMs)
+	h.processPendingRenewalResets(nowMs)
+	userIDs, err := h.repo.ListAutoRenewUserIDs(nowMs + int64(72*time.Hour/time.Millisecond))
 	if err != nil {
 		return
 	}
@@ -714,31 +717,67 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 		if renewErr == nil && renewed {
 			log.Printf("用户 %d 自动续费成功：扣款 %d 分，新到期时间 %v",
 				userID, user.RenewalAmount, time.UnixMilli(newExpTime))
-			_ = h.repo.MarkUserAutoRenewSuccess(userID, newExpTime, nowMs)
-			_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
-			h.resumePausedForwardsByUser(userID, nowMs)
+			if user.ExpTime <= nowMs {
+				_ = h.repo.MarkUserAutoRenewSuccess(userID, newExpTime, nowMs)
+				_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
+				h.resumePausedForwardsByUser(userID, nowMs)
+			}
 
-			h.sendBotNotification(func(bot *telegram.Bot) {
-				bot.SendUserFlowReset(user.User)
-			})
+			if user.ExpTime <= nowMs {
+				h.sendBotNotification(func(bot *telegram.Bot) { bot.SendUserFlowReset(user.User) })
+			}
 
 			continue
 		}
+		if renewErr == nil {
+			fresh, freshErr := h.repo.GetUserByID(userID)
+			if freshErr != nil || fresh.ExpTime > nowMs {
+				continue
+			}
+		}
 		if renewErr != nil {
-			log.Printf("用户 %d 自动续费失败：%v，将执行禁用", userID, renewErr)
+			if !errors.Is(renewErr, repo.ErrInsufficientBalance) {
+				log.Printf("用户 %d 自动续费暂时失败：%v，将继续重试", userID, renewErr)
+				continue
+			}
+			log.Printf("用户 %d 自动续费余额不足", userID)
+			if user.ExpTime > nowMs {
+				_ = h.repo.CreateUserNotification(repo.UserNotificationCreateParams{UserID: userID, EventKey: fmt.Sprintf("renewal-balance:%d:%d", userID, user.ExpTime), Type: "balance", Title: "自动续费余额不足", Content: fmt.Sprintf("账户余额不足以支付自动续费，请及时充值。续费金额 %.2f 元。", float64(user.RenewalAmount)/100), Metadata: fmt.Sprintf(`{"amount":%d,"expireAt":%d}`, user.RenewalAmount, user.ExpTime)}, nowMs)
+				continue
+			}
 			resetReason = "自动续费失败（扣款失败）"
 		}
 
+		if err := h.repo.MarkExpiredUserAutoRenewFailure(userID, user.ExpTime, nowMs, resetReason); err != nil {
+			continue
+		}
 		forwards, err := h.listActiveForwardsByUser(userID)
 		if err == nil {
 			h.pauseForwardRecords(forwards, nowMs)
 		}
 
-		_ = h.repo.MarkExpiredUserAutoRenewFailure(userID, nowMs, resetReason)
-
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendUserFlowReset(user.User)
 		})
+	}
+}
+
+func (h *Handler) processPendingRenewalResets(nowMs int64) {
+	userIDs, err := h.repo.ListPendingRenewalResetUserIDs(nowMs)
+	if err != nil {
+		return
+	}
+	for _, userID := range userIDs {
+		user, err := h.repo.GetUserByID(userID)
+		if err != nil {
+			continue
+		}
+		if err := h.repo.MarkUserAutoRenewSuccess(userID, user.ExpTime, nowMs); err != nil {
+			continue
+		}
+		_ = h.repo.UpdateUserForwardsStatus(userID, 1, nowMs)
+		h.resumePausedForwardsByUser(userID, nowMs)
+		h.sendBotNotification(func(bot *telegram.Bot) { bot.SendUserFlowReset(user.User) })
 	}
 }
 
@@ -827,6 +866,11 @@ func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
 		if user.Balance < price {
 			log.Printf("用户 %d 自动购流余额不足：余额 %d 分，需要 %d 分",
 				user.ID, user.Balance, price)
+			_ = h.repo.CreateUserNotification(repo.UserNotificationCreateParams{
+				UserID: user.ID, EventKey: fmt.Sprintf("traffic-balance:%d:%d:%d", user.ID, price, user.Flow), Type: "balance",
+				Title: "自动购流余额不足", Content: fmt.Sprintf("账户余额不足以自动购买流量，需要 %.2f 元。", float64(price)/100),
+				Metadata: fmt.Sprintf(`{"amount":%d,"expireAt":%d}`, price, user.ExpTime),
+			}, nowMs)
 			continue
 		}
 
@@ -865,6 +909,21 @@ func (h *Handler) handleAutoBuyTraffic(nowMs int64) {
 		}
 		if !purchased {
 			log.Printf("用户 %d 自动购流最终失败（已重试 %d 次）", user.ID, maxRetries)
+		}
+	}
+}
+
+func (h *Handler) runAutoRenewLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	h.disableExpiredUsers(time.Now().UnixMilli())
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			h.disableExpiredUsers(now.UnixMilli())
 		}
 	}
 }

@@ -71,6 +71,8 @@ import type {
   RedeemCodeItem,
   DiscountCodeItem,
   BalanceLogItem,
+  BillingHistoryItem,
+  UserNotificationItem,
   SubscriptionPackageApiItem,
   PeerShareApiItem,
   PeerShareMutationPayload,
@@ -1278,6 +1280,21 @@ export const getBalanceLogs = (data?: {
     page: number;
     size: number;
   }>("/billing/balance-log/list", data || {});
+
+export const getUserNotifications = () =>
+  Network.post<UserNotificationItem[]>("/user/notifications", { limit: 20 });
+
+export const updateUserNotificationState = (data: {
+  id: number;
+  snoozeUntil?: number;
+  dismissed?: number;
+}) => Network.post("/user/notifications/state", data);
+
+export const getMyBillingHistory = (page = 1, size = 20) =>
+  Network.post<{ list: BillingHistoryItem[]; total: number; page: number; size: number }>(
+    "/user/billing-history",
+    { page, size },
+  );
 
 export const deleteBalanceLog = (id: number) =>
   Network.post("/billing/balance-log/delete", { id });

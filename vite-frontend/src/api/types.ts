@@ -1243,6 +1243,30 @@ export interface BalanceLogItem {
   createdTime: number;
 }
 
+export interface UserNotificationItem {
+  id: number;
+  type: "balance" | "renewal" | "traffic";
+  title: string;
+  content: string;
+  metadata: string;
+  snoozeUntil: number;
+  createdTime: number;
+}
+
+export interface BillingHistoryItem {
+  id: string;
+  type: "renewal" | "traffic" | "recharge";
+  title: string;
+  occurredAt: number;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  trafficGB: number;
+  expireBefore: number;
+  expireAfter: number;
+  reason: string;
+}
+
 export interface SubscriptionPackageApiItem {
   id: number;
   type: string;

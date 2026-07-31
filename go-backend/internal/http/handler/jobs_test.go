@@ -339,7 +339,7 @@ func TestRunResetAndExpiryJobAutoRenewsExpiredUser(t *testing.T) {
 	h.runResetAndExpiryJob(now)
 
 	newExp := mustQueryInt64(t, r, `SELECT exp_time FROM user WHERE id = 2`)
-	expectedExp := now.AddDate(0, 1, 0).UnixMilli()
+	expectedExp := time.UnixMilli(oldExp).AddDate(0, 1, 0).UnixMilli()
 	if newExp != expectedExp {
 		t.Fatalf("expected exp_time %d, got %d", expectedExp, newExp)
 	}
@@ -359,5 +359,41 @@ func TestRunResetAndExpiryJobAutoRenewsExpiredUser(t *testing.T) {
 	renewCount := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_renewal_log WHERE user_id = 2`)
 	if renewCount != 1 {
 		t.Fatalf("expected one renewal log, got %d", renewCount)
+	}
+}
+
+func TestAutoRenewBeforeExpiryDefersFlowReset(t *testing.T) {
+	r, err := repo.Open(filepath.Join(t.TempDir(), "jobs-auto-renew-early.db"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	h := New(r, "secret")
+	now := time.Date(2026, 3, 12, 0, 0, 5, 0, time.UTC)
+	expires := now.Add(48 * time.Hour).UnixMilli()
+	nowMs := now.UnixMilli()
+	if err := r.DB().Exec(`INSERT INTO user(id,user,pwd,role_id,exp_time,flow,in_flow,out_flow,flow_reset_time,num,created_time,updated_time,status,renewal_amount,balance,auto_renew) VALUES(2,'early','x',1,?,100,1000,2000,15,1,?,?,1,500,1000,1)`, expires, nowMs, nowMs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.DB().Exec(`INSERT INTO package_subscription(user_id,package_id,start_at,expire_at,auto_renew,status,order_id,renewal_amount,renewal_validity_days,created_at,updated_at) VALUES(2,1,?,?,1,1,1,500,30,?,?)`, nowMs, expires, nowMs, nowMs).Error; err != nil {
+		t.Fatal(err)
+	}
+	h.disableExpiredUsers(nowMs)
+	inFlow, outFlow, status := mustQueryInt64Int64Int(t, r, `SELECT in_flow,out_flow,status FROM user WHERE id=2`)
+	if inFlow != 1000 || outFlow != 2000 || status != 1 {
+		t.Fatalf("expected flow unchanged before expiry, got in=%d out=%d status=%d", inFlow, outFlow, status)
+	}
+	pending := mustQueryInt64(t, r, `SELECT pending_renewal_reset_at FROM package_subscription WHERE user_id=2`)
+	if pending != expires {
+		t.Fatalf("expected pending reset at %d, got %d", expires, pending)
+	}
+	h.disableExpiredUsers(expires)
+	inFlow, outFlow, status = mustQueryInt64Int64Int(t, r, `SELECT in_flow,out_flow,status FROM user WHERE id=2`)
+	if inFlow != 0 || outFlow != 0 || status != 1 {
+		t.Fatalf("expected one reset at expiry, got in=%d out=%d status=%d", inFlow, outFlow, status)
+	}
+	h.disableExpiredUsers(expires + 1000)
+	if count := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_quota_history WHERE user_id=2`); count != 1 {
+		t.Fatalf("expected one reset history, got %d", count)
 	}
 }
