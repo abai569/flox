@@ -87,7 +87,7 @@ jobs:
           fi
 
   build-gost:
-    name: Build & Compress GOST Binary
+    name: Build & Compress GOST AMD64 Binary
     needs: check-version
     if: needs.check-version.outputs.should_build_gost == 'true'
     runs-on: ubuntu-latest
@@ -131,21 +131,13 @@ jobs:
         working-directory: ./go-gost
         run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ needs.check-version.outputs.version }}" -o gost-amd64
 
-      - name: Build GOST binary (ARM64)
-        working-directory: ./go-gost
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.version=${{ needs.check-version.outputs.version }}" -o gost-arm64
-
       - name: Compress with UPX
         working-directory: ./go-gost
-        run: |
-          upx --best --lzma gost-amd64
-          upx --best --lzma gost-arm64
+        run: upx --best --lzma gost-amd64
 
       - name: Generate SHA256 checksums
         working-directory: ./go-gost
-        run: |
-          sha256sum gost-amd64 > gost-amd64.sha256
-          sha256sum gost-arm64 > gost-arm64.sha256
+        run: sha256sum gost-amd64 > gost-amd64.sha256
 
       - name: Upload GOST AMD64 artifact
         uses: actions/upload-artifact@v4
@@ -153,23 +145,11 @@ jobs:
           name: gost-binary-amd64
           path: ./go-gost/gost-amd64
 
-      - name: Upload GOST ARM64 artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: gost-binary-arm64
-          path: ./go-gost/gost-arm64
-
       - name: Upload GOST AMD64 checksum artifact
         uses: actions/upload-artifact@v4
         with:
           name: gost-checksum-amd64
           path: ./go-gost/gost-amd64.sha256
-
-      - name: Upload GOST ARM64 checksum artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: gost-checksum-arm64
-          path: ./go-gost/gost-arm64.sha256
 
   build-vite:
     name: Build & Push Vite Frontend
@@ -301,22 +281,10 @@ jobs:
           name: gost-binary-amd64
           path: ./artifacts/amd64
 
-      - name: Download GOST ARM64 binary
-        uses: actions/download-artifact@v4
-        with:
-          name: gost-binary-arm64
-          path: ./artifacts/arm64
-
       - name: Download GOST AMD64 checksum
         uses: actions/download-artifact@v4
         with:
           name: gost-checksum-amd64
-          path: ./artifacts/
-
-      - name: Download GOST ARM64 checksum
-        uses: actions/download-artifact@v4
-        with:
-          name: gost-checksum-arm64
           path: ./artifacts/
 
       - name: Prepare release files
@@ -328,7 +296,6 @@ jobs:
 
           # 移动二进制文件
           mv ./artifacts/amd64/gost-amd64 ./artifacts/gost-amd64
-          mv ./artifacts/arm64/gost-arm64 ./artifacts/gost-arm64
 
           # 复制并修改 docker-compose 文件
           cp docker-compose-v4.yml ./artifacts/docker-compose-v4.yml
@@ -346,13 +313,6 @@ jobs:
           cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flox_agent
           cp ./install.sh ./artifacts/offline-amd64/offline.sh
           cd ./artifacts/offline-amd64 && zip -r ../offline-amd64.zip . && cd ../..
-
-          # 构建离线包（arm64）
-          echo "📦 构建离线包 (arm64)..."
-          mkdir -p ./artifacts/offline-arm64
-          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flox_agent
-          cp ./install.sh ./artifacts/offline-arm64/offline.sh
-          cd ./artifacts/offline-arm64 && zip -r ../offline-arm64.zip . && cd ../..
 
       - name: Create Release
         env:
@@ -416,11 +376,9 @@ jobs:
           # 上传所有文件到 release
           echo "📤 上传 GOST 二进制文件..."
           gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber --repo "${REPO}"
-          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber --repo "${REPO}"
 
           echo "📤 上传 GOST 校验文件..."
           gh release upload "${VERSION}" ./artifacts/gost-amd64.sha256 --clobber --repo "${REPO}"
-          gh release upload "${VERSION}" ./artifacts/gost-arm64.sha256 --clobber --repo "${REPO}"
 
           echo "📤 上传 Docker Compose 配置文件..."
           gh release upload "${VERSION}" ./artifacts/docker-compose-v4.yml --clobber --repo "${REPO}"
@@ -428,7 +386,6 @@ jobs:
 
           echo "📤 上传离线包..."
           gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber --repo "${REPO}"
-          gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber --repo "${REPO}"
 
           # 正式版设为 latest，预发布版不覆盖 latest
           if [ "$IS_PRERELEASE" = false ]; then
@@ -436,6 +393,111 @@ jobs:
             gh api -X PATCH "repos/${REPO}/releases/${RELEASE_ID}" -f make_latest="true"
           fi
           echo "✅ Release ${VERSION} 创建完成"
+
+  build-gost-arm64:
+    name: Build & Compress GOST ARM64 Binary
+    needs: [check-version, create-release]
+    if: needs.check-version.outputs.is_tag == 'true' && needs.check-version.outputs.should_build_gost == 'true' && needs.check-version.outputs.is_prerelease == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('go-gost/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install UPX
+        run: |
+          wget -q https://github.com/upx/upx/releases/download/v4.2.1/upx-4.2.1-amd64_linux.tar.xz
+          tar -xf upx-4.2.1-amd64_linux.tar.xz
+          sudo mv upx-4.2.1-amd64_linux/upx /usr/local/bin/
+          rm -rf upx-4.2.1-amd64_linux*
+
+      - name: Checkout closed repo
+        uses: actions/checkout@v4
+        with:
+          repository: abai569/flox-closed
+          path: closed
+          token: ${{ secrets.CLOSED_REPO_PAT }}
+
+      - name: Merge closed source
+        shell: pwsh
+        run: ./closed/scripts/merge-closed.ps1 -RootDir ${{ github.workspace }}
+
+      - name: Build GOST binary (ARM64)
+        working-directory: ./go-gost
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.version=${{ needs.check-version.outputs.version }}" -o gost-arm64
+
+      - name: Compress with UPX
+        working-directory: ./go-gost
+        run: upx --best --lzma gost-arm64
+
+      - name: Generate SHA256 checksum
+        working-directory: ./go-gost
+        run: sha256sum gost-arm64 > gost-arm64.sha256
+
+      - name: Upload GOST ARM64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gost-binary-arm64
+          path: ./go-gost/gost-arm64
+
+      - name: Upload GOST ARM64 checksum artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gost-checksum-arm64
+          path: ./go-gost/gost-arm64.sha256
+
+  upload-gost-arm64-release:
+    name: Upload GOST ARM64 to Release
+    needs: [check-version, build-gost-arm64]
+    if: needs.check-version.outputs.is_tag == 'true' && needs.check-version.outputs.is_prerelease == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download GOST ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: gost-binary-arm64
+          path: ./artifacts/arm64
+
+      - name: Download GOST ARM64 checksum
+        uses: actions/download-artifact@v4
+        with:
+          name: gost-checksum-arm64
+          path: ./artifacts/
+
+      - name: Prepare ARM64 release files
+        run: |
+          mv ./artifacts/arm64/gost-arm64 ./artifacts/gost-arm64
+          mkdir -p ./artifacts/offline-arm64
+          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flox_agent
+          cp ./install.sh ./artifacts/offline-arm64/offline.sh
+          cd ./artifacts/offline-arm64 && zip -r ../offline-arm64.zip .
+
+      - name: Upload ARM64 files to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.check-version.outputs.version }}"
+          REPO="${{ github.repository }}"
+          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/gost-arm64.sha256 --clobber --repo "${REPO}"
+          gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber --repo "${REPO}"
 
   update-release-gost:
     name: Update GOST Binaries in Release
@@ -453,28 +515,14 @@ jobs:
           name: gost-binary-amd64
           path: ./artifacts/amd64
 
-      - name: Download GOST ARM64 binary
-        uses: actions/download-artifact@v4
-        with:
-          name: gost-binary-arm64
-          path: ./artifacts/arm64
-
       - name: Download GOST AMD64 checksum
         uses: actions/download-artifact@v4
         with:
           name: gost-checksum-amd64
           path: ./artifacts/
 
-      - name: Download GOST ARM64 checksum
-        uses: actions/download-artifact@v4
-        with:
-          name: gost-checksum-arm64
-          path: ./artifacts/
-
       - name: Rename binaries
-        run: |
-          mv ./artifacts/amd64/gost-amd64 ./artifacts/gost-amd64
-          mv ./artifacts/arm64/gost-arm64 ./artifacts/gost-arm64
+        run: mv ./artifacts/amd64/gost-amd64 ./artifacts/gost-amd64
 
       - name: Build offline packages
         run: |
@@ -483,12 +531,6 @@ jobs:
           cp ./artifacts/gost-amd64 ./artifacts/offline-amd64/flox_agent
           cp ./install.sh ./artifacts/offline-amd64/offline.sh
           cd ./artifacts/offline-amd64 && zip -r ../offline-amd64.zip . && cd ../..
-
-          echo "📦 构建离线包 (arm64)..."
-          mkdir -p ./artifacts/offline-arm64
-          cp ./artifacts/gost-arm64 ./artifacts/offline-arm64/flox_agent
-          cp ./install.sh ./artifacts/offline-arm64/offline.sh
-          cd ./artifacts/offline-arm64 && zip -r ../offline-arm64.zip . && cd ../..
 
       - name: Update GOST binaries in Release
         env:
@@ -500,21 +542,18 @@ jobs:
           echo "🔄 更新 Release ${VERSION} 中的 GOST 二进制文件..."
 
           gh release upload "${VERSION}" ./artifacts/gost-amd64 --clobber --repo "${REPO}"
-          gh release upload "${VERSION}" ./artifacts/gost-arm64 --clobber --repo "${REPO}"
 
           echo "📤 上传 GOST 校验文件..."
           gh release upload "${VERSION}" ./artifacts/gost-amd64.sha256 --clobber --repo "${REPO}"
-          gh release upload "${VERSION}" ./artifacts/gost-arm64.sha256 --clobber --repo "${REPO}"
 
           echo " 📤 上传离线包..."
           gh release upload "${VERSION}" ./artifacts/offline-amd64.zip --clobber --repo "${REPO}"
-          gh release upload "${VERSION}" ./artifacts/offline-arm64.zip --clobber --repo "${REPO}"
 
           echo " ✅ GOST 二进制文件更新完成"
 
   sync-gost-mirror:
     name: Sync GOST to Mirror
-    needs: [build-gost]
+    needs: [check-version, build-gost, upload-gost-arm64-release]
     if: needs.check-version.outputs.should_build_gost == 'true' && needs.check-version.outputs.is_prerelease == 'false'
     continue-on-error: true
     runs-on: ubuntu-latest
