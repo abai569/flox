@@ -138,6 +138,7 @@ interface NodeListViewProps {
   onCrossBorderCorrect: (
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
+  crossBorderRecheckingKeys: Set<string>;
   onReorderInstances: (
     nodeId: number,
     activeInstanceId: string,
@@ -362,7 +363,7 @@ function instanceCrossBorderMeta(member: InstanceIPRegionMember) {
     case "observing":
       return { color: "bg-primary", label: "观察期" };
     case "pending_failure":
-      return { color: "bg-warning", label: "跨境检测异常，等待复核" };
+      return { color: "bg-warning", label: "正在检测" };
     default:
       return { color: "bg-default-400", label: "跨境状态未知" };
   }
@@ -379,18 +380,19 @@ function CrossBorderStatusPopover({
   member,
   onRecheck,
   onCorrect,
+  isRechecking,
 }: {
   member: InstanceIPRegionMember;
   onRecheck?: () => void;
   onCorrect?: () => void;
+  isRechecking?: boolean;
 }) {
   const meta = instanceCrossBorderMeta(member);
   const blocked = ["blocked", "reverse_blocked"].includes(
     member.crossBorderStatus || "",
   );
   const observing = member.crossBorderStatus === "observing";
-  const canRecheck =
-    blocked || observing || member.crossBorderStatus === "restore_blocked";
+  const canRecheck = member.crossBorderStatus !== "healthy";
 
   return (
     <Dropdown placement="bottom-end">
@@ -439,6 +441,8 @@ function CrossBorderStatusPopover({
               <Button
                 className="h-7 px-2 text-xs"
                 color="primary"
+                isDisabled={isRechecking}
+                isLoading={isRechecking}
                 size="sm"
                 variant="flat"
                 onPress={(event) => {
@@ -475,6 +479,7 @@ function InstanceIPRegionCell({
   copyToClipboard,
   onCrossBorderRecheck,
   onCrossBorderCorrect,
+  isCrossBorderRechecking,
 }: {
   member: InstanceIPRegionMember;
   copyToClipboard: (text: string, label: string) => void;
@@ -484,6 +489,7 @@ function InstanceIPRegionCell({
   onCrossBorderCorrect?: (
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
+  isCrossBorderRechecking?: boolean;
 }) {
   const probeAddressKey = member.publicIpV4?.trim() ? "v4" : "v6";
   const rows = [
@@ -535,6 +541,7 @@ function InstanceIPRegionCell({
               item.key === probeAddressKey &&
               member.networkRegion === "overseas" ? (
                 <CrossBorderStatusPopover
+                  isRechecking={isCrossBorderRechecking}
                   member={member}
                   onCorrect={
                     onCrossBorderCorrect
@@ -744,6 +751,7 @@ function NodeInstanceRows({
   onToggleInstancePause,
   onCrossBorderRecheck,
   onCrossBorderCorrect,
+  crossBorderRecheckingKeys,
   onReorderInstances,
   onInstallMimicDeps,
 }: {
@@ -769,6 +777,7 @@ function NodeInstanceRows({
   onCrossBorderCorrect?: (
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
+  crossBorderRecheckingKeys: Set<string>;
   onReorderInstances: (
     nodeId: number,
     activeInstanceId: string,
@@ -1022,6 +1031,9 @@ function NodeInstanceRows({
                       </td>
                       <InstanceIPRegionCell
                         copyToClipboard={copyToClipboard}
+                        isCrossBorderRechecking={crossBorderRecheckingKeys.has(
+                          `${member.nodeId}:${member.instanceId?.trim() || ""}`,
+                        )}
                         member={member}
                         onCrossBorderCorrect={onCrossBorderCorrect}
                         onCrossBorderRecheck={onCrossBorderRecheck}
@@ -1366,6 +1378,7 @@ function SortableTableRow({
   onToggleInstancePause,
   onCrossBorderRecheck,
   onCrossBorderCorrect,
+  crossBorderRecheckingKeys,
   onReorderInstances,
   onInstallMimicDeps,
   realtimeInstanceMetrics,
@@ -2133,6 +2146,7 @@ function SortableTableRow({
               onToggleInstancePause={onToggleInstancePause}
               onCrossBorderCorrect={onCrossBorderCorrect}
               onCrossBorderRecheck={onCrossBorderRecheck}
+              crossBorderRecheckingKeys={crossBorderRecheckingKeys}
               onViewTrafficLogs={handleViewNodeTrafficLogs}
             />
           </TableCell>
@@ -2197,6 +2211,7 @@ export function NodeListView({
   onToggleInstancePause,
   onCrossBorderRecheck,
   onCrossBorderCorrect,
+  crossBorderRecheckingKeys,
   onReorderInstances,
   onInstallMimicDeps,
   onShareNode,
@@ -2527,6 +2542,7 @@ export function NodeListView({
                   onToggleInstancePause,
                   onCrossBorderRecheck,
                   onCrossBorderCorrect,
+                  crossBorderRecheckingKeys,
                   onReorderInstances,
                   onInstallMimicDeps,
                   onShareNode,

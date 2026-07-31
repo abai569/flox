@@ -936,6 +936,10 @@ export default function NodePage() {
   const [nodeInstanceMembers, setNodeInstanceMembers] = useState<
     Record<number, MonitorNodeInstanceGroupMemberApiItem[]>
   >({});
+  const [crossBorderRecheckingKeys, setCrossBorderRecheckingKeys] = useState<
+    Set<string>
+  >(new Set());
+  const crossBorderRecheckingKeysRef = useRef(new Set<string>());
   const [instanceConfigSaving, setInstanceConfigSaving] = useState(false);
   const [instanceConfigTarget, setInstanceConfigTarget] =
     useState<MonitorNodeInstanceGroupMemberApiItem | null>(null);
@@ -2711,16 +2715,63 @@ export default function NodePage() {
       const instanceId = member.instanceId?.trim();
 
       if (!instanceId) return;
+      const key = `${member.nodeId}:${instanceId}`;
+
+      if (crossBorderRecheckingKeysRef.current.has(key)) return;
+      crossBorderRecheckingKeysRef.current.add(key);
+      setCrossBorderRecheckingKeys(
+        new Set(crossBorderRecheckingKeysRef.current),
+      );
+      const checkedAt = Date.now();
+      const previousCrossBorderState = {
+        crossBorderStatus: member.crossBorderStatus,
+        crossBorderError: member.crossBorderError,
+        crossBorderCheckedAt: member.crossBorderCheckedAt,
+        crossBorderObservationUntil: member.crossBorderObservationUntil,
+      };
+      setNodeInstanceMembers((prev) => ({
+        ...prev,
+        [member.nodeId]: (prev[member.nodeId] || []).map((item) =>
+          (item.instanceId || "").trim() === instanceId
+            ? {
+                ...item,
+                crossBorderStatus: "pending_failure",
+                crossBorderError: "正在检测",
+                crossBorderCheckedAt: checkedAt,
+              }
+            : item,
+        ),
+      }));
+
+      const restorePreviousState = () => {
+        setNodeInstanceMembers((prev) => ({
+          ...prev,
+          [member.nodeId]: (prev[member.nodeId] || []).map((item) =>
+            (item.instanceId || "").trim() === instanceId &&
+            item.crossBorderCheckedAt === checkedAt
+              ? { ...item, ...previousCrossBorderState }
+              : item,
+          ),
+        }));
+      };
+
       try {
         const res = await recheckNodeCrossBorder(member.nodeId, instanceId);
 
         if (res.code === 0) {
           toast.success("已发起重新检测");
         } else {
+          restorePreviousState();
           toast.error(res.msg || "重新检测发起失败");
         }
       } catch {
+        restorePreviousState();
         toast.error("网络错误，重新检测发起失败");
+      } finally {
+        crossBorderRecheckingKeysRef.current.delete(key);
+        setCrossBorderRecheckingKeys(
+          new Set(crossBorderRecheckingKeysRef.current),
+        );
       }
     },
     [],
@@ -4933,6 +4984,9 @@ export default function NodePage() {
                                         onCrossBorderRecheck={
                                           handleCrossBorderRecheck
                                         }
+                                        crossBorderRecheckingKeys={
+                                          crossBorderRecheckingKeys
+                                        }
                                         onResetInstanceTraffic={
                                           setInstanceResetTarget
                                         }
@@ -5006,6 +5060,7 @@ export default function NodePage() {
                     onReorderInstances={reorderNodeInstances}
                     onCrossBorderCorrect={handleCrossBorderCorrect}
                     onCrossBorderRecheck={handleCrossBorderRecheck}
+                    crossBorderRecheckingKeys={crossBorderRecheckingKeys}
                     onResetInstanceTraffic={setInstanceResetTarget}
                     onShareNode={(node) => void openNodeSharing(node)}
                     onToggleInstancePause={handleToggleInstancePause}
