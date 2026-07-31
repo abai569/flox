@@ -376,6 +376,19 @@ const formatCrossBorderTime = (timestamp?: number): string => {
   return new Date(value).toLocaleString("zh-CN");
 };
 
+const isActiveCrossBorderObservation = (
+  member: Pick<
+    InstanceIPRegionMember,
+    "crossBorderStatus" | "crossBorderObservationUntil"
+  >,
+): boolean => {
+  const observationUntil = member.crossBorderObservationUntil ?? 0;
+  const observationUntilMs =
+    observationUntil < 100000000000 ? observationUntil * 1000 : observationUntil;
+
+  return member.crossBorderStatus === "observing" && observationUntilMs > Date.now();
+};
+
 function CrossBorderStatusPopover({
   member,
   onRecheck,
@@ -391,7 +404,7 @@ function CrossBorderStatusPopover({
   const blocked = ["blocked", "reverse_blocked"].includes(
     member.crossBorderStatus || "",
   );
-  const observing = member.crossBorderStatus === "observing";
+  const observing = isActiveCrossBorderObservation(member);
   const canRecheck = member.crossBorderStatus !== "healthy";
 
   return (
@@ -426,10 +439,14 @@ function CrossBorderStatusPopover({
             <dd className="text-foreground">
               {formatCrossBorderTime(member.crossBorderCheckedAt)}
             </dd>
-            <dt>观察截止</dt>
-            <dd className="text-foreground">
-              {formatCrossBorderTime(member.crossBorderObservationUntil)}
-            </dd>
+            {observing ? (
+              <>
+                <dt>观察截止</dt>
+                <dd className="text-foreground">
+                  {formatCrossBorderTime(member.crossBorderObservationUntil)}
+                </dd>
+              </>
+            ) : null}
           </dl>
           {observing ? (
             <p className="text-xs leading-5 text-primary-600 dark:text-primary-300">
