@@ -352,6 +352,75 @@ func TestAccumulateNodeInstancePeriodNetTrafficPreservesFirstSampleTotal(t *test
 	}
 }
 
+func TestAdjustNodeInstancePeriodNetTrafficKeepsPeriodCounters(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	instance := model.NodeInstance{
+		NodeID: 25, InstanceID: "traffic-adjust", Status: 1, Weight: 1,
+		PeriodNetInBytes: 100, PeriodNetOutBytes: 200,
+		ManualTrafficInBytes: 10, ManualTrafficOutBytes: 20,
+		CreatedTime: 1, UpdatedTime: 1,
+	}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.AdjustNodeInstancePeriodNetTraffic(25, instance.InstanceID, -50, 30); err != nil {
+		t.Fatal(err)
+	}
+	var stored model.NodeInstance
+	if err := r.db.Where("id = ?", instance.ID).First(&stored).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.PeriodNetInBytes != 100 || stored.PeriodNetOutBytes != 200 {
+		t.Fatalf("period counters = (%d,%d), want (100,200)", stored.PeriodNetInBytes, stored.PeriodNetOutBytes)
+	}
+	if stored.ManualTrafficInBytes != -40 || stored.ManualTrafficOutBytes != 50 {
+		t.Fatalf("manual offsets = (%d,%d), want (-40,50)", stored.ManualTrafficInBytes, stored.ManualTrafficOutBytes)
+	}
+}
+
+func TestResetNodeInstancePeriodNetTrafficManualAndAutomatic(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	instance := model.NodeInstance{
+		NodeID: 26, InstanceID: "traffic-reset", Status: 1, Weight: 1,
+		PeriodNetInBytes: 100, PeriodNetOutBytes: 200,
+		ManualTrafficInBytes: 10, ManualTrafficOutBytes: 20,
+		CreatedTime: 1, UpdatedTime: 1,
+	}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.ResetNodeInstancePeriodNetTraffic(26, instance.InstanceID, 1000, 2000, 10, "eth0", true); err != nil {
+		t.Fatal(err)
+	}
+	var stored model.NodeInstance
+	if err := r.db.Where("id = ?", instance.ID).First(&stored).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.PeriodNetInBytes != 0 || stored.PeriodNetOutBytes != 0 {
+		t.Fatalf("manual reset period = (%d,%d), want (0,0)", stored.PeriodNetInBytes, stored.PeriodNetOutBytes)
+	}
+	if stored.ManualTrafficInBytes != 110 || stored.ManualTrafficOutBytes != 220 {
+		t.Fatalf("manual reset offsets = (%d,%d), want (110,220)", stored.ManualTrafficInBytes, stored.ManualTrafficOutBytes)
+	}
+	if err := r.ResetNodeInstancePeriodNetTraffic(26, instance.InstanceID, 1500, 2500, 10, "eth0", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.db.Where("id = ?", instance.ID).First(&stored).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.ManualTrafficInBytes != 0 || stored.ManualTrafficOutBytes != 0 {
+		t.Fatalf("automatic reset offsets = (%d,%d), want (0,0)", stored.ManualTrafficInBytes, stored.ManualTrafficOutBytes)
+	}
+}
+
 func TestGetNodeInstanceTrafficLimitInfoMapsLimitAndNotificationMask(t *testing.T) {
 	r, err := Open(":memory:")
 	if err != nil {

@@ -21,10 +21,10 @@ export function DatePresets({
   className,
 }: DatePresetsProps) {
   const presetList = presets || [
-    { label: "1 月后", offsetDays: 30 },
-    { label: "3 月后", offsetDays: 90 },
-    { label: "6 月后", offsetDays: 180 },
-    { label: "1 年后", offsetDays: 365 },
+    { label: "1 月后", offsetMonths: 1 },
+    { label: "3 月后", offsetMonths: 3 },
+    { label: "6 月后", offsetMonths: 6 },
+    { label: "1 年后", offsetMonths: 12 },
     { label: "永久", value: 0 },
   ];
 

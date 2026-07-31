@@ -37,6 +37,8 @@ type MonitorNodeInstanceGroupRow struct {
 	NetOutBytes                  int64   `gorm:"column:net_out_bytes"`
 	PeriodNetInBytes             int64   `gorm:"column:period_net_in_bytes"`
 	PeriodNetOutBytes            int64   `gorm:"column:period_net_out_bytes"`
+	ManualTrafficInBytes         int64   `gorm:"column:manual_traffic_in_bytes"`
+	ManualTrafficOutBytes        int64   `gorm:"column:manual_traffic_out_bytes"`
 	TCPConns                     int64   `gorm:"column:tcp_conns"`
 	UDPConns                     int64   `gorm:"column:udp_conns"`
 	Uptime                       int64   `gorm:"column:uptime"`
@@ -119,6 +121,8 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64, includeRemot
 			nsi.net_out_bytes AS net_out_bytes,
 			COALESCE(nsi.period_net_in_bytes, 0) AS period_net_in_bytes,
 			COALESCE(nsi.period_net_out_bytes, 0) AS period_net_out_bytes,
+			COALESCE(nsi.manual_traffic_in_bytes, 0) AS manual_traffic_in_bytes,
+			COALESCE(nsi.manual_traffic_out_bytes, 0) AS manual_traffic_out_bytes,
 			nsi.tcp_conns AS tcp_conns,
 			nsi.udp_conns AS udp_conns,
 			nsi.uptime AS uptime,

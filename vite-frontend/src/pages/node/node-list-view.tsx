@@ -934,7 +934,13 @@ function NodeInstanceRows({
                         {(member.trafficLimit ?? 0) > 0
                           ? (() => {
                               const traffic = getPeriodNetTraffic(member);
-                              const used = traffic.rx + traffic.tx;
+                              const used = Math.max(
+                                traffic.rx +
+                                  traffic.tx +
+                                  (member.manualTrafficInBytes ?? 0) +
+                                  (member.manualTrafficOutBytes ?? 0),
+                                0,
+                              );
                               const limitBytes =
                                 (member.trafficLimit ?? 0) * 1024 * 1024 * 1024;
                               const remaining = Math.max(limitBytes - used, 0);
@@ -950,7 +956,13 @@ function NodeInstanceRows({
                             })()
                           : (() => {
                               const traffic = getPeriodNetTraffic(member);
-                              const used = traffic.rx + traffic.tx;
+                              const used = Math.max(
+                                traffic.rx +
+                                  traffic.tx +
+                                  (member.manualTrafficInBytes ?? 0) +
+                                  (member.manualTrafficOutBytes ?? 0),
+                                0,
+                              );
                               const title = `已用：${formatTraffic(used)}\n可用：不限\n总量：不限`;
 
                               return (

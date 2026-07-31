@@ -50,6 +50,22 @@ func TestRunStatisticsFlowJobTracksIncrementAndPrunes(t *testing.T) {
 	}
 }
 
+func TestNodeInstanceCycleResetDueUsesAnchoredMonthEnd(t *testing.T) {
+	location := time.UTC
+	anchor := time.Date(2026, 1, 31, 12, 0, 0, 0, location)
+	if !nodeInstanceCycleResetDue(anchor.UnixMilli(), "month", time.Date(2026, 3, 31, 12, 0, 0, 0, location)) {
+		t.Fatal("expected March 31 to be a monthly reset date for a January 31 anchor")
+	}
+	if nodeInstanceCycleResetDue(anchor.UnixMilli(), "month", time.Date(2026, 3, 30, 12, 0, 0, 0, location)) {
+		t.Fatal("did not expect March 30 to be a monthly reset date")
+	}
+
+	quarterAnchor := time.Date(2026, 11, 30, 12, 0, 0, 0, location)
+	if !nodeInstanceCycleResetDue(quarterAnchor.UnixMilli(), "quarter", time.Date(2027, 2, 28, 12, 0, 0, 0, location)) {
+		t.Fatal("expected February 28 to be a quarterly reset date for a November 30 anchor")
+	}
+}
+
 func TestRunResetAndExpiryJobResetsFlowAndDisablesExpiredRecords(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "jobs-reset.db")
 	r, err := repo.Open(dbPath)

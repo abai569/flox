@@ -831,6 +831,8 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   netOutBytes: number;
   periodNetInBytes: number;
   periodNetOutBytes: number;
+  manualTrafficInBytes?: number;
+  manualTrafficOutBytes?: number;
   uptime: number;
   periodRx: number;
   periodTx: number;
@@ -871,6 +873,8 @@ export interface MonitorPublicNodeInstanceGroupMemberApiItem {
   netOutBytes: number;
   periodNetInBytes: number;
   periodNetOutBytes: number;
+  manualTrafficInBytes?: number;
+  manualTrafficOutBytes?: number;
   uptime: number;
   periodRx: number;
   periodTx: number;

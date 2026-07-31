@@ -229,7 +229,10 @@ func (h *Handler) maybeCheckNodeTraffic(nodeID int64, instanceID string, periodR
 	if err != nil || info == nil {
 		return
 	}
-	used := info.PeriodNetInBytes + info.PeriodNetOutBytes
+	used := info.PeriodNetInBytes + info.PeriodNetOutBytes + info.ManualInBytes + info.ManualOutBytes
+	if used < 0 {
+		used = 0
+	}
 	remainingGB := entry.limitGB - used/(1024*1024*1024)
 	if remainingGB < 0 {
 		remainingGB = 0
@@ -288,7 +291,10 @@ func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, perio
 	if periodNetIn < 0 || periodNetOut < 0 {
 		return
 	}
-	totalUsed := info.PeriodNetInBytes + info.PeriodNetOutBytes
+	totalUsed := info.PeriodNetInBytes + info.PeriodNetOutBytes + info.ManualInBytes + info.ManualOutBytes
+	if totalUsed < 0 {
+		totalUsed = 0
+	}
 	if reportedUsed := periodNetIn + periodNetOut; reportedUsed > totalUsed {
 		totalUsed = reportedUsed
 	}

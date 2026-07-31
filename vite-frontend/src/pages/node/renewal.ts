@@ -1,3 +1,5 @@
+import { addCalendarMonthsClamped } from "@/utils/date";
+
 export type NodeRenewalCycle = "" | "month" | "quarter" | "halfYear" | "year";
 
 export interface NodeRenewalSnapshot {
@@ -10,12 +12,7 @@ export interface NodeRenewalSnapshot {
 }
 
 const addMonths = (timestamp: number, months: number): number => {
-  const date = new Date(timestamp);
-  const next = new Date(date);
-
-  next.setMonth(next.getMonth() + months);
-
-  return next.getTime();
+  return addCalendarMonthsClamped(new Date(timestamp), months).getTime();
 };
 
 const cycleToMonths = (cycle: NodeRenewalCycle): number => {
@@ -76,9 +73,11 @@ export const getNodeRenewalSnapshot = (
 
   const intervalMonths = cycleToMonths(normalizedCycle);
   let nextDueTime = anchorTime;
+  let period = 0;
 
   while (nextDueTime < Date.now()) {
-    const advanced = addMonths(nextDueTime, intervalMonths);
+    period += 1;
+    const advanced = addMonths(anchorTime, intervalMonths * period);
 
     if (advanced === nextDueTime) {
       break;

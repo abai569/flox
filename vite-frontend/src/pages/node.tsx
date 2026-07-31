@@ -2315,7 +2315,13 @@ export default function NodePage() {
   ) => {
     const renewalCycle = String(member.renewalCycle || "");
     const usedTraffic =
-      ((member.periodNetInBytes ?? 0) + (member.periodNetOutBytes ?? 0)) /
+      Math.max(
+        (member.periodNetInBytes ?? 0) +
+          (member.periodNetOutBytes ?? 0) +
+          (member.manualTrafficInBytes ?? 0) +
+          (member.manualTrafficOutBytes ?? 0),
+        0,
+      ) /
       (1024 * 1024 * 1024);
 
     setInstanceConfigSaving(false);
@@ -2375,6 +2381,14 @@ export default function NodePage() {
       return;
     }
     if (
+      instanceConfigForm.trafficLimitMode === 2 &&
+      (expiryTime <= 0 || !renewalCycle)
+    ) {
+      toast.error("周期累计必须设置续费周期和续费基准时间");
+
+      return;
+    }
+    if (
       !Number.isFinite(flowResetTime) ||
       flowResetTime < 0 ||
       flowResetTime > 31
@@ -2396,9 +2410,13 @@ export default function NodePage() {
     const trafficLimitMode = instanceConfigForm.trafficLimitMode ?? 1;
 
     // 计算本周期网卡流量差值（GB -> bytes）
-    const currentUsedBytes =
+    const currentUsedBytes = Math.max(
       (instanceConfigTarget.periodNetInBytes ?? 0) +
-      (instanceConfigTarget.periodNetOutBytes ?? 0);
+        (instanceConfigTarget.periodNetOutBytes ?? 0) +
+        (instanceConfigTarget.manualTrafficInBytes ?? 0) +
+        (instanceConfigTarget.manualTrafficOutBytes ?? 0),
+      0,
+    );
     const targetUsedBytes = Math.round(usedTrafficGB * 1024 * 1024 * 1024);
     const diffBytes = usedTrafficDirty ? targetUsedBytes - currentUsedBytes : 0;
 
@@ -2407,8 +2425,12 @@ export default function NodePage() {
     let outFlowAdjust = 0;
 
     if (Math.abs(diffBytes) > 0) {
-      const currentIn = instanceConfigTarget.periodNetInBytes ?? 0;
-      const currentOut = instanceConfigTarget.periodNetOutBytes ?? 0;
+      const currentIn =
+        (instanceConfigTarget.manualTrafficInBytes ?? 0) +
+        (instanceConfigTarget.periodNetInBytes ?? 0);
+      const currentOut =
+        (instanceConfigTarget.manualTrafficOutBytes ?? 0) +
+        (instanceConfigTarget.periodNetOutBytes ?? 0);
       const total = currentIn + currentOut;
 
       if (total > 0) {
@@ -6155,21 +6177,43 @@ export default function NodePage() {
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input
-                    description="0=不归零，1-31=日期"
-                    label="流量归零日"
-                    max={31}
-                    min={0}
-                    type="number"
-                    value={instanceConfigForm.flowResetTime}
+                  <Select
+                    description={
+                      instanceConfigForm.trafficLimitMode === 1
+                        ? "每月重置，流量归零日为0时不自动重置"
+                        : instanceConfigForm.trafficLimitMode === 2
+                          ? "按续费基准时间和续费周期自动重置"
+                          : "不自动重置，流量持续累计"
+                    }
+                    label="流量累计模式"
+                    selectedKeys={[String(instanceConfigForm.trafficLimitMode)]}
                     variant="bordered"
-                    onChange={(e) =>
+                    onSelectionChange={(keys) =>
                       setInstanceConfigForm((prev) => ({
                         ...prev,
-                        flowResetTime: e.target.value,
+                        trafficLimitMode: Number(Array.from(keys)[0] || 0),
                       }))
                     }
-                  />
+                  >
+                    <SelectItem
+                      key="1"
+                      description="每月归零日自动重置累计流量"
+                    >
+                      按月累计
+                    </SelectItem>
+                    <SelectItem
+                      key="2"
+                      description="到续费基准时间后按月付、季付、半年付或年付周期重置"
+                    >
+                      周期累计
+                    </SelectItem>
+                    <SelectItem
+                      key="0"
+                      description="不自动重置，流量一直累加，达到限额后暂停"
+                    >
+                      永久累计
+                    </SelectItem>
+                  </Select>
                   <DatePicker
                     showMonthAndYearPickers
                     label="续费基准时间"
@@ -6230,32 +6274,21 @@ export default function NodePage() {
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Select
-                    description="首次设置流量限额后不可更改"
-                    isDisabled={(instanceConfigTarget?.trafficLimit ?? 0) > 0}
-                    label="流量累计模式"
-                    selectedKeys={[String(instanceConfigForm.trafficLimitMode)]}
+                  <Input
+                    description="0=不归零，1-31=日期"
+                    label="流量归零日"
+                    max={31}
+                    min={0}
+                    type="number"
+                    value={instanceConfigForm.flowResetTime}
                     variant="bordered"
-                    onSelectionChange={(keys) =>
+                    onChange={(e) =>
                       setInstanceConfigForm((prev) => ({
                         ...prev,
-                        trafficLimitMode: Number(Array.from(keys)[0] || 0),
+                        flowResetTime: e.target.value,
                       }))
                     }
-                  >
-                    <SelectItem
-                      key="1"
-                      description="每月归零日自动重置累计流量"
-                    >
-                      按月累计
-                    </SelectItem>
-                    <SelectItem
-                      key="0"
-                      description="流量一直累加，达到限额后暂停"
-                    >
-                      终身累计
-                    </SelectItem>
-                  </Select>
+                  />
                   <Input
                     description="权重为 0 时暂停转发"
                     label="权重"

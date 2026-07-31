@@ -575,7 +575,19 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 	dayEnd := dayStart.AddDate(0, 0, 1)
 
 	instances, err := h.repo.ListNodeInstanceMonthlyFlowResetDue(currentDay, lastDay, dayStart.UnixMilli(), dayEnd.UnixMilli())
-	if err != nil || len(instances) == 0 {
+	if err != nil {
+		return
+	}
+	cycleCandidates, err := h.repo.ListNodeInstanceCycleFlowResetCandidates(dayStart.UnixMilli(), dayEnd.UnixMilli())
+	if err != nil {
+		return
+	}
+	for _, inst := range cycleCandidates {
+		if nodeInstanceCycleResetDue(inst.ExpiryTime, inst.RenewalCycle, now) {
+			instances = append(instances, inst)
+		}
+	}
+	if len(instances) == 0 {
 		return
 	}
 
@@ -631,13 +643,57 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 			continue
 		}
 		_ = h.repo.ResetNodeInstanceTotalFlow(inst.NodeID, inst.InstanceID)
-		_ = h.repo.ResetNodeInstancePeriodNetTraffic(inst.NodeID, inst.InstanceID, netIn, netOut, bootID, interfaceKey)
+		_ = h.repo.ResetNodeInstancePeriodNetTraffic(inst.NodeID, inst.InstanceID, netIn, netOut, bootID, interfaceKey, false)
 		h.nodeTrafficCache.Delete(fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID))
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficReset(logName, "自动周期归零")
 		})
 	}
+}
+
+func nodeInstanceCycleResetDue(anchorMs int64, cycle string, now time.Time) bool {
+	months := 0
+	switch strings.TrimSpace(cycle) {
+	case "month":
+		months = 1
+	case "quarter":
+		months = 3
+	case "halfYear", "halfyear":
+		months = 6
+	case "year":
+		months = 12
+	}
+	if anchorMs <= 0 || months == 0 {
+		return false
+	}
+	anchor := time.UnixMilli(anchorMs).In(now.Location())
+	for period := 0; ; period++ {
+		boundary := addCalendarMonthsClamped(anchor, period*months)
+		if boundary.After(now) {
+			return false
+		}
+		if boundary.Year() == now.Year() && boundary.YearDay() == now.YearDay() {
+			return true
+		}
+	}
+}
+
+func addCalendarMonthsClamped(value time.Time, months int) time.Time {
+	year, month, day := value.Date()
+	hour, minute, second := value.Clock()
+	targetMonth := int(month) - 1 + months
+	targetYear := year + targetMonth/12
+	targetMonth %= 12
+	if targetMonth < 0 {
+		targetMonth += 12
+		targetYear--
+	}
+	lastDay := time.Date(targetYear, time.Month(targetMonth)+2, 0, hour, minute, second, value.Nanosecond(), value.Location()).Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(targetYear, time.Month(targetMonth)+1, day, hour, minute, second, value.Nanosecond(), value.Location())
 }
 
 func (h *Handler) disableExpiredUsers(nowMs int64) {

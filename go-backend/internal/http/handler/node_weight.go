@@ -65,8 +65,8 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 	trafficLimitMode := 1
 	if req.TrafficLimitMode != nil {
 		trafficLimitMode = *req.TrafficLimitMode
-		if trafficLimitMode < 0 || trafficLimitMode > 1 {
-			response.WriteJSON(w, response.ErrDefault("流量累计模式必须为 0 或 1"))
+		if trafficLimitMode < 0 || trafficLimitMode > 2 {
+			response.WriteJSON(w, response.ErrDefault("流量累计模式必须为 0、1 或 2"))
 			return
 		}
 	}
@@ -98,6 +98,10 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 			response.WriteJSON(w, response.ErrDefault("请同时设置续费周期和到期时间"))
 			return
 		}
+		if trafficLimitMode == 2 && (renewalCycle == "" || expiryTime <= 0) {
+			response.WriteJSON(w, response.ErrDefault("周期累计必须设置续费周期和续费基准时间"))
+			return
+		}
 		flowResetTime := req.FlowResetTime
 		if flowResetTime < 0 || flowResetTime > 31 {
 			response.WriteJSON(w, response.ErrDefault("流量归零日必须在 0-31 之间，0 表示不归零"))
@@ -118,9 +122,6 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 
 		// 处理流量矫正
 		if req.InFlowAdjust != 0 || req.OutFlowAdjust != 0 {
-			if err := h.repo.AdjustNodeInstanceTraffic(req.NodeID, instanceID, req.InFlowAdjust, req.OutFlowAdjust); err != nil {
-				log.Printf("WARN: adjust node %d instance %s traffic failed: %v", req.NodeID, instanceID, err)
-			}
 			if err := h.repo.AdjustNodeInstancePeriodNetTraffic(req.NodeID, instanceID, req.InFlowAdjust, req.OutFlowAdjust); err != nil {
 				log.Printf("WARN: adjust node %d instance %s period network traffic failed: %v", req.NodeID, instanceID, err)
 			}

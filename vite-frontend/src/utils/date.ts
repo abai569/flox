@@ -7,7 +7,25 @@ export interface CalendarDateLike {
 export interface DatePreset {
   label: string;
   offsetDays?: number;
+  offsetMonths?: number;
   value?: number;
+}
+
+export function addCalendarMonthsClamped(date: Date, months: number): Date {
+  const target = new Date(date);
+  const originalDay = target.getDate();
+
+  target.setDate(1);
+  target.setMonth(target.getMonth() + months);
+  const lastDay = new Date(
+    target.getFullYear(),
+    target.getMonth() + 1,
+    0,
+  ).getDate();
+
+  target.setDate(Math.min(originalDay, lastDay));
+
+  return target;
 }
 
 export function timestampToCalendarDate(
@@ -45,10 +63,10 @@ export function isPermanentDate(value: number | null | undefined): boolean {
 
 export function getDefaultDatePresets(): DatePreset[] {
   return [
-    { label: "1 月后", offsetDays: 30 },
-    { label: "3 月后", offsetDays: 90 },
-    { label: "6 月后", offsetDays: 180 },
-    { label: "1 年后", offsetDays: 365 },
+    { label: "1 月后", offsetMonths: 1 },
+    { label: "3 月后", offsetMonths: 3 },
+    { label: "6 月后", offsetMonths: 6 },
+    { label: "1 年后", offsetMonths: 12 },
     { label: "永久", value: 0 },
   ];
 }
@@ -56,6 +74,13 @@ export function getDefaultDatePresets(): DatePreset[] {
 export function calculateDateFromPreset(preset: DatePreset): number {
   if (preset.value !== undefined) {
     return preset.value;
+  }
+  if (preset.offsetMonths !== undefined) {
+    const next = addCalendarMonthsClamped(new Date(), preset.offsetMonths);
+
+    next.setHours(23, 59, 59, 999);
+
+    return next.getTime();
   }
   if (preset.offsetDays !== undefined) {
     const now = new Date();
