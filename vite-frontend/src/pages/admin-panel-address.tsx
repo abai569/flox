@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { PageLoadingState } from "@/components/page-state";
 
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Input } from "@/shadcn-bridge/heroui/input";
@@ -118,9 +119,7 @@ export default function AdminPanelAddressPage() {
 
       <main className="flex-1 p-4">
         {loading ? (
-          <div className="flex items-center justify-center py-20 text-gray-400">
-            加载中...
-          </div>
+          <PageLoadingState message="正在加载..." />
         ) : addresses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
             <svg

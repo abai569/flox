@@ -2276,7 +2276,11 @@ export default function TunnelPage() {
     : `删除这 ${selectedTunnelIdList.length} 条隧道`;
 
   if (loading) {
-    return <PageLoadingState message="正在加载..." />;
+    return (
+      <AnimatedPage className="px-3 lg:px-6 py-8">
+        <PageLoadingState message="正在加载..." />
+      </AnimatedPage>
+    );
   }
 
   return (
@@ -4532,7 +4536,8 @@ export default function TunnelPage() {
                                   {title}
                                 </h3>
                               </div>
-                              <table className="w-full text-sm">
+                              <div className="overflow-x-auto min-w-0">
+                              <table className="w-full text-sm table-fixed">
                                 <thead className="bg-default-100 dark:bg-gray-700">
                                   <tr>
                                     <th className="px-3 py-2 text-left font-semibold text-xs">
@@ -4692,6 +4697,7 @@ export default function TunnelPage() {
                                   })}
                                 </tbody>
                               </table>
+                              </div>
                             </div>
                           );
                         };

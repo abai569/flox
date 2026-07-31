@@ -92,7 +92,7 @@ export const TableBody = React.forwardRef<
       <tbody ref={ref} className={className} {...props}>
         <tr>
           <td className="p-4 text-center text-default-500" colSpan={999}>
-            {loadingContent ?? "加载中..."}
+            {loadingContent ?? "正在加载..."}
           </td>
         </tr>
       </tbody>

@@ -5383,7 +5383,11 @@ export default function ForwardPage() {
   };
 
   if (loading || !groupPreferenceHydrated) {
-    return <PageLoadingState message="正在加载..." />;
+    return (
+      <AnimatedPage className="px-3 lg:px-6 py-8">
+        <PageLoadingState message="正在加载..." />
+      </AnimatedPage>
+    );
   }
 
   return (
@@ -7802,7 +7806,8 @@ export default function ForwardPage() {
                                   {title}
                                 </h3>
                               </div>
-                              <table className="w-full text-sm">
+                              <div className="overflow-x-auto min-w-0">
+                              <table className="w-full text-sm table-fixed">
                                 <thead className="bg-default-100 dark:bg-gray-700">
                                   <tr>
                                     <th className="px-3 py-2 text-left font-semibold text-xs">
@@ -7930,7 +7935,7 @@ export default function ForwardPage() {
                                           !isServiceCheck &&
                                           quality ? (
                                             <div
-                                              className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium ${quality.color === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : quality.color === "warning" ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
+                                              className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap ${quality.color === "success" ? "bg-success-500/10 text-success-600 dark:text-success-400" : quality.color === "warning" ? "bg-warning-500/10 text-warning-600 dark:text-warning-400" : "bg-danger-500/10 text-danger-600 dark:text-danger-400"}`}
                                             >
                                               {quality.text}
                                             </div>
@@ -7945,6 +7950,7 @@ export default function ForwardPage() {
                                   })}
                                 </tbody>
                               </table>
+                              </div>
                             </div>
                           );
                         };

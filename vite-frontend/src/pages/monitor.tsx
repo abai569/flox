@@ -468,10 +468,7 @@ function NodeInstanceGroupsView({
 }) {
   if (loading && groups.length === 0) {
     return (
-      <PageLoadingState
-        className="min-h-[calc(100vh-220px)]"
-        message="正在加载..."
-      />
+      <PageLoadingState message="正在加载..." />
     );
   }
 

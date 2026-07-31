@@ -530,9 +530,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="px-3 lg:px-6 flex-grow pt-2 lg:pt-4">
-        <PageLoadingState message="正在加载数据..." />
-      </div>
+      <AnimatedPage className="px-3 lg:px-6 py-2 lg:py-4">
+        <PageLoadingState message="正在加载..." />
+      </AnimatedPage>
     );
   }
 

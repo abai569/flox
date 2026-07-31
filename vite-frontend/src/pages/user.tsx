@@ -2012,6 +2012,14 @@ export default function UserPage() {
     );
   };
 
+  if (loading) {
+    return (
+      <AnimatedPage className="px-3 lg:px-6 py-8">
+        <PageLoadingState message="正在加载..." />
+      </AnimatedPage>
+    );
+  }
+
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">
       {/* 页面头部 */}
@@ -2128,9 +2136,7 @@ export default function UserPage() {
         </div>
       </div>
       {/* 用户列表 */}
-      {loading ? (
-        <PageLoadingState message="正在加载..." />
-      ) : users.length === 0 ? (
+      {users.length === 0 ? (
         <Card className="shadow-sm border border-gray-200 dark:border-gray-700 bg-default-50/50">
           <CardBody className="text-center py-20 flex flex-col items-center justify-center min-h-[240px]">
             <h3 className="text-xl font-medium text-foreground tracking-tight mb-2">

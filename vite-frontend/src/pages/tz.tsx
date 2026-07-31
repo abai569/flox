@@ -11,6 +11,7 @@ import { CountryFlag } from "@/components/country-flag";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
+import { PageLoadingState } from "@/components/page-state";
 import { getMonitorPublicNodeInstanceGroups } from "@/api";
 import { useNodeRealtime } from "@/pages/node/use-node-realtime";
 import { MoonFilledIcon, SunFilledIcon } from "@/components/icons";
@@ -150,11 +151,7 @@ function InstanceRows({
 }) {
   if (loading && groups.length === 0) {
     return (
-      <Card>
-        <CardBody className="py-12 text-center text-sm text-default-500 dark:text-default-300">
-          正在加载探针数据...
-        </CardBody>
-      </Card>
+      <PageLoadingState message="正在加载..." />
     );
   }
 
