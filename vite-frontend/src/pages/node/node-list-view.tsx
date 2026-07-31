@@ -175,7 +175,13 @@ const getRemoteExpiryChipProps = (timestamp?: number) => {
     };
   }
   const expiry = timestamp < 100000000000 ? timestamp * 1000 : timestamp;
-  const days = Math.ceil((expiry - Date.now()) / 86400000);
+  const todayBoundary = new Date();
+  todayBoundary.setHours(0, 0, 1, 0);
+  const expiryBoundary = new Date(expiry);
+  expiryBoundary.setHours(0, 0, 1, 0);
+  const days = Math.round(
+    (expiryBoundary.getTime() - todayBoundary.getTime()) / 86400000,
+  );
 
   return {
     label: new Date(expiry).toLocaleDateString("zh-CN"),

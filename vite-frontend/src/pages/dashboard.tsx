@@ -382,9 +382,21 @@ export default function DashboardPage() {
         text: "已过期",
       };
     }
-    const diffTime = expDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const todayBoundary = new Date(now);
+    todayBoundary.setHours(0, 0, 1, 0);
+    const expiryBoundary = new Date(expDate);
+    expiryBoundary.setHours(0, 0, 1, 0);
+    const diffDays = Math.round(
+      (expiryBoundary.getTime() - todayBoundary.getTime()) / 86400000,
+    );
 
+    if (diffDays === 0) {
+      return {
+        color: "text-red-600 dark:text-red-400",
+        bg: "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20",
+        text: "今天到期",
+      };
+    }
     if (diffDays <= 7) {
       return {
         color: "text-red-600 dark:text-red-400",

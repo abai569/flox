@@ -45,16 +45,16 @@ export function timestampToCalendarDate(
 
 export function calendarDateToTimestamp(
   date: CalendarDateLike | null | undefined,
-  endOfDay: boolean = true,
+  endOfDay: boolean = false,
 ): number | null {
   if (!date) {
     return null;
   }
   if (endOfDay) {
-    return new Date(date.year, date.month - 1, date.day, 23, 59, 59).getTime();
+    return new Date(date.year, date.month - 1, date.day, 0, 0, 1).getTime();
   }
 
-  return new Date(date.year, date.month - 1, date.day, 0, 0, 0).getTime();
+  return new Date(date.year, date.month - 1, date.day, 0, 0, 1).getTime();
 }
 
 export function isPermanentDate(value: number | null | undefined): boolean {
@@ -78,7 +78,7 @@ export function calculateDateFromPreset(preset: DatePreset): number {
   if (preset.offsetMonths !== undefined) {
     const next = addCalendarMonthsClamped(new Date(), preset.offsetMonths);
 
-    next.setHours(23, 59, 59, 999);
+    next.setHours(0, 0, 1, 0);
 
     return next.getTime();
   }
@@ -86,7 +86,7 @@ export function calculateDateFromPreset(preset: DatePreset): number {
     const now = new Date();
 
     now.setDate(now.getDate() + preset.offsetDays);
-    now.setHours(23, 59, 59, 999);
+    now.setHours(0, 0, 1, 0);
 
     return now.getTime();
   }

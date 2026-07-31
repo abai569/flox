@@ -5,12 +5,47 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	gsqlite "github.com/glebarez/sqlite"
 	"go-backend/internal/store/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+func TestNormalizeBusinessExpiryTimesUsesLocalStartBoundary(t *testing.T) {
+	db, err := gorm.Open(gsqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.Exec(`CREATE TABLE user (id INTEGER PRIMARY KEY, exp_time INTEGER NOT NULL)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`CREATE TABLE user_tunnel (id INTEGER PRIMARY KEY, exp_time INTEGER NOT NULL)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	legacy := time.Date(2026, 8, 1, 23, 59, 59, 0, time.Local).UnixMilli()
+	if err := db.Exec(`INSERT INTO user(id, exp_time) VALUES(1, ?)`, legacy).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`INSERT INTO user_tunnel(id, exp_time) VALUES(1, ?)`, legacy).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := normalizeBusinessExpiryTimes(db); err != nil {
+		t.Fatalf("normalize expiry times: %v", err)
+	}
+	want := time.Date(2026, 8, 1, 0, 0, 1, 0, time.Local).UnixMilli()
+	var userExpiry, tunnelExpiry int64
+	if err := db.Raw(`SELECT exp_time FROM user WHERE id=1`).Scan(&userExpiry).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Raw(`SELECT exp_time FROM user_tunnel WHERE id=1`).Scan(&tunnelExpiry).Error; err != nil {
+		t.Fatal(err)
+	}
+	if userExpiry != want || tunnelExpiry != want {
+		t.Fatalf("normalized expiry = %d/%d, want %d", userExpiry, tunnelExpiry, want)
+	}
+}
 
 func TestPrepareSQLiteLegacyColumnsAddsNodeMetadataColumns(t *testing.T) {
 	db, err := gorm.Open(gsqlite.Open(":memory:"), &gorm.Config{

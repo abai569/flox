@@ -138,32 +138,46 @@ const checkExpirationNotifications = (
     const expDate = new Date(userInfo.expTime);
     const now = new Date();
 
-    if (!isNaN(expDate.getTime()) && expDate > now) {
-      const diffTime = expDate.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays <= 7 && diffDays > 0) {
-        hasNotification = true;
-        if (diffDays === 1) {
-          toast("账户将于明天过期，请及时续费", {
-            icon: "⚠️",
-            duration: 6000,
-            style: { background: "#f59e0b", color: "#fff" },
-          });
-        } else {
-          toast(`账户将于${diffDays}天后过期，请及时续费`, {
-            icon: "⚠️",
-            duration: 6000,
-            style: { background: "#f59e0b", color: "#fff" },
-          });
-        }
-      } else if (diffDays <= 0) {
+    if (!isNaN(expDate.getTime())) {
+      if (expDate <= now) {
         hasNotification = true;
         toast("账户已过期，请立即续费", {
           icon: "⚠️",
           duration: 8000,
           style: { background: "#ef4444", color: "#fff" },
         });
+      } else {
+        const todayBoundary = new Date(now);
+        todayBoundary.setHours(0, 0, 1, 0);
+        const expiryBoundary = new Date(expDate);
+        expiryBoundary.setHours(0, 0, 1, 0);
+        const diffDays = Math.round(
+          (expiryBoundary.getTime() - todayBoundary.getTime()) / 86400000,
+        );
+
+        if (diffDays === 0) {
+          hasNotification = true;
+          toast("账户今天到期，请立即续费", {
+            icon: "⚠️",
+            duration: 8000,
+            style: { background: "#ef4444", color: "#fff" },
+          });
+        } else if (diffDays <= 7) {
+          hasNotification = true;
+          if (diffDays === 1) {
+            toast("账户将于明天过期，请及时续费", {
+              icon: "⚠️",
+              duration: 6000,
+              style: { background: "#f59e0b", color: "#fff" },
+            });
+          } else {
+            toast(`账户将于${diffDays}天后过期，请及时续费`, {
+              icon: "⚠️",
+              duration: 6000,
+              style: { background: "#f59e0b", color: "#fff" },
+            });
+          }
+        }
       }
     }
   }
@@ -176,11 +190,32 @@ const checkExpirationNotifications = (
     const expDate = new Date(tunnel.expTime);
     const now = new Date();
 
-    if (!isNaN(expDate.getTime()) && expDate > now) {
-      const diffTime = expDate.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (!isNaN(expDate.getTime())) {
+      if (expDate <= now) {
+        hasNotification = true;
+        toast(`隧道"${tunnel.tunnelName}"已过期`, {
+          icon: "⚠️",
+          duration: 6000,
+          style: { background: "#ef4444", color: "#fff" },
+        });
+        return;
+      }
+      const todayBoundary = new Date(now);
+      todayBoundary.setHours(0, 0, 1, 0);
+      const expiryBoundary = new Date(expDate);
+      expiryBoundary.setHours(0, 0, 1, 0);
+      const diffDays = Math.round(
+        (expiryBoundary.getTime() - todayBoundary.getTime()) / 86400000,
+      );
 
-      if (diffDays <= 7 && diffDays > 0) {
+      if (diffDays === 0) {
+        hasNotification = true;
+        toast(`隧道"${tunnel.tunnelName}"今天到期`, {
+          icon: "⚠️",
+          duration: 6000,
+          style: { background: "#ef4444", color: "#fff" },
+        });
+      } else if (diffDays <= 7) {
         hasNotification = true;
         if (diffDays === 1) {
           toast(`隧道"${tunnel.tunnelName}"将于明天过期`, {
@@ -195,13 +230,6 @@ const checkExpirationNotifications = (
             style: { background: "#f59e0b", color: "#fff" },
           });
         }
-      } else if (diffDays <= 0) {
-        hasNotification = true;
-        toast(`隧道"${tunnel.tunnelName}"已过期`, {
-          icon: "⚠️",
-          duration: 6000,
-          style: { background: "#ef4444", color: "#fff" },
-        });
       }
     }
   });

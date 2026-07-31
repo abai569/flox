@@ -472,9 +472,9 @@ func durationUntilNextHour(now time.Time) time.Duration {
 }
 
 func durationUntilNextDailyMaintenance(now time.Time) time.Duration {
-	next := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 5, 0, now.Location())
+	next := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 1, 0, now.Location())
 	if !next.After(now) {
-		next = next.Add(24 * time.Hour)
+		next = next.AddDate(0, 0, 1)
 	}
 	return next.Sub(now)
 }
@@ -574,7 +574,7 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 
 	currentDay := now.Day()
 	lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, now.Location()).Day()
-	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 1, 0, now.Location())
 	dayEnd := dayStart.AddDate(0, 0, 1)
 
 	instances, err := h.repo.ListNodeInstanceMonthlyFlowResetDue(currentDay, lastDay, dayStart.UnixMilli(), dayEnd.UnixMilli())

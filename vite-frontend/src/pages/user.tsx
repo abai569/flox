@@ -140,7 +140,17 @@ const getExpireStatus = (expTime: number) => {
   if (expTime < now) {
     return { color: "danger" as const, text: "已过期" };
   }
-  const diffDays = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
+  const todayBoundary = new Date();
+  todayBoundary.setHours(0, 0, 1, 0);
+  const expiryBoundary = new Date(expTime);
+  expiryBoundary.setHours(0, 0, 1, 0);
+  const diffDays = Math.round(
+    (expiryBoundary.getTime() - todayBoundary.getTime()) / 86400000,
+  );
+
+  if (diffDays <= 0) {
+    return { color: "danger" as const, text: "今天到期" };
+  }
 
   if (diffDays <= 7) {
     return { color: "warning" as const, text: `${diffDays}天后过期` };
@@ -297,7 +307,12 @@ export default function UserPage() {
       dailyQuotaGB: 0,
       monthlyQuotaGB: 0,
       num: 0,
-      expTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      expTime: (() => {
+        const date = new Date();
+        date.setDate(date.getDate() + 3);
+        date.setHours(0, 0, 1, 0);
+        return date;
+      })(),
       flowResetTime: 0,
       tunnelGroupId: undefined,
       manualTunnelEnabled: 0,
