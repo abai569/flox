@@ -208,6 +208,8 @@ func requiresAdmin(path string) bool {
 		return true
 	case "/api/v1/user/quota/history", "/api/v1/user/quota/history/delete", "/api/v1/user/renewal-logs", "/api/v1/user/renewal-log/delete", "/api/v1/user/traffic-buy-logs", "/api/v1/user/traffic-buy-log/delete":
 		return true
+	case "/api/v1/user/admin/billing-history", "/api/v1/user/admin/billing-history/delete":
+		return true
 	case "/api/v1/config/update", "/api/v1/config/update-single":
 		return true
 	case "/api/v1/announcement/update":

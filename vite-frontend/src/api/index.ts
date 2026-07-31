@@ -565,6 +565,17 @@ export const getUserTrafficBuyLogs = (userId: number, limit: number = 50) =>
 export const deleteUserTrafficBuyLog = (id: number) =>
   Network.post("/user/traffic-buy-log/delete", { id });
 
+export const getAdminUserBillingHistory = (userId: number, page = 1, size = 50) =>
+  Network.post<{ list: BillingHistoryItem[]; total: number; page: number; size: number }>(
+    "/user/admin/billing-history",
+    { userId, page, size },
+  );
+export const deleteAdminUserBillingHistory = (data: {
+  userId: number;
+  type: BillingHistoryItem["type"];
+  id: number;
+}) => Network.post("/user/admin/billing-history/delete", data);
+
 export const getTrafficHistoryList = (userId?: number, limit: number = 50) =>
   Network.post<TrafficHistoryItem[]>("/traffic-history/list", {
     userId,

@@ -1255,6 +1255,7 @@ export interface UserNotificationItem {
 
 export interface BillingHistoryItem {
   id: string;
+  sourceId: number;
   type: "renewal" | "traffic" | "recharge";
   title: string;
   occurredAt: number;

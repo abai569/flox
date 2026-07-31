@@ -1,7 +1,6 @@
 import type {
+  BillingHistoryItem,
   UserQuotaHistoryItem,
-  UserRenewalLogItem,
-  UserTrafficBuyLogItem,
   TunnelGroupNewApiItem,
 } from "@/api/types";
 
@@ -99,10 +98,8 @@ import {
   updateUserOrder,
   getUserQuotaHistory,
   deleteUserQuotaHistory,
-  getUserRenewalLogs,
-  deleteUserRenewalLog,
-  getUserTrafficBuyLogs,
-  deleteUserTrafficBuyLog,
+  getAdminUserBillingHistory,
+  deleteAdminUserBillingHistory,
   batchUpdateUserTunnelStatus,
   getConfigByName,
   updateConfig,
@@ -392,21 +389,12 @@ export default function UserPage() {
   const [isRenewalLogModalOpen, setIsRenewalLogModalOpen] = useState(false);
   const [selectedRenewalLogUser, setSelectedRenewalLogUser] =
     useState<User | null>(null);
-  const [renewalLogs, setRenewalLogs] = useState<UserRenewalLogItem[]>([]);
-  const [renewalLogLoading, setRenewalLogLoading] = useState(false);
-  const [renewalLogToDelete, setRenewalLogToDelete] = useState<number | null>(
-    null,
-  );
-  const [logModalTab, setLogModalTab] = useState<"renewal" | "traffic">(
-    "renewal",
-  );
-  const [trafficBuyLogs, setTrafficBuyLogs] = useState<UserTrafficBuyLogItem[]>(
-    [],
-  );
-  const [trafficBuyLogLoading, setTrafficBuyLogLoading] = useState(false);
-  const [trafficBuyLogToDelete, setTrafficBuyLogToDelete] = useState<
-    number | null
-  >(null);
+  const [billingHistory, setBillingHistory] = useState<BillingHistoryItem[]>([]);
+  const [billingHistoryLoading, setBillingHistoryLoading] = useState(false);
+  const [billingHistoryPage, setBillingHistoryPage] = useState(1);
+  const [billingHistoryTotal, setBillingHistoryTotal] = useState(0);
+  const [billingHistoryToDelete, setBillingHistoryToDelete] =
+    useState<BillingHistoryItem | null>(null);
   const [regOpen, setRegOpen] = useState(true);
   const [regLoading, setRegLoading] = useState(false);
   // --- 监控权限相关状态 (来自 user 新) ---
@@ -1342,72 +1330,47 @@ export default function UserPage() {
     onMonitorModalClose,
   ]);
   const handleOpenRenewalLogModal = async (user: User) => {
-    const requestID = ++logRequestRef.current;
-
     setSelectedRenewalLogUser(user);
     setIsRenewalLogModalOpen(true);
-    setLogModalTab("renewal");
-    setRenewalLogLoading(true);
-    setRenewalLogs([]);
-    setTrafficBuyLogLoading(true);
-    setTrafficBuyLogs([]);
+    setBillingHistoryPage(1);
+    await loadAdminBillingHistory(user, 1);
+  };
+
+  const loadAdminBillingHistory = async (user: User, page: number) => {
+    const requestID = ++logRequestRef.current;
+    setBillingHistoryLoading(true);
+    setBillingHistory([]);
 
     try {
-      const [renewalResult, trafficResult] = await Promise.allSettled([
-        getUserRenewalLogs(user.id, 50),
-        getUserTrafficBuyLogs(user.id, 50),
-      ]);
+      const result = await getAdminUserBillingHistory(user.id, page, 50);
 
       if (requestID !== logRequestRef.current) return;
-
-      if (renewalResult.status === "fulfilled") {
-        if (renewalResult.value.code === 0) {
-          setRenewalLogs(renewalResult.value.data || []);
-        } else {
-          toast.error(renewalResult.value.msg || "获取续费记录失败");
-        }
-      } else {
-        toast.error("获取续费记录失败");
+      if (result.code === 0) {
+        setBillingHistory(result.data.list || []);
+        setBillingHistoryTotal(result.data.total || 0);
       }
-      if (trafficResult.status === "fulfilled") {
-        if (trafficResult.value.code === 0) {
-          setTrafficBuyLogs(trafficResult.value.data || []);
-        } else {
-          toast.error(trafficResult.value.msg || "获取购流记录失败");
-        }
-      } else {
-        toast.error("获取购流记录失败");
-      }
+      else toast.error(result.msg || "获取账务记录失败");
+    } catch {
+      if (requestID === logRequestRef.current) toast.error("获取账务记录失败");
     } finally {
       if (requestID === logRequestRef.current) {
-        setRenewalLogLoading(false);
-        setTrafficBuyLogLoading(false);
+        setBillingHistoryLoading(false);
       }
     }
   };
 
-  const handleDeleteRenewalLog = async (id: number) => {
+  const handleDeleteBillingHistory = async (item: BillingHistoryItem) => {
     try {
-      const res = await deleteUserRenewalLog(id);
+      if (!selectedRenewalLogUser) return;
+      const res = await deleteAdminUserBillingHistory({
+        userId: selectedRenewalLogUser.id,
+        type: item.type,
+        id: item.sourceId,
+      });
 
       if (res.code === 0) {
         toast.success("删除成功");
-        setRenewalLogs((current) => current.filter((log) => log.id !== id));
-      } else {
-        toast.error(res.msg || "删除失败");
-      }
-    } catch {
-      toast.error("删除失败");
-    }
-  };
-
-  const handleDeleteTrafficBuyLog = async (id: number) => {
-    try {
-      const res = await deleteUserTrafficBuyLog(id);
-
-      if (res.code === 0) {
-        toast.success("删除成功");
-        setTrafficBuyLogs((current) => current.filter((log) => log.id !== id));
+        setBillingHistory((current) => current.filter((log) => log.id !== item.id));
       } else {
         toast.error(res.msg || "删除失败");
       }
@@ -3434,7 +3397,7 @@ export default function UserPage() {
           </ModalFooter>
         </ModalContent>
       </Modal>
-      {/* 续费/购流记录日志弹窗 */}
+      {/* 用户账务记录弹窗 */}
       <Modal
         backdrop="blur"
         classNames={{
@@ -3450,162 +3413,20 @@ export default function UserPage() {
         }}
       >
         <ModalContent>
-          <ModalHeader>
-            <div className="flex items-center gap-4">
-              <span>用户 {selectedRenewalLogUser?.user} 的记录</span>
-              <div className="flex gap-1 bg-default-100 rounded-lg p-1">
-                <Button
-                  color={logModalTab === "renewal" ? "primary" : "default"}
-                  size="sm"
-                  variant={logModalTab === "renewal" ? "solid" : "light"}
-                  onPress={() => setLogModalTab("renewal")}
-                >
-                  续费记录
-                </Button>
-                <Button
-                  color={logModalTab === "traffic" ? "primary" : "default"}
-                  size="sm"
-                  variant={logModalTab === "traffic" ? "solid" : "light"}
-                  onPress={() => setLogModalTab("traffic")}
-                >
-                  购流记录
-                </Button>
-              </div>
-            </div>
-          </ModalHeader>
+          <ModalHeader>用户 {selectedRenewalLogUser?.user} 的账务记录</ModalHeader>
           <ModalBody>
-            {logModalTab === "renewal" ? (
-              renewalLogLoading ? (
-                <div className="flex justify-center py-12">
-                  <Spinner />
-                </div>
-              ) : renewalLogs.length === 0 ? (
-                <div className="text-center py-12 text-default-500">
-                  暂无续费记录
-                </div>
-              ) : (
-                <div className="w-full overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
-                  <Table
-                    aria-label="续费记录"
-                    classNames={{
-                      th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
-                      td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
-                      tr: "hover:bg-default-50/50 transition-colors",
-                    }}
-                  >
-                    <TableHeader>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
-                        续费时间
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        扣款金额
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        续费前余额
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        续费后余额
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
-                        续费前到期
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[140px] text-left">
-                        续费后到期
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                        原因
-                      </TableColumn>
-                      <TableColumn className="whitespace-nowrap flex-shrink-0 w-[80px] text-left">
-                        操作
-                      </TableColumn>
-                    </TableHeader>
-                    <TableBody>
-                      {renewalLogs.map((log) => (
-                        <TableRow key={log.id}>
-                          <TableCell className="whitespace-nowrap">
-                            {log.renewalTime
-                              ? new Date(log.renewalTime)
-                                  .toLocaleString("zh-CN", {
-                                    year: "numeric",
-                                    month: "2-digit",
-                                    day: "2-digit",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
-                                  .replace(/\//g, "-")
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="text-success font-medium whitespace-nowrap">
-                            {(log.renewalAmount / 100).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {(log.balanceBefore / 100).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {(log.balanceAfter / 100).toFixed(2)}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {log.expTimeBefore
-                              ? new Date(log.expTimeBefore)
-                                  .toLocaleDateString("zh-CN", {
-                                    year: "numeric",
-                                    month: "2-digit",
-                                    day: "2-digit",
-                                  })
-                                  .replace(/\//g, "-")
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="text-primary font-medium whitespace-nowrap">
-                            {log.expTimeAfter
-                              ? new Date(log.expTimeAfter)
-                                  .toLocaleDateString("zh-CN", {
-                                    year: "numeric",
-                                    month: "2-digit",
-                                    day: "2-digit",
-                                  })
-                                  .replace(/\//g, "-")
-                              : "-"}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded ${
-                                log.reason === "自动续费"
-                                  ? "bg-success-500/10 text-success-600"
-                                  : "bg-default-500/10 text-default-600"
-                              }`}
-                            >
-                              {log.reason}
-                            </span>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            <Button
-                              isIconOnly
-                              className="bg-danger-50 text-danger-600 hover:bg-danger-100 min-w-7 w-7 h-7"
-                              size="sm"
-                              variant="flat"
-                              onPress={() => setRenewalLogToDelete(log.id)}
-                            >
-                              <DeleteIcon className="w-3.5 h-3.5" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )
-            ) : trafficBuyLogLoading ? (
+            {billingHistoryLoading ? (
               <div className="flex justify-center py-12">
                 <Spinner />
               </div>
-            ) : trafficBuyLogs.length === 0 ? (
+            ) : billingHistory.length === 0 ? (
               <div className="text-center py-12 text-default-500">
-                暂无购流记录
+                暂无账务记录
               </div>
             ) : (
               <div className="w-full overflow-x-auto rounded-xl border border-divider bg-content1 shadow-md">
                 <Table
-                  aria-label="购流记录"
+                  aria-label="账务记录"
                   classNames={{
                     th: "bg-default-100/50 text-default-600 text-foreground font-semibold text-sm border-b border-divider py-3 uppercase tracking-wider text-left align-middle",
                     td: "py-3 border-b border-divider/50 group-data-[last=true]:border-b-0",
@@ -3614,25 +3435,22 @@ export default function UserPage() {
                 >
                   <TableHeader>
                     <TableColumn className="whitespace-nowrap flex-shrink-0 w-[160px] text-left">
-                      购买时间
+                      时间
                     </TableColumn>
                     <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      购买金额
+                      类型
                     </TableColumn>
                     <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      购买流量
+                      金额
                     </TableColumn>
                     <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      购买前余额
+                      详情
                     </TableColumn>
                     <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      购买后余额
+                      变更前余额
                     </TableColumn>
                     <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      购买前流量
-                    </TableColumn>
-                    <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
-                      购买后流量
+                      变更后余额
                     </TableColumn>
                     <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">
                       原因
@@ -3642,11 +3460,11 @@ export default function UserPage() {
                     </TableColumn>
                   </TableHeader>
                   <TableBody>
-                    {trafficBuyLogs.map((log) => (
+                    {billingHistory.map((log) => (
                       <TableRow key={log.id}>
                         <TableCell className="whitespace-nowrap">
-                          {log.buyTime
-                            ? new Date(log.buyTime)
+                          {log.occurredAt
+                            ? new Date(log.occurredAt)
                                 .toLocaleString("zh-CN", {
                                   year: "numeric",
                                   month: "2-digit",
@@ -3657,11 +3475,12 @@ export default function UserPage() {
                                 .replace(/\//g, "-")
                             : "-"}
                         </TableCell>
-                        <TableCell className="text-danger font-medium whitespace-nowrap">
-                          {(log.buyPrice / 100).toFixed(2)}
+                        <TableCell><Chip color={log.type === "recharge" ? "success" : log.type === "renewal" ? "primary" : "warning"} size="sm" variant="flat">{log.type === "recharge" ? "充值" : log.type === "renewal" ? "续费" : "购流"}</Chip></TableCell>
+                        <TableCell className={`${log.amount > 0 ? "text-success" : "text-danger"} font-medium whitespace-nowrap`}>
+                          {log.amount > 0 ? "+" : ""}{(log.amount / 100).toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-primary font-medium whitespace-nowrap">
-                          {log.buyAmount} GB
+                        <TableCell className="whitespace-nowrap">
+                          {log.type === "traffic" ? `${log.trafficGB} GB` : log.type === "renewal" && log.expireAfter ? `续至 ${new Date(log.expireAfter).toLocaleDateString("zh-CN").replace(/\//g, "-")}` : "余额充值"}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {(log.balanceBefore / 100).toFixed(2)}
@@ -3670,21 +3489,7 @@ export default function UserPage() {
                           {(log.balanceAfter / 100).toFixed(2)}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
-                          {log.flowBefore} GB
-                        </TableCell>
-                        <TableCell className="text-primary font-medium whitespace-nowrap">
-                          {log.flowAfter} GB
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded ${
-                              log.reason === "自动购买流量"
-                                ? "bg-primary-500/10 text-primary-600"
-                                : "bg-default-500/10 text-default-600"
-                            }`}
-                          >
-                            {log.reason}
-                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded bg-default-500/10 text-default-600">{log.reason}</span>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           <Button
@@ -3692,7 +3497,7 @@ export default function UserPage() {
                             className="bg-danger-50 text-danger-600 hover:bg-danger-100 min-w-7 w-7 h-7"
                             size="sm"
                             variant="flat"
-                            onPress={() => setTrafficBuyLogToDelete(log.id)}
+                            onPress={() => setBillingHistoryToDelete(log)}
                           >
                             <DeleteIcon className="w-3.5 h-3.5" />
                           </Button>
@@ -3701,6 +3506,13 @@ export default function UserPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+            {billingHistoryTotal > 50 && (
+              <div className="flex justify-center gap-2 pt-3">
+                <Button isDisabled={billingHistoryPage <= 1 || billingHistoryLoading} size="sm" variant="flat" onPress={() => { if (!selectedRenewalLogUser) return; const next = billingHistoryPage - 1; setBillingHistoryPage(next); void loadAdminBillingHistory(selectedRenewalLogUser, next); }}>上一页</Button>
+                <span className="flex items-center text-sm text-default-500">{billingHistoryPage} / {Math.ceil(billingHistoryTotal / 50)}</span>
+                <Button isDisabled={billingHistoryPage >= Math.ceil(billingHistoryTotal / 50) || billingHistoryLoading} size="sm" variant="flat" onPress={() => { if (!selectedRenewalLogUser) return; const next = billingHistoryPage + 1; setBillingHistoryPage(next); void loadAdminBillingHistory(selectedRenewalLogUser, next); }}>下一页</Button>
               </div>
             )}
           </ModalBody>
@@ -3717,21 +3529,21 @@ export default function UserPage() {
         </ModalContent>
       </Modal>
 
-      {/* 续费记录删除确认弹窗 */}
+      {/* 账务记录删除确认弹窗 */}
       <Modal
         backdrop="blur"
         classNames={{
           base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl",
         }}
-        isOpen={!!renewalLogToDelete}
+        isOpen={!!billingHistoryToDelete}
         placement="center"
         scrollBehavior="inside"
         size="md"
-        onClose={() => setRenewalLogToDelete(null)}
+        onClose={() => setBillingHistoryToDelete(null)}
       >
         <ModalContent>
           <ModalHeader className="flex flex-col gap-1">
-            确认删除续费记录
+            确认删除账务记录
           </ModalHeader>
           <ModalBody>
             <div className="flex items-center gap-4">
@@ -3739,7 +3551,7 @@ export default function UserPage() {
                 <DeleteIcon className="w-6 h-6 text-danger" />
               </div>
               <div className="flex-1">
-                <p className="text-foreground">确定要删除这条续费记录吗？</p>
+                <p className="text-foreground">确定要删除这条账务记录吗？</p>
                 <p className="text-small text-default-500 mt-1">
                   此操作不可撤销。
                 </p>
@@ -3747,66 +3559,15 @@ export default function UserPage() {
             </div>
           </ModalBody>
           <ModalFooter>
-            <Button variant="flat" onPress={() => setRenewalLogToDelete(null)}>
+            <Button variant="flat" onPress={() => setBillingHistoryToDelete(null)}>
               取消
             </Button>
             <Button
               color="danger"
               onPress={() => {
-                if (renewalLogToDelete) {
-                  handleDeleteRenewalLog(renewalLogToDelete);
-                  setRenewalLogToDelete(null);
-                }
-              }}
-            >
-              确认
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-
-      {/* 购流记录删除确认弹窗 */}
-      <Modal
-        backdrop="blur"
-        classNames={{
-          base: "!w-[calc(100%-32px)] !mx-auto sm:!w-full rounded-2xl",
-        }}
-        isOpen={!!trafficBuyLogToDelete}
-        placement="center"
-        scrollBehavior="inside"
-        size="md"
-        onClose={() => setTrafficBuyLogToDelete(null)}
-      >
-        <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">
-            确认删除购流记录
-          </ModalHeader>
-          <ModalBody>
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-danger-100 rounded-full flex items-center justify-center">
-                <DeleteIcon className="w-6 h-6 text-danger" />
-              </div>
-              <div className="flex-1">
-                <p className="text-foreground">确定要删除这条购流记录吗？</p>
-                <p className="text-small text-default-500 mt-1">
-                  此操作不可撤销。
-                </p>
-              </div>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant="flat"
-              onPress={() => setTrafficBuyLogToDelete(null)}
-            >
-              取消
-            </Button>
-            <Button
-              color="danger"
-              onPress={() => {
-                if (trafficBuyLogToDelete) {
-                  handleDeleteTrafficBuyLog(trafficBuyLogToDelete);
-                  setTrafficBuyLogToDelete(null);
+                if (billingHistoryToDelete) {
+                  void handleDeleteBillingHistory(billingHistoryToDelete);
+                  setBillingHistoryToDelete(null);
                 }
               }}
             >

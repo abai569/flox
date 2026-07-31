@@ -732,6 +732,11 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 		if renewErr == nil {
 			fresh, freshErr := h.repo.GetUserByID(userID)
 			if freshErr != nil || fresh.ExpTime > nowMs {
+				if freshErr != nil {
+					log.Printf("用户 %d 自动续费候选读取失败：%v", userID, freshErr)
+				} else {
+					log.Printf("用户 %d 自动续费跳过：续费配置未满足", userID)
+				}
 				continue
 			}
 		}

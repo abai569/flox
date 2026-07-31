@@ -397,3 +397,81 @@ func TestAutoRenewBeforeExpiryDefersFlowReset(t *testing.T) {
 		t.Fatalf("expected one reset history, got %d", count)
 	}
 }
+
+func TestAutoRenewLegacyUserWithoutSubscriptionSnapshotNotifiesInsufficientBalance(t *testing.T) {
+	r, err := repo.Open(filepath.Join(t.TempDir(), "jobs-auto-renew-legacy.db"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	h := New(r, "secret")
+	now := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	expires := now.Add(48 * time.Hour).UnixMilli()
+	nowMs := now.UnixMilli()
+	if err := r.DB().Exec(`INSERT INTO user(id,user,pwd,role_id,exp_time,flow,in_flow,out_flow,flow_reset_time,num,created_time,updated_time,status,renewal_amount,balance,auto_renew) VALUES(2,'legacy','x',1,?,4000,0,0,1,37,?,?,1,36000,25500,1)`, expires, nowMs, nowMs).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	h.disableExpiredUsers(nowMs)
+
+	if got := mustQueryInt64(t, r, `SELECT exp_time FROM user WHERE id=2`); got != expires {
+		t.Fatalf("expected expiry unchanged at %d, got %d", expires, got)
+	}
+	if got := mustQueryInt(t, r, `SELECT balance FROM user WHERE id=2`); got != 25500 {
+		t.Fatalf("expected balance unchanged at 25500, got %d", got)
+	}
+	if got := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_notification WHERE user_id=2 AND type='balance'`); got != 1 {
+		t.Fatalf("expected one balance notification, got %d", got)
+	}
+	if got := mustQueryInt(t, r, `SELECT COUNT(1) FROM package_subscription WHERE user_id=2 AND status=1`); got != 1 {
+		t.Fatalf("expected persistent compatibility snapshot, got %d", got)
+	}
+	if got := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_renewal_log WHERE user_id=2`); got != 0 {
+		t.Fatalf("expected no renewal with insufficient balance, got %d", got)
+	}
+	if err := r.DB().Exec(`UPDATE user SET balance=50000 WHERE id=2`).Error; err != nil {
+		t.Fatal(err)
+	}
+	h.disableExpiredUsers(nowMs + int64(time.Minute/time.Millisecond))
+	expectedExp := time.UnixMilli(expires).AddDate(0, 1, 0).UnixMilli()
+	if got := mustQueryInt64(t, r, `SELECT exp_time FROM user WHERE id=2`); got != expectedExp {
+		t.Fatalf("expected retry expiry %d, got %d", expectedExp, got)
+	}
+	if got := mustQueryInt(t, r, `SELECT balance FROM user WHERE id=2`); got != 14000 {
+		t.Fatalf("expected retry balance 14000, got %d", got)
+	}
+	if got := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_renewal_log WHERE user_id=2`); got != 1 {
+		t.Fatalf("expected one renewal after retry, got %d", got)
+	}
+}
+
+func TestAutoRenewLegacyUserWithoutSubscriptionSnapshotSucceeds(t *testing.T) {
+	r, err := repo.Open(filepath.Join(t.TempDir(), "jobs-auto-renew-legacy-success.db"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+	h := New(r, "secret")
+	now := time.Date(2026, 7, 1, 10, 0, 0, 0, time.UTC)
+	expires := now.Add(48 * time.Hour).UnixMilli()
+	nowMs := now.UnixMilli()
+	if err := r.DB().Exec(`INSERT INTO user(id,user,pwd,role_id,exp_time,flow,in_flow,out_flow,flow_reset_time,num,created_time,updated_time,status,renewal_amount,balance,auto_renew) VALUES(2,'legacy','x',1,?,4000,0,0,1,37,?,?,1,36000,50000,1)`, expires, nowMs, nowMs).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	h.disableExpiredUsers(nowMs)
+
+	expectedExp := time.UnixMilli(expires).AddDate(0, 1, 0).UnixMilli()
+	if got := mustQueryInt64(t, r, `SELECT exp_time FROM user WHERE id=2`); got != expectedExp {
+		t.Fatalf("expected expiry %d, got %d", expectedExp, got)
+	}
+	if got := mustQueryInt(t, r, `SELECT balance FROM user WHERE id=2`); got != 14000 {
+		t.Fatalf("expected balance 14000, got %d", got)
+	}
+	if got := mustQueryInt(t, r, `SELECT COUNT(1) FROM package_subscription WHERE user_id=2 AND status=1`); got != 1 {
+		t.Fatalf("expected compatibility snapshot, got %d", got)
+	}
+	if got := mustQueryInt(t, r, `SELECT COUNT(1) FROM user_renewal_log WHERE user_id=2`); got != 1 {
+		t.Fatalf("expected one renewal log, got %d", got)
+	}
+}

@@ -570,6 +570,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/user/notifications/unread-count", h.userNotificationUnreadCount)
 	mux.HandleFunc("/api/v1/user/notifications/state", h.userNotificationState)
 	mux.HandleFunc("/api/v1/user/billing-history", h.userBillingHistory)
+	mux.HandleFunc("/api/v1/user/admin/billing-history", h.adminUserBillingHistory)
+	mux.HandleFunc("/api/v1/user/admin/billing-history/delete", h.adminDeleteUserBillingHistory)
 	mux.HandleFunc("/api/v1/user/toggle-auto-renew", h.userToggleAutoRenew)
 	mux.HandleFunc("/api/v1/user/toggle-auto-buy-traffic", h.userToggleAutoBuyTraffic)
 	mux.HandleFunc("/api/v1/user/update-order", h.userUpdateOrder)
