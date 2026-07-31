@@ -13,6 +13,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { AnimatedPage } from "@/components/animated-page";
 import { CountryFlag } from "@/components/country-flag";
 import { MetricPill } from "@/components/metric-pill";
+import { PageLoadingState } from "@/components/page-state";
 import { SmartTooltip } from "@/components/smart-tooltip";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/shadcn-bridge/heroui/button";
@@ -467,11 +468,10 @@ function NodeInstanceGroupsView({
 }) {
   if (loading && groups.length === 0) {
     return (
-      <Card>
-        <CardBody className="py-12 text-center text-sm text-default-500">
-          正在加载节点实例监控...
-        </CardBody>
-      </Card>
+      <PageLoadingState
+        className="min-h-[calc(100vh-220px)]"
+        message="正在加载..."
+      />
     );
   }
 
