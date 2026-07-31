@@ -659,6 +659,7 @@ type monitorNodeInstanceGroupMember struct {
 	CrossBorderStatus            string  `json:"crossBorderStatus"`
 	CrossBorderError             string  `json:"crossBorderError"`
 	CrossBorderCheckedAt         int64   `json:"crossBorderCheckedAt"`
+	CrossBorderObservationUntil  int64   `json:"crossBorderObservationUntil"`
 }
 
 type monitorNodeInstanceGroupItem struct {
@@ -810,6 +811,7 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			CrossBorderStatus:            row.CrossBorderStatus,
 			CrossBorderError:             row.CrossBorderError,
 			CrossBorderCheckedAt:         row.CrossBorderCheckedAt,
+			CrossBorderObservationUntil:  row.CrossBorderObservationUntil,
 		}
 		groups[idx].Members = append(groups[idx].Members, member)
 		groups[idx].TotalInSpeed += row.NetInSpeed

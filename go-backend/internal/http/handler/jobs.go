@@ -377,6 +377,7 @@ func (h *Handler) Close() {
 	if h == nil {
 		return
 	}
+	h.closeCrossBorderChecks()
 	h.StopBackgroundJobs()
 	if h.wsServer != nil {
 		h.wsServer.Close()

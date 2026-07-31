@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -20,6 +21,7 @@ func TestHandleTcpProbeListenAcceptsConnection(t *testing.T) {
 	port := portListener.Addr().(*net.TCPAddr).Port
 	_ = portListener.Close()
 	reporter := &WebSocketReporter{}
+	defer reporter.closeAllTCPProbeListeners()
 	response, err := reporter.handleTcpProbeListen(map[string]interface{}{
 		"family": "ipv4", "durationSec": 5, "portRange": fmt.Sprint(port),
 	})
@@ -29,11 +31,105 @@ func TestHandleTcpProbeListenAcceptsConnection(t *testing.T) {
 	if response.Port <= 0 {
 		t.Fatalf("probe listener port = %d", response.Port)
 	}
+	if response.ListenerID == "" {
+		t.Fatal("probe listener ID is empty")
+	}
 	conn, err := net.Dial("tcp4", net.JoinHostPort("127.0.0.1", fmt.Sprint(response.Port)))
 	if err != nil {
 		t.Fatalf("connect probe listener: %v", err)
 	}
 	_ = conn.Close()
+}
+
+func TestHandleTcpProbeCloseClosesListener(t *testing.T) {
+	port := availableTCPProbePort(t)
+	reporter := &WebSocketReporter{}
+	response, err := reporter.handleTcpProbeListen(map[string]interface{}{
+		"family": "ipv4", "durationSec": 5, "portRange": fmt.Sprint(port),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reporter.handleTcpProbeClose(map[string]interface{}{"listenerId": response.ListenerID}); err != nil {
+		t.Fatalf("close probe listener: %v", err)
+	}
+	if conn, err := net.DialTimeout("tcp4", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)), 100*time.Millisecond); err == nil {
+		_ = conn.Close()
+		t.Fatal("probe listener still accepts connections after explicit close")
+	}
+}
+
+func TestTCPProbeListenerTimeoutAndCloseAreIdempotent(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reporter := &WebSocketReporter{tcpProbeListeners: map[string]net.Listener{"timeout-test": listener}}
+	go reporter.serveTCPProbeListener("timeout-test", listener, 20*time.Millisecond)
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		reporter.tcpProbeListenersMu.Lock()
+		_, exists := reporter.tcpProbeListeners["timeout-test"]
+		reporter.tcpProbeListenersMu.Unlock()
+		if !exists {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	reporter.tcpProbeListenersMu.Lock()
+	_, exists := reporter.tcpProbeListeners["timeout-test"]
+	reporter.tcpProbeListenersMu.Unlock()
+	if exists {
+		t.Fatal("timed out probe listener remains registered")
+	}
+	if err := reporter.handleTcpProbeClose(map[string]interface{}{"listenerId": "timeout-test"}); err != nil {
+		t.Fatalf("close timed out probe listener: %v", err)
+	}
+}
+
+func TestHandleTcpProbeListenEnforcesConcurrentLimit(t *testing.T) {
+	reporter := &WebSocketReporter{}
+	defer reporter.closeAllTCPProbeListeners()
+	ports := make([]int, 0, maxTCPProbeListeners+1)
+	for len(ports) < maxTCPProbeListeners+1 {
+		port := availableTCPProbePort(t)
+		duplicate := false
+		for _, existing := range ports {
+			if existing == port {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			ports = append(ports, port)
+		}
+	}
+	for i := 0; i < maxTCPProbeListeners; i++ {
+		if _, err := reporter.handleTcpProbeListen(map[string]interface{}{
+			"family": "ipv4", "durationSec": 5, "portRange": fmt.Sprint(ports[i]),
+		}); err != nil {
+			t.Fatalf("start probe listener %d: %v", i, err)
+		}
+	}
+	if _, err := reporter.handleTcpProbeListen(map[string]interface{}{
+		"family": "ipv4", "durationSec": 5, "portRange": fmt.Sprint(ports[maxTCPProbeListeners]),
+	}); err == nil || !strings.Contains(err.Error(), "limit reached") {
+		t.Fatalf("expected listener limit error, got %v", err)
+	}
+}
+
+func availableTCPProbePort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return port
 }
 
 func TestParseTcpProbePortsPreservesConfiguredSegments(t *testing.T) {

@@ -58,6 +58,46 @@ func TestPrepareSQLiteLegacyColumnsAddsNodeMetadataColumns(t *testing.T) {
 	}
 }
 
+func TestMigrateNodeNetworkRegionDefaultsBackfillsLegacyNodes(t *testing.T) {
+	db, err := gorm.Open(gsqlite.Open(":memory:"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() {
+		sqlDB, _ := db.DB()
+		if sqlDB != nil {
+			_ = sqlDB.Close()
+		}
+	})
+
+	if err := db.Exec(`CREATE TABLE node (id INTEGER PRIMARY KEY, network_region VARCHAR(20))`).Error; err != nil {
+		t.Fatalf("create legacy node table: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO node (id, network_region) VALUES (1, NULL), (2, ''), (3, '  '), (4, 'overseas')`).Error; err != nil {
+		t.Fatalf("seed legacy nodes: %v", err)
+	}
+
+	if err := migrateNodeNetworkRegionDefaults(db); err != nil {
+		t.Fatalf("migrate node network region defaults: %v", err)
+	}
+
+	var rows []struct {
+		ID            int64
+		NetworkRegion string
+	}
+	if err := db.Table("node").Order("id ASC").Find(&rows).Error; err != nil {
+		t.Fatalf("query migrated nodes: %v", err)
+	}
+	want := []string{NetworkRegionMainland, NetworkRegionMainland, NetworkRegionMainland, NetworkRegionOverseas}
+	for i, row := range rows {
+		if row.NetworkRegion != want[i] {
+			t.Errorf("node %d network region = %q, want %q", row.ID, row.NetworkRegion, want[i])
+		}
+	}
+}
+
 func TestMigratePeerShareConsumerFlowColumnsAddsLegacyColumns(t *testing.T) {
 	db, err := gorm.Open(gsqlite.Open(":memory:"), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),

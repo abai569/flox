@@ -369,6 +369,17 @@ export const pauseInstance = (nodeId: number, instanceId: string) =>
   Network.post("/node/instance-pause", { nodeId, instanceId });
 export const resumeInstance = (nodeId: number, instanceId: string) =>
   Network.post("/node/instance-resume", { nodeId, instanceId });
+export const recheckNodeCrossBorder = (nodeId: number, instanceId: string) =>
+  Network.post("/node/cross-border/recheck", { nodeId, instanceId });
+export const correctNodeCrossBorder = (nodeId: number, instanceId: string) =>
+  Network.post<{
+    restored: boolean;
+    checkedAt?: number;
+    observationUntil: number;
+  }>(
+    "/node/cross-border/correct",
+    { nodeId, instanceId, observationMinutes: 30 },
+  );
 export const checkNodeStatus = (nodeId?: number) => {
   const params = nodeId ? { nodeId } : {};
 

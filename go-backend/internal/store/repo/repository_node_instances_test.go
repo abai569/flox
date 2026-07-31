@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -214,7 +215,6 @@ func TestGetNodeInstancePublicIPs(t *testing.T) {
 	if err := r.db.Create(&instance).Error; err != nil {
 		t.Fatal(err)
 	}
-
 	ipv4, ipv6, exists, err := r.GetNodeInstancePublicIPs(7, "instance-ip")
 	if err != nil {
 		t.Fatal(err)
@@ -510,6 +510,106 @@ func TestPauseNodeInstanceRoutingPreservesWeightForResume(t *testing.T) {
 	}
 }
 
+func TestResumeNodeInstanceRoutingDoesNotBypassCrossBorderQuarantine(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+	instance := model.NodeInstance{NodeID: 1, InstanceID: "instance-a", Weight: 0, PauseRestoreWeight: sql.NullInt64{Int64: 3, Valid: true}, CreatedTime: 1, UpdatedTime: 1}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.db.Model(&model.NodeInstance{}).Where("id = ?", instance.ID).Update("weight", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.db.Create(&model.CrossBorderProbeState{NodeID: 1, InstanceID: instance.InstanceID, Status: CrossBorderBlocked, Quarantined: true}).Error; err != nil {
+		t.Fatal(err)
+	}
+	changed, err := r.ResumeNodeInstanceRouting(1, instance.InstanceID, 2)
+	if err != nil || !changed {
+		t.Fatalf("resume quarantined instance: changed=%v err=%v", changed, err)
+	}
+	var got model.NodeInstance
+	if err := r.db.First(&got, instance.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Weight != 0 || got.PauseRestoreWeight.Valid {
+		t.Fatalf("quarantined instance resumed: %+v", got)
+	}
+	var state model.CrossBorderProbeState
+	if err := r.db.Where("node_id = ? AND instance_id = ?", 1, instance.InstanceID).First(&state).Error; err != nil {
+		t.Fatal(err)
+	}
+	if state.RestoreWeight != 3 {
+		t.Fatalf("quarantine restore weight = %d, want 3", state.RestoreWeight)
+	}
+}
+
+func TestResumeNodeRoutingDoesNotBypassCrossBorderQuarantine(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+	node := model.Node{Name: "paused", Secret: "secret", CreatedTime: 1, Paused: 1, PauseRestoreWeight: sql.NullInt64{Int64: 1, Valid: true}}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatal(err)
+	}
+	instances := []model.NodeInstance{
+		{NodeID: node.ID, InstanceID: "healthy", Weight: 0, PauseRestoreWeight: sql.NullInt64{Int64: 2, Valid: true}, CreatedTime: 1, UpdatedTime: 1},
+		{NodeID: node.ID, InstanceID: "quarantined", Weight: 0, PauseRestoreWeight: sql.NullInt64{Int64: 4, Valid: true}, CreatedTime: 1, UpdatedTime: 1},
+	}
+	if err := r.db.Create(&instances).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.db.Model(&model.NodeInstance{}).Where("node_id = ?", node.ID).Update("weight", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.db.Create(&model.CrossBorderProbeState{NodeID: node.ID, InstanceID: "quarantined", Status: CrossBorderBlocked, Quarantined: true}).Error; err != nil {
+		t.Fatal(err)
+	}
+	changed, err := r.ResumeNodeRouting(node.ID, 2)
+	if err != nil || !changed {
+		t.Fatalf("resume node: changed=%v err=%v", changed, err)
+	}
+	var got []model.NodeInstance
+	if err := r.db.Where("node_id = ?", node.ID).Order("id ASC").Find(&got).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got[0].Weight != 2 || got[1].Weight != 0 || got[0].PauseRestoreWeight.Valid || got[1].PauseRestoreWeight.Valid {
+		t.Fatalf("unexpected resumed instances: %+v", got)
+	}
+}
+
+func TestPruneStaleNodeInstancesRemovesCrossBorderState(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+	instance := model.NodeInstance{NodeID: 1, InstanceID: "stale", Status: 0, LastSeenAt: 10, CreatedTime: 1, UpdatedTime: 1}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.db.Model(&model.NodeInstance{}).Where("id = ?", instance.ID).Update("status", 0).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.db.Create(&model.CrossBorderProbeState{NodeID: 1, InstanceID: instance.InstanceID, Status: CrossBorderBlocked, Quarantined: true}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := r.PruneStaleNodeInstances(20); err != nil {
+		t.Fatal(err)
+	}
+	var stateCount int64
+	if err := r.db.Model(&model.CrossBorderProbeState{}).Count(&stateCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stateCount != 0 {
+		t.Fatalf("cross-border states remaining = %d", stateCount)
+	}
+}
+
 func TestSyncRemoteNodeInstancesReplacesLocalTrafficRatio(t *testing.T) {
 	r, err := Open(filepath.Join(t.TempDir(), "remote-instance-ratio.db"))
 	if err != nil {
@@ -564,6 +664,9 @@ func TestSyncRemoteNodeInstancesRemovesInstancesOutsideShareScope(t *testing.T) 
 	if err := r.db.Create(&instances).Error; err != nil {
 		t.Fatalf("create instances: %v", err)
 	}
+	if err := r.db.Create(&model.CrossBorderProbeState{NodeID: node.ID, InstanceID: "removed", Status: CrossBorderBlocked, Quarantined: true}).Error; err != nil {
+		t.Fatalf("create cross-border state: %v", err)
+	}
 
 	got, err := r.SyncRemoteNodeInstances(node.ID, []RemoteNodeInstanceSync{{
 		InstanceID: "kept", Status: 1, Weight: 1,
@@ -573,6 +676,10 @@ func TestSyncRemoteNodeInstancesRemovesInstancesOutsideShareScope(t *testing.T) 
 	}
 	if len(got) != 1 || got[0].InstanceID != "kept" {
 		t.Fatalf("expected only scoped instance to remain, got %+v", got)
+	}
+	var stateCount int64
+	if err := r.db.Model(&model.CrossBorderProbeState{}).Where("node_id = ?", node.ID).Count(&stateCount).Error; err != nil || stateCount != 0 {
+		t.Fatalf("expected removed instance state deleted, count=%d err=%v", stateCount, err)
 	}
 }
 

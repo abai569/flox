@@ -842,6 +842,7 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   crossBorderStatus?: string;
   crossBorderError?: string;
   crossBorderCheckedAt?: number;
+  crossBorderObservationUntil?: number;
 }
 
 export interface MonitorNodeInstanceGroupApiItem {

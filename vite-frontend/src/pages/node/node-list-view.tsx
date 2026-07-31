@@ -38,6 +38,7 @@ import {
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/shadcn-bridge/heroui/dropdown";
 // 🎯 补全了 Select 相关的导入
@@ -129,6 +130,12 @@ interface NodeListViewProps {
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
   onToggleInstancePause?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
+  onCrossBorderRecheck: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
+  onCrossBorderCorrect: (
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
   onReorderInstances: (
@@ -336,6 +343,7 @@ type InstanceIPRegionMember = Pick<
   | "crossBorderStatus"
   | "crossBorderError"
   | "crossBorderCheckedAt"
+  | "crossBorderObservationUntil"
 >;
 
 function instanceCrossBorderMeta(member: InstanceIPRegionMember) {
@@ -346,6 +354,13 @@ function instanceCrossBorderMeta(member: InstanceIPRegionMember) {
       return { color: "bg-danger", label: "被墙，实例已隔离" };
     case "reverse_blocked":
       return { color: "bg-warning", label: "反向墙，实例已隔离" };
+    case "restore_blocked":
+      return {
+        color: "bg-warning",
+        label: "换 IP 检测通过，但实例仍受其他限制并保持隔离",
+      };
+    case "observing":
+      return { color: "bg-primary", label: "观察期" };
     case "pending_failure":
       return { color: "bg-warning", label: "跨境检测异常，等待复核" };
     default:
@@ -353,14 +368,124 @@ function instanceCrossBorderMeta(member: InstanceIPRegionMember) {
   }
 }
 
+const formatCrossBorderTime = (timestamp?: number): string => {
+  if (!timestamp || timestamp <= 0) return "-";
+  const value = timestamp < 100000000000 ? timestamp * 1000 : timestamp;
+
+  return new Date(value).toLocaleString("zh-CN");
+};
+
+function CrossBorderStatusPopover({
+  member,
+  onRecheck,
+  onCorrect,
+}: {
+  member: InstanceIPRegionMember;
+  onRecheck?: () => void;
+  onCorrect?: () => void;
+}) {
+  const meta = instanceCrossBorderMeta(member);
+  const blocked = ["blocked", "reverse_blocked"].includes(
+    member.crossBorderStatus || "",
+  );
+  const observing = member.crossBorderStatus === "observing";
+  const canRecheck =
+    blocked || observing || member.crossBorderStatus === "restore_blocked";
+
+  return (
+    <Dropdown placement="bottom-end">
+      <DropdownTrigger>
+        <Button
+          isIconOnly
+          aria-label={`查看跨境检测详情：${meta.label}`}
+          className="h-6 w-6 min-w-6 rounded-full bg-transparent p-0 hover:bg-default-200/70"
+          size="sm"
+          variant="light"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <span
+            aria-hidden="true"
+            className={`inline-block size-2.5 rounded-full ${meta.color}`}
+          />
+        </Button>
+      </DropdownTrigger>
+      <DropdownMenu aria-label="跨境检测详情">
+        <DropdownMenuLabel className="w-72 space-y-2 p-3 font-normal">
+          <div className="flex items-center gap-2 font-medium text-foreground">
+            <span className={`inline-block size-2.5 rounded-full ${meta.color}`} />
+            <span>{meta.label}</span>
+          </div>
+          <dl className="grid grid-cols-[64px_1fr] gap-x-2 gap-y-1 text-xs text-default-600">
+            <dt>错误</dt>
+            <dd className="break-words text-foreground">
+              {member.crossBorderError || "-"}
+            </dd>
+            <dt>检测时间</dt>
+            <dd className="text-foreground">
+              {formatCrossBorderTime(member.crossBorderCheckedAt)}
+            </dd>
+            <dt>观察截止</dt>
+            <dd className="text-foreground">
+              {formatCrossBorderTime(member.crossBorderObservationUntil)}
+            </dd>
+          </dl>
+          {observing ? (
+            <p className="text-xs leading-5 text-primary-600 dark:text-primary-300">
+              观察期内仅告警不隔离
+            </p>
+          ) : null}
+          {canRecheck && (
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button
+                className="h-7 px-2 text-xs"
+                color="primary"
+                size="sm"
+                variant="flat"
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onRecheck?.();
+                }}
+              >
+                重新检测
+              </Button>
+              {blocked ? (
+                <Button
+                  className="h-7 px-2 text-xs"
+                  color="warning"
+                  size="sm"
+                  variant="flat"
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    onCorrect?.();
+                  }}
+                >
+                  误判纠正
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </DropdownMenuLabel>
+      </DropdownMenu>
+    </Dropdown>
+  );
+}
+
 function InstanceIPRegionCell({
   member,
   copyToClipboard,
+  onCrossBorderRecheck,
+  onCrossBorderCorrect,
 }: {
   member: InstanceIPRegionMember;
   copyToClipboard: (text: string, label: string) => void;
+  onCrossBorderRecheck?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
+  onCrossBorderCorrect?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
 }) {
-  const crossBorderMeta = instanceCrossBorderMeta(member);
+  const probeAddressKey = member.publicIpV4?.trim() ? "v4" : "v6";
   const rows = [
     {
       key: "v4",
@@ -406,15 +531,28 @@ function InstanceIPRegionCell({
                   </button>
                 </SmartTooltip>
               ) : null}
-              {item.ip && member.networkRegion === "overseas" ? (
-                <SmartTooltip
-                  content={`${crossBorderMeta.label}${member.crossBorderError ? `：${member.crossBorderError}` : ""}`}
-                >
-                  <span
-                    aria-label={crossBorderMeta.label}
-                    className={`inline-block size-2 shrink-0 rounded-full ${crossBorderMeta.color}`}
-                  />
-                </SmartTooltip>
+              {item.ip &&
+              item.key === probeAddressKey &&
+              member.networkRegion === "overseas" ? (
+                <CrossBorderStatusPopover
+                  member={member}
+                  onCorrect={
+                    onCrossBorderCorrect
+                      ? () =>
+                          onCrossBorderCorrect(
+                            member as MonitorNodeInstanceGroupMemberApiItem,
+                          )
+                      : undefined
+                  }
+                  onRecheck={
+                    onCrossBorderRecheck
+                      ? () =>
+                          onCrossBorderRecheck(
+                            member as MonitorNodeInstanceGroupMemberApiItem,
+                          )
+                      : undefined
+                  }
+                />
               ) : null}
             </div>
           ))}
@@ -604,6 +742,8 @@ function NodeInstanceRows({
   onDeleteInstance,
   onResetInstanceTraffic,
   onToggleInstancePause,
+  onCrossBorderRecheck,
+  onCrossBorderCorrect,
   onReorderInstances,
   onInstallMimicDeps,
 }: {
@@ -621,6 +761,12 @@ function NodeInstanceRows({
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
   onToggleInstancePause?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
+  onCrossBorderRecheck?: (
+    member: MonitorNodeInstanceGroupMemberApiItem,
+  ) => void;
+  onCrossBorderCorrect?: (
     member: MonitorNodeInstanceGroupMemberApiItem,
   ) => void;
   onReorderInstances: (
@@ -877,6 +1023,8 @@ function NodeInstanceRows({
                       <InstanceIPRegionCell
                         copyToClipboard={copyToClipboard}
                         member={member}
+                        onCrossBorderCorrect={onCrossBorderCorrect}
+                        onCrossBorderRecheck={onCrossBorderRecheck}
                       />
                       <td className="px-1 py-3 text-center font-mono text-default-700">
                         {member.status === 1
@@ -1216,6 +1364,8 @@ function SortableTableRow({
   onDeleteInstance,
   onResetInstanceTraffic,
   onToggleInstancePause,
+  onCrossBorderRecheck,
+  onCrossBorderCorrect,
   onReorderInstances,
   onInstallMimicDeps,
   realtimeInstanceMetrics,
@@ -1981,6 +2131,8 @@ function SortableTableRow({
               onReorderInstances={onReorderInstances}
               onResetInstanceTraffic={onResetInstanceTraffic}
               onToggleInstancePause={onToggleInstancePause}
+              onCrossBorderCorrect={onCrossBorderCorrect}
+              onCrossBorderRecheck={onCrossBorderRecheck}
               onViewTrafficLogs={handleViewNodeTrafficLogs}
             />
           </TableCell>
@@ -2043,6 +2195,8 @@ export function NodeListView({
   onDeleteInstance,
   onResetInstanceTraffic,
   onToggleInstancePause,
+  onCrossBorderRecheck,
+  onCrossBorderCorrect,
   onReorderInstances,
   onInstallMimicDeps,
   onShareNode,
@@ -2371,6 +2525,8 @@ export function NodeListView({
                   onDeleteInstance,
                   onResetInstanceTraffic,
                   onToggleInstancePause,
+                  onCrossBorderRecheck,
+                  onCrossBorderCorrect,
                   onReorderInstances,
                   onInstallMimicDeps,
                   onShareNode,

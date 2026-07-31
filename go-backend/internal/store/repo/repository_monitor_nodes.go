@@ -50,6 +50,7 @@ type MonitorNodeInstanceGroupRow struct {
 	CrossBorderStatus            string  `gorm:"column:cross_border_status"`
 	CrossBorderError             string  `gorm:"column:cross_border_error"`
 	CrossBorderCheckedAt         int64   `gorm:"column:cross_border_checked_at"`
+	CrossBorderObservationUntil  int64   `gorm:"column:cross_border_observation_until"`
 }
 
 func (r *Repository) ListMonitorNodes() ([]model.Node, error) {
@@ -136,7 +137,8 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64, includeRemot
 				ELSE COALESCE(cb.status, 'unknown')
 			END AS cross_border_status,
 			COALESCE(cb.last_error, '') AS cross_border_error,
-			COALESCE(cb.last_checked_at, 0) AS cross_border_checked_at
+			COALESCE(cb.last_checked_at, 0) AS cross_border_checked_at,
+			COALESCE(cb.observation_until, 0) AS cross_border_observation_until
 		`).
 		Joins("JOIN node_instance AS nsi ON nsi.node_id = n.id").
 		Joins("LEFT JOIN cross_border_instance_state AS cb ON cb.node_id = nsi.node_id AND cb.instance_id = nsi.instance_id").

@@ -50,6 +50,11 @@ type Handler struct {
 	jobsStarted bool
 	jobsWG      sync.WaitGroup
 
+	crossBorderMu       sync.Mutex
+	crossBorderTimers   map[string]*time.Timer
+	crossBorderInFlight map[string]struct{}
+	crossBorderClosed   bool
+
 	systemUpgradeMu sync.Mutex
 
 	qualityProber       *tunnelQualityProber
@@ -491,6 +496,8 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		remoteRuntimeApplied:     make(map[int64]string),
 		remoteRuntimeRedeploying: make(map[int64]bool),
 		remoteForwardMetrics:     make(map[int64]map[int64]remoteForwardMetric),
+		crossBorderTimers:        make(map[string]*time.Timer),
+		crossBorderInFlight:      make(map[string]struct{}),
 	}
 	h.healthCheck = health.NewChecker(repo, h.wsServer)
 	h.healthCheck.SetOnResult(h.onServiceMonitorResult)
@@ -624,6 +631,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/node/dns-failover/get", h.nodeDNSFailoverGet)
 	mux.HandleFunc("/api/v1/node/dns-failover/save", h.nodeDNSFailoverSave)
 	mux.HandleFunc("/api/v1/node/dns-failover/sync", h.nodeDNSFailoverSync)
+	mux.HandleFunc("/api/v1/node/cross-border/recheck", h.crossBorderRecheck)
+	mux.HandleFunc("/api/v1/node/cross-border/correct", h.crossBorderCorrect)
 	mux.HandleFunc("/api/v1/dns-failover/global/get", h.dnsFailoverGlobalGet)
 	mux.HandleFunc("/api/v1/dns-failover/global/save", h.dnsFailoverGlobalSave)
 	mux.HandleFunc("/api/v1/dns-failover/global/reveal", h.dnsFailoverGlobalReveal)

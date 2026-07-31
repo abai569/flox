@@ -47,6 +47,7 @@ func TestListMonitorNodeInstanceGroupsWithCrossBorderState(t *testing.T) {
 		Quarantined:      true,
 		QuarantineReason: CrossBorderReverse,
 		LastCheckedAt:    2,
+		ObservationUntil: 9000,
 		LastError:        "timeout",
 		UpdatedAt:        2,
 	}
@@ -72,5 +73,8 @@ func TestListMonitorNodeInstanceGroupsWithCrossBorderState(t *testing.T) {
 	}
 	if rows[0].CrossBorderError != "timeout" || rows[0].CrossBorderCheckedAt != 2 {
 		t.Fatalf("cross-border details = error %q checkedAt %d", rows[0].CrossBorderError, rows[0].CrossBorderCheckedAt)
+	}
+	if rows[0].CrossBorderObservationUntil != 9000 {
+		t.Fatalf("cross-border observation until = %d, want 9000", rows[0].CrossBorderObservationUntil)
 	}
 }

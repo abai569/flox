@@ -104,6 +104,8 @@ import {
   resumeNode,
   pauseInstance,
   resumeInstance,
+  recheckNodeCrossBorder,
+  correctNodeCrossBorder,
   getConfigByName,
   installMimicDeps,
   updateNodeInstanceProfile,
@@ -1382,7 +1384,47 @@ export default function NodePage() {
       for (const group of res.data || []) {
         next[Number(group.id)] = group.members || [];
       }
-      setNodeInstanceMembers(next);
+      setNodeInstanceMembers((prev) => {
+        const merged: Record<
+          number,
+          MonitorNodeInstanceGroupMemberApiItem[]
+        > = {};
+
+        for (const [nodeIdText, members] of Object.entries(next)) {
+          const nodeId = Number(nodeIdText);
+          const existingByInstanceId = new Map(
+            (prev[nodeId] || []).map((member) => [
+              (member.instanceId || "").trim(),
+              member,
+            ]),
+          );
+
+          merged[nodeId] = members.map((member) => {
+            const existing = existingByInstanceId.get(
+              (member.instanceId || "").trim(),
+            );
+
+            if (
+              !existing ||
+              (existing.crossBorderCheckedAt ?? 0) <=
+                (member.crossBorderCheckedAt ?? 0)
+            ) {
+              return member;
+            }
+
+            return {
+              ...member,
+              crossBorderStatus: existing.crossBorderStatus,
+              crossBorderError: existing.crossBorderError,
+              crossBorderCheckedAt: existing.crossBorderCheckedAt,
+              crossBorderObservationUntil:
+                existing.crossBorderObservationUntil,
+            };
+          });
+        }
+
+        return merged;
+      });
       setRealtimeNodeInstanceMetrics((prev) => {
         const metrics = { ...prev };
         const receivedAt = Date.now();
@@ -1723,16 +1765,24 @@ export default function NodePage() {
       if (!instanceId) return;
       setNodeInstanceMembers((prev) => {
         const members = prev[nodeId] || [];
-        const nextMembers = members.map((member) =>
-          (member.instanceId || "").trim() === instanceId
-            ? {
-                ...member,
-                crossBorderStatus: String(payload?.status || "unknown"),
-                crossBorderError: String(payload?.error || ""),
-                crossBorderCheckedAt: Number(payload?.checkedAt || 0),
-              }
-            : member,
+        const checkedAt = Number(
+          payload?.checkedAt ?? payload?.checked_at ?? 0,
         );
+        const observationUntil = Number(
+          payload?.observationUntil ?? payload?.observation_until ?? 0,
+        );
+        const nextMembers = members.map((member) => {
+          if ((member.instanceId || "").trim() !== instanceId) return member;
+          if (checkedAt <= (member.crossBorderCheckedAt ?? 0)) return member;
+
+          return {
+            ...member,
+            crossBorderStatus: String(payload?.status || "unknown"),
+            crossBorderError: String(payload?.error || ""),
+            crossBorderCheckedAt: checkedAt,
+            crossBorderObservationUntil: observationUntil,
+          };
+        });
 
         return { ...prev, [nodeId]: nextMembers };
       });
@@ -2656,6 +2706,67 @@ export default function NodePage() {
       toast.error("网络错误，操作失败");
     }
   };
+  const handleCrossBorderRecheck = useCallback(
+    async (member: MonitorNodeInstanceGroupMemberApiItem) => {
+      const instanceId = member.instanceId?.trim();
+
+      if (!instanceId) return;
+      try {
+        const res = await recheckNodeCrossBorder(member.nodeId, instanceId);
+
+        if (res.code === 0) {
+          toast.success("已发起重新检测");
+        } else {
+          toast.error(res.msg || "重新检测发起失败");
+        }
+      } catch {
+        toast.error("网络错误，重新检测发起失败");
+      }
+    },
+    [],
+  );
+  const handleCrossBorderCorrect = useCallback(
+    async (member: MonitorNodeInstanceGroupMemberApiItem) => {
+      const instanceId = member.instanceId?.trim();
+
+      if (!instanceId) return;
+      try {
+        const res = await correctNodeCrossBorder(member.nodeId, instanceId);
+
+        if (res.code !== 0) {
+          toast.error(res.msg || "误判纠正失败");
+
+          return;
+        }
+        const restored = res.data?.restored === true;
+        const checkedAt = Number(res.data?.checkedAt ?? Date.now());
+        const observationUntil = Number(res.data?.observationUntil ?? 0);
+
+        toast.success(
+          restored
+            ? "已解除隔离并进入30分钟观察期"
+            : "已解除跨境隔离，但实例因其他限制未恢复",
+        );
+        setNodeInstanceMembers((prev) => ({
+          ...prev,
+          [member.nodeId]: (prev[member.nodeId] || []).map((item) =>
+            (item.instanceId || "").trim() === instanceId
+              ? {
+                  ...item,
+                  crossBorderStatus: "observing",
+                  crossBorderError: "",
+                  crossBorderCheckedAt: checkedAt,
+                  crossBorderObservationUntil: observationUntil,
+                }
+              : item,
+          ),
+        }));
+      } catch {
+        toast.error("网络错误，误判纠正失败");
+      }
+    },
+    [],
+  );
   // 确认归零流量
   const handleConfirmResetTraffic = async () => {
     if (!nodeToReset) return;
@@ -4816,6 +4927,12 @@ export default function NodePage() {
                                         onReorderInstances={
                                           reorderNodeInstances
                                         }
+                                        onCrossBorderCorrect={
+                                          handleCrossBorderCorrect
+                                        }
+                                        onCrossBorderRecheck={
+                                          handleCrossBorderRecheck
+                                        }
                                         onResetInstanceTraffic={
                                           setInstanceResetTarget
                                         }
@@ -4887,6 +5004,8 @@ export default function NodePage() {
                       requestMimicDepsInstall([node])
                     }
                     onReorderInstances={reorderNodeInstances}
+                    onCrossBorderCorrect={handleCrossBorderCorrect}
+                    onCrossBorderRecheck={handleCrossBorderRecheck}
                     onResetInstanceTraffic={setInstanceResetTarget}
                     onShareNode={(node) => void openNodeSharing(node)}
                     onToggleInstancePause={handleToggleInstancePause}
