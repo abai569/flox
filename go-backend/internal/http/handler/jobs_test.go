@@ -66,6 +66,30 @@ func TestNodeInstanceCycleResetDueUsesAnchoredMonthEnd(t *testing.T) {
 	}
 }
 
+func TestNodeExpiryReminderDays(t *testing.T) {
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC).UnixMilli()
+	tests := []struct {
+		name        string
+		expiryMs    int64
+		wantExpired bool
+		wantDays    int
+	}{
+		{name: "expired", expiryMs: now - 1, wantExpired: true, wantDays: 0},
+		{name: "expires now", expiryMs: now, wantExpired: true, wantDays: 0},
+		{name: "future under one day", expiryMs: now + int64(time.Hour/time.Millisecond), wantDays: 1},
+		{name: "future exact day", expiryMs: now + int64(24*time.Hour/time.Millisecond), wantDays: 1},
+		{name: "future over one day", expiryMs: now + int64(24*time.Hour/time.Millisecond) + 1, wantDays: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			expired, days := nodeExpiryReminderDays(tt.expiryMs, now)
+			if expired != tt.wantExpired || days != tt.wantDays {
+				t.Fatalf("nodeExpiryReminderDays() = (%v, %d), want (%v, %d)", expired, days, tt.wantExpired, tt.wantDays)
+			}
+		})
+	}
+}
+
 func TestRunResetAndExpiryJobResetsFlowAndDisablesExpiredRecords(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "jobs-reset.db")
 	r, err := repo.Open(dbPath)

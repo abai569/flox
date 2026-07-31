@@ -732,3 +732,61 @@ func TestSyncRemoteNodeInstancesAcceptsSameGeneration(t *testing.T) {
 		t.Fatalf("expected same generation to remain usable, got %+v", got)
 	}
 }
+
+func TestListNodeInstancesExpiringWithinFiltersWindowStatusAndDismissal(t *testing.T) {
+	r, err := Open(filepath.Join(t.TempDir(), "expiry-reminders.db"))
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Close() })
+
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC).UnixMilli()
+	nodes := []model.Node{
+		{ID: 101, Name: "active", Secret: "active-secret", Status: 1, Paused: 0, CreatedTime: now},
+		{ID: 102, Name: "disabled", Secret: "disabled-secret", Status: 0, Paused: 0, CreatedTime: now},
+		{ID: 103, Name: "paused", Secret: "paused-secret", Status: 1, Paused: 1, CreatedTime: now},
+	}
+	if err := r.db.Create(&nodes).Error; err != nil {
+		t.Fatalf("create nodes: %v", err)
+	}
+
+	instances := []model.NodeInstance{
+		{NodeID: 101, InstanceID: "future-zero-weight", Status: 1, Weight: 0, ExpiryTime: sql.NullInt64{Int64: now + int64(12*time.Hour/time.Millisecond), Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 101, InstanceID: "recently-expired", Status: 1, ExpiryTime: sql.NullInt64{Int64: now - int64(12*time.Hour/time.Millisecond), Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 101, InstanceID: "expires-now", Status: 1, ExpiryTime: sql.NullInt64{Int64: now, Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 101, InstanceID: "future-80-days", Status: 1, ExpiryTime: sql.NullInt64{Int64: now + int64(80*24*time.Hour/time.Millisecond), Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 101, InstanceID: "expired-history", Status: 1, ExpiryTime: sql.NullInt64{Int64: now - int64(25*time.Hour/time.Millisecond), Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 101, InstanceID: "disabled-instance", Status: 0, ExpiryTime: sql.NullInt64{Int64: now + int64(time.Hour/time.Millisecond), Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 102, InstanceID: "disabled-node", Status: 1, ExpiryTime: sql.NullInt64{Int64: now + int64(time.Hour/time.Millisecond), Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 103, InstanceID: "paused-node", Status: 1, ExpiryTime: sql.NullInt64{Int64: now + int64(time.Hour/time.Millisecond), Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 101, InstanceID: "dismissed-future", Status: 1, ExpiryTime: sql.NullInt64{Int64: now + int64(time.Hour/time.Millisecond), Valid: true}, ExpiryReminderDismissedUntil: sql.NullInt64{Int64: now + 1, Valid: true}, CreatedTime: now, UpdatedTime: now},
+		{NodeID: 101, InstanceID: "dismissal-ended", Status: 1, ExpiryTime: sql.NullInt64{Int64: now + int64(2*time.Hour/time.Millisecond), Valid: true}, ExpiryReminderDismissedUntil: sql.NullInt64{Int64: now, Valid: true}, CreatedTime: now, UpdatedTime: now},
+	}
+	if err := r.db.Create(&instances).Error; err != nil {
+		t.Fatalf("create instances: %v", err)
+	}
+	if err := r.db.Model(&model.Node{}).Where("id = ?", 102).Update("status", 0).Error; err != nil {
+		t.Fatalf("disable node: %v", err)
+	}
+	if err := r.db.Model(&model.NodeInstance{}).Where("instance_id = ?", "disabled-instance").Update("status", 0).Error; err != nil {
+		t.Fatalf("disable instance: %v", err)
+	}
+
+	got, err := r.ListNodeInstancesExpiringWithin(now, 3)
+	if err != nil {
+		t.Fatalf("list expiry reminders: %v", err)
+	}
+	gotIDs := make(map[string]bool, len(got))
+	for _, item := range got {
+		gotIDs[item.InstanceID] = true
+	}
+	wantIDs := []string{"future-zero-weight", "recently-expired", "expires-now", "dismissal-ended"}
+	if len(gotIDs) != len(wantIDs) {
+		t.Fatalf("expiry reminder IDs = %v, want %v", gotIDs, wantIDs)
+	}
+	for _, instanceID := range wantIDs {
+		if !gotIDs[instanceID] {
+			t.Errorf("expected %q in expiry reminders, got %v", instanceID, gotIDs)
+		}
+	}
+}

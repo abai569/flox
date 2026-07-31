@@ -1176,27 +1176,20 @@ func (h *Handler) expirePackageSubscriptions() {
 // checkNodeExpiryNotifications checks instances expiring within 3 days and sends Telegram notifications.
 // Only notifies once per 24h per instance to avoid spam.
 func (h *Handler) checkNodeExpiryNotifications(nowMs int64) {
+	tier, _ := middleware.GetLicenseTier()
+	if tier == middleware.TierFree {
+		return
+	}
+	bot := h.TelegramBot()
+	if bot == nil || !bot.Enabled() || !bot.Running() {
+		return
+	}
+
 	instances, err := h.repo.ListNodeInstancesExpiringWithin(nowMs, 3)
 	if err != nil || len(instances) == 0 {
 		return
 	}
 	for _, inst := range instances {
-		daysLeft := (inst.ExpiryTime - nowMs) / 86400000
-		if daysLeft < 1 {
-			daysLeft = 0
-		}
-
-		_ = h.repo.UpdateNodeInstanceExpiryReminderDismissedUntil(inst.NodeID, inst.InstanceID, nowMs+86400000)
-
-		tier, _ := middleware.GetLicenseTier()
-		if tier == middleware.TierFree {
-			continue
-		}
-		bot := h.TelegramBot()
-		if bot == nil || !bot.Enabled() || !bot.Running() {
-			continue
-		}
-
 		name := inst.NodeName
 		if inst.DisplayName != "" {
 			name += " / " + inst.DisplayName
@@ -1204,12 +1197,26 @@ func (h *Handler) checkNodeExpiryNotifications(nowMs int64) {
 			name += fmt.Sprintf(" / 实例 %d", inst.DisplayIndex)
 		}
 
-		if daysLeft <= 0 {
+		expired, daysLeft := nodeExpiryReminderDays(inst.ExpiryTime, nowMs)
+		if expired {
 			bot.SendNodeExpired(name)
 		} else {
-			bot.SendNodeExpirySoon(name, int(daysLeft))
+			bot.SendNodeExpirySoon(name, daysLeft)
 		}
+		_ = h.repo.UpdateNodeInstanceExpiryReminderDismissedUntil(inst.NodeID, inst.InstanceID, nowMs+86400000)
 	}
+}
+
+func nodeExpiryReminderDays(expiryMs, nowMs int64) (bool, int) {
+	if expiryMs <= nowMs {
+		return true, 0
+	}
+	const dayMs = int64(24 * time.Hour / time.Millisecond)
+	days := int((expiryMs - nowMs + dayMs - 1) / dayMs)
+	if days < 1 {
+		days = 1
+	}
+	return false, days
 }
 
 func (h *Handler) runNodeNotifyCooldownLoop(ctx context.Context) {
