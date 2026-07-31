@@ -11,6 +11,18 @@ import (
 	"go-backend/internal/store/repo"
 )
 
+func TestShouldValidateForwardAdmission(t *testing.T) {
+	if shouldValidateForwardAdmission(nil) {
+		t.Fatal("nil forward must not require admission validation")
+	}
+	if shouldValidateForwardAdmission(&forwardRecord{Status: 0}) {
+		t.Fatal("paused forward must not require admission validation during redeploy")
+	}
+	if !shouldValidateForwardAdmission(&forwardRecord{Status: 1}) {
+		t.Fatal("active forward must require admission validation")
+	}
+}
+
 func TestBuildForwardControlServiceNamesPauseResume(t *testing.T) {
 	base := "12_34_56"
 	want := []string{base + "_tcp", base + "_udp"}
