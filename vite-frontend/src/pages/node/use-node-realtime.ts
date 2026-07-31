@@ -19,7 +19,7 @@ interface UseNodeRealtimeOptions {
 const MAX_STANDARD_RECONNECT_ATTEMPTS = 5;
 const STANDARD_RECONNECT_DELAY_MS = 3000;
 const MAX_STANDARD_RECONNECT_DELAY_MS = 15000;
-const FALLBACK_RECONNECT_DELAY_MS = 30000;
+const FALLBACK_RECONNECT_DELAY_MS = 10000;
 
 const getRealtimeWsUrl = (mode: "admin" | "public"): string => {
   const baseUrl =
