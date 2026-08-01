@@ -855,6 +855,11 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 							s.forwardMetricsMu.Unlock()
 						}
 						s.mu.Unlock()
+						node, err := s.repo.GetNodeByID(nodeID)
+						if err != nil || node == nil || node.Status != 1 {
+							continue
+						}
+
 						_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
 							NodeID:      nodeID,
 							InstanceID:  sysInfo.InstanceID,
