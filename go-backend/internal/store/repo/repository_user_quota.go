@@ -171,15 +171,18 @@ func (r *Repository) RecordFlowResetHistory(snapshots []model.UserFlowSnapshot, 
 	for _, s := range snapshots {
 		totalBytes := s.InFlow + s.OutFlow
 		history := &model.UserQuotaHistory{
-			UserID:        s.UserID,
-			PeriodType:    "monthly",
-			PeriodKey:     periodKey,
-			InFlowBefore:  s.InFlow,
-			OutFlowBefore: s.OutFlow,
-			UsedBytes:     totalBytes,
-			ResetTime:     nowMs,
-			CreatedTime:   nowMs,
-			ResetReason:   resetReason,
+			UserID:              s.UserID,
+			PeriodType:          "monthly",
+			PeriodKey:           periodKey,
+			FlowBefore:          s.Flow,
+			TrafficFlowBefore:   s.TrafficFlow,
+			AvailableFlowBefore: s.AvailableFlow,
+			InFlowBefore:        s.InFlow,
+			OutFlowBefore:       s.OutFlow,
+			UsedBytes:           totalBytes,
+			ResetTime:           nowMs,
+			CreatedTime:         nowMs,
+			ResetReason:         resetReason,
 		}
 		if err := r.db.Create(history).Error; err != nil {
 			return err
@@ -399,23 +402,26 @@ func (r *Repository) ResetUserQuotaUsage(userID int64, scope string, now time.Ti
 
 // UserQuotaHistoryItem 用户流量历史项
 type UserQuotaHistoryItem struct {
-	ID            int64  `json:"id"`
-	PeriodType    string `json:"periodType"`    // daily/monthly/user-adjust
-	PeriodKey     int64  `json:"periodKey"`     // YYYYMMDD 或 YYYYMM 或 0
-	InFlowBefore  int64  `json:"inFlowBefore"`  // 上行流量 (bytes)
-	OutFlowBefore int64  `json:"outFlowBefore"` // 下行流量 (bytes)
-	InFlowAfter   int64  `json:"inFlowAfter"`   // 调整后上行流量
-	OutFlowAfter  int64  `json:"outFlowAfter"`  // 调整后下行流量
-	UsedBytes     int64  `json:"usedBytes"`
-	ActionType    string `json:"actionType"` // reset/adjust/auto_reset
-	OperatorID    int64  `json:"operatorId"`
-	OperatorName  string `json:"operatorName"`
-	InFlowGB      string `json:"inFlowGB"`  // 上行流量 (GB)
-	OutFlowGB     string `json:"outFlowGB"` // 下行流量 (GB)
-	UsedGB        string `json:"usedGB"`    // 格式化后的 GB 值
-	ResetTime     int64  `json:"resetTime"`
-	CreatedTime   int64  `json:"createdTime"`
-	ResetReason   string `json:"resetReason"`
+	ID                  int64  `json:"id"`
+	PeriodType          string `json:"periodType"` // daily/monthly/user-adjust
+	PeriodKey           int64  `json:"periodKey"`  // YYYYMMDD 或 YYYYMM 或 0
+	FlowBefore          int64  `json:"flowBefore"`
+	TrafficFlowBefore   int64  `json:"trafficFlowBefore"`
+	AvailableFlowBefore int64  `json:"availableFlowBefore"`
+	InFlowBefore        int64  `json:"inFlowBefore"`  // 上行流量 (bytes)
+	OutFlowBefore       int64  `json:"outFlowBefore"` // 下行流量 (bytes)
+	InFlowAfter         int64  `json:"inFlowAfter"`   // 调整后上行流量
+	OutFlowAfter        int64  `json:"outFlowAfter"`  // 调整后下行流量
+	UsedBytes           int64  `json:"usedBytes"`
+	ActionType          string `json:"actionType"` // reset/adjust/auto_reset
+	OperatorID          int64  `json:"operatorId"`
+	OperatorName        string `json:"operatorName"`
+	InFlowGB            string `json:"inFlowGB"`  // 上行流量 (GB)
+	OutFlowGB           string `json:"outFlowGB"` // 下行流量 (GB)
+	UsedGB              string `json:"usedGB"`    // 格式化后的 GB 值
+	ResetTime           int64  `json:"resetTime"`
+	CreatedTime         int64  `json:"createdTime"`
+	ResetReason         string `json:"resetReason"`
 }
 
 // GetUserQuotaHistory 获取用户流量历史记录
@@ -453,23 +459,26 @@ func (r *Repository) GetUserQuotaHistory(userID int64, limit int) ([]UserQuotaHi
 			actionType = "auto_reset"
 		}
 		items = append(items, UserQuotaHistoryItem{
-			ID:            h.ID,
-			PeriodType:    h.PeriodType,
-			PeriodKey:     h.PeriodKey,
-			InFlowBefore:  h.InFlowBefore,
-			OutFlowBefore: h.OutFlowBefore,
-			InFlowAfter:   h.InFlowAfter,
-			OutFlowAfter:  h.OutFlowAfter,
-			UsedBytes:     h.UsedBytes,
-			ActionType:    actionType,
-			OperatorID:    h.OperatorID,
-			OperatorName:  h.OperatorName,
-			InFlowGB:      inFlowGB,
-			OutFlowGB:     outFlowGB,
-			UsedGB:        usedGB,
-			ResetTime:     h.ResetTime,
-			CreatedTime:   h.CreatedTime,
-			ResetReason:   h.ResetReason,
+			ID:                  h.ID,
+			PeriodType:          h.PeriodType,
+			PeriodKey:           h.PeriodKey,
+			FlowBefore:          h.FlowBefore,
+			TrafficFlowBefore:   h.TrafficFlowBefore,
+			AvailableFlowBefore: h.AvailableFlowBefore,
+			InFlowBefore:        h.InFlowBefore,
+			OutFlowBefore:       h.OutFlowBefore,
+			InFlowAfter:         h.InFlowAfter,
+			OutFlowAfter:        h.OutFlowAfter,
+			UsedBytes:           h.UsedBytes,
+			ActionType:          actionType,
+			OperatorID:          h.OperatorID,
+			OperatorName:        h.OperatorName,
+			InFlowGB:            inFlowGB,
+			OutFlowGB:           outFlowGB,
+			UsedGB:              usedGB,
+			ResetTime:           h.ResetTime,
+			CreatedTime:         h.CreatedTime,
+			ResetReason:         h.ResetReason,
 		})
 	}
 

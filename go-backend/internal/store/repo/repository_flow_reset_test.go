@@ -32,7 +32,8 @@ func TestResetUserMonthlyFlowUsesLastResetAndReturnsUserID(t *testing.T) {
 
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 	dayStart := time.Date(2026, 8, 15, 0, 0, 0, 0, time.UTC).UnixMilli()
-	user := newFlowResetTestUser(42, 123, 456, dayStart-1, dayStart)
+	monthStart := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
+	user := newFlowResetTestUser(42, 123, 456, monthStart-1, dayStart)
 	if err := r.DB().Create(&user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -87,6 +88,59 @@ func TestMarkExpiredUserAutoRenewFailureSkipsEmptyHistory(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected no empty history, got %d", count)
+	}
+}
+
+func TestMonthlyFlowResetCatchesUpAndRestoresBaseFlow(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repository: %v", err)
+	}
+	defer r.Close()
+
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	monthStart := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC).UnixMilli()
+	user := newFlowResetTestUser(44, 100, 200, monthStart-1, now.UnixMilli())
+	user.FlowResetTime = 1
+	user.Flow = 1500
+	user.BaseFlow = 1000
+	user.TrafficFlow = 500
+	if err := r.DB().Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	tunnel := model.UserTunnel{
+		UserID: user.ID, TunnelID: 9, Num: 1, Flow: 1500, BaseFlow: 1000,
+		InFlow: 50, OutFlow: 60, FlowResetTime: 1, FlowLastResetAt: monthStart - 1,
+		ExpTime: now.AddDate(0, 1, 0).UnixMilli(), Status: 1,
+	}
+	if err := r.DB().Create(&tunnel).Error; err != nil {
+		t.Fatalf("create tunnel: %v", err)
+	}
+
+	snapshots, err := r.ResetUserMonthlyFlow(now.Day(), 31, now)
+	if err != nil {
+		t.Fatalf("reset user monthly flow: %v", err)
+	}
+	if len(snapshots) != 1 || snapshots[0].UserID != user.ID {
+		t.Fatalf("unexpected snapshots: %+v", snapshots)
+	}
+	if err := r.ResetUserTunnelMonthlyFlow(now.Day(), 31, now); err != nil {
+		t.Fatalf("reset tunnel monthly flow: %v", err)
+	}
+
+	var gotUser model.User
+	if err := r.DB().First(&gotUser, user.ID).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if gotUser.Flow != 1000 || gotUser.TrafficFlow != 0 || gotUser.InFlow != 0 || gotUser.OutFlow != 0 {
+		t.Fatalf("unexpected reset user: %+v", gotUser)
+	}
+	var gotTunnel model.UserTunnel
+	if err := r.DB().First(&gotTunnel, tunnel.ID).Error; err != nil {
+		t.Fatalf("load tunnel: %v", err)
+	}
+	if gotTunnel.Flow != 1000 || gotTunnel.InFlow != 0 || gotTunnel.OutFlow != 0 {
+		t.Fatalf("unexpected reset tunnel: %+v", gotTunnel)
 	}
 }
 
