@@ -507,6 +507,10 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 	h.wsServer.SetNodeOfflineHook(h.onNodeOffline)
 	h.wsServer.SetNodeInstanceOfflineHook(h.onNodeInstanceOffline)
 	h.wsServer.SetNodeMetricHook(func(nodeID int64, info ws.SystemInfo) {
+		node, err := h.repo.GetNodeByID(nodeID)
+		if err != nil || node == nil || node.Status != 1 {
+			return
+		}
 		metricInfo := metrics.SystemInfo{
 			Uptime:                 info.Uptime,
 			BytesReceived:          info.BytesReceived,
