@@ -6661,6 +6661,9 @@ export default function NodePage() {
                 将为 {mimicConfirmNodes.length} 个节点安装 WGM
                 依赖，节点下所有在线实例都会执行安装。是否继续？
               </p>
+              <p className="text-sm text-warning-600 mt-1">
+                ⚠️ 若节点内核头文件过旧，安装过程中节点可能会自动重启以切换内核，重启后将自动续接安装。
+              </p>
             </ModalBody>
             <ModalFooter>
               <Button variant="flat" onPress={() => setMimicConfirmNodes([])}>
