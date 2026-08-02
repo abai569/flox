@@ -5,26 +5,25 @@ import {
   useNavigate,
   useLocation,
 } from "react-router-dom";
-import { useEffect, lazy, Suspense } from "react";
-
-const IndexPage = lazy(() => import("@/pages/index"));
-const ChangePasswordPage = lazy(() => import("@/pages/change-password"));
-const DashboardPage = lazy(() => import("@/pages/dashboard"));
-const MonitorPage = lazy(() => import("@/pages/monitor"));
-const TZPage = lazy(() => import("@/pages/tz"));
-const ForwardPage = lazy(() => import("@/pages/forward"));
-const TunnelPage = lazy(() => import("@/pages/tunnel"));
-const NodePage = lazy(() => import("@/pages/node"));
-const SDWANPage = lazy(() => import("@/pages/sdwan"));
-const UserPage = lazy(() => import("@/pages/user"));
-const ConfigPage = lazy(() => import("@/pages/config"));
-const ShopPage = lazy(() => import("@/pages/shop"));
-const MyHomePage = lazy(() => import("@/pages/myhome"));
-const AdminPlansPage = lazy(() => import("@/pages/admin-plans"));
-const AdminOrdersPage = lazy(() => import("@/pages/admin-orders"));
-const AdminPaymentPage = lazy(() => import("@/pages/admin-payment"));
-const AdminTelegramPage = lazy(() => import("@/pages/admin-telegram"));
-const AdminPanelAddressPage = lazy(() => import("@/pages/admin-panel-address"));
+import { useEffect } from "react";
+import IndexPage from "@/pages/index";
+import ChangePasswordPage from "@/pages/change-password";
+import DashboardPage from "@/pages/dashboard";
+import MonitorPage from "@/pages/monitor";
+import TZPage from "@/pages/tz";
+import ForwardPage from "@/pages/forward";
+import TunnelPage from "@/pages/tunnel";
+import NodePage from "@/pages/node";
+import SDWANPage from "@/pages/sdwan";
+import UserPage from "@/pages/user";
+import ConfigPage from "@/pages/config";
+import ShopPage from "@/pages/shop";
+import MyHomePage from "@/pages/myhome";
+import AdminPlansPage from "@/pages/admin-plans";
+import AdminOrdersPage from "@/pages/admin-orders";
+import AdminPaymentPage from "@/pages/admin-payment";
+import AdminTelegramPage from "@/pages/admin-telegram";
+import AdminPanelAddressPage from "@/pages/admin-panel-address";
 import AdminLayout from "@/layouts/admin";
 import H5Layout from "@/layouts/h5";
 import { isLoggedIn } from "@/utils/auth";
@@ -124,7 +123,6 @@ function App() {
   }, []);
 
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-white dark:bg-black" />}>
     <Routes>
       <Route element={<LoginRoute />} path="/" />
       <Route element={<TZPage />} path="/tz" />
@@ -251,7 +249,6 @@ function App() {
       />
       <Route element={<AdminPanelAddressPage />} path="/settings" />
     </Routes>
-    </Suspense>
   );
 }
 
