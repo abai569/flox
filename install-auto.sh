@@ -144,48 +144,34 @@ GLOBAL_DOWNLOAD_URL="${GLOBAL_DOWNLOAD_URL:-}"
 
 # 根据检测结果设置下载源
 if [ "$CN" == "1" ]; then
-  # 国内网络：使用国内加速地址
-  if [ -n "$DOMESTIC_DOWNLOAD_URL" ]; then
-    DOWNLOAD_HOSTS=(
-      "$DOMESTIC_DOWNLOAD_URL"
-      "https://chfs.646321.xyz:8/chfs/shared/flox"
-      "$GLOBAL_DOWNLOAD_URL"
-      "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
-    )
-  else
-    DOWNLOAD_HOSTS=(
-      "https://chfs.646321.xyz:8/chfs/shared/flox"
-      "$GLOBAL_DOWNLOAD_URL"
-      "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
-    )
-  fi
-  echo "🌏 使用国内加速地址"
-elif [ "$OS" == "1" ]; then
-  # 海外网络：使用 GitHub 加速
-  if [ -n "$GLOBAL_DOWNLOAD_URL" ]; then
-    DOWNLOAD_HOSTS=(
-      "https://chfs.646321.xyz:8/chfs/shared/flox" 
-      "https://gh-proxy.com/https://github.com/abai569/flox/releases/latest/download"
-      "$GLOBAL_DOWNLOAD_URL"
-      "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
-    )
-  else
-    DOWNLOAD_HOSTS=(
-      "https://chfs.646321.xyz:8/chfs/shared/flox" 
-      "https://gh-proxy.com/https://github.com/abai569/flox/releases/latest/download"
-      "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
-    )
-  fi
-  echo "🌍 使用 GitHub 加速"
-else
-  # 检测失败：默认使用 GitHub
+  # 国内网络：chfs → 自定义全局地址 → gh-proxy → ghfast
   DOWNLOAD_HOSTS=(
-    "https://chfs.646321.xyz:8/chfs/shared/flox" 
-    "https://github.com/abai569/flox/releases/latest/download"
+    "https://chfs.646321.xyz:8/chfs/shared/flox"
     "$GLOBAL_DOWNLOAD_URL"
+    "https://gh-proxy.com/https://github.com/abai569/flox/releases/latest/download"
     "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
   )
-  echo "⚠️  网络检测失败，使用 GitHub 加速"
+  echo "🌏 使用国内加速地址"
+elif [ "$OS" == "1" ]; then
+  # 海外网络：直连 GitHub → gh-proxy → 自定义全局地址 → ghfast → chfs
+  DOWNLOAD_HOSTS=(
+    "https://github.com/abai569/flox/releases/latest/download"
+    "https://gh-proxy.com/https://github.com/abai569/flox/releases/latest/download"
+    "$GLOBAL_DOWNLOAD_URL"
+    "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
+    "https://chfs.646321.xyz:8/chfs/shared/flox"
+  )
+  echo "🌍 使用 GitHub 直连"
+else
+  # 检测失败：chfs → 自定义全局地址 → gh-proxy → ghfast → 直连 GitHub
+  DOWNLOAD_HOSTS=(
+    "https://chfs.646321.xyz:8/chfs/shared/flox"
+    "$GLOBAL_DOWNLOAD_URL"
+    "https://gh-proxy.com/https://github.com/abai569/flox/releases/latest/download"
+    "https://ghfast.top/https://github.com/abai569/flox/releases/latest/download"
+    "https://github.com/abai569/flox/releases/latest/download"
+  )
+  echo "⚠️  网络检测失败，依次尝试所有下载源"
 fi
 
 # 循环尝试每个下载源
