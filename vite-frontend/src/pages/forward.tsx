@@ -270,7 +270,7 @@ interface ForwardForm {
   speedLimitEnabled: boolean;
   speedLimit: number;
   mode: "gost" | "nftables" | "floxcore" | "sdwan" | "mimic";
-  createdTime?: number;
+  createdTime?: number | null;
 }
 const createForwardFormDefaults = (): ForwardForm => ({
   name: "",
@@ -289,14 +289,14 @@ const createForwardFormDefaults = (): ForwardForm => ({
   mode: "gost",
 });
 
-// 将 createdTime（可能是 number ms 或 string）统一解析为 number | undefined
-const parseForwardCreatedTime = (v: unknown): number | undefined => {
+// 将 createdTime（可能是 number ms 或 string）统一解析为 number | null
+const parseForwardCreatedTime = (v: unknown): number | null => {
   if (typeof v === "number" && v > 0) return v;
   if (typeof v === "string" && v) {
     const n = Number(v);
     if (!isNaN(n) && n > 0) return n;
   }
-  return undefined;
+  return null;
 };
 
 interface ForwardUserGroup {
@@ -3326,6 +3326,7 @@ export default function ForwardPage() {
           maxConnections: form.maxConnections,
           trafficLimit: form.trafficLimit,
           expiryTime: form.expiryTime,
+          ...(form.createdTime != null ? { createdTime: form.createdTime } : {}),
           speedLimitEnabled: form.speedLimit > 0,
           speedLimit: form.speedLimit > 0 ? form.speedLimit : 0,
           mode: form.mode,
@@ -7092,7 +7093,7 @@ export default function ForwardPage() {
                             }
                           />
                         </div>
-                        <div className="grid grid-cols-3 gap-2 mb-2">
+                        <div className={`grid ${isEdit ? "grid-cols-3" : "grid-cols-2"} gap-2 mb-2`}>
                           {/* 监听ip */}
                           <Select
                             description={
@@ -7137,27 +7138,23 @@ export default function ForwardPage() {
                               <SelectItem key={ip}>{ip}</SelectItem>
                             ))}
                           </Select>
-                          {/* 创建日期（只读） */}
-                          <Input
-                            readOnly
-                            description="规则创建时间"
-                            label="创建日期"
-                            value={
-                              form.createdTime
-                                ? new Date(form.createdTime).toLocaleDateString(
-                                    "zh-CN",
-                                    {
-                                      year: "numeric",
-                                      month: "2-digit",
-                                      day: "2-digit",
-                                    }
-                                  )
-                                : isEdit
-                                  ? "-"
-                                  : "创建后显示"
-                            }
-                            variant="bordered"
-                          />
+                          {/* 创建日期（编辑时可改） */}
+                          {isEdit && (
+                            <div className="space-y-2">
+                              <DatePicker
+                                showMonthAndYearPickers
+                                description="规则实际创建时间"
+                                label="创建日期"
+                                value={timestampToCalendarDate(form.createdTime ?? null)}
+                                onChange={(date) => {
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    createdTime: calendarDateToTimestamp(date),
+                                  }));
+                                }}
+                              />
+                            </div>
+                          )}
                           {/* 有效期 */}
                           <ExpiryTimeField
                             value={form.expiryTime}
