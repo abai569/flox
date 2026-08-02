@@ -1700,6 +1700,15 @@ func (h *Handler) flowUpload(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, "invalid instance", http.StatusConflict)
 					return
 				}
+				// 实例被禁用（weight=0）时，丢弃本次流量上报并立即推送停止命令。
+				// 这是响应式补漏：主动禁用时 WebSocket 可能断开导致命令丢失，
+				// 而此处 gost 明显在线（能发 HTTP 上报），推送命令成功率极高。
+				if weight, wErr := h.repo.GetNodeInstanceWeight(node.ID, instanceID); wErr == nil && weight <= 0 {
+					go h.pauseForwardsOnInstanceAsync(node.ID, instanceID)
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					_, _ = w.Write([]byte("ok"))
+					return
+				}
 			}
 			sourceID := fmt.Sprintf("node:%d:instance:%s", node.ID, instanceID)
 			for itemIndex, item := range payload.Items {

@@ -132,24 +132,7 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		// 实例被禁用（weight=0）时，立即对该实例上所有活跃规则发 PauseService + TerminateConnections，
 		// 不等异步的 redeployNodeRuntime 完成，确保已建连接尽快断开、流量不再累积
 		if req.Weight == 0 {
-			capturedNodeID := req.NodeID
-			capturedInstanceID := instanceID
-			go func() {
-				forwardIDs, err := h.repo.ListActiveForwardIDsByNode(capturedNodeID)
-				if err != nil {
-					log.Printf("disable instance %s: list forwards failed: %v", capturedInstanceID, err)
-					return
-				}
-				for _, forwardID := range forwardIDs {
-					fwd, err := h.getForwardRecord(forwardID)
-					if err != nil || fwd == nil {
-						continue
-					}
-					if pErr := h.pauseAndTerminateForwardServiceOnInstance(fwd, capturedNodeID, capturedInstanceID); pErr != nil {
-						log.Printf("disable instance %s forward %d pause failed: %v", capturedInstanceID, forwardID, pErr)
-					}
-				}
-			}()
+			go h.pauseForwardsOnInstanceAsync(req.NodeID, instanceID)
 		}
 	} else {
 		if err := h.repo.UpdateNodeWeight(req.NodeID, req.Weight, time.Now().UnixMilli()); err != nil {
@@ -173,6 +156,25 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		"trafficLimitMode": trafficLimitMode,
 		"trafficRatio":     req.TrafficRatio,
 	}))
+}
+
+// pauseForwardsOnInstanceAsync 异步对指定节点实例上所有活跃规则发 PauseService + TerminateConnections，
+// 用于实例被禁用（weight=0）或流量上报检测到非法上报时立即终止流量
+func (h *Handler) pauseForwardsOnInstanceAsync(nodeID int64, instanceID string) {
+	forwardIDs, err := h.repo.ListActiveForwardIDsByNode(nodeID)
+	if err != nil {
+		log.Printf("pauseForwardsOnInstanceAsync list forwards node=%d instance=%s failed: %v", nodeID, instanceID, err)
+		return
+	}
+	for _, forwardID := range forwardIDs {
+		fwd, err := h.getForwardRecord(forwardID)
+		if err != nil || fwd == nil {
+			continue
+		}
+		if pErr := h.pauseAndTerminateForwardServiceOnInstance(fwd, nodeID, instanceID); pErr != nil {
+			log.Printf("pauseForwardsOnInstanceAsync forward %d node=%d instance=%s failed: %v", forwardID, nodeID, instanceID, pErr)
+		}
+	}
 }
 
 func validateNodeWeightInstancePortRange(value string) error {
