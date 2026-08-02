@@ -993,6 +993,7 @@ export default function NodePage() {
   const [batchMimicLoading, setBatchMimicLoading] = useState(false);
   const [mimicResultModalOpen, setMimicResultModalOpen] = useState(false);
   const [mimicConfirmNodes, setMimicConfirmNodes] = useState<Node[]>([]);
+  const [mimicConfirmInstanceLabel, setMimicConfirmInstanceLabel] = useState<string | undefined>(undefined);
   const [mimicResults, setMimicResults] = useState<
     Array<{
       nodeId: number;
@@ -3305,12 +3306,13 @@ export default function NodePage() {
       setBatchMimicLoading(false);
     }
   };
-  const requestMimicDepsInstall = (nodes: Node[]) => {
+  const requestMimicDepsInstall = (nodes: Node[], instanceLabel?: string) => {
     if (nodes.length === 0) {
       toast.error("请选择节点");
 
       return;
     }
+    setMimicConfirmInstanceLabel(instanceLabel);
     setMimicConfirmNodes(nodes);
   };
   const handleBatchResetTraffic = async () => {
@@ -4972,8 +4974,8 @@ export default function NodePage() {
                                         onDeleteInstance={
                                           setInstanceDeleteTarget
                                         }
-                                        onInstallMimicDeps={(node) =>
-                                          requestMimicDepsInstall([node])
+                                        onInstallMimicDeps={(node, instanceLabel) =>
+                                          requestMimicDepsInstall([node], instanceLabel)
                                         }
                                         onReorderInstances={
                                           reorderNodeInstances
@@ -5054,8 +5056,8 @@ export default function NodePage() {
                     upgradeProgress={upgradeProgress}
                     onConfigureInstance={openInstanceConfigEditor}
                     onDeleteInstance={setInstanceDeleteTarget}
-                    onInstallMimicDeps={(node) =>
-                      requestMimicDepsInstall([node])
+                    onInstallMimicDeps={(node, instanceLabel) =>
+                      requestMimicDepsInstall([node], instanceLabel)
                     }
                     onReorderInstances={reorderNodeInstances}
                     onCrossBorderCorrect={handleCrossBorderCorrect}
@@ -6647,43 +6649,46 @@ export default function NodePage() {
             )}
           </ModalContent>
         </Modal>
-        <Modal
-          isOpen={mimicConfirmNodes.length > 0}
-          placement="center"
-          onOpenChange={(open) => {
-            if (!open) setMimicConfirmNodes([]);
-          }}
-        >
-          <ModalContent>
-            <ModalHeader>确认安装 WGM 依赖</ModalHeader>
-            <ModalBody>
-              <p className="text-sm text-default-600">
-                将为 {mimicConfirmNodes.length} 个节点安装 WGM
-                依赖，节点下所有在线实例都会执行安装。是否继续？
-              </p>
-              <p className="text-sm text-warning-600 mt-1">
-                ⚠️ 若节点内核头文件过旧，安装过程中节点可能会自动重启以切换内核，重启后将自动续接安装。
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button variant="flat" onPress={() => setMimicConfirmNodes([])}>
-                取消
-              </Button>
-              <Button
-                color="primary"
-                isLoading={batchMimicLoading}
-                onPress={() => {
-                  const ids = mimicConfirmNodes.map((node) => node.id);
+          <Modal
+            isOpen={mimicConfirmNodes.length > 0}
+            placement="center"
+            onOpenChange={(open) => {
+              if (!open) { setMimicConfirmNodes([]); setMimicConfirmInstanceLabel(undefined); }
+            }}
+          >
+            <ModalContent>
+              <ModalHeader>确认安装 WGM 依赖</ModalHeader>
+              <ModalBody>
+                <p className="text-sm text-default-600">
+                  {mimicConfirmInstanceLabel && mimicConfirmNodes.length === 1
+                    ? `将为「${mimicConfirmNodes[0].name}」节点下「${mimicConfirmInstanceLabel}」实例安装 WGM 依赖，是否继续？`
+                    : `将为 ${mimicConfirmNodes.length} 个节点安装 WGM 依赖，节点下所有在线实例都会执行安装。是否继续？`
+                  }
+                </p>
+                <p className="text-sm text-warning-600 mt-1">
+                  ⚠️ 若节点内核头文件过旧，安装过程中节点可能会自动重启以切换内核，重启后将自动续接安装。
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="flat" onPress={() => { setMimicConfirmNodes([]); setMimicConfirmInstanceLabel(undefined); }}>
+                  取消
+                </Button>
+                <Button
+                  color="primary"
+                  isLoading={batchMimicLoading}
+                  onPress={() => {
+                    const ids = mimicConfirmNodes.map((node) => node.id);
 
-                  setMimicConfirmNodes([]);
-                  void handleBatchMimicDeps(ids);
-                }}
-              >
-                确认
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+                    setMimicConfirmNodes([]);
+                    setMimicConfirmInstanceLabel(undefined);
+                    void handleBatchMimicDeps(ids);
+                  }}
+                >
+                  确认
+                </Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
         {/* WGM 依赖安装结果弹窗 */}
         <Modal
           backdrop="blur"
