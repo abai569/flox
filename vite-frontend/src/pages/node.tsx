@@ -3254,7 +3254,7 @@ export default function NodePage() {
     if (errMsg.includes("不支持的包管理器"))
       return "请手动安装：bubblewrap pahole clang-16 bpftool libbpf-dev libffi-dev";
 
-    return "apt-get install -f -y && systemctl restart flox_agent1";
+    return `apt-get install -f -y && systemctl restart $(ls /etc/ 2>/dev/null | grep -E '^flox_agent[0-9]*$' | head -1 || echo flox_agent)`;
   }
   const handleBatchMimicDeps = async (targetIds?: number[]) => {
     const selectedLocalIds = targetIds ?? getSelectedLocalIds();
