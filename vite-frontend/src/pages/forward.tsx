@@ -7097,8 +7097,8 @@ export default function ForwardPage() {
                           <Select
                             description={
                               isCurrentTunnelMultiEntrance
-                                ? "多入口不能选监听IP，用各节点默认"
-                                : "从入口节点IP中选择，留空使用默认"
+                                ? "多入口隧道使用节点默认IP"
+                                : "单入口隧道选择节点监听IP"
                             }
                             isDisabled={
                               !form.tunnelId ||
