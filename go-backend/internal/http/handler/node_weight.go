@@ -128,6 +128,29 @@ func (h *Handler) nodeWeightUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 
 		h.deleteNodeInstanceTrafficCacheEntry(req.NodeID, instanceID)
+
+		// 实例被禁用（weight=0）时，立即对该实例上所有活跃规则发 PauseService + TerminateConnections，
+		// 不等异步的 redeployNodeRuntime 完成，确保已建连接尽快断开、流量不再累积
+		if req.Weight == 0 {
+			capturedNodeID := req.NodeID
+			capturedInstanceID := instanceID
+			go func() {
+				forwardIDs, err := h.repo.ListActiveForwardIDsByNode(capturedNodeID)
+				if err != nil {
+					log.Printf("disable instance %s: list forwards failed: %v", capturedInstanceID, err)
+					return
+				}
+				for _, forwardID := range forwardIDs {
+					fwd, err := h.getForwardRecord(forwardID)
+					if err != nil || fwd == nil {
+						continue
+					}
+					if pErr := h.pauseAndTerminateForwardServiceOnInstance(fwd, capturedNodeID, capturedInstanceID); pErr != nil {
+						log.Printf("disable instance %s forward %d pause failed: %v", capturedInstanceID, forwardID, pErr)
+					}
+				}
+			}()
+		}
 	} else {
 		if err := h.repo.UpdateNodeWeight(req.NodeID, req.Weight, time.Now().UnixMilli()); err != nil {
 			response.WriteJSON(w, response.Err(-2, err.Error()))
