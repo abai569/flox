@@ -1113,7 +1113,7 @@ const SortableTableRow = ({
           </svg>
           <SmartTooltip content={remoteAddrOnly}>
             <span
-              className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[130px] inline-block"
+              className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[100px] inline-block"
               onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
             >
               {maskAddress(remoteAddrOnly)}
@@ -1133,7 +1133,10 @@ const SortableTableRow = ({
         </span>
       </TableCell>
       <TableCell className={`w-[110px] whitespace-nowrap px-1 ${rowBg}`}>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 justify-end">
+          <span className="text-sm font-medium text-foreground">
+            {formatFlow(getForwardDisplayFlow(forward))}
+          </span>
           <Button
             isIconOnly
             className="w-6 h-6 min-w-6"
@@ -1156,9 +1159,6 @@ const SortableTableRow = ({
               />
             </svg>
           </Button>
-          <span className="text-sm font-medium text-foreground">
-            {formatFlow(getForwardDisplayFlow(forward))}
-          </span>
         </div>
       </TableCell>
       <TableCell className={`w-[120px] whitespace-nowrap px-1 ${rowBg}`}>
@@ -1180,7 +1180,7 @@ const SortableTableRow = ({
         </div>
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
-        <div className="flex justify-center">
+        <div className="flex justify-center min-w-[70px]">
           <ConnectionCountCell
             current={forward.currentConnections ?? 0}
             max={forward.maxConnections ?? 0}
@@ -1441,7 +1441,7 @@ const SortableCompactTableRow = ({
           </svg>
           <SmartTooltip content={remoteAddrOnly}>
             <span
-              className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[130px] inline-block"
+              className="text-sm font-medium text-foreground cursor-pointer hover:bg-default-200/50 rounded px-1 transition-colors truncate shrink min-w-0 max-w-[100px] inline-block"
               onClick={() => copyToClipboard(remoteAddrOnly, "落地地址")}
             >
               {maskAddress(remoteAddrOnly)}
@@ -1461,7 +1461,10 @@ const SortableCompactTableRow = ({
         </span>
       </TableCell>
       <TableCell className={`w-[110px] whitespace-nowrap px-1 ${rowBg}`}>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 justify-end">
+          <span className="text-sm font-medium text-foreground">
+            {formatFlow(getForwardDisplayFlow(forward))}
+          </span>
           <Button
             isIconOnly
             className="w-6 h-6 min-w-6"
@@ -1484,9 +1487,6 @@ const SortableCompactTableRow = ({
               />
             </svg>
           </Button>
-          <span className="text-sm font-medium text-foreground">
-            {formatFlow(getForwardDisplayFlow(forward))}
-          </span>
         </div>
       </TableCell>
       <TableCell className={`w-[120px] whitespace-nowrap px-1 ${rowBg}`}>
@@ -1508,7 +1508,7 @@ const SortableCompactTableRow = ({
         </div>
       </TableCell>
       <TableCell className={`whitespace-nowrap px-1 text-center ${rowBg}`}>
-        <div className="flex justify-center">
+        <div className="flex justify-center min-w-[70px]">
           <ConnectionCountCell
             current={forward.currentConnections ?? 0}
             max={forward.maxConnections ?? 0}
@@ -5686,13 +5686,12 @@ export default function ForwardPage() {
                             </Select>
                           </TableColumn>
                         )}
-                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           规则名称
                           <span className="text-xs text-primary-500 font-normal">
                             ^{sortedForwards.length}个
                           </span>
                         </TableColumn>
-                        {/* <TableColumn className="whitespace-nowrap flex-shrink-0 w-[180px] text-left">隧道倍率</TableColumn> */}
                         <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
                           <Select
                             aria-label="按所属隧道筛选"
@@ -5751,20 +5750,20 @@ export default function ForwardPage() {
                             ))}
                           </Select>
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           入口地址
                         </TableColumn>
                         <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           端口
                         </TableColumn>
-                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
+                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           落地地址
                         </TableColumn>
                         <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                           端口
                         </TableColumn>
                         <TableColumn
-                          className={`whitespace-nowrap px-1 py-2 text-left ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.totalFlow}`}
+                          className={`whitespace-nowrap px-1 py-2 text-center ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.totalFlow}`}
                         >
                           用量
                         </TableColumn>
@@ -6077,27 +6076,26 @@ export default function ForwardPage() {
                                             </Select>
                                           </TableColumn>
                                         )}
-                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           规则名称
                                           <span className="text-xs text-primary-500 font-normal">
                                             ^{tunnel.items.length}个
                                           </span>
                                         </TableColumn>
-                                        {/* {isAdmin && <TableColumn className="whitespace-nowrap flex-shrink-0 w-[100px] text-left">速度限制</TableColumn>} */}
-                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           入口地址
                                         </TableColumn>
                                         <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           端口
                                         </TableColumn>
-                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-left">
+                                        <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           落地地址
                                         </TableColumn>
                                         <TableColumn className="whitespace-nowrap px-1 py-2 text-center">
                                           端口
                                         </TableColumn>
                                         <TableColumn
-                                          className={`whitespace-nowrap px-1 py-2 text-left ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.totalFlow}`}
+                                          className={`whitespace-nowrap px-1 py-2 text-center ${FORWARD_GROUPED_TABLE_COLUMN_CLASS.totalFlow}`}
                                         >
                                           用量
                                         </TableColumn>
