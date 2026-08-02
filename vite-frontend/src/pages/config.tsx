@@ -9,7 +9,6 @@ import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { Input } from "@/shadcn-bridge/heroui/input";
 import { Textarea } from "@/shadcn-bridge/heroui/input";
 import { Spinner } from "@/shadcn-bridge/heroui/spinner";
-import { PageLoadingState } from "@/components/page-state";
 import { Divider } from "@/shadcn-bridge/heroui/divider";
 import { Switch } from "@/shadcn-bridge/heroui/switch";
 import { Select, SelectItem } from "@/shadcn-bridge/heroui/select";
@@ -972,12 +971,6 @@ export default function ConfigPage() {
       }
     }
   };
-
-  if (loading) {
-    return (
-      <PageLoadingState message="正在加载..." />
-    );
-  }
 
   return (
     <div className="grid lg:grid-cols-2 gap-6 max-w-7xl mx-auto p-6">

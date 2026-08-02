@@ -16,7 +16,7 @@ import {
   ModalBody,
   ModalFooter,
 } from "@/shadcn-bridge/heroui/modal";
-import { PageEmptyState, PageLoadingState } from "@/components/page-state";
+import { PageEmptyState } from "@/components/page-state";
 import { StatusDot } from "@/components/status-dot";
 import { AnnouncementBanner } from "@/pages/dashboard/components/announcement-banner";
 import { FlowChartCard } from "@/pages/dashboard/components/flow-chart-card";
@@ -539,14 +539,6 @@ export default function DashboardPage() {
       return `${daysUntilReset}天后归零`;
     }
   };
-
-  if (loading) {
-    return (
-      <AnimatedPage className="px-3 lg:px-6 py-2 lg:py-4">
-        <PageLoadingState message="正在加载..." />
-      </AnimatedPage>
-    );
-  }
 
   return (
     <AnimatedPage className="px-3 lg:px-6 py-2 lg:py-4">
