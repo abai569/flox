@@ -18,9 +18,8 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
-    minify: false,
+    minify: "oxc",
     rollupOptions: {
-      treeshake: false,
       output: {
         entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
