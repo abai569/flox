@@ -1,22 +1,13 @@
-import { Spinner } from "@/shadcn-bridge/heroui/spinner";
-
 interface BaseStateProps {
   message: string;
   className?: string;
 }
 
 export const PageLoadingState = ({
-  message,
-  className = "h-64",
+  message: _message,
+  className: _className,
 }: BaseStateProps) => {
-  return (
-    <div className={`flex items-center justify-center ${className}`}>
-      <div className="flex items-center gap-3">
-        <Spinner size="sm" />
-        <span className="text-default-600">{message}</span>
-      </div>
-    </div>
-  );
+  return null;
 };
 
 export const PageEmptyState = ({
