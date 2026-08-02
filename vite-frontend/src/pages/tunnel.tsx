@@ -68,7 +68,6 @@ import {
   previewTunnelDelete,
   toggleTunnelStatus,
 } from "@/api";
-import { PageLoadingState } from "@/components/page-state";
 import {
   buildDiagnosisFallbackResult,
   getDiagnosisQualityDisplay,
@@ -388,7 +387,7 @@ const getDiagnosisInstanceLine = (
 };
 
 export default function TunnelPage() {
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [tunnelOrder, setTunnelOrder] = useState<number[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -2274,14 +2273,6 @@ export default function TunnelPage() {
       ? `迁移规则后删除这 ${selectedTunnelIdList.length} 条隧道`
       : `删除规则并删除 ${selectedTunnelIdList.length} 条隧道`
     : `删除这 ${selectedTunnelIdList.length} 条隧道`;
-
-  if (loading) {
-    return (
-      <AnimatedPage className="px-3 lg:px-6 py-8">
-        <PageLoadingState message="正在加载..." />
-      </AnimatedPage>
-    );
-  }
 
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">

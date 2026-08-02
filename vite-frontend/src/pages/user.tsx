@@ -105,7 +105,6 @@ import {
   updateConfig,
 } from "@/api";
 import { EditIcon, DeleteIcon, EyeIcon, EyeOffIcon } from "@/components/icons";
-import { PageLoadingState } from "@/components/page-state";
 import { SmartTooltip } from "@/components/smart-tooltip";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -272,7 +271,7 @@ export default function UserPage() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   // 状态管理
   const [users, setUsers] = useState<UserWithHistory[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useLocalStorageState(
     "user-search-keyword",
     "",
@@ -2026,14 +2025,6 @@ export default function UserPage() {
       </TableRow>
     );
   };
-
-  if (loading) {
-    return (
-      <AnimatedPage className="px-3 lg:px-6 py-8">
-        <PageLoadingState message="正在加载..." />
-      </AnimatedPage>
-    );
-  }
 
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">

@@ -119,7 +119,6 @@ import {
   compareForwardOrder,
   FORWARD_ORDER_KEY,
 } from "@/pages/forward/order";
-import { PageLoadingState } from "@/components/page-state";
 import { SmartTooltip } from "@/components/smart-tooltip";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 // import { useMobileBreakpoint } from "@/hooks/useMobileBreakpoint";
@@ -5398,14 +5397,6 @@ export default function ForwardPage() {
       </Card>
     );
   };
-
-  if (loading || !groupPreferenceHydrated) {
-    return (
-      <AnimatedPage className="px-3 lg:px-6 py-8">
-        <PageLoadingState message="正在加载..." />
-      </AnimatedPage>
-    );
-  }
 
   return (
     <AnimatedPage className="px-3 lg:px-6 py-8">
