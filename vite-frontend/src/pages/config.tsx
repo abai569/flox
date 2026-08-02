@@ -232,7 +232,7 @@ export default function ConfigPage() {
     useState<Record<string, string>>(initialConfigs);
   const configsRef = useRef(configs);
   configsRef.current = configs;
-  const [loading, setLoading] = useState(
+  const [, setLoading] = useState(
     Object.keys(initialConfigs).length === 0,
   );
   const [saving, setSaving] = useState(false);

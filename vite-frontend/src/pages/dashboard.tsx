@@ -42,7 +42,7 @@ import {
 export default function DashboardPage() {
   const [quotaHistoryModalOpen, setQuotaHistoryModalOpen] = useState(false);
   const {
-    loading,
+    loading: _loading,
     userInfo,
     userTunnels,
     forwardList,
