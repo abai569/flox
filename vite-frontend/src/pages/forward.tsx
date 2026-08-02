@@ -166,7 +166,7 @@ interface Forward {
   inFlow: number;
   outFlow: number;
   serviceRunning: boolean;
-  createdTime: string;
+  createdTime: number | string;
   userName?: string;
   userRemark?: string;
   userId?: number;
@@ -270,6 +270,7 @@ interface ForwardForm {
   speedLimitEnabled: boolean;
   speedLimit: number;
   mode: "gost" | "nftables" | "floxcore" | "sdwan" | "mimic";
+  createdTime?: number;
 }
 const createForwardFormDefaults = (): ForwardForm => ({
   name: "",
@@ -287,6 +288,16 @@ const createForwardFormDefaults = (): ForwardForm => ({
   speedLimit: 0,
   mode: "gost",
 });
+
+// 将 createdTime（可能是 number ms 或 string）统一解析为 number | undefined
+const parseForwardCreatedTime = (v: unknown): number | undefined => {
+  if (typeof v === "number" && v > 0) return v;
+  if (typeof v === "string" && v) {
+    const n = Number(v);
+    if (!isNaN(n) && n > 0) return n;
+  }
+  return undefined;
+};
 
 interface ForwardUserGroup {
   userId: number;
@@ -711,7 +722,11 @@ const mapForwardApiItems = (items: ForwardApiItem[]): Forward[] => {
     inFlow: forward.inFlow ?? 0,
     outFlow: forward.outFlow ?? 0,
     createdTime:
-      typeof forward.createdTime === "string" ? forward.createdTime : "",
+      typeof forward.createdTime === "number" && forward.createdTime > 0
+        ? forward.createdTime
+        : typeof forward.createdTime === "string"
+          ? forward.createdTime
+          : "",
     userName:
       typeof forward.userName === "string" ? forward.userName : undefined,
     userRemark:
@@ -2925,6 +2940,7 @@ export default function ForwardPage() {
       speedLimitEnabled: forward.speedLimitEnabled ?? false,
       speedLimit: forward.speedLimit ?? 0,
       mode: forward.mode || "gost",
+      createdTime: parseForwardCreatedTime(forward.createdTime),
     });
     const localTunnel = allTunnels.find(
       (tunnel) => tunnel.id === forward.tunnelId,
@@ -7076,12 +7092,12 @@ export default function ForwardPage() {
                             }
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-2 mb-2">
+                        <div className="grid grid-cols-3 gap-2 mb-2">
                           {/* 监听ip */}
                           <Select
                             description={
                               isCurrentTunnelMultiEntrance
-                                ? "多入口隧道不支持自定义监听IP，使用各节点默认IP"
+                                ? "多入口不能选监听IP，用各节点默认"
                                 : "从入口节点IP中选择，留空使用默认"
                             }
                             isDisabled={
@@ -7096,7 +7112,7 @@ export default function ForwardPage() {
                                 : form.tunnelId
                                   ? currentTunnelIpOptions.length > 0
                                     ? "选择入口监听IP"
-                                    : "当前隧道入口节点暂无可选IP"
+                                    : "入口节点暂无可选IP"
                                   : "请先选择隧道"
                             }
                             selectedKeys={[form.inIp || "__default__"]}
@@ -7121,6 +7137,27 @@ export default function ForwardPage() {
                               <SelectItem key={ip}>{ip}</SelectItem>
                             ))}
                           </Select>
+                          {/* 创建日期（只读） */}
+                          <Input
+                            readOnly
+                            description="规则创建时间"
+                            label="创建日期"
+                            value={
+                              form.createdTime
+                                ? new Date(form.createdTime).toLocaleDateString(
+                                    "zh-CN",
+                                    {
+                                      year: "numeric",
+                                      month: "2-digit",
+                                      day: "2-digit",
+                                    }
+                                  )
+                                : isEdit
+                                  ? "-"
+                                  : "创建后显示"
+                            }
+                            variant="bordered"
+                          />
                           {/* 有效期 */}
                           <ExpiryTimeField
                             value={form.expiryTime}

@@ -571,6 +571,9 @@ func (h *Handler) resetMonthlyFlow(now time.Time) {
 	if err := h.repo.ResetUserTunnelMonthlyFlow(currentDay, lastDay, now); err != nil {
 		log.Printf("[月度流量归零] 隧道流量归零失败: %v", err)
 	}
+	if err := h.repo.ResetForwardMonthlyFlow(currentDay, lastDay, now); err != nil {
+		log.Printf("[月度流量归零] 规则流量归零失败: %v", err)
+	}
 }
 
 func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
