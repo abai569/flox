@@ -979,10 +979,8 @@ export default function MonitorPage() {
   );
 
   useEffect(() => {
-    void loadNodes();
-    void loadNodeInstanceGroups();
-    void loadServiceSummary();
-  }, [loadNodes, loadNodeInstanceGroups, loadServiceSummary]);
+    void loadNodeTab();
+  }, [loadNodeTab]);
   usePullToRefresh(refreshActiveTab);
 
   useEffect(() => {

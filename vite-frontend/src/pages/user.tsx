@@ -940,18 +940,15 @@ export default function UserPage() {
 
   // 生命周期
   useEffect(() => {
-    void loadTunnels();
-    void loadSpeedLimits();
-    void loadTunnelGroups();
-    void loadMonitorPermissions();
-  }, [
-    loadMonitorPermissions,
-    loadSpeedLimits,
-    loadTunnelGroups,
-    loadTunnels,
-  ]);
-  useEffect(() => {
     void loadUsers();
+    const auxiliaryLoadTimer = window.setTimeout(() => {
+      void Promise.all([
+        loadTunnels(),
+        loadSpeedLimits(),
+        loadTunnelGroups(),
+        loadMonitorPermissions(),
+      ]);
+    }, 0);
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === "autoBuyConfigUpdated") void loadUsers();
@@ -972,8 +969,15 @@ export default function UserPage() {
       window.removeEventListener("storage", handleStorage);
       document.removeEventListener("visibilitychange", handleVisible);
       window.clearInterval(interval);
+      window.clearTimeout(auxiliaryLoadTimer);
     };
-  }, [loadUsers]);
+  }, [
+    loadMonitorPermissions,
+    loadSpeedLimits,
+    loadTunnelGroups,
+    loadTunnels,
+    loadUsers,
+  ]);
   useEffect(() => {
     const loadReg = () => {
       getConfigByName("registration_enabled")

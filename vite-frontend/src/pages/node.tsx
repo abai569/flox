@@ -1360,7 +1360,8 @@ export default function NodePage() {
           toast.error(res.msg || "加载节点列表失败");
         }
       }
-      if (remoteUsagePromise) await remoteUsagePromise;
+      // Remote usage is supplementary data and must not block the node list.
+      void remoteUsagePromise;
     } catch {
       if (
         !silent &&

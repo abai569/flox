@@ -2583,19 +2583,28 @@ export default function ForwardPage() {
       setLoading(lod);
       try {
         const params = {}; // 永远拉取全量数据
-        const [
-          tunnelsRes,
-          forwardsRes,
-          speedLimitsRes,
-          licenseRes,
-          packageRes,
-        ] = await Promise.all([
+        const forwardsPromise = getForwardList(params);
+        const auxiliaryPromise = Promise.all([
           userTunnel(),
-          getForwardList(params),
           getSpeedLimitList(),
           getLicenseInfo(),
           isAdmin ? Promise.resolve({ code: -1 }) : getUserPackageInfo(),
         ]);
+
+        const forwardsRes = await forwardsPromise;
+
+        if (forwardsRes.code === 0) {
+          await applyForwardList(
+            mapForwardApiItems(forwardsRes.data?.items ?? []),
+          );
+          // The primary list is ready; auxiliary settings can finish in the background.
+          setLoading(false);
+        } else {
+          toast.error(forwardsRes.msg || "获取规则列表失败");
+        }
+
+        const [tunnelsRes, speedLimitsRes, licenseRes, packageRes] =
+          await auxiliaryPromise;
 
         if (tunnelsRes.code === 0) {
           const visibleTunnels = (tunnelsRes.data || [])
@@ -2604,11 +2613,6 @@ export default function ForwardPage() {
 
           setTunnels(visibleTunnels);
           setAllTunnels(visibleTunnels);
-        }
-        if (forwardsRes.code === 0) {
-          await applyForwardList(
-            mapForwardApiItems(forwardsRes.data?.items ?? []),
-          );
         }
         if (speedLimitsRes.code === 0)
           setSpeedLimits(speedLimitsRes.data || []);
