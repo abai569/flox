@@ -396,6 +396,34 @@ func (s *Server) ClearForwardMetrics(forwardID int64) {
 	delete(s.forwardMetrics, forwardID)
 }
 
+func (s *Server) clearInstanceMetricCache(nodeID int64, instanceID string, metrics []ForwardMetric) {
+	instanceID = strings.TrimSpace(instanceID)
+	s.mu.Lock()
+	if instanceID != "" && s.serviceConnections[nodeID] != nil {
+		delete(s.serviceConnections[nodeID], instanceID)
+		if len(s.serviceConnections[nodeID]) == 0 {
+			delete(s.serviceConnections, nodeID)
+		}
+	}
+	s.mu.Unlock()
+
+	if len(metrics) == 0 {
+		return
+	}
+	s.forwardMetricsMu.Lock()
+	defer s.forwardMetricsMu.Unlock()
+	for _, fm := range metrics {
+		nodeMetrics := s.forwardMetrics[fm.ForwardID]
+		if nodeMetrics == nil {
+			continue
+		}
+		delete(nodeMetrics, nodeID)
+		if len(nodeMetrics) == 0 {
+			delete(s.forwardMetrics, fm.ForwardID)
+		}
+	}
+}
+
 func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 	s := &Server{
 		repo:      repo,
@@ -817,15 +845,38 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 						if strings.TrimSpace(sysInfo.InstanceID) == "" {
 							sysInfo.InstanceID = ns.instanceID
 						}
+						instanceID := strings.TrimSpace(sysInfo.InstanceID)
 						if strings.TrimSpace(sysInfo.Hostname) == "" {
 							sysInfo.Hostname = ns.hostname
+						}
+						node, err := s.repo.GetNodeByID(nodeID)
+						if err != nil || node == nil || node.Status != 1 {
+							s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+							continue
+						}
+						if instanceID == "" {
+							s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+							continue
+						}
+						if deleted, deletedErr := s.repo.IsNodeInstanceDeleted(nodeID, instanceID); deletedErr != nil || deleted {
+							s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+							continue
+						}
+						if exists, existsErr := s.repo.NodeInstanceExists(nodeID, instanceID); existsErr != nil {
+							s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+							continue
+						} else if exists {
+							if weight, weightErr := s.repo.GetNodeInstanceWeight(nodeID, instanceID); weightErr == nil && weight <= 0 {
+								s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+								continue
+							}
 						}
 						// 缓存服务连接数
 						s.mu.Lock()
 						if s.serviceConnections[nodeID] == nil {
 							s.serviceConnections[nodeID] = make(map[string]map[string]int)
 						}
-						s.serviceConnections[nodeID][strings.TrimSpace(sysInfo.InstanceID)] = sysInfo.ServiceConnections
+						s.serviceConnections[nodeID][instanceID] = sysInfo.ServiceConnections
 						// 更新 service_name
 						if sysInfo.ServiceName != "" {
 							_ = s.repo.UpdateNodeServiceName(nodeID, sysInfo.ServiceName)
@@ -855,14 +906,9 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 							s.forwardMetricsMu.Unlock()
 						}
 						s.mu.Unlock()
-						node, err := s.repo.GetNodeByID(nodeID)
-						if err != nil || node == nil || node.Status != 1 {
-							continue
-						}
-
 						_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
 							NodeID:      nodeID,
-							InstanceID:  sysInfo.InstanceID,
+							InstanceID:  instanceID,
 							Hostname:    sysInfo.Hostname,
 							PublicIPV4:  sysInfo.PublicIPV4,
 							PublicIPV6:  sysInfo.PublicIPV6,
