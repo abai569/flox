@@ -414,8 +414,11 @@ export const rollbackNode = (id: number) =>
   Network.post("/node/rollback", { id });
 
 // Mimic 依赖安装
-export const installMimicDeps = (ids?: number[]) =>
-  Network.post("/node/install-mimic-deps", ids ? { ids } : {}, {
+export const installMimicDeps = (
+  ids?: number[],
+  targets?: Array<{ nodeId: number; instanceId: string }>,
+) =>
+  Network.post("/node/install-mimic-deps", targets ? { targets } : ids ? { ids } : {}, {
     timeout: 10 * 60 * 1000,
   });
 

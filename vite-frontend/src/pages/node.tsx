@@ -994,10 +994,12 @@ export default function NodePage() {
   const [mimicResultModalOpen, setMimicResultModalOpen] = useState(false);
   const [mimicConfirmNodes, setMimicConfirmNodes] = useState<Node[]>([]);
   const [mimicConfirmInstanceLabel, setMimicConfirmInstanceLabel] = useState<string | undefined>(undefined);
+  const [mimicConfirmInstanceId, setMimicConfirmInstanceId] = useState<string | undefined>(undefined);
   const [mimicResults, setMimicResults] = useState<
     Array<{
       nodeId: number;
       nodeName: string;
+      instanceId?: string;
       success: boolean;
       message: string;
     }>
@@ -3258,7 +3260,10 @@ export default function NodePage() {
 
     return `apt-get install -f -y && systemctl restart $(ls /etc/ 2>/dev/null | grep -E '^flox_agent[0-9]*$' | head -1 || echo flox_agent)`;
   }
-  const handleBatchMimicDeps = async (targetIds?: number[]) => {
+  const handleBatchMimicDeps = async (
+    targetIds?: number[],
+    targetInstanceId?: string,
+  ) => {
     const selectedLocalIds = targetIds ?? getSelectedLocalIds();
 
     if (selectedLocalIds.length === 0) {
@@ -3278,7 +3283,11 @@ export default function NodePage() {
 
     setBatchMimicLoading(true);
     try {
-      const res = await installMimicDeps(selectedLocalIds);
+      const res = targetInstanceId
+        ? await installMimicDeps(undefined, [
+            { nodeId: selectedLocalIds[0], instanceId: targetInstanceId },
+          ])
+        : await installMimicDeps(selectedLocalIds);
 
       if (res.code === 0) {
         setMimicResults((res.data as any[]) || []);
@@ -3307,7 +3316,11 @@ export default function NodePage() {
       setBatchMimicLoading(false);
     }
   };
-  const requestMimicDepsInstall = (nodes: Node[], instanceLabel?: string) => {
+  const requestMimicDepsInstall = (
+    nodes: Node[],
+    instanceLabel?: string,
+    instanceId?: string,
+  ) => {
     if (nodes.length === 0) {
       toast.error("请选择节点");
 
@@ -3315,6 +3328,7 @@ export default function NodePage() {
     }
     setMimicConfirmInstanceLabel(instanceLabel);
     setMimicConfirmNodes(nodes);
+    setMimicConfirmInstanceId(instanceId);
   };
   const handleBatchResetTraffic = async () => {
     const selectedLocalIds = getSelectedLocalIds();
@@ -4975,8 +4989,8 @@ export default function NodePage() {
                                         onDeleteInstance={
                                           setInstanceDeleteTarget
                                         }
-                                        onInstallMimicDeps={(node, instanceLabel) =>
-                                          requestMimicDepsInstall([node], instanceLabel)
+                                        onInstallMimicDeps={(node, instanceLabel, instanceId) =>
+                                          requestMimicDepsInstall([node], instanceLabel, instanceId)
                                         }
                                         onReorderInstances={
                                           reorderNodeInstances
@@ -5057,8 +5071,8 @@ export default function NodePage() {
                     upgradeProgress={upgradeProgress}
                     onConfigureInstance={openInstanceConfigEditor}
                     onDeleteInstance={setInstanceDeleteTarget}
-                    onInstallMimicDeps={(node, instanceLabel) =>
-                      requestMimicDepsInstall([node], instanceLabel)
+                    onInstallMimicDeps={(node, instanceLabel, instanceId) =>
+                      requestMimicDepsInstall([node], instanceLabel, instanceId)
                     }
                     onReorderInstances={reorderNodeInstances}
                     onCrossBorderCorrect={handleCrossBorderCorrect}
@@ -6654,7 +6668,11 @@ export default function NodePage() {
             isOpen={mimicConfirmNodes.length > 0}
             placement="center"
             onOpenChange={(open) => {
-              if (!open) { setMimicConfirmNodes([]); setMimicConfirmInstanceLabel(undefined); }
+               if (!open) {
+                 setMimicConfirmNodes([]);
+                 setMimicConfirmInstanceLabel(undefined);
+                 setMimicConfirmInstanceId(undefined);
+               }
             }}
           >
             <ModalContent>
@@ -6671,7 +6689,7 @@ export default function NodePage() {
                 </p>
               </ModalBody>
               <ModalFooter>
-                <Button variant="flat" onPress={() => { setMimicConfirmNodes([]); setMimicConfirmInstanceLabel(undefined); }}>
+                 <Button variant="flat" onPress={() => { setMimicConfirmNodes([]); setMimicConfirmInstanceLabel(undefined); setMimicConfirmInstanceId(undefined); }}>
                   取消
                 </Button>
                 <Button
@@ -6679,10 +6697,12 @@ export default function NodePage() {
                   isLoading={batchMimicLoading}
                   onPress={() => {
                     const ids = mimicConfirmNodes.map((node) => node.id);
+                    const instanceId = mimicConfirmInstanceId;
 
                     setMimicConfirmNodes([]);
                     setMimicConfirmInstanceLabel(undefined);
-                    void handleBatchMimicDeps(ids);
+                    setMimicConfirmInstanceId(undefined);
+                    void handleBatchMimicDeps(ids, instanceId);
                   }}
                 >
                   确认
@@ -6728,7 +6748,7 @@ export default function NodePage() {
                       <div className="flex flex-col gap-2 max-h-64 overflow-auto">
                         {mimicResults.map((r) => (
                           <div
-                            key={r.nodeId}
+                            key={`${r.nodeId}:${r.instanceId || "node"}`}
                             className={`flex items-start gap-2 p-2 rounded ${
                               r.success
                                 ? "bg-success-50 dark:bg-success-900/20"
@@ -6741,6 +6761,7 @@ export default function NodePage() {
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium">
                                 {r.nodeName || `节点 ${r.nodeId}`}
+                                {r.instanceId ? ` / ${r.instanceId}` : ""}
                               </div>
                               <div className="text-xs text-default-500 break-all">
                                 {r.message ||

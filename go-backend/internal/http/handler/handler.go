@@ -1153,7 +1153,11 @@ func (h *Handler) installMimicDeps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		IDs []int64 `json:"ids"`
+		IDs     []int64 `json:"ids"`
+		Targets []struct {
+			NodeID     int64  `json:"nodeId"`
+			InstanceID string `json:"instanceId"`
+		} `json:"targets"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
 
@@ -1164,10 +1168,11 @@ func (h *Handler) installMimicDeps(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type result struct {
-		NodeID   int64  `json:"nodeId"`
-		NodeName string `json:"nodeName"`
-		Success  bool   `json:"success"`
-		Message  string `json:"message"`
+		NodeID     int64  `json:"nodeId"`
+		NodeName   string `json:"nodeName"`
+		InstanceID string `json:"instanceId,omitempty"`
+		Success    bool   `json:"success"`
+		Message    string `json:"message"`
 	}
 
 	results := make([]result, 0, len(nodes))
@@ -1191,31 +1196,42 @@ func (h *Handler) installMimicDeps(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
+		instanceID := ""
+		for _, target := range req.Targets {
+			if target.NodeID == nodeID {
+				instanceID = strings.TrimSpace(target.InstanceID)
+				break
+			}
+		}
+		if len(req.Targets) > 0 && instanceID == "" {
+			continue
+		}
 
 		wg.Add(1)
-		go func(nid int64, nname string) {
+		go func(nid int64, nname, iid string) {
 			defer wg.Done()
-			_, cmdErr := h.sendNodeCommandWithTimeout(nid, "InstallMimicDeps", nil, 5*time.Minute, true, false)
+			var cmdErr error
+			if iid != "" {
+				_, cmdErr = h.sendNodeCommandToInstanceWithTimeout(nid, iid, "InstallMimicDeps", nil, 5*time.Minute, true, false)
+			} else {
+				_, cmdErr = h.sendNodeCommandWithTimeout(nid, "InstallMimicDeps", nil, 5*time.Minute, true, false)
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			if cmdErr != nil {
 				fmt.Printf("[mimic] install deps failed on node %d (%s): %v\n", nid, nname, cmdErr)
 				results = append(results, result{
-					NodeID:   nid,
-					NodeName: nname,
-					Success:  false,
-					Message:  cmdErr.Error(),
+					NodeID: nid, NodeName: nname, InstanceID: iid,
+					Success: false, Message: cmdErr.Error(),
 				})
 			} else {
 				fmt.Printf("[mimic] install deps succeeded on node %d (%s)\n", nid, nname)
 				results = append(results, result{
-					NodeID:   nid,
-					NodeName: nname,
-					Success:  true,
-					Message:  "OK",
+					NodeID: nid, NodeName: nname, InstanceID: iid,
+					Success: true, Message: "OK",
 				})
 			}
-		}(nodeID, nodeName)
+		}(nodeID, nodeName, instanceID)
 	}
 	wg.Wait()
 

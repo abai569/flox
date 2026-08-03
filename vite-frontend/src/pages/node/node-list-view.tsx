@@ -144,7 +144,11 @@ interface NodeListViewProps {
     activeInstanceId: string,
     overInstanceId: string,
   ) => void;
-  onInstallMimicDeps?: (node: Node, instanceLabel?: string) => void;
+  onInstallMimicDeps?: (
+    node: Node,
+    instanceLabel?: string,
+    instanceId?: string,
+  ) => void;
   onShareNode: (node: Node) => void;
   onViewRemoteDetail: (node: Node) => void;
   shareCounts: Record<number, number>;
@@ -806,7 +810,11 @@ function NodeInstanceRows({
     activeInstanceId: string,
     overInstanceId: string,
   ) => void;
-  onInstallMimicDeps?: (node: Node, instanceLabel?: string) => void;
+  onInstallMimicDeps?: (
+    node: Node,
+    instanceLabel?: string,
+    instanceId?: string,
+  ) => void;
 }) {
   const [openExpiryInstanceId, setOpenExpiryInstanceId] = useState<
     string | null
@@ -976,7 +984,7 @@ function NodeInstanceRows({
                                 const label = member.displayName?.trim() ||
                                   (member.displayIndex ? `实例 ${member.displayIndex}` : member.instanceId) ||
                                   undefined;
-                                onInstallMimicDeps?.(node, label);
+                                onInstallMimicDeps?.(node, label, member.instanceId);
                               }}
                             >
 							  <StatusDot
