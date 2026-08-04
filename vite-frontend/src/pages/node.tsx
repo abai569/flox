@@ -3901,6 +3901,8 @@ export default function NodePage() {
     const remoteTotalInFlow = node.totalInFlow ?? 0;
     const remoteTotalOutFlow = node.totalOutFlow ?? 0;
     const remoteTotalFlow = remoteTotalInFlow + remoteTotalOutFlow;
+    const trafficRatio =
+      node.trafficRatio && node.trafficRatio > 0 ? node.trafficRatio : 1;
     const remoteOnline = node.connectionStatus === "online" && !node.syncError;
     const remoteDisplayMeta = remoteOnline ? remoteVisualMeta : null;
     const remoteDisplayState = getRemoteDisplayState(node, remoteVisualMeta);
@@ -4203,9 +4205,10 @@ export default function NodePage() {
                   ? formatTraffic(remoteTotalFlow)
                   : realtimeNodeMetrics[node.id]
                     ? formatTraffic(
-                        (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
+                        ((realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) +
                           (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ??
-                            0),
+                            0)) *
+                          trafficRatio,
                       )
                     : "-"}
               </span>
@@ -4246,7 +4249,8 @@ export default function NodePage() {
                       <span>↑ 上行</span>
                       <span className="font-medium text-success-600 dark:text-success-400">
                         {formatTraffic(
-                          realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0,
+                          (realtimeNodeMetrics[node.id]?.periodTraffic?.tx ?? 0) *
+                            trafficRatio,
                         )}
                       </span>
                     </div>
@@ -4254,7 +4258,8 @@ export default function NodePage() {
                       <span>↓ 下行</span>
                       <span className="font-medium text-primary-600 dark:text-primary-400">
                         {formatTraffic(
-                          realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0,
+                          (realtimeNodeMetrics[node.id]?.periodTraffic?.rx ?? 0) *
+                            trafficRatio,
                         )}
                       </span>
                     </div>
