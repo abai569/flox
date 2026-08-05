@@ -220,6 +220,7 @@ interface NodeForm {
   dnsProvider: "aliyun" | "cloudflare";
   dnsManageA: boolean;
   dnsManageAAAA: boolean;
+  dnsTargetCount: number;
 }
 type NodeViewMode = "grid" | "list" | "grouped";
 type DNSProviderAvailability = { aliyun: boolean; cloudflare: boolean };
@@ -874,6 +875,7 @@ export default function NodePage() {
       dnsProvider: "aliyun",
       dnsManageA: true,
       dnsManageAAAA: false,
+      dnsTargetCount: 2,
     },
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -2108,6 +2110,7 @@ export default function NodePage() {
       dnsProvider: "aliyun",
       dnsManageA: true,
       dnsManageAAAA: false,
+      dnsTargetCount: 2,
     });
     getNodeDNSConfig(node.id)
       .then((res) => {
@@ -2120,6 +2123,10 @@ export default function NodePage() {
             dnsManageA: res.data.manageA !== false,
             dnsManageAAAA:
               res.data.enabled === true && res.data.manageAAAA === true,
+            dnsTargetCount:
+              Number.isFinite(res.data.targetCount) && res.data.targetCount > 0
+                ? res.data.targetCount
+                : 2,
           }));
         }
       })
@@ -2206,6 +2213,7 @@ export default function NodePage() {
         domain: dnsAddress,
         manageA: form.dnsManageA,
         manageAAAA: form.dnsManageAAAA,
+        targetCount: Number(form.dnsTargetCount) || 2,
         providerConfig: {},
       });
 
@@ -3464,6 +3472,7 @@ export default function NodePage() {
         dnsProvider: _dnsProvider,
         dnsManageA: _dnsManageA,
         dnsManageAAAA: _dnsManageAAAA,
+        dnsTargetCount: _dnsTargetCount,
         ...rest
       } = form;
 
@@ -3471,6 +3480,7 @@ export default function NodePage() {
       void _dnsProvider;
       void _dnsManageA;
       void _dnsManageAAAA;
+      void _dnsTargetCount;
       const nextRemoteConfig = mergeSDWANConfig(
         remoteConfig,
         sdwanConfigPath,
@@ -3516,6 +3526,7 @@ export default function NodePage() {
             domain: form.serverIpV4.trim(),
             manageA: form.dnsManageA,
             manageAAAA: form.dnsManageAAAA,
+            targetCount: Number(form.dnsTargetCount) || 2,
             providerConfig: {},
           });
 
@@ -5317,8 +5328,9 @@ export default function NodePage() {
                         }
                       >
                         <div className="space-y-3 px-[12px] pb-2">
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <Select
+                              description="选择 DNS 平台"
                               disabledKeys={[
                                 ...(!dnsProviderAvailability.aliyun
                                   ? ["aliyun"]
@@ -5356,6 +5368,7 @@ export default function NodePage() {
                               </SelectItem>
                             </Select>
                             <Select
+                              description="选择 A/AAAA 记录"
                               label="解析类型"
                               selectedKeys={new Set([
                                 form.dnsManageA && form.dnsManageAAAA
@@ -5393,6 +5406,7 @@ export default function NodePage() {
                               </SelectItem>
                             </Select>
                             <Select
+                              description="基于健康检查的自动维护"
                               label="DNS 容灾"
                               selectedKeys={new Set([
                                 form.dnsEnabled ? "enabled" : "disabled",
@@ -5415,9 +5429,24 @@ export default function NodePage() {
                                 关闭
                               </SelectItem>
                             </Select>
+                            <Input
+                              description="本节点每条记录族的健康 IP 数"
+                              label="健康 IP 目标数"
+                              min={1}
+                              size="sm"
+                              type="number"
+                              variant="bordered"
+                              value={String(form.dnsTargetCount)}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  dnsTargetCount: Number(e.target.value),
+                                }))
+                              }
+                            />
                           </div>
                           <div className="text-xs text-warning-800">
-                            DNS 记录名默认使用“域名/公网 IPv4 地址”，启用 DNS
+                            DNS 记录名默认使用"域名/公网 IPv4 地址"，启用 DNS
                             容灾时必须填写域名，不能填写 IP 地址
                           </div>
                         </div>
