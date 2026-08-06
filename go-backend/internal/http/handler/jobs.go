@@ -1126,7 +1126,7 @@ func (h *Handler) cancelExpiredOrders() {
 
 	cancelled := 0
 	for _, o := range orders {
-		if err := h.repo.CancelPendingPackageOrder(o.ID, 0); err != nil {
+		if err := h.repo.ForceCancelPendingPackageOrder(o.ID); err != nil {
 			log.Printf("[orders] 取消超时订单 %d 失败: %v", o.ID, err)
 			continue
 		}
