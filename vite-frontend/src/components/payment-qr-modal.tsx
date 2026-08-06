@@ -5,12 +5,29 @@ import { X } from "lucide-react";
 
 import { QRCodeSVG } from "@/lib/qrcode-react";
 import { Modal, ModalContent } from "@/shadcn-bridge/heroui/modal";
+import polygonIcon from "../../assets/payment/poly.png";
+import wechatIcon from "../../assets/payment/wxpay.png";
+import alipayIcon from "../../assets/payment/alipay.png";
+import tronIcon from "../../assets/payment/trx.png";
 
 interface PaymentQRModalProps {
   isOpen: boolean;
   currency: string;
   result: PayOrderResult | null;
   onClose: () => void;
+}
+
+type PaymentBrand = "polygon" | "wechat" | "alipay" | "tron";
+
+const PAYMENT_BRAND_ICONS: Record<PaymentBrand, string> = {
+  polygon: polygonIcon,
+  wechat: wechatIcon,
+  alipay: alipayIcon,
+  tron: tronIcon,
+};
+
+function PaymentBrandIcon({ brand }: { brand: PaymentBrand }) {
+  return <img alt="" aria-hidden="true" className="block h-7 w-7 shrink-0 object-contain" src={PAYMENT_BRAND_ICONS[brand]} />;
 }
 
 export function PaymentQRModal({
@@ -41,9 +58,20 @@ export function PaymentQRModal({
   if (!result) return null;
 
   const isUSDT = currency === "USDT";
-  const isWechat = result.payType === "wxpay";
+  const normalizedPayType = (result.payType || "").toLowerCase().replace(/[-_]/g, "");
+  const isWechat = normalizedPayType === "wxpay";
+  const isPolygon = isUSDT && normalizedPayType.includes("polygon");
+  const paymentBrand: PaymentBrand = isUSDT
+    ? isPolygon
+      ? "polygon"
+      : "tron"
+    : isWechat
+      ? "wechat"
+      : "alipay";
   const paymentName = isUSDT
-    ? result.payType?.toUpperCase() || "USDT"
+    ? isPolygon
+      ? "Polygon"
+      : "TRON"
     : isWechat
       ? "微信支付"
       : "支付宝";
@@ -68,17 +96,7 @@ export function PaymentQRModal({
           </button>
 
           <div className="flex h-8 items-center gap-2 text-lg text-foreground/80">
-            <span
-              className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold text-white ${
-                isUSDT
-                  ? "bg-emerald-500"
-                  : isWechat
-                    ? "bg-green-500"
-                    : "bg-blue-500"
-              }`}
-            >
-              {isUSDT ? "U" : isWechat ? "微" : "支"}
-            </span>
+            <PaymentBrandIcon brand={paymentBrand} />
             <span>{paymentName}</span>
           </div>
 
