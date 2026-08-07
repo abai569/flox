@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-gost/core/service"
@@ -646,14 +647,27 @@ type createServicesRequest struct {
 	Data []config.ServiceConfig `json:"data"`
 }
 
+// failedSince tracks how long each service has been stuck in StateFailed.
+// The watchdog only restarts a service once it has stayed failed for
+// failedRestartThreshold, so transient accept backoff is never interrupted.
+var (
+	failedSinceMu sync.Mutex
+	failedSince   = map[string]time.Time{}
+)
+
+const failedRestartThreshold = 90 * time.Second
+
 // restartDeadServices scans all registered services and restarts any that have
-// entered StateClosed (e.g. listener died). It looks up the original config
-// from the global in-memory config and recreates the service.
+// entered StateClosed (e.g. listener died) or stayed in StateFailed beyond the
+// backoff window. It looks up the original config from the global in-memory
+// config and recreates the service.
 func restartDeadServices() {
 	services := registry.ServiceRegistry().GetAll()
 	if len(services) == 0 {
 		return
 	}
+
+	now := time.Now()
 
 	for name, svc := range services {
 		// Use type assertion to access Status() which is implemented by
@@ -662,42 +676,69 @@ func restartDeadServices() {
 		if !ok {
 			continue
 		}
-		if stater.Status().State() != xservice.StateClosed {
-			continue
-		}
 
-		// Lookup the service config from global config.
-		cfg := config.Global()
-		var svcCfg *config.ServiceConfig
-		for _, s := range cfg.Services {
-			if s != nil && strings.TrimSpace(s.Name) == name {
-				svcCfg = s
-				break
-			}
-		}
-		if svcCfg == nil {
-			fmt.Printf("❌ 无法找到服务 %s 的配置，跳过重启\n", name)
-			continue
-		}
-
-		// 跳过手动暂停或停止接新的服务，不自动重启
-		if svcCfg.Metadata != nil {
-			if paused, ok := svcCfg.Metadata["paused"]; ok && paused == true {
+		switch stater.Status().State() {
+		case xservice.StateClosed:
+			restartServiceFromConfig(name)
+		case xservice.StateFailed:
+			failedSinceMu.Lock()
+			since, ok := failedSince[name]
+			if !ok {
+				failedSince[name] = now
+				failedSinceMu.Unlock()
 				continue
 			}
-			if draining, ok := svcCfg.Metadata["draining"]; ok && draining == true {
+			if now.Sub(since) < failedRestartThreshold {
+				failedSinceMu.Unlock()
 				continue
 			}
+			delete(failedSince, name)
+			failedSinceMu.Unlock()
+			fmt.Printf("⚠️ 服务 %s 持续失败超过 %s，尝试自动重启...\n", name, failedRestartThreshold)
+			restartServiceFromConfig(name)
+		default: // StateRunning / StateReady
+			failedSinceMu.Lock()
+			delete(failedSince, name)
+			failedSinceMu.Unlock()
 		}
+	}
+}
 
-		fmt.Printf("⚠️ 检测到服务 %s 已停止，尝试自动重启...\n", name)
-
-		// Use updateServices to rebuild (closes old, parses new, registers, starts).
-		if err := updateServices(updateServicesRequest{Data: []config.ServiceConfig{*svcCfg}}); err != nil {
-			fmt.Printf("❌ 服务 %s 自动重启失败: %v\n", name, err)
-		} else {
-			fmt.Printf("✅ 服务 %s 自动重启成功\n", name)
+// restartServiceFromConfig rebuilds a service from its global config entry.
+// It closes the old instance (releasing the listener), then parses, registers
+// and starts a fresh one.
+func restartServiceFromConfig(name string) {
+	// Lookup the service config from global config.
+	cfg := config.Global()
+	var svcCfg *config.ServiceConfig
+	for _, s := range cfg.Services {
+		if s != nil && strings.TrimSpace(s.Name) == name {
+			svcCfg = s
+			break
 		}
+	}
+	if svcCfg == nil {
+		fmt.Printf("❌ 无法找到服务 %s 的配置，跳过重启\n", name)
+		return
+	}
+
+	// 跳过手动暂停或停止接新的服务，不自动重启
+	if svcCfg.Metadata != nil {
+		if paused, ok := svcCfg.Metadata["paused"]; ok && paused == true {
+			return
+		}
+		if draining, ok := svcCfg.Metadata["draining"]; ok && draining == true {
+			return
+		}
+	}
+
+	fmt.Printf("⚠️ 检测到服务 %s 已停止，尝试自动重启...\n", name)
+
+	// Use updateServices to rebuild (closes old, parses new, registers, starts).
+	if err := updateServices(updateServicesRequest{Data: []config.ServiceConfig{*svcCfg}}); err != nil {
+		fmt.Printf("❌ 服务 %s 自动重启失败: %v\n", name, err)
+	} else {
+		fmt.Printf("✅ 服务 %s 自动重启成功\n", name)
 	}
 }
 
