@@ -58,6 +58,11 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 
 	// 授权码为空时自动生成7天体验授权
 	actualLicenseKey := req.LicenseKey
+	if actualLicenseKey != "" {
+		if activatedLicenseKey, err := requestActivationLicense(url, req.LicenseKey, req.Domain); err == nil {
+			actualLicenseKey = activatedLicenseKey
+		}
+	}
 	if actualLicenseKey == "" {
 		// 优先检查本地是否已有授权，避免重复生成
 		existingDomainCfg, _ := h.repo.GetConfigByName("server_domain")
@@ -128,6 +133,35 @@ func (h *Handler) licenseConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 var licenseHTTPClient = &http.Client{Timeout: 10 * time.Second}
+
+func requestActivationLicense(serverURL, code, domain string) (string, error) {
+	body, _ := json.Marshal(map[string]string{
+		"code":   code,
+		"domain": domain,
+	})
+	resp, err := licenseHTTPClient.Post(serverURL+"/api/activate", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", errors.New("activation request failed")
+	}
+
+	var result struct {
+		LicenseKey string `json:"license_key"`
+		ExpireTime string `json:"expire_time"`
+		Domain     string `json:"domain"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.LicenseKey == "" {
+		return "", errors.New("activation response missing license key")
+	}
+	return result.LicenseKey, nil
+}
 
 // isLicenseKeyValid checks if a license key is still valid by calling the verify API.
 func isLicenseKeyValid(serverURL, licenseKey, domain string) bool {
