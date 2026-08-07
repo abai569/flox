@@ -274,6 +274,9 @@ sql/
 # Private closed-source module — never committed
 closed/
 
+# License server subproject — local only, never committed
+floxsq/
+
 # FloxCore merge target (copied from closed/ at build time)
 go-gost/x/adapter/
 go-gost/x/flox-core/
