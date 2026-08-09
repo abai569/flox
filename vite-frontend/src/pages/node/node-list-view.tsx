@@ -357,25 +357,42 @@ type InstanceIPRegionMember = Pick<
   | "crossBorderObservationUntil"
 >;
 
+const CROSS_BORDER_MISSING_PORT_RANGE =
+  "temporary TCP probe requires a configured port range";
+
+const isCrossBorderMissingPortRange = (error?: string): boolean =>
+  typeof error === "string" && error.indexOf(CROSS_BORDER_MISSING_PORT_RANGE) !== -1;
+
 function instanceCrossBorderMeta(member: InstanceIPRegionMember) {
+  const missingPortRange = isCrossBorderMissingPortRange(member.crossBorderError);
   switch (member.crossBorderStatus) {
     case "healthy":
-      return { color: "bg-success", label: "跨境连通正常" };
+      return { color: "bg-success", label: "跨境连通正常", correctable: false };
     case "blocked":
-      return { color: "bg-danger", label: "被墙，实例已隔离" };
+      return { color: "bg-danger", label: "被墙，实例已隔离", correctable: true };
     case "reverse_blocked":
-      return { color: "bg-warning", label: "反向墙，实例已隔离" };
+      return { color: "bg-warning", label: "反向墙，实例已隔离", correctable: true };
     case "restore_blocked":
       return {
         color: "bg-warning",
         label: "换 IP 检测通过，但实例仍受其他限制并保持隔离",
+        correctable: false,
       };
     case "observing":
-      return { color: "bg-primary", label: "观察期" };
+      return { color: "bg-primary", label: "观察期（仅告警，未隔离）", correctable: false };
     case "pending_failure":
-      return { color: "bg-warning", label: "正在检测" };
+      return { color: "bg-warning", label: "检测前提未满足", correctable: false };
+    case "unknown":
+      if (missingPortRange) {
+        return {
+          color: "bg-warning",
+          label: "检测前提未满足（缺少端口范围）",
+          correctable: false,
+        };
+      }
+      return { color: "bg-default-400", label: "跨境状态未知", correctable: false };
     default:
-      return { color: "bg-default-400", label: "跨境状态未知" };
+      return { color: "bg-default-400", label: "跨境状态未知", correctable: false };
   }
 }
 
@@ -411,11 +428,12 @@ function CrossBorderStatusPopover({
   isRechecking?: boolean;
 }) {
   const meta = instanceCrossBorderMeta(member);
-  const blocked = ["blocked", "reverse_blocked"].includes(
-    member.crossBorderStatus || "",
-  );
   const observing = isActiveCrossBorderObservation(member);
   const canRecheck = member.crossBorderStatus !== "healthy";
+  const missingPortRange = isCrossBorderMissingPortRange(member.crossBorderError);
+  const isProbePreconditionStatus =
+    member.crossBorderStatus === "unknown" ||
+    member.crossBorderStatus === "pending_failure";
 
   return (
     <Dropdown placement="bottom-end">
@@ -460,7 +478,22 @@ function CrossBorderStatusPopover({
           </dl>
           {observing ? (
             <p className="text-xs leading-5 text-primary-600 dark:text-primary-300">
-              观察期内仅告警不隔离
+              观察期内仅告警不隔离，实例权重已恢复
+            </p>
+          ) : null}
+          {isProbePreconditionStatus && missingPortRange ? (
+            <p className="text-xs leading-5 text-warning-600 dark:text-warning-300">
+              缺少临时 TCP 探测端口范围配置，无法完成检测；请配置端口范围后重新检测
+            </p>
+          ) : null}
+          {member.crossBorderStatus === "pending_failure" && !missingPortRange ? (
+            <p className="text-xs leading-5 text-default-500">
+              检测前提尚未满足，等待重试中
+            </p>
+          ) : null}
+          {member.crossBorderStatus === "unknown" && !missingPortRange ? (
+            <p className="text-xs leading-5 text-default-500">
+              探测结果无法判定，未执行隔离
             </p>
           ) : null}
           {canRecheck && (
@@ -479,7 +512,7 @@ function CrossBorderStatusPopover({
               >
                 重新检测
               </Button>
-              {blocked ? (
+              {meta.correctable ? (
                 <Button
                   className="h-7 px-2 text-xs"
                   color="warning"

@@ -65,6 +65,7 @@ go-gost/ss/
 
 # OpenCode session metadata
 .entire/
+.omo/
 bin/
 tmp/
 .worktrees/

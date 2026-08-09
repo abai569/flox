@@ -527,22 +527,22 @@ func TestResumeNodeInstanceRoutingDoesNotBypassCrossBorderQuarantine(t *testing.
 		t.Fatal(err)
 	}
 	changed, err := r.ResumeNodeInstanceRouting(1, instance.InstanceID, 2)
-	if err != nil || !changed {
+	if !errors.Is(err, ErrNodeInstanceHardQuarantined) || changed {
 		t.Fatalf("resume quarantined instance: changed=%v err=%v", changed, err)
 	}
 	var got model.NodeInstance
 	if err := r.db.First(&got, instance.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if got.Weight != 0 || got.PauseRestoreWeight.Valid {
-		t.Fatalf("quarantined instance resumed: %+v", got)
+	if got.Weight != 0 || !got.PauseRestoreWeight.Valid || got.PauseRestoreWeight.Int64 != 3 {
+		t.Fatalf("quarantined instance state changed: %+v", got)
 	}
 	var state model.CrossBorderProbeState
 	if err := r.db.Where("node_id = ? AND instance_id = ?", 1, instance.InstanceID).First(&state).Error; err != nil {
 		t.Fatal(err)
 	}
-	if state.RestoreWeight != 3 {
-		t.Fatalf("quarantine restore weight = %d, want 3", state.RestoreWeight)
+	if state.RestoreWeight != 0 {
+		t.Fatalf("quarantine restore weight = %d, want unchanged 0", state.RestoreWeight)
 	}
 }
 
