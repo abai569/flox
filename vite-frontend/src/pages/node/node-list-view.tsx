@@ -357,14 +357,7 @@ type InstanceIPRegionMember = Pick<
   | "crossBorderObservationUntil"
 >;
 
-const CROSS_BORDER_MISSING_PORT_RANGE =
-  "temporary TCP probe requires a configured port range";
-
-const isCrossBorderMissingPortRange = (error?: string): boolean =>
-  typeof error === "string" && error.indexOf(CROSS_BORDER_MISSING_PORT_RANGE) !== -1;
-
 function instanceCrossBorderMeta(member: InstanceIPRegionMember) {
-  const missingPortRange = isCrossBorderMissingPortRange(member.crossBorderError);
   switch (member.crossBorderStatus) {
     case "healthy":
       return { color: "bg-success", label: "跨境连通正常", correctable: false };
@@ -383,13 +376,6 @@ function instanceCrossBorderMeta(member: InstanceIPRegionMember) {
     case "pending_failure":
       return { color: "bg-warning", label: "检测前提未满足", correctable: false };
     case "unknown":
-      if (missingPortRange) {
-        return {
-          color: "bg-warning",
-          label: "检测前提未满足（缺少端口范围）",
-          correctable: false,
-        };
-      }
       return { color: "bg-default-400", label: "跨境状态未知", correctable: false };
     default:
       return { color: "bg-default-400", label: "跨境状态未知", correctable: false };
@@ -430,10 +416,6 @@ function CrossBorderStatusPopover({
   const meta = instanceCrossBorderMeta(member);
   const observing = isActiveCrossBorderObservation(member);
   const canRecheck = member.crossBorderStatus !== "healthy";
-  const missingPortRange = isCrossBorderMissingPortRange(member.crossBorderError);
-  const isProbePreconditionStatus =
-    member.crossBorderStatus === "unknown" ||
-    member.crossBorderStatus === "pending_failure";
 
   return (
     <Dropdown placement="bottom-end">
@@ -481,17 +463,12 @@ function CrossBorderStatusPopover({
               观察期内仅告警不隔离，实例权重已恢复
             </p>
           ) : null}
-          {isProbePreconditionStatus && missingPortRange ? (
-            <p className="text-xs leading-5 text-warning-600 dark:text-warning-300">
-              缺少临时 TCP 探测端口范围配置，无法完成检测；请配置端口范围后重新检测
-            </p>
-          ) : null}
-          {member.crossBorderStatus === "pending_failure" && !missingPortRange ? (
+          {member.crossBorderStatus === "pending_failure" ? (
             <p className="text-xs leading-5 text-default-500">
               检测前提尚未满足，等待重试中
             </p>
           ) : null}
-          {member.crossBorderStatus === "unknown" && !missingPortRange ? (
+          {member.crossBorderStatus === "unknown" ? (
             <p className="text-xs leading-5 text-default-500">
               探测结果无法判定，未执行隔离
             </p>
