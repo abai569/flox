@@ -6,20 +6,20 @@ import (
 	"go-backend/internal/store/model"
 )
 
-func TestTemporaryTCPProbeMissingPortRangeLeavesRecoverableInstanceQuarantined(t *testing.T) {
-	// Given: a healthy-weight instance was quarantined by a prior TCP timeout.
+func TestTemporaryICMPProbeUnavailableLeavesRecoverableInstanceQuarantined(t *testing.T) {
+	// Given: a healthy-weight instance was quarantined by a prior blocked probe.
 	r := newCrossBorderTestRepository(t, "temporary-probe-precondition.db")
 	target := createCrossBorderTestInstance(t, r, model.NodeInstance{
 		NodeID: 70, InstanceID: "overseas-a", PublicIPV4: "8.8.8.8", Status: 1, Weight: 5, CreatedTime: 1, UpdatedTime: 1,
 	})
 	applyCrossBorderTestResult(t, r, target, CrossBorderBlocked, 100)
 
-	// When: the next probe cannot run because its temporary listener has no port range.
+	// When: the next probe cannot run because the ICMP probe is unavailable.
 	transition, err := r.ApplyCrossBorderProbeResult(
 		target,
 		CrossBorderUnknown,
 		"",
-		"temporary TCP probe requires a configured port range",
+		"icmp ping unavailable",
 		"node",
 		"",
 		200,
@@ -29,9 +29,9 @@ func TestTemporaryTCPProbeMissingPortRangeLeavesRecoverableInstanceQuarantined(t
 		t.Fatal(err)
 	}
 
-	// Then: the recoverable prerequisite failure should enter observation and restore routing.
-	if transition.State.Status != CrossBorderObserving || transition.State.Quarantined {
-		t.Fatalf("probe prerequisite transition = %#v, want observing and recoverable", transition)
+	// Then: the unavailable probe should be recorded as unknown and keep the instance routable.
+	if transition.State.Status != CrossBorderUnknown || transition.State.Quarantined {
+		t.Fatalf("probe prerequisite transition = %#v, want unknown and routable", transition)
 	}
 	var instance model.NodeInstance
 	if err := r.db.Where("node_id = ? AND instance_id = ?", target.NodeID, target.InstanceID).First(&instance).Error; err != nil {
@@ -42,19 +42,19 @@ func TestTemporaryTCPProbeMissingPortRangeLeavesRecoverableInstanceQuarantined(t
 	}
 }
 
-func TestTemporaryTCPProbeMissingPortRangeDoesNotQuarantineFreshInstance(t *testing.T) {
+func TestTemporaryICMPProbeUnavailableDoesNotQuarantineFreshInstance(t *testing.T) {
 	// Given: a fresh instance with a configured routing weight.
 	r := newCrossBorderTestRepository(t, "temporary-probe-fresh.db")
 	target := createCrossBorderTestInstance(t, r, model.NodeInstance{
 		NodeID: 73, InstanceID: "overseas-a", PublicIPV4: "8.8.8.8", Status: 1, Weight: 5, CreatedTime: 1, UpdatedTime: 1,
 	})
 
-	// When: the temporary listener prerequisite is unavailable.
+	// When: the ICMP probe prerequisite is unavailable.
 	transition, err := r.ApplyCrossBorderProbeResult(
 		target,
 		CrossBorderUnknown,
 		"",
-		temporaryTCPProbeMissingPortRangeError,
+		"icmp ping unavailable",
 		"node",
 		"",
 		100,
@@ -104,7 +104,7 @@ func TestCrossBorderUnknownKeepsHardQuarantinedInstanceBlocked(t *testing.T) {
 	}
 }
 
-func TestTemporaryTCPProbeMissingPortRangeKeepsNonForwardQuarantineBlocked(t *testing.T) {
+func TestTemporaryICMPProbeUnavailableKeepsNonForwardQuarantineBlocked(t *testing.T) {
 	tests := []struct {
 		name   string
 		reason string
@@ -126,8 +126,8 @@ func TestTemporaryTCPProbeMissingPortRangeKeepsNonForwardQuarantineBlocked(t *te
 				t.Fatal(err)
 			}
 
-			// When: a temporary TCP probe reports the recoverable precondition error.
-			transition, err := r.ApplyCrossBorderProbeResult(target, CrossBorderUnknown, "", temporaryTCPProbeMissingPortRangeError, "node", "", 200, 210)
+			// When: a temporary ICMP probe reports the recoverable precondition error.
+			transition, err := r.ApplyCrossBorderProbeResult(target, CrossBorderUnknown, "", "icmp ping unavailable", "node", "", 200, 210)
 			if err != nil {
 				t.Fatal(err)
 			}
