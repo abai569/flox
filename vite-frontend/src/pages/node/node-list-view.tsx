@@ -576,7 +576,8 @@ function InstanceIPRegionCell({
               ) : null}
               {item.ip &&
               item.key === probeAddressKey &&
-              member.networkRegion === "overseas" ? (
+              (member.networkRegion === "overseas" ||
+                member.networkRegion === "mainland") ? (
                 <CrossBorderStatusPopover
                   isRechecking={isCrossBorderRechecking}
                   member={member}
