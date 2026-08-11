@@ -155,15 +155,22 @@ func GetServerDomain() string {
 // Priority: 1. SERVER_IP env var 2. HTTP request to external API.
 func GetServerIP() string {
 	if ip := os.Getenv("SERVER_IP"); ip != "" {
-		return ip
+		parsed := net.ParseIP(strings.TrimSpace(ip))
+		if parsed != nil && parsed.To4() != nil {
+			return parsed.To4().String()
+		}
+		return ""
 	}
 
 	client := &http.Client{Timeout: 3 * time.Second}
+	client.Transport = &http.Transport{
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			return (&net.Dialer{Timeout: 3 * time.Second}).DialContext(ctx, "tcp4", address)
+		},
+		ForceAttemptHTTP2: false,
+	}
 	urls := []string{
 		"https://api.ipify.org",
-		"https://ifconfig.me/ip",
-		"https://icanhazip.com",
-		"https://ip.sb/ip",
 	}
 
 	for _, url := range urls {
@@ -174,8 +181,8 @@ func GetServerIP() string {
 				body, err := io.ReadAll(resp.Body)
 				if err == nil {
 					ip := strings.TrimSpace(string(body))
-					if net.ParseIP(ip) != nil {
-						return ip
+					if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
+						return parsed.To4().String()
 					}
 				}
 			}
@@ -373,8 +380,6 @@ func GetLicenseTier() (TierType, string) {
 
 	return TierPremium, ""
 }
-
-
 
 // GetLicenseState returns the current license state
 func GetLicenseState() (valid bool, expireTime int64, reason string, isTrial bool) {
