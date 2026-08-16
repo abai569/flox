@@ -2488,7 +2488,7 @@ func (h *Handler) backupExport(w http.ResponseWriter, r *http.Request) {
 		mode = "full"
 	}
 	if len(req.Types) > 0 {
-		mode = strings.Join(req.Types, ",")
+		mode = strings.Join(req.Types, "_")
 	}
 	h.sendBotNotification(func(bot *telegram.Bot) {
 		bot.SendBackupComplete(mode)

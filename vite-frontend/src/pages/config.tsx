@@ -242,6 +242,8 @@ export default function ConfigPage() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importFileName, setImportFileName] = useState("");
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
+  const [pendingImportData, setPendingImportData] = useState<any>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   const faviconFileInputRef = useRef<HTMLInputElement>(null);
@@ -949,16 +951,40 @@ export default function ConfigPage() {
     const file = e.target.files?.[0];
 
     if (!file) return;
-    setImportFileName(file.name);
-    setImporting(true);
+
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      const response = await importBackup(data);
+      setPendingImportData(data);
+      setImportFileName(file.name);
+      setImportConfirmOpen(true);
+    } catch {
+      toast.error("文件解析失败，请检查文件格式");
+    } finally {
+      if (backupFileInputRef.current) {
+        backupFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleImportConfirm = async () => {
+    if (!pendingImportData) return;
+
+    setImportConfirmOpen(false);
+    setImporting(true);
+    try {
+      const response = await importBackup(pendingImportData);
 
       if (response.code === 0) {
-        toast.success(`导入成功：${JSON.stringify(response.data)}`);
+        // 格式化导入结果
+        const result = response.data as Record<string, any>;
+        const summary = Object.entries(result)
+          .filter(([key]) => key !== "autoBackup" && key !== "auto_backup")
+          .map(([key, count]) => `${key}: ${count}`)
+          .join(", ");
+        toast.success(`导入成功：${summary || "完成"}`);
         setImportFileName("");
+        setPendingImportData(null);
       } else {
         toast.error("导入失败：" + response.msg);
       }
@@ -966,10 +992,13 @@ export default function ConfigPage() {
       toast.error("导入失败，请检查文件格式");
     } finally {
       setImporting(false);
-      if (backupFileInputRef.current) {
-        backupFileInputRef.current.value = "";
-      }
     }
+  };
+
+  const handleImportCancel = () => {
+    setImportConfirmOpen(false);
+    setPendingImportData(null);
+    setImportFileName("");
   };
 
   return (
@@ -1245,7 +1274,7 @@ export default function ConfigPage() {
               <div>
                 <h2 className="text-xl font-semibold">数据备份</h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  导出系统所有数据为jaon格式文件，优先使用脚本备份数据
+                  导出系统所有数据为json格式文件，优先使用脚本备份数据
                 </p>
               </div>
             </div>
@@ -1579,6 +1608,35 @@ export default function ConfigPage() {
                 onPress={confirmTransferLicense}
               >
                 确认
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </Modal>
+        <Modal isOpen={importConfirmOpen} onClose={handleImportCancel}>
+          <ModalContent>
+            <ModalHeader>确认导入数据</ModalHeader>
+            <ModalBody>
+              <p className="text-sm">
+                确认要导入文件{" "}
+                <span className="font-semibold text-primary">
+                  {importFileName}
+                </span>{" "}
+                吗？
+              </p>
+              <p className="text-xs text-danger mt-2">
+                导入将覆盖现有数据，系统会在导入前自动备份当前数据
+              </p>
+            </ModalBody>
+            <ModalFooter>
+              <Button color="default" onPress={handleImportCancel}>
+                取消
+              </Button>
+              <Button
+                color="primary"
+                isLoading={importing}
+                onPress={handleImportConfirm}
+              >
+                确认导入
               </Button>
             </ModalFooter>
           </ModalContent>
