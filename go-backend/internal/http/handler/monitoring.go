@@ -1797,13 +1797,14 @@ func (h *Handler) monitorPermissionAssign(w http.ResponseWriter, r *http.Request
 		response.WriteJSON(w, response.Err(-2, err.Error()))
 		return
 	}
+	fa := 0
 	if req.FullAccess != nil {
-		fa := *req.FullAccess
-		if fa == 0 || fa == 1 {
-			if err := h.repo.UpdateMonitorPermissionFullAccess(req.UserID, fa); err != nil {
-				response.WriteJSON(w, response.Err(-2, err.Error()))
-				return
-			}
+		fa = *req.FullAccess
+	}
+	if fa == 0 || fa == 1 {
+		if err := h.repo.UpdateMonitorPermissionFullAccess(req.UserID, fa); err != nil {
+			response.WriteJSON(w, response.Err(-2, err.Error()))
+			return
 		}
 	}
 	response.WriteJSON(w, response.OKEmpty())

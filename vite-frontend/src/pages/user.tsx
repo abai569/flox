@@ -472,7 +472,7 @@ export default function UserPage() {
         } else {
           response = await assignMonitorPermission(
             userId,
-            level === 2 ? 1 : undefined,
+            level === 2 ? 1 : 0,
           );
         }
         if (response.code === 0) {
