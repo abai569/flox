@@ -2833,7 +2833,7 @@ export default function UserPage() {
                               <div
                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                                   monitorPermissionLevelMap.get(user.id) === 1
-                                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                    ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
                                     : monitorPermissionLevelMap.has(user.id)
                                       ? "bg-success-500/10 text-success-600 dark:text-success-400"
                                       : "bg-danger-500/10 text-danger-600 dark:text-danger-400"
