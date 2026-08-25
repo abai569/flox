@@ -296,12 +296,13 @@ func (h *Handler) enforceNodeTrafficLimit(nodeID int64, instanceID string, perio
 	if periodNetIn < 0 || periodNetOut < 0 {
 		return
 	}
-	totalUsed := info.PeriodNetInBytes + info.PeriodNetOutBytes + info.ManualInBytes + info.ManualOutBytes
+	periodNet := info.PeriodNetInBytes + info.PeriodNetOutBytes
+	if reportedPeriodNet := periodNetIn + periodNetOut; reportedPeriodNet > periodNet {
+		periodNet = reportedPeriodNet
+	}
+	totalUsed := periodNet + info.ManualInBytes + info.ManualOutBytes
 	if totalUsed < 0 {
 		totalUsed = 0
-	}
-	if reportedUsed := periodNetIn + periodNetOut; reportedUsed > totalUsed {
-		totalUsed = reportedUsed
 	}
 	limitBytes := info.LimitGB * 1024 * 1024 * 1024
 

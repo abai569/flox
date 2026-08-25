@@ -608,21 +608,7 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 	nowMs := now.UnixMilli()
 
 	for _, inst := range instances {
-		cmdResult, err := h.sendNodeCommandToInstanceWithTimeout(
-			inst.NodeID,
-			inst.InstanceID,
-			"ResetTraffic",
-			map[string]interface{}{
-				"reason":     "自动周期归零",
-				"nodeId":     inst.NodeID,
-				"instanceId": inst.InstanceID,
-			},
-			10*time.Second,
-			false,
-			false,
-		)
-
-		if err != nil || !cmdResult.Success {
+		if err := h.resetNodeInstanceTrafficFromAgent(inst.NodeID, inst.InstanceID, "自动周期归零"); err != nil {
 			log.Printf("WARN: auto-reset node %d instance %s traffic failed: %v", inst.NodeID, inst.InstanceID, err)
 			continue
 		}
@@ -644,19 +630,11 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 			OperatorID:    actorUserID,
 			OperatorName:  actorUserName,
 			Reason:        "自动周期归零",
-			InFlowBefore:  inst.PeriodNetOutBytes,
-			OutFlowBefore: inst.PeriodNetInBytes,
+			InFlowBefore:  inst.PeriodNetInBytes,
+			OutFlowBefore: inst.PeriodNetOutBytes,
 		})
 
 		_ = h.repo.UpdateNodeInstanceTrafficNotifiedMask(inst.NodeID, inst.InstanceID, 0)
-		netIn, netOut, bootID, interfaceKey, ok := resetTrafficNetSnapshot(cmdResult)
-		if !ok {
-			log.Printf("WARN: auto-reset node %d instance %s missing network snapshot", inst.NodeID, inst.InstanceID)
-			continue
-		}
-		_ = h.repo.ResetNodeInstanceTotalFlow(inst.NodeID, inst.InstanceID)
-		_ = h.repo.ResetNodeInstancePeriodNetTraffic(inst.NodeID, inst.InstanceID, netIn, netOut, bootID, interfaceKey, false)
-		h.nodeTrafficCache.Delete(fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID))
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficReset(logName, "自动周期归零")
@@ -680,6 +658,17 @@ func nodeInstanceCycleResetDue(anchorMs int64, cycle string, now time.Time) bool
 		return false
 	}
 	anchor := time.UnixMilli(anchorMs).In(now.Location())
+	// 把 anchor 对齐到不超过 now 的最近周期边界，这样更新周期（续期）后原来的归零日仍然有效
+	for {
+		prev := addCalendarMonthsClamped(anchor, -months)
+		if prev.After(anchor) || prev.Equal(anchor) {
+			break
+		}
+		anchor = prev
+		if !prev.After(now) {
+			break
+		}
+	}
 	for period := 0; ; period++ {
 		boundary := addCalendarMonthsClamped(anchor, period*months)
 		if boundary.After(now) {
