@@ -3363,8 +3363,8 @@ export default function TunnelPage() {
                   </div>
                   <Divider />
                   <h3 className="text-lg font-semibold">入口配置</h3>
-                  <div className="flex flex-col md:flex-row flex-wrap gap-2 items-end">
-                    <div style={{ flex: "7 1 0%" }}>
+                  <div className="flex flex-col md:flex-row gap-2 items-end">
+                    <div className="w-full md:flex-[7_1_0%]">
                       <Select
                         disabledKeys={
                           isEdit
@@ -3422,7 +3422,7 @@ export default function TunnelPage() {
                         {renderNodeSelectItems({ role: "entry" })}
                       </Select>
                     </div>
-                    <div style={{ flex: "3 1 0%" }}>
+                    <div className="w-full md:flex-[3_1_0%]">
                       <Textarea
                         classNames={{
                           inputWrapper: "!min-h-[20px] py-1.5",
@@ -3522,8 +3522,8 @@ export default function TunnelPage() {
                                     </Button>
                                   </div>
                                   {/* 节点(70%) + 负载策略(30%) */}
-                                  <div className="flex gap-2 mb-2">
-                                    <div className="flex-[7_1_0%]">
+                                  <div className="flex flex-col md:flex-row gap-2 mb-2">
+                                    <div className="w-full md:flex-[7_1_0%]">
                                       <Select
                                         classNames={{
                                           base: "w-full",
@@ -3597,7 +3597,7 @@ export default function TunnelPage() {
                                         {renderNodeSelectItems({ role: "chain", groupIndex })}
                                       </Select>
                                     </div>
-                                    <div className="flex-[3_1_0%]">
+                                    <div className="w-full md:flex-[3_1_0%]">
                                       <Select
                                         classNames={{
                                           label: "text-xs",
@@ -3629,8 +3629,8 @@ export default function TunnelPage() {
                                     </div>
                                   </div>
                                   {/* 连接端口(35%) + 连接IP类型(35%) + 传输层协议(30%) */}
-                                  <div className="flex gap-2 mt-3">
-                                    <div className="flex-[7_1_0%]">
+                                  <div className="flex flex-col md:flex-row gap-2 mt-3">
+                                    <div className="w-full md:flex-[7_1_0%]">
                                     <Input
                                       description="指定当前级被上一级连接的端口，留空按节点端口范围自动分配"
                                       errorMessage={
@@ -3701,7 +3701,7 @@ export default function TunnelPage() {
                                       }}
                                     />
                                     </div>
-                                    <div className="flex-[7_1_0%]">
+                                    <div className="w-full md:flex-[7_1_0%]">
                                     <Input
                                       description="v4 是公网 v4，v6 是公网 v6，lan 是内网 ip，留空自动匹配"
                                       label="连接 IP 类型"
@@ -3759,7 +3759,7 @@ export default function TunnelPage() {
                                       }}
                                     />
                                     </div>
-                                    <div className="flex-[6_1_0%]">
+                                    <div className="w-full md:flex-[6_1_0%]">
                                       <Select
                                         classNames={{
                                           label: "text-xs",
@@ -3835,8 +3835,8 @@ export default function TunnelPage() {
                         return (
                           <>
                             {/* 出口节点(70%) + 负载策略(30%) */}
-                            <div className="flex gap-2">
-                              <div className="flex-[7_1_0%]">
+                            <div className="flex flex-col md:flex-row gap-2">
+                              <div className="w-full md:flex-[7_1_0%]">
                                 <Select
                                   classNames={{
                                     base: "w-full",
@@ -3908,7 +3908,7 @@ export default function TunnelPage() {
                                   {renderNodeSelectItems({ role: "exit" })}
                                 </Select>
                               </div>
-                              <div className="flex-[3_1_0%]">
+                              <div className="w-full md:flex-[3_1_0%]">
                                 <Select
                                   classNames={{
                                     label: "text-xs",
@@ -3979,8 +3979,8 @@ export default function TunnelPage() {
                               </div>
                             </div>
                             {/* 连接端口(35%) + 连接IP类型(35%) + 传输层协议(30%) */}
-                            <div className="flex gap-2 mt-3">
-                              <div className="flex-[7_1_0%]">
+                            <div className="flex flex-col md:flex-row gap-2 mt-3">
+                              <div className="w-full md:flex-[7_1_0%]">
                                 <Input
                                   description="指定出口节点被上一级连接的端口，留空按节点端口范围自动分配"
                                   label="连接端口"
@@ -4029,7 +4029,7 @@ export default function TunnelPage() {
                                   }}
                                 />
                               </div>
-                              <div className="flex-[7_1_0%]">
+                              <div className="w-full md:flex-[7_1_0%]">
                                 <Input
                                   description="v4 是公网 v4，v6 是公网 v6，lan 是内网 ip，留空自动匹配"
                                   label="连接 IP 类型"
@@ -4071,7 +4071,7 @@ export default function TunnelPage() {
                                   }}
                                 />
                               </div>
-                              <div className="flex-[6_1_0%]">
+                              <div className="w-full md:flex-[6_1_0%]">
                                 <Select
                                   classNames={{
                                     label: "text-xs",

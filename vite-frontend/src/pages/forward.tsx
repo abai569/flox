@@ -6464,8 +6464,8 @@ export default function ForwardPage() {
                         </Select>
                       </div>
                       {/* 第2行：入口节点(70%) + 入口地址(30%) */}
-                      <div className="flex gap-4 items-end">
-                        <div className="flex-[7_1_0%]">
+                      <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="w-full md:flex-[7_1_0%]">
                           <Select
                             disabledKeys={buildManualDisabledKeys({
                               role: "entry",
@@ -6506,7 +6506,7 @@ export default function ForwardPage() {
                             {renderManualNodeItems({ role: "entry" })}
                           </Select>
                         </div>
-                        <div className="flex-[3_1_0%]">
+                        <div className="w-full md:flex-[3_1_0%]">
                           <Textarea
                             classNames={{
                               inputWrapper: "!min-h-[20px] py-1.5",
@@ -6575,8 +6575,8 @@ export default function ForwardPage() {
                               </div>
 
                               {/* --- 节点(70%)、负载策略(30%) --- */}
-                              <div className="flex gap-2">
-                                <div className="flex-[7_1_0%]">
+                              <div className="flex flex-col md:flex-row gap-2">
+                                <div className="w-full md:flex-[7_1_0%]">
                                   <Select
                                     disabledKeys={buildManualDisabledKeys({
                                       role: "chain",
@@ -6620,7 +6620,7 @@ export default function ForwardPage() {
                                     })}
                                   </Select>
                                 </div>
-                                <div className="flex-[3_1_0%]">
+                                <div className="w-full md:flex-[3_1_0%]">
                                   <Select
                                     label="负载策略"
                                     placeholder="选择策略"
@@ -6656,8 +6656,8 @@ export default function ForwardPage() {
                                 </div>
                               </div>
                               {/* --- 连接端口(35%)、连接IP类型(35%)、传输层协议(30%) --- */}
-                              <div className="flex gap-2 mt-2">
-                                <div className="flex-[7_1_0%]">
+                              <div className="flex flex-col md:flex-row gap-2 mt-2">
+                                <div className="w-full md:flex-[7_1_0%]">
                                   <Input
                                     description="指定当前级被上一级连接的端口，留空按节点端口范围自动分配"
                                     errorMessage={
@@ -6710,7 +6710,7 @@ export default function ForwardPage() {
                                     }
                                   />
                                 </div>
-                                <div className="flex-[7_1_0%]">
+                                <div className="w-full md:flex-[7_1_0%]">
                                   <Input
                                     description="v4 是公网 v4，v6 是公网 v6，lan 是内网 ip，留空自动匹配"
                                     label="连接 IP 类型"
@@ -6757,7 +6757,7 @@ export default function ForwardPage() {
                                     }
                                   />
                                 </div>
-                                <div className="flex-[6_1_0%]">
+                                <div className="w-full md:flex-[6_1_0%]">
                                   <Select
                                     description="不懂的就默认，不要选！"
                                     label="传输层协议"
@@ -6818,8 +6818,8 @@ export default function ForwardPage() {
                       {/* --- 出口节点(70%)、负载策略(30%) + 连接端口(35%)、连接IP类型(35%)、传输层协议(30%) --- */}
                       {manualTunnelType === 2 && (
                         <>
-                          <div className="flex gap-2 mt-3">
-                            <div className="flex-[7_1_0%]">
+                          <div className="flex flex-col md:flex-row gap-2 mt-3">
+                            <div className="w-full md:flex-[7_1_0%]">
                               <Select
                                 disabledKeys={buildManualDisabledKeys({
                                   role: "exit",
@@ -6844,7 +6844,7 @@ export default function ForwardPage() {
                                 {renderManualNodeItems({ role: "exit" })}
                               </Select>
                             </div>
-                            <div className="flex-[3_1_0%]">
+                            <div className="w-full md:flex-[3_1_0%]">
                               <Select
                                 label="负载策略"
                                 placeholder="选择策略"
@@ -6872,8 +6872,8 @@ export default function ForwardPage() {
                               </Select>
                             </div>
                           </div>
-                          <div className="flex gap-2 mt-2">
-                            <div className="flex-[7_1_0%]">
+                          <div className="flex flex-col md:flex-row gap-2 mt-2">
+                            <div className="w-full md:flex-[7_1_0%]">
                               <Input
                                 description="指定出口节点被上一级连接的端口，留空按节点端口范围自动分配"
                                 errorMessage={errors.manualOutPort}
@@ -6910,7 +6910,7 @@ export default function ForwardPage() {
                                 }
                               />
                             </div>
-                            <div className="flex-[7_1_0%]">
+                            <div className="w-full md:flex-[7_1_0%]">
                               <Input
                                 description="v4 是公网 v4，v6 是公网 v6，lan 是内网 ip，留空自动匹配"
                                 label="连接 IP 类型"
@@ -6948,7 +6948,7 @@ export default function ForwardPage() {
                                 }
                               />
                             </div>
-                            <div className="flex-[6_1_0%]">
+                            <div className="w-full md:flex-[6_1_0%]">
                               <Select
                                 description="不懂的就默认，不要选！"
                                 label="传输层协议"
