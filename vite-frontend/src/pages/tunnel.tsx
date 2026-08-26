@@ -3521,8 +3521,9 @@ export default function TunnelPage() {
                                       删除
                                     </Button>
                                   </div>
-                                  <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
-                                    <div className="md:col-span-2">
+                                  {/* 节点(70%) + 负载策略(30%) */}
+                                  <div className="flex gap-2 mb-2">
+                                    <div className="flex-[7_1_0%]">
                                       <Select
                                         classNames={{
                                           base: "w-full",
@@ -3596,68 +3597,39 @@ export default function TunnelPage() {
                                         {renderNodeSelectItems({ role: "chain", groupIndex })}
                                       </Select>
                                     </div>
-                                    <Select
-                                      classNames={{
-                                        label: "text-xs",
-                                        value: "text-sm",
-                                      }}
-                                      description="不懂的就默认，不要选！"
-                                      label="传输层协议"
-                                      placeholder="选择传输层协议"
-                                      selectedKeys={[protocol]}
-                                      size="sm"
-                                      variant="bordered"
-                                      onSelectionChange={(keys) => {
-                                        const selectedKey = Array.from(
-                                          keys,
-                                        )[0] as string;
+                                    <div className="flex-[3_1_0%]">
+                                      <Select
+                                        classNames={{
+                                          label: "text-xs",
+                                          value: "text-sm",
+                                        }}
+                                        label="负载策略"
+                                        placeholder="选择策略"
+                                        selectedKeys={[strategy]}
+                                        size="sm"
+                                        variant="bordered"
+                                        onSelectionChange={(keys) => {
+                                          const selectedKey = Array.from(
+                                            keys,
+                                          )[0] as string;
 
-                                        if (selectedKey) {
-                                          updateChainProtocol(
-                                            groupIndex,
-                                            selectedKey,
-                                          );
-                                        }
-                                      }}
-                                    >
-                                      <SelectItem key="tcp">TCP</SelectItem>
-                                      <SelectItem key="mtcp">MTCP</SelectItem>
-                                      <SelectItem key="tls">TLS</SelectItem>
-                                      <SelectItem key="mtls">MTLS</SelectItem>
-                                      <SelectItem key="wss">WSS</SelectItem>
-                                      <SelectItem key="mwss">MWSS</SelectItem>
-                                    </Select>
-                                    <Select
-                                      classNames={{
-                                        label: "text-xs",
-                                        value: "text-sm",
-                                      }}
-                                      label="负载策略"
-                                      placeholder="选择策略"
-                                      selectedKeys={[strategy]}
-                                      size="sm"
-                                      variant="bordered"
-                                      onSelectionChange={(keys) => {
-                                        const selectedKey = Array.from(
-                                          keys,
-                                        )[0] as string;
-
-                                        if (selectedKey) {
-                                          updateChainStrategy(
-                                            groupIndex,
-                                            selectedKey,
-                                          );
-                                        }
-                                      }}
-                                    >
-                                      <SelectItem key="fifo">主备</SelectItem>
-                                      <SelectItem key="round">轮询</SelectItem>
-                                      <SelectItem key="rand">随机</SelectItem>
-                                      <SelectItem key="best">最优</SelectItem>
-                                    </Select>
+                                          if (selectedKey) {
+                                            updateChainStrategy(
+                                              groupIndex,
+                                              selectedKey,
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        <SelectItem key="fifo">主备</SelectItem>
+                                        <SelectItem key="round">轮询</SelectItem>
+                                        <SelectItem key="rand">随机</SelectItem>
+                                        <SelectItem key="best">最优</SelectItem>
+                                      </Select>
+                                    </div>
                                   </div>
-                                  {/* 连接 IP 和连接端口 - 转发链节点 */}
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                                  {/* 连接端口(35%) + 连接IP类型(35%) + 传输层协议(30%) */}
+                                  <div className="flex gap-2 mt-3">
                                     <Input
                                       description="指定当前级被上一级连接的端口，多节点可用逗号分隔，按选择节点顺序匹配，留空按节点端口范围自动分配"
                                       errorMessage={
@@ -3783,6 +3755,39 @@ export default function TunnelPage() {
                                         }
                                       }}
                                     />
+                                    <div className="flex-[6_1_0%]">
+                                      <Select
+                                        classNames={{
+                                          label: "text-xs",
+                                          value: "text-sm",
+                                        }}
+                                        description="不懂的就默认，不要选！"
+                                        label="传输层协议"
+                                        placeholder="选择传输层协议"
+                                        selectedKeys={[protocol]}
+                                        size="sm"
+                                        variant="bordered"
+                                        onSelectionChange={(keys) => {
+                                          const selectedKey = Array.from(
+                                            keys,
+                                          )[0] as string;
+
+                                          if (selectedKey) {
+                                            updateChainProtocol(
+                                              groupIndex,
+                                              selectedKey,
+                                            );
+                                          }
+                                        }}
+                                      >
+                                        <SelectItem key="tcp">TCP</SelectItem>
+                                        <SelectItem key="mtcp">MTCP</SelectItem>
+                                        <SelectItem key="tls">TLS</SelectItem>
+                                        <SelectItem key="mtls">MTLS</SelectItem>
+                                        <SelectItem key="wss">WSS</SelectItem>
+                                        <SelectItem key="mwss">MWSS</SelectItem>
+                                      </Select>
+                                    </div>
                                   </div>
                                   <div className="mt-2 flex justify-end">
                                     <Button
@@ -3825,9 +3830,9 @@ export default function TunnelPage() {
                       {(() => {
                         return (
                           <>
-                            {/* Row 1: Node selection + Protocol + Strategy */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                              <div className="md:col-span-2">
+                            {/* 出口节点(70%) + 负载策略(30%) */}
+                            <div className="flex gap-2">
+                              <div className="flex-[7_1_0%]">
                                 <Select
                                   classNames={{
                                     base: "w-full",
@@ -3837,7 +3842,6 @@ export default function TunnelPage() {
                                   disabledKeys={
                                     isEdit
                                       ? [
-                                          // 编辑时【不禁用】离线节点，仅排除入口和转发链冲突节点
                                           ...form.inNodeId.map((ct) =>
                                             ct.nodeId.toString(),
                                           ),
@@ -3846,7 +3850,6 @@ export default function TunnelPage() {
                                           ),
                                         ]
                                       : [
-                                          // 新建时【禁用】离线节点，并排除冲突节点
                                           ...nodes
                                             .filter((node) => node.status !== 1)
                                             .map((node) => node.id.toString()),
@@ -3901,236 +3904,242 @@ export default function TunnelPage() {
                                   {renderNodeSelectItems({ role: "exit" })}
                                 </Select>
                               </div>
-                              {/* 传输层协议选择 */}
-                              <Select
-                                classNames={{
-                                  label: "text-xs",
-                                  value: "text-sm",
-                                }}
-                                description="不懂的就默认，不要选！"
-                                errorMessage={errors.protocol}
-                                isInvalid={!!errors.protocol}
-                                label="传输层协议"
-                                placeholder="选择传输层协议"
-                                selectedKeys={[
-                                  (() => {
-                                    if (
-                                      !form.outNodeId ||
-                                      form.outNodeId.length === 0
-                                    )
-                                      return "tcp";
+                              <div className="flex-[3_1_0%]">
+                                <Select
+                                  classNames={{
+                                    label: "text-xs",
+                                    value: "text-sm",
+                                  }}
+                                  label="负载策略"
+                                  placeholder="选择策略"
+                                  selectedKeys={[
+                                    (() => {
+                                      if (
+                                        !form.outNodeId ||
+                                        form.outNodeId.length === 0
+                                      )
+                                        return "round";
 
-                                    return form.outNodeId[0].protocol || "tcp";
-                                  })(),
-                                ]}
-                                variant="bordered"
-                                onSelectionChange={(keys) => {
-                                  const selectedKey = Array.from(
-                                    keys,
-                                  )[0] as string;
+                                      return (
+                                        form.outNodeId[0].strategy || "round"
+                                      );
+                                    })(),
+                                  ]}
+                                  variant="bordered"
+                                  onSelectionChange={(keys) => {
+                                    const selectedKey = Array.from(
+                                      keys,
+                                    )[0] as string;
 
-                                  if (selectedKey) {
-                                    setForm((prev) => {
-                                      const currentOutNodes =
-                                        prev.outNodeId || [];
-                                      const currentStrategy =
-                                        currentOutNodes.length > 0
-                                          ? currentOutNodes[0].strategy ||
-                                            "round"
-                                          : "round";
+                                    if (selectedKey) {
+                                      setForm((prev) => {
+                                        const currentOutNodes =
+                                          prev.outNodeId || [];
+                                        const currentProtocol =
+                                          currentOutNodes.length > 0
+                                            ? currentOutNodes[0].protocol || "tcp"
+                                            : "tcp";
 
-                                      if (currentOutNodes.length === 0) {
+                                        if (currentOutNodes.length === 0) {
+                                          return {
+                                            ...prev,
+                                            outNodeId: [
+                                              {
+                                                nodeId: -1,
+                                                chainType: 3,
+                                                protocol: currentProtocol,
+                                                strategy: selectedKey,
+                                              },
+                                            ],
+                                          };
+                                        }
+
                                         return {
                                           ...prev,
-                                          outNodeId: [
-                                            {
-                                              nodeId: -1,
-                                              chainType: 3,
-                                              protocol: selectedKey,
-                                              strategy: currentStrategy,
-                                            },
-                                          ],
-                                        };
-                                      }
-
-                                      return {
-                                        ...prev,
-                                        outNodeId: currentOutNodes.map(
-                                          (ct) => ({
-                                            ...ct,
-                                            protocol: selectedKey,
-                                          }),
-                                        ),
-                                      };
-                                    });
-                                  }
-                                }}
-                              >
-                                <SelectItem key="tcp">TCP</SelectItem>
-                                <SelectItem key="mtcp">MTCP</SelectItem>
-                                <SelectItem key="tls">TLS</SelectItem>
-                                <SelectItem key="mtls">MTLS</SelectItem>
-                                <SelectItem key="wss">WSS</SelectItem>
-                                <SelectItem key="mwss">MWSS</SelectItem>
-                              </Select>
-                              {/* 负载策略 */}
-                              <Select
-                                classNames={{
-                                  label: "text-xs",
-                                  value: "text-sm",
-                                }}
-                                label="负载策略"
-                                placeholder="选择策略"
-                                selectedKeys={[
-                                  (() => {
-                                    if (
-                                      !form.outNodeId ||
-                                      form.outNodeId.length === 0
-                                    )
-                                      return "round";
-
-                                    return (
-                                      form.outNodeId[0].strategy || "round"
-                                    );
-                                  })(),
-                                ]}
-                                variant="bordered"
-                                onSelectionChange={(keys) => {
-                                  const selectedKey = Array.from(
-                                    keys,
-                                  )[0] as string;
-
-                                  if (selectedKey) {
-                                    setForm((prev) => {
-                                      const currentOutNodes =
-                                        prev.outNodeId || [];
-                                      const currentProtocol =
-                                        currentOutNodes.length > 0
-                                          ? currentOutNodes[0].protocol || "tcp"
-                                          : "tcp";
-
-                                      if (currentOutNodes.length === 0) {
-                                        return {
-                                          ...prev,
-                                          outNodeId: [
-                                            {
-                                              nodeId: -1,
-                                              chainType: 3,
-                                              protocol: currentProtocol,
+                                          outNodeId: currentOutNodes.map(
+                                            (ct) => ({
+                                              ...ct,
                                               strategy: selectedKey,
-                                            },
-                                          ],
+                                            }),
+                                          ),
                                         };
-                                      }
-
-                                      return {
-                                        ...prev,
-                                        outNodeId: currentOutNodes.map(
-                                          (ct) => ({
-                                            ...ct,
-                                            strategy: selectedKey,
-                                          }),
-                                        ),
-                                      };
-                                    });
-                                  }
-                                }}
-                              >
-                                <SelectItem key="fifo">主备</SelectItem>
-                                <SelectItem key="round">轮询</SelectItem>
-                                <SelectItem key="rand">随机</SelectItem>
-                                <SelectItem key="best">最优</SelectItem>
-                              </Select>
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <SelectItem key="fifo">主备</SelectItem>
+                                  <SelectItem key="round">轮询</SelectItem>
+                                  <SelectItem key="rand">随机</SelectItem>
+                                  <SelectItem key="best">最优</SelectItem>
+                                </Select>
+                              </div>
                             </div>
-                            {/* 连接端口和连接 IP 类型 - 出口节点 */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
-                              <Input
-                                description="指定出口节点被上一级连接的端口，多节点可用逗号分隔，按选择节点顺序匹配，留空按节点端口范围自动分配"
-                                label="连接端口"
-                                placeholder="例：33333,55555"
-                                size="sm"
-                                type="text"
-                                value={
-                                  focusedInputs[`out_port`] ??
-                                  formatOutNodePortsToDisplay()
-                                }
-                                variant="bordered"
-                                onBlur={() => {
-                                  const finalValue =
+                            {/* 连接端口(35%) + 连接IP类型(35%) + 传输层协议(30%) */}
+                            <div className="flex gap-2 mt-3">
+                              <div className="flex-[7_1_0%]">
+                                <Input
+                                  description="指定出口节点被上一级连接的端口，多节点可用逗号分隔，按选择节点顺序匹配，留空按节点端口范围自动分配"
+                                  label="连接端口"
+                                  placeholder="例：33333,55555"
+                                  size="sm"
+                                  type="text"
+                                  value={
                                     focusedInputs[`out_port`] ??
-                                    formatOutNodePortsToDisplay();
-
-                                  setFocusedInputs((prev) => {
-                                    const next = { ...prev };
-
-                                    delete next[`out_port`];
-
-                                    return next;
-                                  });
-                                  if (finalValue) {
-                                    applyPortsToOutNodes(finalValue);
-                                  } else {
-                                    applyPortsToOutNodes("");
+                                    formatOutNodePortsToDisplay()
                                   }
-                                }}
-                                onChange={(e) => {
-                                  setFocusedInputs((prev) => ({
-                                    ...prev,
-                                    [`out_port`]: e.target.value,
-                                  }));
-                                }}
-                                onFocus={() => {
-                                  const displayValue =
-                                    formatOutNodePortsToDisplay();
+                                  variant="bordered"
+                                  onBlur={() => {
+                                    const finalValue =
+                                      focusedInputs[`out_port`] ??
+                                      formatOutNodePortsToDisplay();
 
-                                  if (displayValue) {
+                                    setFocusedInputs((prev) => {
+                                      const next = { ...prev };
+
+                                      delete next[`out_port`];
+
+                                      return next;
+                                    });
+                                    if (finalValue) {
+                                      applyPortsToOutNodes(finalValue);
+                                    } else {
+                                      applyPortsToOutNodes("");
+                                    }
+                                  }}
+                                  onChange={(e) => {
                                     setFocusedInputs((prev) => ({
                                       ...prev,
-                                      [`out_port`]: displayValue,
+                                      [`out_port`]: e.target.value,
                                     }));
+                                  }}
+                                  onFocus={() => {
+                                    const displayValue =
+                                      formatOutNodePortsToDisplay();
+
+                                    if (displayValue) {
+                                      setFocusedInputs((prev) => ({
+                                        ...prev,
+                                        [`out_port`]: displayValue,
+                                      }));
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="flex-[7_1_0%]">
+                                <Input
+                                  description="多节点可用逗号分隔，按选择节点顺序匹配，v4 对应公网 v4，v6 对应公网 v6，lan 对应内网，留空自动匹配"
+                                  label="连接 IP 类型"
+                                  placeholder="例：v4,v6,lan"
+                                  size="sm"
+                                  type="text"
+                                  value={
+                                    focusedInputs[`out_ipType`] ??
+                                    formatOutNodeConnectIpTypes()
                                   }
-                                }}
-                              />
-                              <Input
-                                description="多节点可用逗号分隔，按选择节点顺序匹配，v4 对应公网 v4，v6 对应公网 v6，lan 对应内网，留空自动匹配"
-                                label="连接 IP 类型"
-                                placeholder="例：v4,v6,lan"
-                                size="sm"
-                                type="text"
-                                value={
-                                  focusedInputs[`out_ipType`] ??
-                                  formatOutNodeConnectIpTypes()
-                                }
-                                variant="bordered"
-                                onBlur={(e) => {
-                                  setFocusedInputs((prev) => {
-                                    const next = { ...prev };
+                                  variant="bordered"
+                                  onBlur={(e) => {
+                                    setFocusedInputs((prev) => {
+                                      const next = { ...prev };
 
-                                    delete next[`out_ipType`];
+                                      delete next[`out_ipType`];
 
-                                    return next;
-                                  });
-                                  applyOutNodeConnectIpTypes(e.target.value);
-                                }}
-                                onChange={(e) => {
-                                  setFocusedInputs((prev) => ({
-                                    ...prev,
-                                    [`out_ipType`]: e.target.value,
-                                  }));
-                                  applyOutNodeConnectIpTypes(e.target.value);
-                                }}
-                                onFocus={() => {
-                                  const displayValue =
-                                    formatOutNodeConnectIpTypes();
-
-                                  if (displayValue) {
+                                      return next;
+                                    });
+                                    applyOutNodeConnectIpTypes(e.target.value);
+                                  }}
+                                  onChange={(e) => {
                                     setFocusedInputs((prev) => ({
                                       ...prev,
-                                      [`out_ipType`]: displayValue,
+                                      [`out_ipType`]: e.target.value,
                                     }));
-                                  }
-                                }}
-                              />
+                                    applyOutNodeConnectIpTypes(e.target.value);
+                                  }}
+                                  onFocus={() => {
+                                    const displayValue =
+                                      formatOutNodeConnectIpTypes();
+
+                                    if (displayValue) {
+                                      setFocusedInputs((prev) => ({
+                                        ...prev,
+                                        [`out_ipType`]: displayValue,
+                                      }));
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <div className="flex-[6_1_0%]">
+                                <Select
+                                  classNames={{
+                                    label: "text-xs",
+                                    value: "text-sm",
+                                  }}
+                                  description="不懂的就默认，不要选！"
+                                  errorMessage={errors.protocol}
+                                  isInvalid={!!errors.protocol}
+                                  label="传输层协议"
+                                  placeholder="选择传输层协议"
+                                  selectedKeys={[
+                                    (() => {
+                                      if (
+                                        !form.outNodeId ||
+                                        form.outNodeId.length === 0
+                                      )
+                                        return "tcp";
+
+                                      return form.outNodeId[0].protocol || "tcp";
+                                    })(),
+                                  ]}
+                                  variant="bordered"
+                                  onSelectionChange={(keys) => {
+                                    const selectedKey = Array.from(
+                                      keys,
+                                    )[0] as string;
+
+                                    if (selectedKey) {
+                                      setForm((prev) => {
+                                        const currentOutNodes =
+                                          prev.outNodeId || [];
+                                        const currentStrategy =
+                                          currentOutNodes.length > 0
+                                            ? currentOutNodes[0].strategy ||
+                                              "round"
+                                            : "round";
+
+                                        if (currentOutNodes.length === 0) {
+                                          return {
+                                            ...prev,
+                                            outNodeId: [
+                                              {
+                                                nodeId: -1,
+                                                chainType: 3,
+                                                protocol: selectedKey,
+                                                strategy: currentStrategy,
+                                              },
+                                            ],
+                                          };
+                                        }
+
+                                        return {
+                                          ...prev,
+                                          outNodeId: currentOutNodes.map(
+                                            (ct) => ({
+                                              ...ct,
+                                              protocol: selectedKey,
+                                            }),
+                                          ),
+                                        };
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <SelectItem key="tcp">TCP</SelectItem>
+                                  <SelectItem key="mtcp">MTCP</SelectItem>
+                                  <SelectItem key="tls">TLS</SelectItem>
+                                  <SelectItem key="mtls">MTLS</SelectItem>
+                                  <SelectItem key="wss">WSS</SelectItem>
+                                  <SelectItem key="mwss">MWSS</SelectItem>
+                                </Select>
+                              </div>
                             </div>
                           </>
                         );
