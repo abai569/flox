@@ -6425,6 +6425,7 @@ export default function ForwardPage() {
                   </div>
                   {tunnelSelectMode === "manual" && (
                     <div className="rounded-lg border border-divider bg-default-50/40 p-3 space-y-3">
+                      {/* 第1行：自行组建隧道 + 隧道类型 */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
                         <div className="flex flex-col gap-1">
                           <div className="text-sm font-semibold text-foreground">
@@ -6461,61 +6462,64 @@ export default function ForwardPage() {
                           <SelectItem key="1">端口转发</SelectItem>
                           <SelectItem key="2">隧道转发</SelectItem>
                         </Select>
-                        <Select
-                          disabledKeys={buildManualDisabledKeys({
-                            role: "entry",
-                          })}
-                          errorMessage={errors.manualInNodeId}
-                          isInvalid={!!errors.manualInNodeId}
-                          label={
-                            manualInNodeId.length > 0
-                              ? "入口（已选 1 个）"
-                              : "入口"
-                          }
-                          listboxHeader={renderNodeSelectHeader()}
-                          placeholder="选择入口节点"
-                          selectedKeys={manualInNodeId.map((item) =>
-                            item.nodeId.toString(),
-                          )}
-                          variant="bordered"
-                          onSelectionChange={(keys) => {
-                            const selectedIds = toSelectedNodeIds(keys);
-                            const autoIps = selectedIds
-                              .map((id) => {
-                                const node = nodes.find(
-                                  (item) => item.id === id,
-                                );
+                      </div>
+                      {/* 第2行：入口节点(70%) + 入口地址(30%) */}
+                      <div className="flex gap-4 items-end">
+                        <div className="flex-[7_1_0%]">
+                          <Select
+                            disabledKeys={buildManualDisabledKeys({
+                              role: "entry",
+                            })}
+                            errorMessage={errors.manualInNodeId}
+                            isInvalid={!!errors.manualInNodeId}
+                            label="入口节点"
+                            listboxHeader={renderNodeSelectHeader()}
+                            placeholder="选择入口节点"
+                            selectedKeys={manualInNodeId.map((item) =>
+                              item.nodeId.toString(),
+                            )}
+                            variant="bordered"
+                            onSelectionChange={(keys) => {
+                              const selectedIds = toSelectedNodeIds(keys);
+                              const autoIps = selectedIds
+                                .map((id) => {
+                                  const node = nodes.find(
+                                    (item) => item.id === id,
+                                  );
 
-                                return (
-                                  node?.serverIpV4 ||
-                                  node?.serverIpV6 ||
-                                  node?.intranetIp ||
-                                  node?.serverIp ||
-                                  ""
-                                ).trim();
-                              })
-                              .filter(Boolean);
+                                  return (
+                                    node?.serverIpV4 ||
+                                    node?.serverIpV6 ||
+                                    node?.intranetIp ||
+                                    node?.serverIp ||
+                                    ""
+                                  ).trim();
+                                })
+                                .filter(Boolean);
 
-                            setManualInIp(autoIps.join("\n"));
-                            setManualInNodeId((prev) =>
-                              mergeOrderedManualNodes(prev, selectedIds, 1),
-                            );
-                          }}
-                        >
-                          {renderManualNodeItems({ role: "entry" })}
-                        </Select>
-                        <Textarea
-                          classNames={{
-                            inputWrapper: "!min-h-[20px] py-1.5",
-                            input: "!min-h-[20px]",
-                          }}
-                          label="入口地址"
-                          placeholder="请输入入口域名或 IP，多个地址每行一个"
-                          rows={1}
-                          value={manualInIp}
-                          variant="bordered"
-                          onChange={(e) => setManualInIp(e.target.value)}
-                        />
+                              setManualInIp(autoIps.join("\n"));
+                              setManualInNodeId((prev) =>
+                                mergeOrderedManualNodes(prev, selectedIds, 1),
+                              );
+                            }}
+                          >
+                            {renderManualNodeItems({ role: "entry" })}
+                          </Select>
+                        </div>
+                        <div className="flex-[3_1_0%]">
+                          <Textarea
+                            classNames={{
+                              inputWrapper: "!min-h-[20px] py-1.5",
+                              input: "!min-h-[20px]",
+                            }}
+                            label="入口地址"
+                            placeholder="选择节点后自动获取"
+                            rows={1}
+                            value={manualInIp}
+                            variant="bordered"
+                            onChange={(e) => setManualInIp(e.target.value)}
+                          />
+                        </div>
                       </div>
                       {manualTunnelType === 2 && (
                         <div className="space-y-3">
@@ -6570,9 +6574,9 @@ export default function ForwardPage() {
                                 </Button>
                               </div>
 
-                              {/* --- 节点、协议、策略：4列网格同行布局 (50% - 25% - 25%) --- */}
-                              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                                <div className="md:col-span-2">
+                              {/* --- 节点(70%)、负载策略(30%) --- */}
+                              <div className="flex gap-2">
+                                <div className="flex-[7_1_0%]">
                                   <Select
                                     disabledKeys={buildManualDisabledKeys({
                                       role: "chain",
@@ -6584,11 +6588,7 @@ export default function ForwardPage() {
                                     isInvalid={
                                       !!errors[`manualChainNodes_${groupIndex}`]
                                     }
-                                    label={
-                                      group.length > 0
-                                        ? "节点（已选 1 个）"
-                                        : "节点"
-                                    }
+                                    label="节点"
                                     listboxHeader={renderNodeSelectHeader()}
                                     placeholder="选择当前跳节点"
                                     selectedKeys={group.map((item) =>
@@ -6620,43 +6620,7 @@ export default function ForwardPage() {
                                     })}
                                   </Select>
                                 </div>
-
-                                <div className="md:col-span-1">
-                                  <Select
-                                    label="传输层协议"
-                                    placeholder="选择传输层协议"
-                                    selectedKeys={[group[0]?.protocol || "tcp"]}
-                                    size="sm"
-                                    variant="bordered"
-                                    onSelectionChange={(keys) => {
-                                      const selectedKey = Array.from(
-                                        keys,
-                                      )[0] as string;
-
-                                      setManualChainNodes((prev) => {
-                                        const next = [...prev];
-
-                                        next[groupIndex] = (
-                                          next[groupIndex] || []
-                                        ).map((item) => ({
-                                          ...item,
-                                          protocol: selectedKey,
-                                        }));
-
-                                        return next;
-                                      });
-                                    }}
-                                  >
-                                    <SelectItem key="tcp">TCP</SelectItem>
-                                    <SelectItem key="mtcp">MTCP</SelectItem>
-                                    <SelectItem key="tls">TLS</SelectItem>
-                                    <SelectItem key="mtls">MTLS</SelectItem>
-                                    <SelectItem key="wss">WSS</SelectItem>
-                                    <SelectItem key="mwss">MWSS</SelectItem>
-                                  </Select>
-                                </div>
-
-                                <div className="md:col-span-1">
+                                <div className="flex-[3_1_0%]">
                                   <Select
                                     label="负载策略"
                                     placeholder="选择策略"
@@ -6691,105 +6655,142 @@ export default function ForwardPage() {
                                   </Select>
                                 </div>
                               </div>
-                              {/* --- /节点、协议、策略 布局结束 --- */}
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                <Input
-                                  description="指定当前级被上一级连接的端口，留空按节点端口范围自动分配"
-                                  errorMessage={
-                                    errors[`manualChainPort_${groupIndex}`]
-                                  }
-                                  isInvalid={
-                                    !!errors[`manualChainPort_${groupIndex}`]
-                                  }
-                                  label="连接端口"
-                                  placeholder="例：11111"
-                                  size="sm"
-                                  type="text"
-                                  value={
-                                    manualFocusedInputs[
-                                      `chain_port_${groupIndex}`
-                                    ] ?? formatManualPortsToDisplay(group)
-                                  }
-                                  variant="bordered"
-                                  onBlur={() => {
-                                    const finalValue =
+                              {/* --- 连接端口(35%)、连接IP类型(35%)、传输层协议(30%) --- */}
+                              <div className="flex gap-2 mt-2">
+                                <div className="flex-[7_1_0%]">
+                                  <Input
+                                    description="指定当前级被上一级连接的端口，留空按节点端口范围自动分配"
+                                    errorMessage={
+                                      errors[`manualChainPort_${groupIndex}`]
+                                    }
+                                    isInvalid={
+                                      !!errors[`manualChainPort_${groupIndex}`]
+                                    }
+                                    label="连接端口"
+                                    placeholder="例：11111"
+                                    size="sm"
+                                    type="text"
+                                    value={
                                       manualFocusedInputs[
                                         `chain_port_${groupIndex}`
-                                      ] ?? formatManualPortsToDisplay(group);
+                                      ] ?? formatManualPortsToDisplay(group)
+                                    }
+                                    variant="bordered"
+                                    onBlur={() => {
+                                      const finalValue =
+                                        manualFocusedInputs[
+                                          `chain_port_${groupIndex}`
+                                        ] ?? formatManualPortsToDisplay(group);
 
-                                    setManualFocusedInputs((prev) => {
-                                      const next = { ...prev };
+                                      setManualFocusedInputs((prev) => {
+                                        const next = { ...prev };
 
-                                      delete next[`chain_port_${groupIndex}`];
+                                        delete next[`chain_port_${groupIndex}`];
 
-                                      return next;
-                                    });
-                                    setManualChainNodes((prev) => {
-                                      const next = [...prev];
+                                        return next;
+                                      });
+                                      setManualChainNodes((prev) => {
+                                        const next = [...prev];
 
-                                      next[groupIndex] =
-                                        applyPortsToManualNodes(
-                                          next[groupIndex] || [],
-                                          finalValue,
-                                        );
+                                        next[groupIndex] =
+                                          applyPortsToManualNodes(
+                                            next[groupIndex] || [],
+                                            finalValue,
+                                          );
 
-                                      return next;
-                                    });
-                                  }}
-                                  onChange={(e) =>
-                                    setManualFocusedInputs((prev) => ({
-                                      ...prev,
-                                      [`chain_port_${groupIndex}`]:
-                                        e.target.value,
-                                    }))
-                                  }
-                                />
-                                <Input
-                                  description="v4 对应公网 v4 地址，v6 对应公网 v6 地址，lan 对应内网地址，留空自动匹配"
-                                  label="连接 IP 类型"
-                                  placeholder="例：lan"
-                                  size="sm"
-                                  type="text"
-                                  value={
-                                    manualFocusedInputs[
-                                      `chain_ipType_${groupIndex}`
-                                    ] ?? formatConnectIpTypesToDisplay(group)
-                                  }
-                                  variant="bordered"
-                                  onBlur={() => {
-                                    const finalValue =
+                                        return next;
+                                      });
+                                    }}
+                                    onChange={(e) =>
+                                      setManualFocusedInputs((prev) => ({
+                                        ...prev,
+                                        [`chain_port_${groupIndex}`]:
+                                          e.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="flex-[7_1_0%]">
+                                  <Input
+                                    description="v4 对应公网 v4 地址，v6 对应公网 v6 地址，lan 对应内网地址，留空自动匹配"
+                                    label="连接 IP 类型"
+                                    placeholder="例：lan"
+                                    size="sm"
+                                    type="text"
+                                    value={
                                       manualFocusedInputs[
                                         `chain_ipType_${groupIndex}`
-                                      ] ?? formatConnectIpTypesToDisplay(group);
+                                      ] ?? formatConnectIpTypesToDisplay(group)
+                                    }
+                                    variant="bordered"
+                                    onBlur={() => {
+                                      const finalValue =
+                                        manualFocusedInputs[
+                                          `chain_ipType_${groupIndex}`
+                                        ] ?? formatConnectIpTypesToDisplay(group);
 
-                                    setManualFocusedInputs((prev) => {
-                                      const next = { ...prev };
+                                      setManualFocusedInputs((prev) => {
+                                        const next = { ...prev };
 
-                                      delete next[`chain_ipType_${groupIndex}`];
+                                        delete next[`chain_ipType_${groupIndex}`];
 
-                                      return next;
-                                    });
-                                    setManualChainNodes((prev) => {
-                                      const next = [...prev];
+                                        return next;
+                                      });
+                                      setManualChainNodes((prev) => {
+                                        const next = [...prev];
 
-                                      next[groupIndex] =
-                                        applyConnectIpTypesToManualNodes(
-                                          next[groupIndex] || [],
-                                          finalValue,
-                                        );
+                                        next[groupIndex] =
+                                          applyConnectIpTypesToManualNodes(
+                                            next[groupIndex] || [],
+                                            finalValue,
+                                          );
 
-                                      return next;
-                                    });
-                                  }}
-                                  onChange={(e) =>
-                                    setManualFocusedInputs((prev) => ({
-                                      ...prev,
-                                      [`chain_ipType_${groupIndex}`]:
-                                        e.target.value,
-                                    }))
-                                  }
-                                />
+                                        return next;
+                                      });
+                                    }}
+                                    onChange={(e) =>
+                                      setManualFocusedInputs((prev) => ({
+                                        ...prev,
+                                        [`chain_ipType_${groupIndex}`]:
+                                          e.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="flex-[6_1_0%]">
+                                  <Select
+                                    label="传输层协议"
+                                    placeholder="选择传输层协议"
+                                    selectedKeys={[group[0]?.protocol || "tcp"]}
+                                    size="sm"
+                                    variant="bordered"
+                                    onSelectionChange={(keys) => {
+                                      const selectedKey = Array.from(
+                                        keys,
+                                      )[0] as string;
+
+                                      setManualChainNodes((prev) => {
+                                        const next = [...prev];
+
+                                        next[groupIndex] = (
+                                          next[groupIndex] || []
+                                        ).map((item) => ({
+                                          ...item,
+                                          protocol: selectedKey,
+                                        }));
+
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    <SelectItem key="tcp">TCP</SelectItem>
+                                    <SelectItem key="mtcp">MTCP</SelectItem>
+                                    <SelectItem key="tls">TLS</SelectItem>
+                                    <SelectItem key="mtls">MTLS</SelectItem>
+                                    <SelectItem key="wss">WSS</SelectItem>
+                                    <SelectItem key="mwss">MWSS</SelectItem>
+                                  </Select>
+                                </div>
                               </div>
                               {groupIndex === manualChainNodes.length - 1 && (
                                 <div className="flex justify-end">
@@ -6813,174 +6814,170 @@ export default function ForwardPage() {
                         </div>
                       )}
 
-                      {/* --- 出口节点：4列网格同行布局 (50% - 25% - 25%) --- */}
+                      {/* --- 出口节点(70%)、负载策略(30%) + 连接端口(35%)、连接IP类型(35%)、传输层协议(30%) --- */}
                       {manualTunnelType === 2 && (
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mt-3">
-                          <div className="md:col-span-2">
-                            <Select
-                              disabledKeys={buildManualDisabledKeys({
-                                role: "exit",
-                              })}
-                              errorMessage={errors.manualOutNodeId}
-                              isInvalid={!!errors.manualOutNodeId}
-                              label={
-                                manualOutNodeId.length > 0
-                                  ? "出口（已选 1 个）"
-                                  : "出口"
-                              }
-                              listboxHeader={renderNodeSelectHeader()}
-                              placeholder="选择出口节点"
-                              selectedKeys={manualOutNodeId.map((item) =>
-                                item.nodeId.toString(),
-                              )}
-                              variant="bordered"
-                              onSelectionChange={(keys) => {
-                                const selectedIds = toSelectedNodeIds(keys);
+                        <>
+                          <div className="flex gap-2 mt-3">
+                            <div className="flex-[7_1_0%]">
+                              <Select
+                                disabledKeys={buildManualDisabledKeys({
+                                  role: "exit",
+                                })}
+                                errorMessage={errors.manualOutNodeId}
+                                isInvalid={!!errors.manualOutNodeId}
+                                label="出口"
+                                listboxHeader={renderNodeSelectHeader()}
+                                placeholder="选择出口节点"
+                                selectedKeys={manualOutNodeId.map((item) =>
+                                  item.nodeId.toString(),
+                                )}
+                                variant="bordered"
+                                onSelectionChange={(keys) => {
+                                  const selectedIds = toSelectedNodeIds(keys);
 
-                                setManualOutNodeId((prev) =>
-                                  mergeOrderedManualNodes(prev, selectedIds, 3),
-                                );
-                              }}
-                            >
-                              {renderManualNodeItems({ role: "exit" })}
-                            </Select>
+                                  setManualOutNodeId((prev) =>
+                                    mergeOrderedManualNodes(prev, selectedIds, 3),
+                                  );
+                                }}
+                              >
+                                {renderManualNodeItems({ role: "exit" })}
+                              </Select>
+                            </div>
+                            <div className="flex-[3_1_0%]">
+                              <Select
+                                label="负载策略"
+                                placeholder="选择策略"
+                                selectedKeys={[
+                                  manualOutNodeId[0]?.strategy || "round",
+                                ]}
+                                variant="bordered"
+                                onSelectionChange={(keys) => {
+                                  const selectedKey = Array.from(
+                                    keys,
+                                  )[0] as string;
+
+                                  setManualOutNodeId((prev) =>
+                                    prev.map((item) => ({
+                                      ...item,
+                                      strategy: selectedKey,
+                                    })),
+                                  );
+                                }}
+                              >
+                                <SelectItem key="fifo">主备</SelectItem>
+                                <SelectItem key="round">轮询</SelectItem>
+                                <SelectItem key="rand">随机</SelectItem>
+                                <SelectItem key="best">最优</SelectItem>
+                              </Select>
+                            </div>
                           </div>
+                          <div className="flex gap-2 mt-2">
+                            <div className="flex-[7_1_0%]">
+                              <Input
+                                description="指定出口节点被上一级连接的端口，留空按节点端口范围自动分配"
+                                errorMessage={errors.manualOutPort}
+                                isInvalid={!!errors.manualOutPort}
+                                label="出口连接端口"
+                                placeholder="例：33333"
+                                type="text"
+                                value={
+                                  manualFocusedInputs.out_port ??
+                                  formatManualPortsToDisplay(manualOutNodeId)
+                                }
+                                variant="bordered"
+                                onBlur={() => {
+                                  const finalValue =
+                                    manualFocusedInputs.out_port ??
+                                    formatManualPortsToDisplay(manualOutNodeId);
 
-                          <div className="md:col-span-1">
-                            <Select
-                              label="传输层协议"
-                              placeholder="选择传输层协议"
-                              selectedKeys={[
-                                manualOutNodeId[0]?.protocol || "tcp",
-                              ]}
-                              variant="bordered"
-                              onSelectionChange={(keys) => {
-                                const selectedKey = Array.from(
-                                  keys,
-                                )[0] as string;
+                                  setManualFocusedInputs((prev) => {
+                                    const next = { ...prev };
 
-                                setManualOutNodeId((prev) =>
-                                  prev.map((item) => ({
-                                    ...item,
-                                    protocol: selectedKey,
-                                  })),
-                                );
-                              }}
-                            >
-                              <SelectItem key="tcp">TCP</SelectItem>
-                              <SelectItem key="mtcp">MTCP</SelectItem>
-                              <SelectItem key="tls">TLS</SelectItem>
-                              <SelectItem key="mtls">MTLS</SelectItem>
-                              <SelectItem key="wss">WSS</SelectItem>
-                              <SelectItem key="mwss">MWSS</SelectItem>
-                            </Select>
+                                    delete next.out_port;
+
+                                    return next;
+                                  });
+                                  setManualOutNodeId((prev) =>
+                                    applyPortsToManualNodes(prev, finalValue),
+                                  );
+                                }}
+                                onChange={(e) =>
+                                  setManualFocusedInputs((prev) => ({
+                                    ...prev,
+                                    out_port: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="flex-[7_1_0%]">
+                              <Input
+                                description="v4 对应公网 v4，v6 对应公网 v6，lan 对应内网，留空自动匹配"
+                                label="连接 IP 类型"
+                                placeholder="例：v4"
+                                type="text"
+                                value={
+                                  manualFocusedInputs.out_ipType ??
+                                  formatConnectIpTypesToDisplay(manualOutNodeId)
+                                }
+                                variant="bordered"
+                                onBlur={() => {
+                                  const finalValue =
+                                    manualFocusedInputs.out_ipType ??
+                                    formatConnectIpTypesToDisplay(manualOutNodeId);
+
+                                  setManualFocusedInputs((prev) => {
+                                    const next = { ...prev };
+
+                                    delete next.out_ipType;
+
+                                    return next;
+                                  });
+                                  setManualOutNodeId((prev) =>
+                                    applyConnectIpTypesToManualNodes(
+                                      prev,
+                                      finalValue,
+                                    ),
+                                  );
+                                }}
+                                onChange={(e) =>
+                                  setManualFocusedInputs((prev) => ({
+                                    ...prev,
+                                    out_ipType: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="flex-[6_1_0%]">
+                              <Select
+                                label="传输层协议"
+                                placeholder="选择传输层协议"
+                                selectedKeys={[
+                                  manualOutNodeId[0]?.protocol || "tcp",
+                                ]}
+                                variant="bordered"
+                                onSelectionChange={(keys) => {
+                                  const selectedKey = Array.from(
+                                    keys,
+                                  )[0] as string;
+
+                                  setManualOutNodeId((prev) =>
+                                    prev.map((item) => ({
+                                      ...item,
+                                      protocol: selectedKey,
+                                    })),
+                                  );
+                                }}
+                              >
+                                <SelectItem key="tcp">TCP</SelectItem>
+                                <SelectItem key="mtcp">MTCP</SelectItem>
+                                <SelectItem key="tls">TLS</SelectItem>
+                                <SelectItem key="mtls">MTLS</SelectItem>
+                                <SelectItem key="wss">WSS</SelectItem>
+                                <SelectItem key="mwss">MWSS</SelectItem>
+                              </Select>
+                            </div>
                           </div>
-
-                          <div className="md:col-span-1">
-                            <Select
-                              label="负载策略"
-                              placeholder="选择策略"
-                              selectedKeys={[
-                                manualOutNodeId[0]?.strategy || "round",
-                              ]}
-                              variant="bordered"
-                              onSelectionChange={(keys) => {
-                                const selectedKey = Array.from(
-                                  keys,
-                                )[0] as string;
-
-                                setManualOutNodeId((prev) =>
-                                  prev.map((item) => ({
-                                    ...item,
-                                    strategy: selectedKey,
-                                  })),
-                                );
-                              }}
-                            >
-                              <SelectItem key="fifo">主备</SelectItem>
-                              <SelectItem key="round">轮询</SelectItem>
-                              <SelectItem key="rand">随机</SelectItem>
-                              <SelectItem key="best">最优</SelectItem>
-                            </Select>
-                          </div>
-                        </div>
-                      )}
-                      {/* --- /出口节点 布局结束 --- */}
-
-                      {manualTunnelType === 2 && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                          <Input
-                            description="指定出口节点被上一级连接的端口，留空按节点端口范围自动分配"
-                            errorMessage={errors.manualOutPort}
-                            isInvalid={!!errors.manualOutPort}
-                            label="出口连接端口"
-                            placeholder="例：33333"
-                            type="text"
-                            value={
-                              manualFocusedInputs.out_port ??
-                              formatManualPortsToDisplay(manualOutNodeId)
-                            }
-                            variant="bordered"
-                            onBlur={() => {
-                              const finalValue =
-                                manualFocusedInputs.out_port ??
-                                formatManualPortsToDisplay(manualOutNodeId);
-
-                              setManualFocusedInputs((prev) => {
-                                const next = { ...prev };
-
-                                delete next.out_port;
-
-                                return next;
-                              });
-                              setManualOutNodeId((prev) =>
-                                applyPortsToManualNodes(prev, finalValue),
-                              );
-                            }}
-                            onChange={(e) =>
-                              setManualFocusedInputs((prev) => ({
-                                ...prev,
-                                out_port: e.target.value,
-                              }))
-                            }
-                          />
-                          <Input
-                            description="v4 对应公网 v4，v6 对应公网 v6，lan 对应内网，留空自动匹配"
-                            label="连接 IP 类型"
-                            placeholder="例：v4"
-                            type="text"
-                            value={
-                              manualFocusedInputs.out_ipType ??
-                              formatConnectIpTypesToDisplay(manualOutNodeId)
-                            }
-                            variant="bordered"
-                            onBlur={() => {
-                              const finalValue =
-                                manualFocusedInputs.out_ipType ??
-                                formatConnectIpTypesToDisplay(manualOutNodeId);
-
-                              setManualFocusedInputs((prev) => {
-                                const next = { ...prev };
-
-                                delete next.out_ipType;
-
-                                return next;
-                              });
-                              setManualOutNodeId((prev) =>
-                                applyConnectIpTypesToManualNodes(
-                                  prev,
-                                  finalValue,
-                                ),
-                              );
-                            }}
-                            onChange={(e) =>
-                              setManualFocusedInputs((prev) => ({
-                                ...prev,
-                                out_ipType: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
+                        </>
                       )}
                     </div>
                   )}
