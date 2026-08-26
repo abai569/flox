@@ -3630,8 +3630,9 @@ export default function TunnelPage() {
                                   </div>
                                   {/* 连接端口(35%) + 连接IP类型(35%) + 传输层协议(30%) */}
                                   <div className="flex gap-2 mt-3">
+                                    <div className="flex-[7_1_0%]">
                                     <Input
-                                      description="指定当前级被上一级连接的端口，多节点可用逗号分隔，按选择节点顺序匹配，留空按节点端口范围自动分配"
+                                      description="指定当前级被上一级连接的端口，留空按节点端口范围自动分配"
                                       errorMessage={
                                         errors[`chainNodes_${groupIndex}_port`]
                                       }
@@ -3699,8 +3700,10 @@ export default function TunnelPage() {
                                         }
                                       }}
                                     />
+                                    </div>
+                                    <div className="flex-[7_1_0%]">
                                     <Input
-                                      description="多节点可用逗号分隔，按选择节点顺序匹配，v4 对应公网 v4 地址，v6 对应公网 v6 地址，lan 对应内网地址，留空自动匹配"
+                                      description="v4 是公网 v4，v6 是公网 v6，lan 是内网 ip，留空自动匹配"
                                       label="连接 IP 类型"
                                       placeholder="例：lan,v4,v6"
                                       size="sm"
@@ -3755,6 +3758,7 @@ export default function TunnelPage() {
                                         }
                                       }}
                                     />
+                                    </div>
                                     <div className="flex-[6_1_0%]">
                                       <Select
                                         classNames={{
@@ -3978,7 +3982,7 @@ export default function TunnelPage() {
                             <div className="flex gap-2 mt-3">
                               <div className="flex-[7_1_0%]">
                                 <Input
-                                  description="指定出口节点被上一级连接的端口，多节点可用逗号分隔，按选择节点顺序匹配，留空按节点端口范围自动分配"
+                                  description="指定出口节点被上一级连接的端口，留空按节点端口范围自动分配"
                                   label="连接端口"
                                   placeholder="例：33333,55555"
                                   size="sm"
@@ -4027,7 +4031,7 @@ export default function TunnelPage() {
                               </div>
                               <div className="flex-[7_1_0%]">
                                 <Input
-                                  description="多节点可用逗号分隔，按选择节点顺序匹配，v4 对应公网 v4，v6 对应公网 v6，lan 对应内网，留空自动匹配"
+                                  description="v4 是公网 v4，v6 是公网 v6，lan 是内网 ip，留空自动匹配"
                                   label="连接 IP 类型"
                                   placeholder="例：v4,v6,lan"
                                   size="sm"

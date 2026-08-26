@@ -6712,7 +6712,7 @@ export default function ForwardPage() {
                                 </div>
                                 <div className="flex-[7_1_0%]">
                                   <Input
-                                    description="v4 对应公网 v4 地址，v6 对应公网 v6 地址，lan 对应内网地址，留空自动匹配"
+                                    description="v4 是公网 v4，v6 是公网 v6，lan 是内网 ip，留空自动匹配"
                                     label="连接 IP 类型"
                                     placeholder="例：lan"
                                     size="sm"
@@ -6759,6 +6759,7 @@ export default function ForwardPage() {
                                 </div>
                                 <div className="flex-[6_1_0%]">
                                   <Select
+                                    description="不懂的就默认，不要选！"
                                     label="传输层协议"
                                     placeholder="选择传输层协议"
                                     selectedKeys={[group[0]?.protocol || "tcp"]}
@@ -6911,7 +6912,7 @@ export default function ForwardPage() {
                             </div>
                             <div className="flex-[7_1_0%]">
                               <Input
-                                description="v4 对应公网 v4，v6 对应公网 v6，lan 对应内网，留空自动匹配"
+                                description="v4 是公网 v4，v6 是公网 v6，lan 是内网 ip，留空自动匹配"
                                 label="连接 IP 类型"
                                 placeholder="例：v4"
                                 type="text"
@@ -6949,6 +6950,7 @@ export default function ForwardPage() {
                             </div>
                             <div className="flex-[6_1_0%]">
                               <Select
+                                description="不懂的就默认，不要选！"
                                 label="传输层协议"
                                 placeholder="选择传输层协议"
                                 selectedKeys={[
