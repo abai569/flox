@@ -1888,8 +1888,11 @@ export default function UserPage() {
       const response = await batchResetUserFlow(Array.from(selectedUserIds));
 
       if (response.code === 0) {
+        const data = response.data as any;
         const successCount =
-          (response.data as any)?.successCount || selectedUserIds.size;
+          typeof data?.successCount === "number"
+            ? data.successCount
+            : selectedUserIds.size;
 
         toast.success(`成功归零 ${successCount} 个用户流量`);
         await loadUsers(undefined, false);

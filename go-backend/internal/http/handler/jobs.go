@@ -11,6 +11,7 @@ import (
 
 	"go-backend/internal/http/client"
 	"go-backend/internal/middleware"
+	"go-backend/internal/store/model"
 	"go-backend/internal/store/repo"
 	"go-backend/internal/telegram"
 )
@@ -557,22 +558,31 @@ func (h *Handler) verifyBalances(now time.Time) {
 func (h *Handler) resetMonthlyFlow(now time.Time) {
 	currentDay := now.Day()
 	lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, now.Location()).Day()
+	periodKey := int64(now.Year()*100 + int(now.Month()))
+	nowMs := now.UnixMilli()
 
-	snapshots, err := h.repo.ResetUserMonthlyFlow(currentDay, lastDay, now)
-	if err == nil && len(snapshots) > 0 {
-		periodKey := int64(now.Year()*100 + int(now.Month()))
-		nowMs := now.UnixMilli()
-		if err := h.repo.RecordFlowResetHistory(snapshots, periodKey, nowMs, "自动周期归零"); err != nil {
+	// 从 1 号跑到今天，补跑因服务器宕机漏掉的归零日。
+	// ResetUserMonthlyFlow 内部用 FlowLastResetAt 去重，同月内不会重复归零。
+	var allSnapshots []model.UserFlowSnapshot
+	for day := 1; day <= currentDay; day++ {
+		snapshots, err := h.repo.ResetUserMonthlyFlow(day, lastDay, now)
+		if err != nil {
+			log.Printf("[月度流量归零] 用户流量归零失败 (day=%d): %v", day, err)
+		} else {
+			allSnapshots = append(allSnapshots, snapshots...)
+		}
+		if err := h.repo.ResetUserTunnelMonthlyFlow(day, lastDay, now); err != nil {
+			log.Printf("[月度流量归零] 隧道流量归零失败 (day=%d): %v", day, err)
+		}
+		if err := h.repo.ResetForwardMonthlyFlow(day, lastDay, now); err != nil {
+			log.Printf("[月度流量归零] 规则流量归零失败 (day=%d): %v", day, err)
+		}
+	}
+
+	if len(allSnapshots) > 0 {
+		if err := h.repo.RecordFlowResetHistory(allSnapshots, periodKey, nowMs, "自动周期归零"); err != nil {
 			log.Printf("[月度流量归零] 写入归零历史失败: %v", err)
 		}
-	} else if err != nil {
-		log.Printf("[月度流量归零] 用户流量归零失败: %v", err)
-	}
-	if err := h.repo.ResetUserTunnelMonthlyFlow(currentDay, lastDay, now); err != nil {
-		log.Printf("[月度流量归零] 隧道流量归零失败: %v", err)
-	}
-	if err := h.repo.ResetForwardMonthlyFlow(currentDay, lastDay, now); err != nil {
-		log.Printf("[月度流量归零] 规则流量归零失败: %v", err)
 	}
 }
 
