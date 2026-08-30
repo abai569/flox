@@ -519,14 +519,24 @@ func (h *Handler) runResetAndExpiryJob(now time.Time) {
 		return
 	}
 
-	h.resetMonthlyFlow(now)
-	h.resetUserQuotaWindows(now)
-	h.disableExpiredUsers(now.UnixMilli())
-	h.disableExpiredUserTunnels(now.UnixMilli())
-	h.disableExpiredForwards(now.UnixMilli())
-	h.resetNodeMonthlyTraffic(now)
-	h.verifyBalances(now)
-	h.checkNodeExpiryNotifications(now.UnixMilli())
+	// 每个子任务单独 recover，避免一个 panic 导致后续任务被跳过。
+	runSafe := func(name string, fn func()) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[每日维护] %s 发生 panic: %v", name, r)
+			}
+		}()
+		fn()
+	}
+
+	runSafe("用户月度流量归零", func() { h.resetMonthlyFlow(now) })
+	runSafe("用户配额窗口归零", func() { h.resetUserQuotaWindows(now) })
+	runSafe("到期用户禁用", func() { h.disableExpiredUsers(now.UnixMilli()) })
+	runSafe("到期隧道禁用", func() { h.disableExpiredUserTunnels(now.UnixMilli()) })
+	runSafe("到期规则禁用", func() { h.disableExpiredForwards(now.UnixMilli()) })
+	runSafe("节点实例月度流量归零", func() { h.resetNodeMonthlyTraffic(now) })
+	runSafe("余额校验", func() { h.verifyBalances(now) })
+	runSafe("节点到期通知", func() { h.checkNodeExpiryNotifications(now.UnixMilli()) })
 }
 
 func (h *Handler) verifyBalances(now time.Time) {
@@ -593,35 +603,62 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 
 	currentDay := now.Day()
 	lastDay := time.Date(now.Year(), now.Month()+1, 0, 0, 0, 0, 0, now.Location()).Day()
-	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 1, 0, now.Location())
-	dayEnd := dayStart.AddDate(0, 0, 1)
-
-	instances, err := h.repo.ListNodeInstanceMonthlyFlowResetDue(currentDay, lastDay, dayStart.UnixMilli(), dayEnd.UnixMilli())
-	if err != nil {
-		return
-	}
-	cycleCandidates, err := h.repo.ListNodeInstanceCycleFlowResetCandidates(dayStart.UnixMilli(), dayEnd.UnixMilli())
-	if err != nil {
-		return
-	}
-	for _, inst := range cycleCandidates {
-		if nodeInstanceCycleResetDue(inst.ExpiryTime, inst.RenewalCycle, now) {
-			instances = append(instances, inst)
-		}
-	}
-	if len(instances) == 0 {
-		return
-	}
-
 	actorUserID := int64(1)
 	actorUserName := "system"
 	nowMs := now.UnixMilli()
 
-	for _, inst := range instances {
-		if err := h.resetNodeInstanceTrafficFromAgent(inst.NodeID, inst.InstanceID, "自动周期归零"); err != nil {
-			log.Printf("WARN: auto-reset node %d instance %s traffic failed: %v", inst.NodeID, inst.InstanceID, err)
+	// 月度累计模式：从 1 号跑到今天，补跑因面板宕机/任务被跳过漏掉的归零日。
+	// 每个实例只会在 flow_reset_time 匹配的那天被选中，当天的去重由 node_traffic_reset_log 保证。
+	resetTargets := make(map[string]repo.NodeInstanceTrafficResetDue)
+	for day := 1; day <= currentDay; day++ {
+		dayStart := time.Date(now.Year(), now.Month(), day, 0, 0, 1, 0, now.Location())
+		dayEnd := dayStart.AddDate(0, 0, 1)
+
+		instances, err := h.repo.ListNodeInstanceMonthlyFlowResetDue(day, lastDay, dayStart.UnixMilli(), dayEnd.UnixMilli())
+		if err != nil {
+			log.Printf("[节点实例月度归零] 查询失败 (day=%d): %v", day, err)
 			continue
 		}
+		for _, inst := range instances {
+			key := fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID)
+			resetTargets[key] = inst
+		}
+	}
+	monthlyCount := len(resetTargets)
+
+	// 周期累计模式：只检查今天是否在续费周期边界上。
+	dayStart := time.Date(now.Year(), now.Month(), currentDay, 0, 0, 1, 0, now.Location())
+	dayEnd := dayStart.AddDate(0, 0, 1)
+	cycleCandidates, err := h.repo.ListNodeInstanceCycleFlowResetCandidates(dayStart.UnixMilli(), dayEnd.UnixMilli())
+	if err != nil {
+		log.Printf("[节点实例周期归零] 查询失败: %v", err)
+	} else {
+		for _, inst := range cycleCandidates {
+			if nodeInstanceCycleResetDue(inst.ExpiryTime, inst.RenewalCycle, now) {
+				key := fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID)
+				resetTargets[key] = inst
+			}
+		}
+	}
+
+	if len(resetTargets) == 0 {
+		log.Printf("[节点实例流量归零] 本月无需归零的实例 (currentDay=%d)", currentDay)
+		return
+	}
+
+	log.Printf("[节点实例流量归零] 本次需归零 %d 个实例（月度 %d 个，周期 %d 个）",
+		len(resetTargets), monthlyCount, len(resetTargets)-monthlyCount)
+
+	successCount := 0
+	failCount := 0
+	for _, inst := range resetTargets {
+		if err := h.resetNodeInstanceTrafficFromAgent(inst.NodeID, inst.InstanceID, "自动周期归零"); err != nil {
+			log.Printf("WARN: auto-reset node %d instance %s traffic failed: %v", inst.NodeID, inst.InstanceID, err)
+			failCount++
+			continue
+		}
+		successCount++
+
 		instanceName := inst.DisplayName
 		if strings.TrimSpace(instanceName) == "" && inst.DisplayIndex > 0 {
 			instanceName = fmt.Sprintf("实例 %d", inst.DisplayIndex)
@@ -650,6 +687,8 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 			bot.SendNodeTrafficReset(logName, "自动周期归零")
 		})
 	}
+
+	log.Printf("[节点实例流量归零] 完成：成功 %d，失败 %d", successCount, failCount)
 }
 
 func nodeInstanceCycleResetDue(anchorMs int64, cycle string, now time.Time) bool {
