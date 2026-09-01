@@ -603,7 +603,14 @@ export default function TunnelPage() {
   nodesRef.current = nodes;
   refreshNodesRef.current = refreshNodes;
   const renderNodeSelectHeader = () => (
-    <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left">
+    <div className="grid w-full grid-cols-[28px_minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left items-center">
+      <span className="w-full text-center">
+        <input
+          className="h-3.5 w-3.5 cursor-default rounded border-default-400 text-primary focus:ring-primary"
+          disabled
+          type="checkbox"
+        />
+      </span>
       <span className="w-full text-left text-foreground font-semibold">
         节点名称
       </span>
@@ -618,12 +625,21 @@ export default function TunnelPage() {
       </span>
     </div>
   );
-  const renderNodeSelectItems = (exclude?: {
-    role: "entry" | "chain" | "exit";
-    groupIndex?: number;
+  const renderNodeSelectItems = ({
+    exclude,
+    groupFilter,
+    selectedIds,
+  }: {
+    exclude?: {
+      role: "entry" | "chain" | "exit";
+      groupIndex?: number;
+    };
+    groupFilter?: "entry" | "non-entry";
+    selectedIds?: number[];
   }) => {
     // 计算已被其他位置选中的节点 ID（用于"已选"标记）
     const used = new Set<number>();
+    const selectedSet = new Set(selectedIds || []);
 
     if (exclude) {
       const allIn = (form.inNodeId || []).map((ct) => ct.nodeId);
@@ -652,62 +668,82 @@ export default function TunnelPage() {
       }
     }
 
-    return nodes.map((node) => {
-      const group = nodeGroups.find((item) => item.id === node.groupId);
-      const isRemote = Number((node as any).isRemote || 0) === 1;
-      const groupName = isRemote ? "远程组" : group?.name || "未分组";
-      const groupColor = isRemote
-        ? "#a855f7"
-        : ((group as any)?.color as string | undefined);
-      const displayName = formatRemoteDisplayText(node.name);
-      const hasRemoteSuffix = /\s\(Rem\)$/i.test(displayName);
+    return nodes
+      .filter((node) => {
+        const group = nodeGroups.find((item) => item.id === node.groupId);
+        const isRemote = Number((node as any).isRemote || 0) === 1;
+        const groupName = isRemote ? "远程组" : group?.name || "未分组";
+        const isEntryGroup = /入口/.test(groupName);
 
-      return (
-        <SelectItem
-          key={node.id}
-          textValue={
-            isRemote
-              ? `${displayName}${hasRemoteSuffix ? "" : " (Rem)"}`
-              : displayName
-          }
-        >
-          <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
-            <span className="w-full min-w-0 truncate text-left">
-              {displayName}
-              {isRemote && !hasRemoteSuffix && (
-                <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">
-                  (Rem)
-                </span>
-              )}
-              {used.has(node.id) && (
-                <span className="ml-1 text-[11px] text-primary-600">已选</span>
-              )}
-              {node.status !== 1 && (
-                <span className="ml-1 text-[11px] text-default-500">离线</span>
-              )}
-            </span>
-            <span className="w-full min-w-0 text-center text-default-600">
-              {(node.trafficRatio || 1).toFixed(2).replace(/\.00$/, "")}x
-            </span>
-            <span className="w-full min-w-0 text-center">
-              <span
-                className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
-                style={
-                  groupColor
-                    ? { backgroundColor: `${groupColor}1A`, color: groupColor }
-                    : undefined
-                }
-              >
-                {groupName}
+        if (groupFilter === "entry") return isEntryGroup;
+        if (groupFilter === "non-entry") return !isEntryGroup;
+        return true;
+      })
+      .map((node) => {
+        const group = nodeGroups.find((item) => item.id === node.groupId);
+        const isRemote = Number((node as any).isRemote || 0) === 1;
+        const groupName = isRemote ? "远程组" : group?.name || "未分组";
+        const groupColor = isRemote
+          ? "#a855f7"
+          : ((group as any)?.color as string | undefined);
+        const displayName = formatRemoteDisplayText(node.name);
+        const hasRemoteSuffix = /\s\(Rem\)$/i.test(displayName);
+        const isSelected = selectedSet.has(node.id);
+
+        return (
+          <SelectItem
+            key={node.id}
+            textValue={
+              isRemote
+                ? `${displayName}${hasRemoteSuffix ? "" : " (Rem)"}`
+                : displayName
+            }
+          >
+            <div className="grid w-full grid-cols-[28px_minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
+              <span className="w-full text-center">
+                <input
+                  checked={isSelected}
+                  className="h-3.5 w-3.5 rounded border-default-400 text-primary focus:ring-primary"
+                  readOnly
+                  type="checkbox"
+                />
               </span>
-            </span>
-            <span className="w-full min-w-0 truncate text-center text-default-500">
-              {node.remark || "-"}
-            </span>
-          </div>
-        </SelectItem>
-      );
-    });
+              <span className="w-full min-w-0 truncate text-left">
+                {displayName}
+                {isRemote && !hasRemoteSuffix && (
+                  <span className="ml-1 text-[11px] text-purple-600 dark:text-purple-400">
+                    (Rem)
+                  </span>
+                )}
+                {used.has(node.id) && (
+                  <span className="ml-1 text-[11px] text-primary-600">已选</span>
+                )}
+                {node.status !== 1 && (
+                  <span className="ml-1 text-[11px] text-default-500">离线</span>
+                )}
+              </span>
+              <span className="w-full min-w-0 text-center text-default-600">
+                {(node.trafficRatio || 1).toFixed(2).replace(/\.00$/, "")}x
+              </span>
+              <span className="w-full min-w-0 text-center">
+                <span
+                  className="inline-flex items-center justify-center px-2 py-0.5 rounded text-xs font-medium"
+                  style={
+                    groupColor
+                      ? { backgroundColor: `${groupColor}1A`, color: groupColor }
+                      : undefined
+                  }
+                >
+                  {groupName}
+                </span>
+              </span>
+              <span className="w-full min-w-0 truncate text-center text-default-500">
+                {node.remark || "-"}
+              </span>
+            </div>
+          </SelectItem>
+        );
+      });
   };
   // 加载隧道分组
   const loadTunnelGroupsNew = useCallback(async () => {
@@ -3394,32 +3430,45 @@ export default function TunnelPage() {
                         label="入口节点"
                         listboxHeader={renderNodeSelectHeader()}
                         placeholder="请选择入口节点"
-                        selectedKeys={form.inNodeId.length > 0 ? [form.inNodeId[0].nodeId.toString()] : []}
+                        selectedKeys={form.inNodeId.map((ct) =>
+                          ct.nodeId.toString(),
+                        )}
+                        selectionMode="multiple"
                         variant="bordered"
                         onSelectionChange={(keys) => {
                           const selectedIds = toSelectedNodeIds(keys);
-                          const nodeId = selectedIds[0];
-                          const node = nodes.find((item) => item.id === nodeId);
-                          const autoIp = (
-                            node?.serverIpV4 ||
-                            node?.serverIpV6 ||
-                            node?.intranetIp ||
-                            node?.serverIp ||
-                            ""
-                          ).trim();
+                          const autoIps = selectedIds
+                            .map((id) => {
+                              const node = nodes.find((item) => item.id === id);
+
+                              return (
+                                node?.serverIpV4 ||
+                                node?.serverIpV6 ||
+                                node?.intranetIp ||
+                                node?.serverIp ||
+                                ""
+                              ).trim();
+                            })
+                            .filter(Boolean);
 
                           setForm((prev) => {
                             return {
                               ...prev,
-                              inIp: autoIp || prev.inIp,
-                              inNodeId: nodeId
-                                ? [{ nodeId, chainType: 1 }]
-                                : [],
+                              inIp: autoIps.join("\n"),
+                              inNodeId: mergeOrderedNodes(
+                                prev.inNodeId,
+                                selectedIds,
+                                (nodeId) => ({ nodeId, chainType: 1 }),
+                              ),
                             };
                           });
                         }}
                       >
-                        {renderNodeSelectItems({ role: "entry" })}
+                        {renderNodeSelectItems({
+                          exclude: { role: "entry" },
+                          groupFilter: "entry",
+                          selectedIds: form.inNodeId.map((ct) => ct.nodeId),
+                        })}
                       </Select>
                     </div>
                     <div className="w-full md:flex-[3_1_0%]">
@@ -3579,22 +3628,29 @@ export default function TunnelPage() {
                                         label="节点"
                                         listboxHeader={renderNodeSelectHeader()}
                                         placeholder="选择节点"
-                                        selectedKeys={(() => {
-                                          const validNodes = groupNodes.filter((ct) => ct.nodeId !== -1);
-                                          return validNodes.length > 0 ? [validNodes[0].nodeId.toString()] : [];
-                                        })()}
+                                        selectedKeys={groupNodes
+                                          .filter((ct) => ct.nodeId !== -1)
+                                          .map((ct) => ct.nodeId.toString())}
+                                        selectionMode="multiple"
                                         size="sm"
                                         variant="bordered"
                                         onSelectionChange={(keys) => {
-                                          const selectedIds = toSelectedNodeIds(keys);
-                                          const nodeId = selectedIds[0];
                                           syncChainGroupNodes(
                                             groupIndex,
-                                            nodeId ? [nodeId] : [],
+                                            toSelectedNodeIds(keys),
                                           );
                                         }}
                                       >
-                                        {renderNodeSelectItems({ role: "chain", groupIndex })}
+                                        {renderNodeSelectItems({
+                                          exclude: {
+                                            role: "chain",
+                                            groupIndex,
+                                          },
+                                          groupFilter: "non-entry",
+                                          selectedIds: groupNodes
+                                            .filter((ct) => ct.nodeId !== -1)
+                                            .map((ct) => ct.nodeId),
+                                        })}
                                       </Select>
                                     </div>
                                     <div className="w-full md:flex-[3_1_0%]">
@@ -3872,40 +3928,43 @@ export default function TunnelPage() {
                                   placeholder="请选择出口节点"
                                   selectedKeys={
                                     form.outNodeId
-                                      ? (() => {
-                                          const validNodes = form.outNodeId.filter((ct) => ct.nodeId !== -1);
-                                          return validNodes.length > 0 ? [validNodes[0].nodeId.toString()] : [];
-                                        })()
+                                      ? form.outNodeId
+                                          .filter((ct) => ct.nodeId !== -1)
+                                          .map((ct) => ct.nodeId.toString())
                                       : []
                                   }
+                                  selectionMode="multiple"
                                   variant="bordered"
                                   onSelectionChange={(keys) => {
                                     const selectedIds = toSelectedNodeIds(keys);
-                                    const nodeId = selectedIds[0];
+                                    const currentOutNodes = form.outNodeId || [];
+                                    const protocol =
+                                      currentOutNodes[0]?.protocol || "tcp";
+                                    const strategy =
+                                      currentOutNodes[0]?.strategy || "round";
 
-                                    setForm((prev) => {
-                                      const currentOutNodes =
-                                        prev.outNodeId || [];
-                                      const protocol =
-                                        currentOutNodes[0]?.protocol || "tcp";
-                                      const strategy =
-                                        currentOutNodes[0]?.strategy || "round";
-
-                                      return {
-                                        ...prev,
-                                        outNodeId: nodeId
-                                          ? [{
-                                              nodeId,
-                                              chainType: 3,
-                                              protocol,
-                                              strategy,
-                                            }]
-                                          : [],
-                                      };
-                                    });
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      outNodeId: mergeOrderedNodes(
+                                        currentOutNodes,
+                                        selectedIds,
+                                        (nodeId) => ({
+                                          nodeId,
+                                          chainType: 3,
+                                          protocol,
+                                          strategy,
+                                        }),
+                                      ),
+                                    }));
                                   }}
                                 >
-                                  {renderNodeSelectItems({ role: "exit" })}
+                                  {renderNodeSelectItems({
+                                    exclude: { role: "exit" },
+                                    groupFilter: "non-entry",
+                                    selectedIds: (form.outNodeId || [])
+                                      .filter((ct) => ct.nodeId !== -1)
+                                      .map((ct) => ct.nodeId),
+                                  })}
                                 </Select>
                               </div>
                               <div className="w-full md:flex-[3_1_0%]">
