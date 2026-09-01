@@ -683,6 +683,19 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 
 		_ = h.repo.UpdateNodeInstanceTrafficNotifiedMask(inst.NodeID, inst.InstanceID, 0)
 
+		// 如果实例因流量超限被暂停（weight=0），归零后自动恢复路由。
+		resumeChanged, resumeErr := h.repo.ResumeNodeInstanceRouting(inst.NodeID, inst.InstanceID, nowMs)
+		if resumeErr != nil {
+			log.Printf("WARN: auto-reset 后恢复节点 %d 实例 %s 路由失败: %v", inst.NodeID, inst.InstanceID, resumeErr)
+		} else if resumeChanged {
+			h.deleteNodeInstanceTrafficCacheEntry(inst.NodeID, inst.InstanceID)
+			go func(nodeID int64) {
+				if err := h.redeployNodeRuntime(nodeID); err != nil {
+					log.Printf("WARN: auto-reset 后重新部署节点 %d 失败: %v", nodeID, err)
+				}
+			}(inst.NodeID)
+		}
+
 		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendNodeTrafficReset(logName, "自动周期归零")
 		})
