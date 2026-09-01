@@ -603,14 +603,7 @@ export default function TunnelPage() {
   nodesRef.current = nodes;
   refreshNodesRef.current = refreshNodes;
   const renderNodeSelectHeader = () => (
-    <div className="grid w-full grid-cols-[28px_minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left items-center">
-      <span className="w-full text-center">
-        <input
-          className="h-3.5 w-3.5 cursor-default rounded border-default-400 text-primary focus:ring-primary"
-          disabled
-          type="checkbox"
-        />
-      </span>
+    <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 text-left">
       <span className="w-full text-left text-foreground font-semibold">
         节点名称
       </span>
@@ -628,18 +621,24 @@ export default function TunnelPage() {
   const renderNodeSelectItems = ({
     exclude,
     groupFilter,
-    selectedIds,
   }: {
     exclude?: {
       role: "entry" | "chain" | "exit";
       groupIndex?: number;
     };
     groupFilter?: "entry" | "non-entry";
-    selectedIds?: number[];
   }) => {
+    // 兜底：如果没有"入口"相关分组，则不按分组过滤
+    const hasEntryGroup = nodes.some((node) => {
+      const group = nodeGroups.find((item) => item.id === node.groupId);
+      const isRemote = Number((node as any).isRemote || 0) === 1;
+      const groupName = isRemote ? "远程组" : group?.name || "未分组";
+
+      return /入口/.test(groupName);
+    });
+
     // 计算已被其他位置选中的节点 ID（用于"已选"标记）
     const used = new Set<number>();
-    const selectedSet = new Set(selectedIds || []);
 
     if (exclude) {
       const allIn = (form.inNodeId || []).map((ct) => ct.nodeId);
@@ -670,6 +669,8 @@ export default function TunnelPage() {
 
     return nodes
       .filter((node) => {
+        if (!hasEntryGroup || !groupFilter) return true;
+
         const group = nodeGroups.find((item) => item.id === node.groupId);
         const isRemote = Number((node as any).isRemote || 0) === 1;
         const groupName = isRemote ? "远程组" : group?.name || "未分组";
@@ -688,7 +689,6 @@ export default function TunnelPage() {
           : ((group as any)?.color as string | undefined);
         const displayName = formatRemoteDisplayText(node.name);
         const hasRemoteSuffix = /\s\(Rem\)$/i.test(displayName);
-        const isSelected = selectedSet.has(node.id);
 
         return (
           <SelectItem
@@ -699,15 +699,7 @@ export default function TunnelPage() {
                 : displayName
             }
           >
-            <div className="grid w-full grid-cols-[28px_minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
-              <span className="w-full text-center">
-                <input
-                  checked={isSelected}
-                  className="h-3.5 w-3.5 rounded border-default-400 text-primary focus:ring-primary"
-                  readOnly
-                  type="checkbox"
-                />
-              </span>
+            <div className="grid w-full grid-cols-[minmax(0,1.2fr)_minmax(56px,0.45fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2 items-center text-left text-sm">
               <span className="w-full min-w-0 truncate text-left">
                 {displayName}
                 {isRemote && !hasRemoteSuffix && (
@@ -3467,7 +3459,6 @@ export default function TunnelPage() {
                         {renderNodeSelectItems({
                           exclude: { role: "entry" },
                           groupFilter: "entry",
-                          selectedIds: form.inNodeId.map((ct) => ct.nodeId),
                         })}
                       </Select>
                     </div>
@@ -3647,9 +3638,6 @@ export default function TunnelPage() {
                                             groupIndex,
                                           },
                                           groupFilter: "non-entry",
-                                          selectedIds: groupNodes
-                                            .filter((ct) => ct.nodeId !== -1)
-                                            .map((ct) => ct.nodeId),
                                         })}
                                       </Select>
                                     </div>
@@ -3961,9 +3949,6 @@ export default function TunnelPage() {
                                   {renderNodeSelectItems({
                                     exclude: { role: "exit" },
                                     groupFilter: "non-entry",
-                                    selectedIds: (form.outNodeId || [])
-                                      .filter((ct) => ct.nodeId !== -1)
-                                      .map((ct) => ct.nodeId),
                                   })}
                                 </Select>
                               </div>

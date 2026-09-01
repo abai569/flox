@@ -151,7 +151,7 @@ export function NodeGroupManager({
   const displayGroups = useMemo(() => {
     const uncategorizedGroup = {
       id: -1,
-      name: "未分组节点",
+      name: "未分组",
       description: "",
       color: "#a1a1aa",
       inx: 0,

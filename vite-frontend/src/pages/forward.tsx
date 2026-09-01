@@ -2131,13 +2131,41 @@ export default function ForwardPage() {
       </span>
     </div>
   );
-  const renderManualNodeItems = (exclude: {
-    role: "entry" | "chain" | "exit";
-    groupIndex?: number;
+  const renderManualNodeItems = ({
+    exclude,
+    groupFilter,
+  }: {
+    exclude: {
+      role: "entry" | "chain" | "exit";
+      groupIndex?: number;
+    };
+    groupFilter?: "entry" | "non-entry";
   }) => {
+    // 兜底：如果没有"入口"相关分组，则不按分组过滤
+    const hasEntryGroup = nodes.some((node) => {
+      const group = nodeGroups.find((item) => item.id === node.groupId);
+      const isRemote = Number(node.isRemote || 0) === 1;
+      const groupName = isRemote ? "远程组" : group?.name || "未分组";
+
+      return /入口/.test(groupName);
+    });
+
     const used = new Set(getManualSelectedNodeIds(exclude));
 
-    return nodes.map((node) => {
+    return nodes
+      .filter((node) => {
+        if (!hasEntryGroup || !groupFilter) return true;
+
+        const group = nodeGroups.find((item) => item.id === node.groupId);
+        const isRemote = Number(node.isRemote || 0) === 1;
+        const groupName = isRemote ? "远程组" : group?.name || "未分组";
+        const isEntryGroup = /入口/.test(groupName);
+
+        if (groupFilter === "entry") return isEntryGroup;
+        if (groupFilter === "non-entry") return !isEntryGroup;
+        return true;
+      })
+      .map((node) => {
       const group = nodeGroups.find((item) => item.id === node.groupId);
       const isRemote = Number(node.isRemote || 0) === 1;
       const groupName = isRemote ? "远程组" : group?.name || "未分组";
@@ -6503,7 +6531,10 @@ export default function ForwardPage() {
                               );
                             }}
                           >
-                            {renderManualNodeItems({ role: "entry" })}
+                            {renderManualNodeItems({
+                              exclude: { role: "entry" },
+                              groupFilter: "entry",
+                            })}
                           </Select>
                         </div>
                         <div className="w-full md:flex-[3_1_0%]">
@@ -6615,8 +6646,11 @@ export default function ForwardPage() {
                                     }}
                                   >
                                     {renderManualNodeItems({
-                                      role: "chain",
-                                      groupIndex,
+                                      exclude: {
+                                        role: "chain",
+                                        groupIndex,
+                                      },
+                                      groupFilter: "non-entry",
                                     })}
                                   </Select>
                                 </div>
@@ -6841,7 +6875,10 @@ export default function ForwardPage() {
                                   );
                                 }}
                               >
-                                {renderManualNodeItems({ role: "exit" })}
+                                {renderManualNodeItems({
+                                  exclude: { role: "exit" },
+                                  groupFilter: "non-entry",
+                                })}
                               </Select>
                             </div>
                             <div className="w-full md:flex-[3_1_0%]">
