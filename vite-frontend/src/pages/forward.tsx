@@ -6533,7 +6533,8 @@ export default function ForwardPage() {
                           >
                             {renderManualNodeItems({
                               exclude: { role: "entry" },
-                              groupFilter: "entry",
+                              groupFilter:
+                                manualTunnelType === 2 ? "entry" : undefined,
                             })}
                           </Select>
                         </div>

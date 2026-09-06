@@ -3458,7 +3458,8 @@ export default function TunnelPage() {
                       >
                         {renderNodeSelectItems({
                           exclude: { role: "entry" },
-                          groupFilter: "entry",
+                          groupFilter:
+                            form.type === 2 ? "entry" : undefined,
                         })}
                       </Select>
                     </div>
