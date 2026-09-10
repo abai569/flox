@@ -659,6 +659,12 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 		}
 		successCount++
 
+		// 记录本周期归零时间，作为下次归零的去重依据。补跑时写入的是实际执行时间，
+		// 用该字段判断周期是否已归零，避免补跑记录落在非归零日导致重复归零。
+		if err := h.repo.UpdateNodeInstanceFlowLastResetAt(inst.NodeID, inst.InstanceID, nowMs); err != nil {
+			log.Printf("WARN: update node %d instance %s flow_last_reset_at failed: %v", inst.NodeID, inst.InstanceID, err)
+		}
+
 		instanceName := inst.DisplayName
 		if strings.TrimSpace(instanceName) == "" && inst.DisplayIndex > 0 {
 			instanceName = fmt.Sprintf("实例 %d", inst.DisplayIndex)

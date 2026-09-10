@@ -790,3 +790,92 @@ func TestListNodeInstancesExpiringWithinFiltersWindowStatusAndDismissal(t *testi
 		}
 	}
 }
+
+// TestListNodeInstanceMonthlyFlowResetDueDeduplicatesByFlowLastResetAt covers the
+// regression where a late "catch-up" reset wrote its log on a day other than the
+// configured reset day, so the old log-range de-dup failed and the instance was
+// reset again on every subsequent day.
+func TestListNodeInstanceMonthlyFlowResetDueDeduplicatesByFlowLastResetAt(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	node := model.Node{Name: "node-1", Secret: "secret", Status: 1, CreatedTime: 1}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+
+	resetDayStart := time.Date(2026, 9, 1, 0, 0, 1, 0, time.Local)
+	// 本周期已于 9 月 2 日补跑归零（归零日配置为 1 号）。
+	alreadyReset := model.NodeInstance{
+		NodeID: node.ID, InstanceID: "instance-reset", DisplayIndex: 1,
+		FlowResetTime: 1, TrafficLimitMode: 1, Status: 1,
+		FlowLastResetAt: resetDayStart.AddDate(0, 0, 1).UnixMilli(),
+		CreatedTime:     1, UpdatedTime: 1,
+	}
+	if err := r.db.Create(&alreadyReset).Error; err != nil {
+		t.Fatalf("create already-reset instance: %v", err)
+	}
+	// 本周期尚未归零。
+	pending := model.NodeInstance{
+		NodeID: node.ID, InstanceID: "instance-pending", DisplayIndex: 2,
+		FlowResetTime: 1, TrafficLimitMode: 1, Status: 1,
+		FlowLastResetAt: 0, CreatedTime: 1, UpdatedTime: 1,
+	}
+	if err := r.db.Create(&pending).Error; err != nil {
+		t.Fatalf("create pending instance: %v", err)
+	}
+
+	dayEnd := resetDayStart.AddDate(0, 0, 1)
+	items, err := r.ListNodeInstanceMonthlyFlowResetDue(1, 30, resetDayStart.UnixMilli(), dayEnd.UnixMilli())
+	if err != nil {
+		t.Fatalf("list reset due: %v", err)
+	}
+	got := make(map[string]bool, len(items))
+	for _, item := range items {
+		got[item.InstanceID] = true
+	}
+	if got["instance-reset"] {
+		t.Fatalf("already-reset instance must not be selected again, got %v", got)
+	}
+	if !got["instance-pending"] {
+		t.Fatalf("pending instance must be selected, got %v", got)
+	}
+}
+
+// TestListNodeInstanceMonthlyFlowResetDueResetsAgainInNewCycle ensures the
+// flow_last_reset_at guard still allows a reset in the next calendar cycle.
+func TestListNodeInstanceMonthlyFlowResetDueResetsAgainInNewCycle(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repo: %v", err)
+	}
+	defer r.Close()
+
+	node := model.Node{Name: "node-1", Secret: "secret", Status: 1, CreatedTime: 1}
+	if err := r.db.Create(&node).Error; err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+	septemberReset := time.Date(2026, 9, 1, 0, 0, 1, 0, time.Local)
+	instance := model.NodeInstance{
+		NodeID: node.ID, InstanceID: "instance-a", DisplayIndex: 1,
+		FlowResetTime: 1, TrafficLimitMode: 1, Status: 1,
+		FlowLastResetAt: septemberReset.UnixMilli(),
+		CreatedTime:     1, UpdatedTime: 1,
+	}
+	if err := r.db.Create(&instance).Error; err != nil {
+		t.Fatalf("create instance: %v", err)
+	}
+
+	octoberStart := time.Date(2026, 10, 1, 0, 0, 1, 0, time.Local)
+	octoberEnd := octoberStart.AddDate(0, 0, 1)
+	items, err := r.ListNodeInstanceMonthlyFlowResetDue(1, 31, octoberStart.UnixMilli(), octoberEnd.UnixMilli())
+	if err != nil {
+		t.Fatalf("list reset due: %v", err)
+	}
+	if len(items) != 1 || items[0].InstanceID != "instance-a" {
+		t.Fatalf("expected instance-a to be due in October, got %+v", items)
+	}
+}
