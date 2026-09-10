@@ -1296,7 +1296,7 @@ export default function AdminLayout({
         isOpen={isOpen}
         placement="center"
         scrollBehavior="outside"
-        size="2xl"
+        size="md"
         onOpenChange={() => {
           onOpenChange();
           resetPasswordForm();
