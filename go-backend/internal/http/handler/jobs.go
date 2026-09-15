@@ -609,7 +609,12 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 
 	// 月度累计模式：从 1 号跑到今天，补跑因面板宕机/任务被跳过漏掉的归零日。
 	// 每个实例只会在 flow_reset_time 匹配的那天被选中，当天的去重由 node_traffic_reset_log 保证。
-	resetTargets := make(map[string]repo.NodeInstanceTrafficResetDue)
+	// resetTargetDay 记录每个实例被选中的归零日时间戳，用于 UpdateNodeInstanceFlowLastResetAt 对齐去重。
+	type resetTarget struct {
+		inst    repo.NodeInstanceTrafficResetDue
+		dayMs   int64
+	}
+	resetTargets := make(map[string]resetTarget)
 	for day := 1; day <= currentDay; day++ {
 		dayStart := time.Date(now.Year(), now.Month(), day, 0, 0, 1, 0, now.Location())
 		dayEnd := dayStart.AddDate(0, 0, 1)
@@ -621,22 +626,22 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 		}
 		for _, inst := range instances {
 			key := fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID)
-			resetTargets[key] = inst
+			resetTargets[key] = resetTarget{inst: inst, dayMs: dayStart.UnixMilli()}
 		}
 	}
 	monthlyCount := len(resetTargets)
 
 	// 周期累计模式：只检查今天是否在续费周期边界上。
-	dayStart := time.Date(now.Year(), now.Month(), currentDay, 0, 0, 1, 0, now.Location())
-	dayEnd := dayStart.AddDate(0, 0, 1)
-	cycleCandidates, err := h.repo.ListNodeInstanceCycleFlowResetCandidates(dayStart.UnixMilli(), dayEnd.UnixMilli())
+	dayStartCycle := time.Date(now.Year(), now.Month(), currentDay, 0, 0, 1, 0, now.Location())
+	dayEndCycle := dayStartCycle.AddDate(0, 0, 1)
+	cycleCandidates, err := h.repo.ListNodeInstanceCycleFlowResetCandidates(dayStartCycle.UnixMilli(), dayEndCycle.UnixMilli())
 	if err != nil {
 		log.Printf("[节点实例周期归零] 查询失败: %v", err)
 	} else {
 		for _, inst := range cycleCandidates {
 			if nodeInstanceCycleResetDue(inst.ExpiryTime, inst.RenewalCycle, now) {
 				key := fmt.Sprintf("%d:%s", inst.NodeID, inst.InstanceID)
-				resetTargets[key] = inst
+				resetTargets[key] = resetTarget{inst: inst, dayMs: dayStartCycle.UnixMilli()}
 			}
 		}
 	}
@@ -651,7 +656,8 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 
 	successCount := 0
 	failCount := 0
-	for _, inst := range resetTargets {
+	for _, target := range resetTargets {
+		inst := target.inst
 		if err := h.resetNodeInstanceTrafficFromAgent(inst.NodeID, inst.InstanceID, "自动周期归零"); err != nil {
 			log.Printf("WARN: auto-reset node %d instance %s traffic failed: %v", inst.NodeID, inst.InstanceID, err)
 			failCount++
@@ -659,9 +665,10 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 		}
 		successCount++
 
-		// 记录本周期归零时间，作为下次归零的去重依据。补跑时写入的是实际执行时间，
-		// 用该字段判断周期是否已归零，避免补跑记录落在非归零日导致重复归零。
-		if err := h.repo.UpdateNodeInstanceFlowLastResetAt(inst.NodeID, inst.InstanceID, nowMs); err != nil {
+		// 记录本周期归零时间，作为下次归零的去重依据。
+		// 用该实例被选中的归零日时间戳（而非实际执行时间），确保与 NOT EXISTS 查询的归零日范围对齐，
+		// 避免补跑后 flow_last_reset_at 落在非归零日导致后续每天都被重复选中。
+		if err := h.repo.UpdateNodeInstanceFlowLastResetAt(inst.NodeID, inst.InstanceID, target.dayMs); err != nil {
 			log.Printf("WARN: update node %d instance %s flow_last_reset_at failed: %v", inst.NodeID, inst.InstanceID, err)
 		}
 
