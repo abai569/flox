@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +51,7 @@ func (h *Handler) StartBackgroundJobs() {
 		h.runAuthoritativeFlowResendLoop,
 		h.runFlowRelayOutboxLoop,
 		h.runCrossBorderLoop,
+		h.runSQLiteMaintenanceLoop,
 	}
 	h.jobsCancel = cancel
 	h.jobsStarted = true
@@ -474,6 +476,85 @@ func durationUntilNextHour(now time.Time) time.Duration {
 
 func durationUntilNextDailyMaintenance(now time.Time) time.Duration {
 	next := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 1, 0, now.Location())
+	if !next.After(now) {
+		next = next.AddDate(0, 0, 1)
+	}
+	return next.Sub(now)
+}
+
+// runSQLiteMaintenanceLoop runs lightweight SQLite maintenance every day at the
+// configured hour (default 04:00). A full VACUUM is only executed when the
+// configured interval has elapsed and the database exceeds the size threshold.
+func (h *Handler) runSQLiteMaintenanceLoop(ctx context.Context) {
+	defer h.jobsWG.Done()
+	if h == nil || h.repo == nil {
+		return
+	}
+	for {
+		settings := h.repo.SQLiteMaintenanceSettings()
+		wait := durationUntilHour(time.Now(), settings.Hour)
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+			settings = h.repo.SQLiteMaintenanceSettings()
+			if settings.Enabled {
+				h.runSQLiteMaintenance(settings)
+			}
+			h.runDockerImagePrune(ctx, settings.DockerPruneIntervalDays)
+		}
+	}
+}
+
+// runDockerImagePrune removes unused docker images on a weekly cadence.
+// It requires the docker CLI plus the mounted docker socket; failures are only logged.
+func (h *Handler) runDockerImagePrune(ctx context.Context, intervalDays int) {
+	if h == nil || h.repo == nil {
+		return
+	}
+	if !h.repo.DockerImagePruneDue(intervalDays) {
+		return
+	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		log.Printf("[docker prune] docker CLI not available: %v", err)
+		return
+	}
+	pruneCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	out, err := exec.CommandContext(pruneCtx, "docker", "image", "prune", "-a", "-f").CombinedOutput()
+	if err != nil {
+		log.Printf("[docker prune] failed: %v: %s", err, strings.TrimSpace(string(out)))
+		return
+	}
+	if err := h.repo.MarkDockerImagePrune(time.Now().UnixMilli()); err != nil {
+		log.Printf("[docker prune] persist last run failed: %v", err)
+	}
+	log.Printf("[docker prune] completed: %s", strings.TrimSpace(string(out)))
+}
+
+func (h *Handler) runSQLiteMaintenance(settings repo.MaintenanceSettings) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[db maintenance] panic: %v", r)
+		}
+	}()
+	if _, err := h.repo.RunSQLiteMaintenance(repo.MaintenanceOptions{
+		VacuumIntervalDays: settings.VacuumIntervalDays,
+		VacuumMinBytes:     repo.MaintenanceVacuumMinBytes,
+	}); err != nil {
+		log.Printf("[db maintenance] run failed: %v", err)
+	}
+}
+
+func durationUntilHour(now time.Time, hour int) time.Duration {
+	if hour < 0 || hour > 23 {
+		hour = 4
+	}
+	next := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, now.Location())
 	if !next.After(now) {
 		next = next.AddDate(0, 0, 1)
 	}

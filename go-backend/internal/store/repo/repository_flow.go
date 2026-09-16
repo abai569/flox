@@ -370,7 +370,10 @@ func (r *Repository) AddLocalTunnelInstanceTraffic(tunnelID, nodeID int64, insta
 			return err
 		}
 		if count == 0 {
-			return errors.New("node is not a local tunnel relay")
+			// 入口节点的隧道中转流量由转发权威路径统计，此处仅处理 middle/exit
+			// 链路节点的隧道流量。非链路节点直接跳过，避免整批流量上报失败并
+			// 触发 agent 每几秒重试一次（node is not a local tunnel relay）。
+			return nil
 		}
 		result := tx.Model(&model.NodeInstance{}).Where("node_id = ? AND instance_id = ?", nodeID, instanceID).
 			Updates(map[string]interface{}{

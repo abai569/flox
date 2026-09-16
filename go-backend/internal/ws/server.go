@@ -110,8 +110,21 @@ type Server struct {
 	cleanupWG          sync.WaitGroup
 	connectionWG       sync.WaitGroup
 	hookWG             sync.WaitGroup
+	metricQueue        chan nodeMetricTask
+	metricStop         chan struct{}
+	metricWG           sync.WaitGroup
 	closing            bool
 	closeOnce          sync.Once
+}
+
+// nodeMetricTask carries a parsed node metric message so that the WebSocket
+// read loop never performs blocking database work inline. A single worker
+// drains the queue, which keeps per-connection ordering intact.
+type nodeMetricTask struct {
+	nodeID     int64
+	version    string
+	sysInfo    SystemInfo
+	metricData []byte
 }
 
 func (s *Server) lockNodeLifecycle(nodeID int64) func() {
@@ -457,10 +470,19 @@ func NewServer(repo *repo.Repository, jwtSecret string) *Server {
 		forwardMetrics:     make(map[int64]map[int64]map[string]*ForwardMetric), // forwardID -> nodeID -> serviceName -> metric
 		nodeOfflineTime:    make(map[int64]int64),                               // nodeID -> offline timestamp
 		cleanupStop:        make(chan struct{}),
+		metricQueue:        make(chan nodeMetricTask, 2048),
+		metricStop:         make(chan struct{}),
 	}
 	// 启动后台清理任务（每 2 分钟清理一次过期数据）
 	s.cleanupWG.Add(1)
 	go s.cleanupStaleMetrics(2 * time.Minute)
+	// 运行时卡顿看门狗：事件循环被拖慢超过阈值时记录，用于定位数据库/宿主停顿。
+	s.cleanupWG.Add(1)
+	go s.watchRuntimeStall()
+	// 启动指标落库 worker：读循环只入队，落库与广播在线程内完成，
+	// 避免数据库变慢时阻塞 WebSocket 读循环导致 pong 超时判离线。
+	s.metricWG.Add(1)
+	go s.metricWorker()
 	return s
 }
 
@@ -497,7 +519,144 @@ func (s *Server) Close() {
 		s.connectionWG.Wait()
 		s.hookWG.Wait()
 		s.cleanupWG.Wait()
+		close(s.metricStop)
+		s.metricWG.Wait()
 	})
+}
+
+// metricWorker serially persists node metrics so per-instance updates stay ordered.
+func (s *Server) metricWorker() {
+	defer s.metricWG.Done()
+	for {
+		select {
+		case <-s.metricStop:
+			return
+		case task := <-s.metricQueue:
+			s.processNodeMetric(task)
+		}
+	}
+}
+
+// enqueueNodeMetric never blocks the read loop. If the queue is saturated the
+// sample is dropped; traffic counters are absolute so the next sample reconciles.
+func (s *Server) enqueueNodeMetric(task nodeMetricTask) {
+	select {
+	case s.metricQueue <- task:
+	default:
+	}
+}
+
+func (s *Server) processNodeMetric(task nodeMetricTask) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[ws.metric] panic node=%d instance=%s: %v", task.nodeID, task.sysInfo.InstanceID, r)
+		}
+	}()
+	start := time.Now()
+
+	nodeID := task.nodeID
+	version := task.version
+	sysInfo := task.sysInfo
+	metricData := task.metricData
+	instanceID := strings.TrimSpace(sysInfo.InstanceID)
+
+	node, err := s.repo.GetNodeByID(nodeID)
+	if err != nil || node == nil || node.Status != 1 {
+		s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+		return
+	}
+	if instanceID == "" {
+		s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+		return
+	}
+	if deleted, deletedErr := s.repo.IsNodeInstanceDeleted(nodeID, instanceID); deletedErr != nil || deleted {
+		s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+		return
+	}
+	if exists, existsErr := s.repo.NodeInstanceExists(nodeID, instanceID); existsErr != nil {
+		s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+		return
+	} else if exists {
+		if weight, weightErr := s.repo.GetNodeInstanceWeight(nodeID, instanceID); weightErr == nil && weight <= 0 {
+			s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
+			return
+		}
+	}
+
+	serviceName := strings.TrimSpace(sysInfo.ServiceName)
+	// 只在内存锁内更新缓存；数据库调用一律放到锁外，避免拖住全局 s.mu。
+	s.mu.Lock()
+	if s.serviceConnections[nodeID] == nil {
+		s.serviceConnections[nodeID] = make(map[string]map[string]int)
+	}
+	s.serviceConnections[nodeID][instanceID] = sysInfo.ServiceConnections
+	if len(sysInfo.ForwardMetrics) > 0 {
+		fmt.Printf("[ws.forward] received %d forward metrics from node %d\n", len(sysInfo.ForwardMetrics), nodeID)
+		s.forwardMetricsMu.Lock()
+		for _, fm := range sysInfo.ForwardMetrics {
+			if fm.NodeID <= 0 {
+				fm.NodeID = nodeID
+			}
+			name := strings.TrimSpace(fm.ServiceName)
+			if name == "" {
+				name = fmt.Sprintf("%d:%d", fm.NodeID, fm.Port)
+			}
+			if s.forwardMetrics[fm.ForwardID] == nil {
+				s.forwardMetrics[fm.ForwardID] = make(map[int64]map[string]*ForwardMetric)
+			}
+			if s.forwardMetrics[fm.ForwardID][fm.NodeID] == nil {
+				s.forwardMetrics[fm.ForwardID][fm.NodeID] = make(map[string]*ForwardMetric)
+			}
+			// 按 nodeID + serviceName 存储，避免入口/转发链/出口互相覆盖
+			s.forwardMetrics[fm.ForwardID][fm.NodeID][name] = &fm
+		}
+		s.forwardMetricsMu.Unlock()
+	}
+	s.mu.Unlock()
+
+	if serviceName != "" {
+		_ = s.repo.UpdateNodeServiceName(nodeID, serviceName)
+	}
+	_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
+		NodeID:      nodeID,
+		InstanceID:  instanceID,
+		Hostname:    sysInfo.Hostname,
+		PublicIPV4:  sysInfo.PublicIPV4,
+		PublicIPV6:  sysInfo.PublicIPV6,
+		Version:     version,
+		NetInSpeed:  sysInfo.NetInSpeed,
+		NetOutSpeed: sysInfo.NetOutSpeed,
+		NetInBytes:  sysInfo.NetInBytes,
+		NetOutBytes: sysInfo.NetOutBytes,
+		TCPConns:    sysInfo.TCPConns,
+		UDPConns:    sysInfo.UDPConns,
+		Uptime:      int64(sysInfo.Uptime),
+		PeriodRx:    int64(sysInfo.PeriodBytesReceived),
+		PeriodTx:    int64(sysInfo.PeriodBytesTransmitted),
+		CPUUsage:    sysInfo.CPUUsage,
+		MemUsage:    sysInfo.MemoryUsage,
+		DiskUsage:   sysInfo.DiskUsage,
+		Now:         time.Now().UnixMilli(),
+	})
+	if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
+		sysInfo.PeriodNetInBytes = periodNet.InBytes
+		sysInfo.PeriodNetOutBytes = periodNet.OutBytes
+	}
+	if normalizedMetricData, err := json.Marshal(sysInfo); err == nil {
+		metricData = normalizedMetricData
+	}
+
+	s.mu.RLock()
+	onMetric := s.onNodeMetric
+	s.mu.RUnlock()
+	if onMetric != nil {
+		s.runHook(func() { onMetric(nodeID, sysInfo) })
+	}
+	s.broadcastTyped(nodeID, "metric", string(metricData))
+
+	if d := time.Since(start); d > 5*time.Second {
+		log.Printf("[ws.metric] slow metric persistence node=%d instance=%s duration=%s", nodeID, instanceID, d)
+	}
 }
 
 func (s *Server) registerConnection(conn *websocket.Conn) bool {
@@ -854,112 +1013,26 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 					Data json.RawMessage `json:"data"`
 				}
 				if err := json.Unmarshal([]byte(msg), &envelope); err == nil && len(envelope.Data) > 0 {
-					metricData := envelope.Data
-					// 解析 SystemInfo 并调用 hook
 					var sysInfo SystemInfo
 					if json.Unmarshal(envelope.Data, &sysInfo) == nil {
 						if strings.TrimSpace(sysInfo.InstanceID) == "" {
 							sysInfo.InstanceID = ns.instanceID
 						}
-						instanceID := strings.TrimSpace(sysInfo.InstanceID)
 						if strings.TrimSpace(sysInfo.Hostname) == "" {
 							sysInfo.Hostname = ns.hostname
 						}
-						node, err := s.repo.GetNodeByID(nodeID)
-						if err != nil || node == nil || node.Status != 1 {
-							s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
-							continue
-						}
-						if instanceID == "" {
-							s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
-							continue
-						}
-						if deleted, deletedErr := s.repo.IsNodeInstanceDeleted(nodeID, instanceID); deletedErr != nil || deleted {
-							s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
-							continue
-						}
-						if exists, existsErr := s.repo.NodeInstanceExists(nodeID, instanceID); existsErr != nil {
-							s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
-							continue
-						} else if exists {
-							if weight, weightErr := s.repo.GetNodeInstanceWeight(nodeID, instanceID); weightErr == nil && weight <= 0 {
-								s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
-								continue
-							}
-						}
-						// 缓存服务连接数
-						s.mu.Lock()
-						if s.serviceConnections[nodeID] == nil {
-							s.serviceConnections[nodeID] = make(map[string]map[string]int)
-						}
-						s.serviceConnections[nodeID][instanceID] = sysInfo.ServiceConnections
-						// 更新 service_name
-						if sysInfo.ServiceName != "" {
-							_ = s.repo.UpdateNodeServiceName(nodeID, sysInfo.ServiceName)
-						}
-						// 缓存 forward 指标
-						if len(sysInfo.ForwardMetrics) > 0 {
-							fmt.Printf("[ws.forward] received %d forward metrics from node %d\n", len(sysInfo.ForwardMetrics), nodeID)
-							s.forwardMetricsMu.Lock()
-							for _, fm := range sysInfo.ForwardMetrics {
-								if fm.NodeID <= 0 {
-									fm.NodeID = nodeID
-								}
-								serviceName := strings.TrimSpace(fm.ServiceName)
-								if serviceName == "" {
-									serviceName = fmt.Sprintf("%d:%d", fm.NodeID, fm.Port)
-								}
-								// 初始化 forwardID 的 map（如果不存在）
-								if s.forwardMetrics[fm.ForwardID] == nil {
-									s.forwardMetrics[fm.ForwardID] = make(map[int64]map[string]*ForwardMetric)
-								}
-								if s.forwardMetrics[fm.ForwardID][fm.NodeID] == nil {
-									s.forwardMetrics[fm.ForwardID][fm.NodeID] = make(map[string]*ForwardMetric)
-								}
-								// 按 nodeID + serviceName 存储，避免入口/转发链/出口互相覆盖
-								s.forwardMetrics[fm.ForwardID][fm.NodeID][serviceName] = &fm
-							}
-							s.forwardMetricsMu.Unlock()
-						}
-						s.mu.Unlock()
-						_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
-							NodeID:      nodeID,
-							InstanceID:  instanceID,
-							Hostname:    sysInfo.Hostname,
-							PublicIPV4:  sysInfo.PublicIPV4,
-							PublicIPV6:  sysInfo.PublicIPV6,
-							Version:     version,
-							NetInSpeed:  sysInfo.NetInSpeed,
-							NetOutSpeed: sysInfo.NetOutSpeed,
-							NetInBytes:  sysInfo.NetInBytes,
-							NetOutBytes: sysInfo.NetOutBytes,
-							TCPConns:    sysInfo.TCPConns,
-							UDPConns:    sysInfo.UDPConns,
-							Uptime:      int64(sysInfo.Uptime),
-							PeriodRx:    int64(sysInfo.PeriodBytesReceived),
-							PeriodTx:    int64(sysInfo.PeriodBytesTransmitted),
-							CPUUsage:    sysInfo.CPUUsage,
-							MemUsage:    sysInfo.MemoryUsage,
-							DiskUsage:   sysInfo.DiskUsage,
-							Now:         time.Now().UnixMilli(),
+						// 解析与落库解耦：入队后立即回到读循环，避免数据库变慢时
+						// 阻塞 pong 处理导致节点被误判离线。
+						s.enqueueNodeMetric(nodeMetricTask{
+							nodeID:     nodeID,
+							version:    version,
+							sysInfo:    sysInfo,
+							metricData: envelope.Data,
 						})
-						if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
-							sysInfo.PeriodNetInBytes = periodNet.InBytes
-							sysInfo.PeriodNetOutBytes = periodNet.OutBytes
-						}
-						if normalizedMetricData, err := json.Marshal(sysInfo); err == nil {
-							metricData = normalizedMetricData
-						}
-
-						s.mu.RLock()
-						onMetric := s.onNodeMetric
-						s.mu.RUnlock()
-						if onMetric != nil {
-							s.runHook(func() { onMetric(nodeID, sysInfo) })
-						}
+					} else {
+						// 广播内层 data 给前端（保持平坦结构兼容性）
+						s.broadcastTyped(nodeID, "metric", string(envelope.Data))
 					}
-					// 广播内层 data 给前端（保持平坦结构兼容性）
-					s.broadcastTyped(nodeID, "metric", string(metricData))
 				}
 				continue
 			case "ReportPublicIP":
@@ -1777,6 +1850,28 @@ func startKeepalive(cw *connWrap, done <-chan struct{}) {
 				_ = cw.conn.Close()
 				return
 			}
+		}
+	}
+}
+
+// watchRuntimeStall logs when the Go event loop is delayed beyond the expected
+// ticker interval, which indicates a process-wide stall (e.g. blocked database
+// or host-level freeze) rather than a single slow connection.
+func (s *Server) watchRuntimeStall() {
+	defer s.cleanupWG.Done()
+	const interval = 2 * time.Second
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	last := time.Now()
+	for {
+		select {
+		case <-s.cleanupStop:
+			return
+		case now := <-ticker.C:
+			if d := now.Sub(last); d > 3*interval {
+				log.Printf("[ws] runtime stall detected: event loop delayed by %s", d)
+			}
+			last = now
 		}
 	}
 }

@@ -227,6 +227,10 @@ func postJSONWithFallback(ctx context.Context, urls []string, requestBody []byte
 			continue
 		}
 
+		// 收到任意 HTTP 响应即证明该协议在传输层可达，记住它，
+		// 避免下次上报仍先用不可用的协议（如明文端口上反复先试 https）。
+		storePreferredURL(preferred, targetURL)
+
 		var responseBytes bytes.Buffer
 		_, readErr := responseBytes.ReadFrom(resp.Body)
 		resp.Body.Close()
