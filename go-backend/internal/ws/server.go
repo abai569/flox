@@ -573,10 +573,12 @@ func (s *Server) processNodeMetric(task nodeMetricTask) {
 		s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
 		return
 	}
+	instanceExisted := false
 	if exists, existsErr := s.repo.NodeInstanceExists(nodeID, instanceID); existsErr != nil {
 		s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
 		return
 	} else if exists {
+		instanceExisted = true
 		if weight, weightErr := s.repo.GetNodeInstanceWeight(nodeID, instanceID); weightErr == nil && weight <= 0 {
 			s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
 			return
@@ -638,6 +640,13 @@ func (s *Server) processNodeMetric(task nodeMetricTask) {
 		DiskUsage:   sysInfo.DiskUsage,
 		Now:         time.Now().UnixMilli(),
 	})
+	if !instanceExisted {
+		// 实例首次出现：若节点上还存在同一台机器的旧实例（重新对接换了
+		// instance_id），则把旧实例的配置与累计流量并入本实例并删除旧实例。
+		if _, derr := s.repo.MergeDuplicateNodeInstances(nodeID, instanceID); derr != nil {
+			log.Printf("[ws.metric] merge duplicate instances node=%d instance=%s failed: %v", nodeID, instanceID, derr)
+		}
+	}
 	if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
 		sysInfo.PeriodNetInBytes = periodNet.InBytes
 		sysInfo.PeriodNetOutBytes = periodNet.OutBytes
