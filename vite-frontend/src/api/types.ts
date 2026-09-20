@@ -839,6 +839,10 @@ export interface MonitorNodeInstanceGroupMemberApiItem {
   cpuUsage: number;
   memoryUsage: number;
   diskUsage: number;
+  cpuCores?: number;
+  memTotalBytes?: number;
+  diskTotalBytes?: number;
+  diskFreeBytes?: number;
   crossBorderStatus?: string;
   crossBorderError?: string;
   crossBorderCheckedAt?: number;
@@ -882,6 +886,10 @@ export interface MonitorPublicNodeInstanceGroupMemberApiItem {
   cpuUsage: number;
   memoryUsage: number;
   diskUsage: number;
+  cpuCores?: number;
+  memTotalBytes?: number;
+  diskTotalBytes?: number;
+  diskFreeBytes?: number;
 }
 
 export interface MonitorPublicNodeInstanceGroupApiItem {

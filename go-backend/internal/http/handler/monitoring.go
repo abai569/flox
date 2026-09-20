@@ -656,6 +656,10 @@ type monitorNodeInstanceGroupMember struct {
 	CPUUsage                     float64 `json:"cpuUsage"`
 	MemoryUsage                  float64 `json:"memoryUsage"`
 	DiskUsage                    float64 `json:"diskUsage"`
+	CPUCores                     int     `json:"cpuCores"`
+	MemTotalBytes                int64   `json:"memTotalBytes"`
+	DiskTotalBytes               int64   `json:"diskTotalBytes"`
+	DiskFreeBytes                int64   `json:"diskFreeBytes"`
 	CrossBorderStatus            string  `json:"crossBorderStatus"`
 	CrossBorderError             string  `json:"crossBorderError"`
 	CrossBorderCheckedAt         int64   `json:"crossBorderCheckedAt"`
@@ -699,6 +703,10 @@ type monitorPublicNodeInstanceGroupMember struct {
 	CPUUsage              float64 `json:"cpuUsage"`
 	MemoryUsage           float64 `json:"memoryUsage"`
 	DiskUsage             float64 `json:"diskUsage"`
+	CPUCores              int     `json:"cpuCores"`
+	MemTotalBytes         int64   `json:"memTotalBytes"`
+	DiskTotalBytes        int64   `json:"diskTotalBytes"`
+	DiskFreeBytes         int64   `json:"diskFreeBytes"`
 }
 
 type monitorPublicNodeInstanceGroupItem struct {
@@ -808,6 +816,10 @@ func (h *Handler) monitorNodeInstanceGroupsHandler(w http.ResponseWriter, r *htt
 			CPUUsage:                     row.CPUUsage,
 			MemoryUsage:                  row.MemUsage,
 			DiskUsage:                    row.DiskUsage,
+			CPUCores:                     row.CPUCores,
+			MemTotalBytes:                row.MemTotalBytes,
+			DiskTotalBytes:               row.DiskTotalBytes,
+			DiskFreeBytes:                row.DiskFreeBytes,
 			CrossBorderStatus:            row.CrossBorderStatus,
 			CrossBorderError:             row.CrossBorderError,
 			CrossBorderCheckedAt:         row.CrossBorderCheckedAt,
@@ -891,6 +903,10 @@ func (h *Handler) monitorPublicNodeInstanceGroupsHandler(w http.ResponseWriter, 
 			CPUUsage:              row.CPUUsage,
 			MemoryUsage:           row.MemUsage,
 			DiskUsage:             row.DiskUsage,
+			CPUCores:              row.CPUCores,
+			MemTotalBytes:         row.MemTotalBytes,
+			DiskTotalBytes:        row.DiskTotalBytes,
+			DiskFreeBytes:         row.DiskFreeBytes,
 		}
 		groups[idx].Members = append(groups[idx].Members, member)
 		groups[idx].TotalInSpeed += row.NetInSpeed

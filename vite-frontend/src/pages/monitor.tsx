@@ -98,6 +98,10 @@ type RealtimeNodeInstanceMetric = {
   cpuUsage: number;
   memoryUsage: number;
   diskUsage: number;
+  cpuCores?: number;
+  memTotalBytes?: number;
+  diskTotalBytes?: number;
+  diskFreeBytes?: number;
 };
 
 type RealtimeInstanceStatus = {
@@ -358,9 +362,13 @@ const getMonitorPrimaryDisplayIP = (
 function UsageMeter({
   value,
   tone,
+  cores,
+  totalBytes,
 }: {
   value: number;
   tone: "cpu" | "memory" | "disk";
+  cores?: number;
+  totalBytes?: number;
 }) {
   const percent = clampPercent(value);
   const colorClass =
@@ -370,7 +378,16 @@ function UsageMeter({
         ? "bg-violet-600"
         : "bg-indigo-500";
 
-  return (
+  const detail =
+    tone === "cpu"
+      ? cores && cores > 0
+        ? `${cores} 核`
+        : ""
+      : totalBytes && totalBytes > 0
+        ? `${formatBytes((totalBytes * percent) / 100)} / ${formatBytes(totalBytes)}`
+        : "";
+
+  const bar = (
     <div className="relative h-7 w-full min-w-0 overflow-hidden rounded-md border border-default-300 bg-default-200/80">
       <div
         className={`absolute inset-y-0 left-0 ${colorClass}`}
@@ -380,6 +397,16 @@ function UsageMeter({
         {percent.toFixed(1)}%
       </div>
     </div>
+  );
+
+  if (!detail) {
+    return bar;
+  }
+
+  return (
+    <SmartTooltip className="w-full" content={`${percent.toFixed(1)}% · ${detail}`}>
+      <div className="w-full min-w-0">{bar}</div>
+    </SmartTooltip>
   );
 }
 
@@ -423,6 +450,10 @@ const mergeRealtimeMetric = (
     cpuUsage: metric.cpuUsage,
     memoryUsage: metric.memoryUsage,
     diskUsage: metric.diskUsage,
+    cpuCores: metric.cpuCores ?? member.cpuCores,
+    memTotalBytes: metric.memTotalBytes ?? member.memTotalBytes,
+    diskTotalBytes: metric.diskTotalBytes ?? member.diskTotalBytes,
+    diskFreeBytes: metric.diskFreeBytes ?? member.diskFreeBytes,
   };
 };
 
@@ -688,13 +719,18 @@ function NodeInstanceGroupsView({
                           </td>
                           <td className="px-1 py-3 align-middle">
                             <div className="flex min-w-0 justify-center">
-                              <UsageMeter tone="cpu" value={member.cpuUsage} />
+                              <UsageMeter
+                                cores={member.cpuCores}
+                                tone="cpu"
+                                value={member.cpuUsage}
+                              />
                             </div>
                           </td>
                           <td className="px-1 py-3 align-middle">
                             <div className="flex min-w-0 justify-center">
                               <UsageMeter
                                 tone="memory"
+                                totalBytes={member.memTotalBytes}
                                 value={member.memoryUsage}
                               />
                             </div>
@@ -703,6 +739,7 @@ function NodeInstanceGroupsView({
                             <div className="flex min-w-0 justify-center">
                               <UsageMeter
                                 tone="disk"
+                                totalBytes={member.diskTotalBytes}
                                 value={member.diskUsage}
                               />
                             </div>
@@ -1236,6 +1273,16 @@ export default function MonitorPage() {
           cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
           memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
           diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
+          cpuCores: Number(metric.cpuCores ?? metric.cpu_cores ?? 0),
+          memTotalBytes: Number(
+            metric.memTotalBytes ?? metric.mem_total_bytes ?? 0,
+          ),
+          diskTotalBytes: Number(
+            metric.diskTotalBytes ?? metric.disk_total_bytes ?? 0,
+          ),
+          diskFreeBytes: Number(
+            metric.diskFreeBytes ?? metric.disk_free_bytes ?? 0,
+          ),
         },
       }));
       setRealtimeNodeStatus((prev) => ({ ...prev, [nodeId]: "online" }));

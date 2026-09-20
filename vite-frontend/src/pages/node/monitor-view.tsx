@@ -43,6 +43,7 @@ import {
   getDistroColor,
 } from "@/components/distro-icon";
 import { MetricPill } from "@/components/metric-pill";
+import { SmartTooltip } from "@/components/smart-tooltip";
 import { StatusDot } from "@/components/status-dot";
 import {
   getNodeMetrics,
@@ -110,6 +111,10 @@ type RealtimeNodeMetric = {
   cpuUsage: number;
   memoryUsage: number;
   diskUsage: number;
+  cpuCores?: number;
+  memTotalBytes?: number;
+  diskTotalBytes?: number;
+  diskFreeBytes?: number;
   netInBytes: number;
   netOutBytes: number;
   periodNetInBytes: number;
@@ -843,6 +848,16 @@ export function MonitorView({
           cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
           memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
           diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
+          cpuCores: Number(metric.cpuCores ?? metric.cpu_cores ?? 0),
+          memTotalBytes: Number(
+            metric.memTotalBytes ?? metric.mem_total_bytes ?? 0,
+          ),
+          diskTotalBytes: Number(
+            metric.diskTotalBytes ?? metric.disk_total_bytes ?? 0,
+          ),
+          diskFreeBytes: Number(
+            metric.diskFreeBytes ?? metric.disk_free_bytes ?? 0,
+          ),
           netInBytes: Number(
             metric.netInBytes ??
               metric.net_in_bytes ??
@@ -886,6 +901,16 @@ export function MonitorView({
             cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
             memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
             diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
+            cpuCores: Number(metric.cpuCores ?? metric.cpu_cores ?? 0),
+            memTotalBytes: Number(
+              metric.memTotalBytes ?? metric.mem_total_bytes ?? 0,
+            ),
+            diskTotalBytes: Number(
+              metric.diskTotalBytes ?? metric.disk_total_bytes ?? 0,
+            ),
+            diskFreeBytes: Number(
+              metric.diskFreeBytes ?? metric.disk_free_bytes ?? 0,
+            ),
             netInBytes: Number(
               metric.netInBytes ??
                 metric.net_in_bytes ??
@@ -1805,57 +1830,106 @@ export function MonitorView({
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center justify-center gap-2 w-full">
-                            {metric ? (
-                              <Progress
-                                className="w-[40px] md:w-[60px]"
-                                color={getColorByUsage(metric.cpuUsage)}
-                                size="sm"
-                                value={metric.cpuUsage}
-                              />
-                            ) : (
-                              <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
-                            )}
-                            <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
-                              {metric ? `${metric.cpuUsage.toFixed(1)}%` : "-"}
-                            </span>
-                          </div>
+                          <SmartTooltip
+                            className="w-full"
+                            content={
+                              metric
+                                ? `${metric.cpuUsage.toFixed(1)}%${
+                                    metric.cpuCores && metric.cpuCores > 0
+                                      ? ` · ${metric.cpuCores} 核`
+                                      : ""
+                                  }`
+                                : "-"
+                            }
+                          >
+                            <div className="flex items-center justify-center gap-2 w-full">
+                              {metric ? (
+                                <Progress
+                                  className="w-[40px] md:w-[60px]"
+                                  color={getColorByUsage(metric.cpuUsage)}
+                                  size="sm"
+                                  value={metric.cpuUsage}
+                                />
+                              ) : (
+                                <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                              )}
+                              <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
+                                {metric ? `${metric.cpuUsage.toFixed(1)}%` : "-"}
+                              </span>
+                            </div>
+                          </SmartTooltip>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center justify-center gap-2 w-full">
-                            {metric ? (
-                              <Progress
-                                className="w-[40px] md:w-[60px]"
-                                color={getColorByUsage(metric.memoryUsage)}
-                                size="sm"
-                                value={metric.memoryUsage}
-                              />
-                            ) : (
-                              <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
-                            )}
-                            <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
-                              {metric
-                                ? `${metric.memoryUsage.toFixed(1)}%`
-                                : "-"}
-                            </span>
-                          </div>
+                          <SmartTooltip
+                            className="w-full"
+                            content={
+                              metric
+                                ? `${metric.memoryUsage.toFixed(1)}%${
+                                    metric.memTotalBytes &&
+                                    metric.memTotalBytes > 0
+                                      ? ` · ${formatBytes(
+                                          (metric.memTotalBytes *
+                                            metric.memoryUsage) /
+                                            100,
+                                        )} / ${formatBytes(metric.memTotalBytes)}`
+                                      : ""
+                                  }`
+                                : "-"
+                            }
+                          >
+                            <div className="flex items-center justify-center gap-2 w-full">
+                              {metric ? (
+                                <Progress
+                                  className="w-[40px] md:w-[60px]"
+                                  color={getColorByUsage(metric.memoryUsage)}
+                                  size="sm"
+                                  value={metric.memoryUsage}
+                                />
+                              ) : (
+                                <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                              )}
+                              <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
+                                {metric
+                                  ? `${metric.memoryUsage.toFixed(1)}%`
+                                  : "-"}
+                              </span>
+                            </div>
+                          </SmartTooltip>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center justify-center gap-2 w-full">
-                            {metric ? (
-                              <Progress
-                                className="w-[40px] md:w-[60px]"
-                                color={getColorByUsage(metric.diskUsage)}
-                                size="sm"
-                                value={metric.diskUsage}
-                              />
-                            ) : (
-                              <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
-                            )}
-                            <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
-                              {metric ? `${metric.diskUsage.toFixed(1)}%` : "-"}
-                            </span>
-                          </div>
+                          <SmartTooltip
+                            className="w-full"
+                            content={
+                              metric
+                                ? `${metric.diskUsage.toFixed(1)}%${
+                                    metric.diskTotalBytes &&
+                                    metric.diskTotalBytes > 0
+                                      ? ` · ${formatBytes(
+                                          (metric.diskTotalBytes *
+                                            metric.diskUsage) /
+                                            100,
+                                        )} / ${formatBytes(metric.diskTotalBytes)}`
+                                      : ""
+                                  }`
+                                : "-"
+                            }
+                          >
+                            <div className="flex items-center justify-center gap-2 w-full">
+                              {metric ? (
+                                <Progress
+                                  className="w-[40px] md:w-[60px]"
+                                  color={getColorByUsage(metric.diskUsage)}
+                                  size="sm"
+                                  value={metric.diskUsage}
+                                />
+                              ) : (
+                                <div className="w-[40px] md:w-[60px] h-2 rounded-full bg-default-100" />
+                              )}
+                              <span className="text-xs font-mono w-[36px] text-center text-default-500 tabular-nums">
+                                {metric ? `${metric.diskUsage.toFixed(1)}%` : "-"}
+                              </span>
+                            </div>
+                          </SmartTooltip>
                         </TableCell>
                       </TableRow>
                     );

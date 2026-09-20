@@ -47,6 +47,10 @@ type MonitorNodeInstanceGroupRow struct {
 	CPUUsage                     float64 `gorm:"column:cpu_usage"`
 	MemUsage                     float64 `gorm:"column:mem_usage"`
 	DiskUsage                    float64 `gorm:"column:disk_usage"`
+	CPUCores                     int     `gorm:"column:cpu_cores"`
+	MemTotalBytes                int64   `gorm:"column:mem_total_bytes"`
+	DiskTotalBytes               int64   `gorm:"column:disk_total_bytes"`
+	DiskFreeBytes                int64   `gorm:"column:disk_free_bytes"`
 	CrossBorderStatus            string  `gorm:"column:cross_border_status"`
 	CrossBorderError             string  `gorm:"column:cross_border_error"`
 	CrossBorderCheckedAt         int64   `gorm:"column:cross_border_checked_at"`
@@ -132,6 +136,10 @@ func (r *Repository) ListMonitorNodeInstanceGroups(nodeIDs []int64, includeRemot
 			nsi.cpu_usage AS cpu_usage,
 			nsi.mem_usage AS mem_usage,
 			nsi.disk_usage AS disk_usage,
+			COALESCE(nsi.cpu_cores, 0) AS cpu_cores,
+			COALESCE(nsi.mem_total_bytes, 0) AS mem_total_bytes,
+			COALESCE(nsi.disk_total_bytes, 0) AS disk_total_bytes,
+			COALESCE(nsi.disk_free_bytes, 0) AS disk_free_bytes,
 			CASE
 				WHEN cb.quarantined = TRUE AND COALESCE(cb.quarantine_reason, '') <> '' THEN cb.quarantine_reason
 				ELSE COALESCE(cb.status, 'unknown')

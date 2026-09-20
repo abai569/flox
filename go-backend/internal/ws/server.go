@@ -146,6 +146,10 @@ type SystemInfo struct {
 	CPUUsage               float64         `json:"cpu_usage"`
 	MemoryUsage            float64         `json:"memory_usage"`
 	DiskUsage              float64         `json:"disk_usage"`
+	CPUCores               int             `json:"cpu_cores"`
+	MemTotalBytes          uint64          `json:"mem_total_bytes"`
+	DiskTotalBytes         uint64          `json:"disk_total_bytes"`
+	DiskFreeBytes          uint64          `json:"disk_free_bytes"`
 	Load1                  float64         `json:"load1"`
 	Load5                  float64         `json:"load5"`
 	Load15                 float64         `json:"load15"`
@@ -638,7 +642,12 @@ func (s *Server) processNodeMetric(task nodeMetricTask) {
 		CPUUsage:    sysInfo.CPUUsage,
 		MemUsage:    sysInfo.MemoryUsage,
 		DiskUsage:   sysInfo.DiskUsage,
-		Now:         time.Now().UnixMilli(),
+
+		CPUCores:       sysInfo.CPUCores,
+		MemTotalBytes:  int64(sysInfo.MemTotalBytes),
+		DiskTotalBytes: int64(sysInfo.DiskTotalBytes),
+		DiskFreeBytes:  int64(sysInfo.DiskFreeBytes),
+		Now:            time.Now().UnixMilli(),
 	})
 	if !instanceExisted {
 		// 实例首次出现：若节点上还存在同一台机器的旧实例（重新对接换了

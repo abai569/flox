@@ -23,6 +23,10 @@ type SystemInfo struct {
 	CPUUsage               float64 `json:"cpu_usage"`
 	MemoryUsage            float64 `json:"memory_usage"`
 	DiskUsage              float64 `json:"disk_usage"`
+	CPUCores               int     `json:"cpu_cores"`
+	MemTotalBytes          uint64  `json:"mem_total_bytes"`
+	DiskTotalBytes         uint64  `json:"disk_total_bytes"`
+	DiskFreeBytes          uint64  `json:"disk_free_bytes"`
 	Load1                  float64 `json:"load1"`
 	Load5                  float64 `json:"load5"`
 	Load15                 float64 `json:"load15"`
@@ -65,6 +69,10 @@ type nodeInstanceMetricAggregate struct {
 	netInSpeedSum          int64
 	netOutSpeedSum         int64
 	uptimeMax              uint64
+	cpuCores               int
+	memTotalBytes          uint64
+	diskTotalBytes         uint64
+	diskFreeBytes          uint64
 }
 
 func NewIngestionService(repo *repo.Repository) *IngestionService {
@@ -126,6 +134,11 @@ func (s *IngestionService) RecordNodeMetric(nodeID int64, info SystemInfo) {
 	inst.udpConnsSum += info.UDPConns
 	inst.netInSpeedSum += info.NetInSpeed
 	inst.netOutSpeedSum += info.NetOutSpeed
+	// 核数与容量是机器属性，直接取最新采样值，不做累加。
+	inst.cpuCores = info.CPUCores
+	inst.memTotalBytes = info.MemTotalBytes
+	inst.diskTotalBytes = info.DiskTotalBytes
+	inst.diskFreeBytes = info.DiskFreeBytes
 	if info.Uptime > inst.uptimeMax {
 		inst.uptimeMax = info.Uptime
 	}
@@ -174,6 +187,10 @@ func (s *IngestionService) flushNodeMetrics() {
 			netInSpeed             int64
 			netOutSpeed            int64
 			uptimeMax              uint64
+			cpuCoresMax            int
+			memTotalMax            uint64
+			diskTotalMax           uint64
+			diskFreeMax            uint64
 		)
 		for instanceID, inst := range agg.instances {
 			if inst == nil || inst.count <= 0 {
@@ -199,7 +216,24 @@ func (s *IngestionService) flushNodeMetrics() {
 					Uptime:      int64(inst.uptimeMax),
 					PeriodRx:    int64(inst.periodBytesReceived),
 					PeriodTx:    int64(inst.periodBytesTransmitted),
+
+					CPUCores:       inst.cpuCores,
+					MemTotalBytes:  int64(inst.memTotalBytes),
+					DiskTotalBytes: int64(inst.diskTotalBytes),
+					DiskFreeBytes:  int64(inst.diskFreeBytes),
 				})
+			}
+			if inst.cpuCores > cpuCoresMax {
+				cpuCoresMax = inst.cpuCores
+			}
+			if inst.memTotalBytes > memTotalMax {
+				memTotalMax = inst.memTotalBytes
+			}
+			if inst.diskTotalBytes > diskTotalMax {
+				diskTotalMax = inst.diskTotalBytes
+			}
+			if inst.diskFreeBytes > diskFreeMax {
+				diskFreeMax = inst.diskFreeBytes
 			}
 			instanceCount++
 			bytesReceived += inst.bytesReceived
@@ -241,6 +275,11 @@ func (s *IngestionService) flushNodeMetrics() {
 			Uptime:      int64(uptimeMax),
 			PeriodRx:    int64(periodBytesReceived),
 			PeriodTx:    int64(periodBytesTransmitted),
+
+			CPUCores:       cpuCoresMax,
+			MemTotalBytes:  int64(memTotalMax),
+			DiskTotalBytes: int64(diskTotalMax),
+			DiskFreeBytes:  int64(diskFreeMax),
 		})
 	}
 	if len(metrics) == 0 {

@@ -9,6 +9,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { AnimatedPage } from "@/components/animated-page";
 import { CountryFlag } from "@/components/country-flag";
 import { StatusDot } from "@/components/status-dot";
+import { SmartTooltip } from "@/components/smart-tooltip";
 import { Button } from "@/shadcn-bridge/heroui/button";
 import { Card, CardBody, CardHeader } from "@/shadcn-bridge/heroui/card";
 import { PageLoadingState } from "@/components/page-state";
@@ -75,9 +76,13 @@ const getInstanceLabel = (
 function UsageMeter({
   value,
   tone,
+  cores,
+  totalBytes,
 }: {
   value: number;
   tone: "cpu" | "memory" | "disk";
+  cores?: number;
+  totalBytes?: number;
 }) {
   const percent = clampPercent(value);
   const colorClass =
@@ -87,7 +92,16 @@ function UsageMeter({
         ? "bg-violet-600"
         : "bg-indigo-500";
 
-  return (
+  const detail =
+    tone === "cpu"
+      ? cores && cores > 0
+        ? `${cores} 核`
+        : ""
+      : totalBytes && totalBytes > 0
+        ? `${formatBytes((totalBytes * percent) / 100)} / ${formatBytes(totalBytes)}`
+        : "";
+
+  const bar = (
     <div className="relative h-7 w-full min-w-0 overflow-hidden rounded-md border border-default-300 bg-default-200/80">
       <div
         className={`absolute inset-y-0 left-0 ${colorClass}`}
@@ -97,6 +111,16 @@ function UsageMeter({
         {percent.toFixed(1)}%
       </div>
     </div>
+  );
+
+  if (!detail) {
+    return bar;
+  }
+
+  return (
+    <SmartTooltip className="w-full" content={`${percent.toFixed(1)}% · ${detail}`}>
+      <div className="w-full min-w-0">{bar}</div>
+    </SmartTooltip>
   );
 }
 
@@ -323,6 +347,10 @@ function mergeRealtimeMember(
     cpuUsage: metric.cpuUsage ?? member.cpuUsage,
     memoryUsage: metric.memoryUsage ?? member.memoryUsage,
     diskUsage: metric.diskUsage ?? member.diskUsage,
+    cpuCores: metric.cpuCores ?? member.cpuCores,
+    memTotalBytes: metric.memTotalBytes ?? member.memTotalBytes,
+    diskTotalBytes: metric.diskTotalBytes ?? member.diskTotalBytes,
+    diskFreeBytes: metric.diskFreeBytes ?? member.diskFreeBytes,
   };
 }
 
@@ -369,13 +397,25 @@ function InstanceRow({
         </div>
       </td>
       <td className="px-1 py-3 align-middle">
-        <UsageMeter tone="cpu" value={member.cpuUsage} />
+        <UsageMeter
+          cores={member.cpuCores}
+          tone="cpu"
+          value={member.cpuUsage}
+        />
       </td>
       <td className="px-1 py-3 align-middle">
-        <UsageMeter tone="memory" value={member.memoryUsage} />
+        <UsageMeter
+          tone="memory"
+          totalBytes={member.memTotalBytes}
+          value={member.memoryUsage}
+        />
       </td>
       <td className="px-1 py-3 align-middle">
-        <UsageMeter tone="disk" value={member.diskUsage} />
+        <UsageMeter
+          tone="disk"
+          totalBytes={member.diskTotalBytes}
+          value={member.diskUsage}
+        />
       </td>
     </tr>
   );
@@ -609,6 +649,16 @@ export default function TZPage() {
         cpuUsage: Number(metric.cpuUsage ?? metric.cpu_usage ?? 0),
         memoryUsage: Number(metric.memoryUsage ?? metric.memory_usage ?? 0),
         diskUsage: Number(metric.diskUsage ?? metric.disk_usage ?? 0),
+        cpuCores: Number(metric.cpuCores ?? metric.cpu_cores ?? 0),
+        memTotalBytes: Number(
+          metric.memTotalBytes ?? metric.mem_total_bytes ?? 0,
+        ),
+        diskTotalBytes: Number(
+          metric.diskTotalBytes ?? metric.disk_total_bytes ?? 0,
+        ),
+        diskFreeBytes: Number(
+          metric.diskFreeBytes ?? metric.disk_free_bytes ?? 0,
+        ),
         onlineCount:
           Number(metric.tcpConns ?? metric.tcp_conns ?? 0) +
           Number(metric.udpConns ?? metric.udp_conns ?? 0),
