@@ -53,6 +53,8 @@ type Handler struct {
 	crossBorderMu       sync.Mutex
 	crossBorderTimers   map[string]*time.Timer
 	crossBorderInFlight map[string]struct{}
+	crossBorderNotificationMu sync.Mutex
+	crossBorderNotifications  map[string]crossBorderNotificationState
 	crossBorderClosed   bool
 
 	systemUpgradeMu sync.Mutex
@@ -80,6 +82,11 @@ type Handler struct {
 	remoteForwardMetrics      map[int64]map[int64]remoteForwardMetric
 	flowEffects               *[]func()
 	flowRelayReportID         string
+}
+
+type crossBorderNotificationState struct {
+	Status        string
+	LastNotifiedAt int64
 }
 
 type remoteEventWorker struct {
@@ -499,6 +506,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 		remoteForwardMetrics:     make(map[int64]map[int64]remoteForwardMetric),
 		crossBorderTimers:        make(map[string]*time.Timer),
 		crossBorderInFlight:      make(map[string]struct{}),
+		crossBorderNotifications: make(map[string]crossBorderNotificationState),
 	}
 	h.healthCheck = health.NewChecker(repo, h.wsServer)
 	h.healthCheck.SetOnResult(h.onServiceMonitorResult)
