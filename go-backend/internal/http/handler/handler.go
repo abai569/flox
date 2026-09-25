@@ -622,6 +622,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 	enabled := cfgMap["telegram_enabled"] == "true"
 	h.telegramBot = telegram.New(botToken, chatID, enabled)
 	h.telegramBot.SetNotifySwitches(h.loadTelegramNotifySwitches())
+	h.telegramBot.SetQueryHandler(h.handleTelegramQuery)
 
 	return h
 }
