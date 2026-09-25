@@ -55,6 +55,7 @@ type Handler struct {
 	crossBorderInFlight map[string]struct{}
 	crossBorderNotificationMu sync.Mutex
 	crossBorderNotifications  map[string]crossBorderNotificationState
+	crossBorderRateLimitedUntil int64
 	crossBorderClosed   bool
 
 	systemUpgradeMu sync.Mutex
