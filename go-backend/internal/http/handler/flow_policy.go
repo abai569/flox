@@ -146,6 +146,7 @@ func (h *Handler) processFlowItem(nodeID int64, instanceID string, item flowItem
 		} else {
 			return quotaErr
 		}
+		h.afterFlowCommit(func() { h.notifyUserTrafficThreshold(actualUserID) })
 		if err := h.processPeerShareFlowFromForward(forwardID, nodeID, instanceID, serviceName, item); err != nil {
 			return err
 		}

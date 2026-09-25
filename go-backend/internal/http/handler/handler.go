@@ -181,6 +181,69 @@ func (h *Handler) TelegramBot() *telegram.Bot {
 	return h.telegramBot
 }
 
+// telegramNotifyConfigKeys 是 Telegram 通知分组/事件的配置键清单。
+var telegramNotifyConfigKeys = []string{
+	telegram.NotifyGroupKey(telegram.GroupNode),
+	telegram.NotifyEventKey(telegram.GroupNode, telegram.EventNodeStatus),
+	telegram.NotifyEventKey(telegram.GroupNode, telegram.EventNodeExpiry),
+	telegram.NotifyEventKey(telegram.GroupNode, telegram.EventNodeTrafficAlert),
+	telegram.NotifyEventKey(telegram.GroupNode, telegram.EventNodeTrafficReset),
+	telegram.NotifyEventKey(telegram.GroupNode, telegram.EventNodeShare),
+	telegram.NotifyEventKey(telegram.GroupNode, telegram.EventNodeCrossBorder),
+
+	telegram.NotifyGroupKey(telegram.GroupUser),
+	telegram.NotifyEventKey(telegram.GroupUser, telegram.EventUserRegister),
+	telegram.NotifyEventKey(telegram.GroupUser, telegram.EventUserExpiry),
+	telegram.NotifyEventKey(telegram.GroupUser, telegram.EventUserTrafficAlert),
+	telegram.NotifyEventKey(telegram.GroupUser, telegram.EventUserFlowReset),
+
+	telegram.NotifyGroupKey(telegram.GroupForward),
+	telegram.NotifyEventKey(telegram.GroupForward, telegram.EventForwardTrafficReset),
+
+	telegram.NotifyGroupKey(telegram.GroupOrder),
+	telegram.NotifyEventKey(telegram.GroupOrder, telegram.EventOrderEvent),
+
+	telegram.NotifyGroupKey(telegram.GroupMonitor),
+	telegram.NotifyEventKey(telegram.GroupMonitor, telegram.EventMonitorEvent),
+
+	telegram.NotifyGroupKey(telegram.GroupSystem),
+	telegram.NotifyEventKey(telegram.GroupSystem, telegram.EventSystemStartup),
+	telegram.NotifyEventKey(telegram.GroupSystem, telegram.EventSystemBackup),
+}
+
+// loadTelegramNotifySwitches 读取通知开关；缺省（未配置）视为开启。
+func (h *Handler) loadTelegramNotifySwitches() map[string]bool {
+	out := make(map[string]bool, len(telegramNotifyConfigKeys))
+	if h == nil || h.repo == nil {
+		return out
+	}
+	cfg, err := h.repo.GetConfigsByNames(telegramNotifyConfigKeys)
+	if err != nil {
+		return out
+	}
+	for key, value := range cfg {
+		out[key] = strings.EqualFold(strings.TrimSpace(value), "true")
+	}
+	return out
+}
+
+// notifyUserTrafficThreshold 在用户总流量跨过 80/90/100% 阈值时发送一次告警。
+func (h *Handler) notifyUserTrafficThreshold(userID int64) {
+	if h == nil || h.repo == nil || userID <= 0 {
+		return
+	}
+	crossed, userName, err := h.repo.BumpUserTrafficNotifyThresholds(userID)
+	if err != nil {
+		return
+	}
+	for _, pct := range crossed {
+		percent := pct
+		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendTrafficAlert(userName, percent)
+		})
+	}
+}
+
 func (h *Handler) deleteNodeTrafficCacheEntries(nodeID int64) {
 	if h == nil {
 		return
@@ -558,6 +621,7 @@ func New(repo *repo.Repository, jwtSecret string, floxVersion ...string) *Handle
 	chatID := cfgMap["telegram_chat_id"]
 	enabled := cfgMap["telegram_enabled"] == "true"
 	h.telegramBot = telegram.New(botToken, chatID, enabled)
+	h.telegramBot.SetNotifySwitches(h.loadTelegramNotifySwitches())
 
 	return h
 }
@@ -1881,6 +1945,7 @@ func (h *Handler) flowRelay(w http.ResponseWriter, r *http.Request) {
 				return quotaErr
 			}
 			itemHandler.afterFlowCommit(func() { itemHandler.enforceUserQuotaIfNeeded(match.userID, quota) })
+			itemHandler.afterFlowCommit(func() { itemHandler.notifyUserTrafficThreshold(match.userID) })
 			itemHandler.afterFlowCommit(func() { itemHandler.enforceForwardTrafficLimit(match.forwardID) })
 			if match.userTunnelID > 0 {
 				itemHandler.afterFlowCommit(func() { itemHandler.enforceFlowPolicies(match.userID, match.userTunnelID) })

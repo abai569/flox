@@ -916,6 +916,9 @@ func (h *Handler) disableExpiredUsers(nowMs int64) {
 		}
 
 		h.sendBotNotification(func(bot *telegram.Bot) {
+			bot.SendUserExpired(user.User)
+		})
+		h.sendBotNotification(func(bot *telegram.Bot) {
 			bot.SendUserFlowReset(user.User)
 		})
 	}
@@ -1483,6 +1486,7 @@ func (h *Handler) runTelegramBotLoop(ctx context.Context) {
 			if bot == nil {
 				continue
 			}
+			bot.SetNotifySwitches(h.loadTelegramNotifySwitches())
 
 			oldToken := bot.Token()
 			oldChatID := bot.ChatID()

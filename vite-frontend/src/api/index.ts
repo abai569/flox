@@ -1380,14 +1380,24 @@ export interface TelegramConfig {
   bot_token: string;
   chat_id: string;
   enabled: boolean;
+  notifications: Record<string, boolean>;
 }
 
 export const getTelegramConfig = async (): Promise<TelegramConfig> => {
   const res = await Network.post<Record<string, string>>("/config/list");
+  const notifications: Record<string, boolean> = {};
+
+  Object.entries(res.data || {}).forEach(([key, value]) => {
+    if (key.startsWith("telegram_notify_")) {
+      notifications[key] = value === "true";
+    }
+  });
+
   const cfg: TelegramConfig = {
     bot_token: res.data?.telegram_bot_token || "",
     chat_id: res.data?.telegram_chat_id || "",
     enabled: res.data?.telegram_enabled === "true",
+    notifications,
   };
 
   return cfg;
@@ -1403,6 +1413,19 @@ export const updateTelegramConfig = (
     telegram_chat_id: chatId,
     telegram_enabled: enabled ? "true" : "false",
   });
+
+export const updateTelegramNotifySwitches = (
+  switches: Record<string, boolean>,
+) =>
+  Network.post(
+    "/config/update",
+    Object.fromEntries(
+      Object.entries(switches).map(([key, value]) => [
+        key,
+        value ? "true" : "false",
+      ]),
+    ),
+  );
 
 export const testTelegramBot = () => Network.post("/telegram/test");
 
