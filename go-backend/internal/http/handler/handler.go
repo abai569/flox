@@ -85,8 +85,9 @@ type Handler struct {
 }
 
 type crossBorderNotificationState struct {
-	Status        string
+	Status         string
 	LastNotifiedAt int64
+	NotifyCount    int
 }
 
 type remoteEventWorker struct {
