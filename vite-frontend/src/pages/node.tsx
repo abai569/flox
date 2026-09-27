@@ -3909,8 +3909,8 @@ export default function NodePage() {
     const remoteVisualMeta = remoteVisualMembers.length
       ? deriveNodeVisualState(remoteVisualMembers)
       : null;
-    const remoteTotalInFlow = node.totalInFlow ?? 0;
-    const remoteTotalOutFlow = node.totalOutFlow ?? 0;
+    const remoteTotalInFlow = node.periodInFlow ?? 0;
+    const remoteTotalOutFlow = node.periodOutFlow ?? 0;
     const remoteTotalFlow = remoteTotalInFlow + remoteTotalOutFlow;
     const trafficRatio =
       node.trafficRatio && node.trafficRatio > 0 ? node.trafficRatio : 1;

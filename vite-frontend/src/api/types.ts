@@ -12,6 +12,8 @@ export interface NodeApiItem {
   trafficLimit?: number;
   totalInFlow?: number;
   totalOutFlow?: number;
+  periodInFlow?: number;
+  periodOutFlow?: number;
   expiryInstances?: NodeExpiryInstanceApiItem[];
   weight?: number;
   trafficRatio?: number;

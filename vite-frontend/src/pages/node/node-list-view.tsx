@@ -1563,7 +1563,9 @@ function SortableTableRow({
     { rx: 0, tx: 0 },
   );
   const remoteTrafficLimit = node.remoteMaxBandwidth ?? 0;
-  const remoteTrafficUsed = node.remoteCurrentFlow ?? 0;
+  const remotePeriodFlow = (node.periodOutFlow ?? 0) + (node.periodInFlow ?? 0);
+  const remoteTrafficUsed =
+    node.isRemote === 1 ? remotePeriodFlow : (node.remoteCurrentFlow ?? 0);
   const remoteTrafficTitle = `已用：${formatTraffic(remoteTrafficUsed)}\n剩余：${
     remoteTrafficLimit > 0
       ? formatTraffic(Math.max(remoteTrafficLimit - remoteTrafficUsed, 0))
@@ -1899,7 +1901,7 @@ function SortableTableRow({
             <span className="min-w-0 truncate text-sm text-danger-600 dark:text-danger-400">
               {formatTraffic(
                 node.isRemote === 1
-                  ? (node.totalOutFlow ?? 0) + (node.totalInFlow ?? 0)
+                  ? (node.periodOutFlow ?? 0) + (node.periodInFlow ?? 0)
                   : localPeriodNetTraffic.tx + localPeriodNetTraffic.rx,
               )}
             </span>
@@ -1910,7 +1912,7 @@ function SortableTableRow({
             <span className="truncate text-sm text-success-700 dark:text-success-300">
               {formatTraffic(
                 node.isRemote === 1
-                  ? (node.totalOutFlow ?? 0)
+                  ? (node.periodOutFlow ?? 0)
                   : localPeriodNetTraffic.tx,
               )}
             </span>
@@ -1921,7 +1923,7 @@ function SortableTableRow({
             <span className="truncate text-sm text-primary-700 dark:text-primary-300">
               {formatTraffic(
                 node.isRemote === 1
-                  ? (node.totalInFlow ?? 0)
+                  ? (node.periodInFlow ?? 0)
                   : localPeriodNetTraffic.rx,
               )}
             </span>
