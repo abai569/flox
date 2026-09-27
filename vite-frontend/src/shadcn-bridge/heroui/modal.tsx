@@ -159,7 +159,8 @@ export function ModalContent({
   ...props
 }: ModalContentProps) {
   const context = useModalContext();
-  const resolvedScrollBehavior = scrollBehavior ?? context?.scrollBehavior;
+  const resolvedScrollBehavior =
+    scrollBehavior ?? context?.scrollBehavior ?? "outside";
   const resolvedSize = size ?? context?.size;
   const renderedChildren =
     typeof children === "function"
