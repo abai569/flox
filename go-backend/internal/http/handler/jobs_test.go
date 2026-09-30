@@ -520,3 +520,19 @@ func TestAutoRenewLegacyUserWithoutSubscriptionSnapshotSucceeds(t *testing.T) {
 		t.Fatalf("expected tunnel flow reset at original expiry, got %d/%d", tunnelInFlow, tunnelOutFlow)
 	}
 }
+
+func TestWithinNodeNotifyStartupGrace(t *testing.T) {
+	startedAt := int64(1_800_000_000_000)
+	if !withinNodeNotifyStartupGrace(startedAt+30_000, startedAt) {
+		t.Fatalf("expected 30s after start to be within startup grace")
+	}
+	if !withinNodeNotifyStartupGrace(startedAt+89_999, startedAt) {
+		t.Fatalf("expected 89999ms after start to be within startup grace")
+	}
+	if withinNodeNotifyStartupGrace(startedAt+90_000, startedAt) {
+		t.Fatalf("expected 90s after start to be outside startup grace")
+	}
+	if withinNodeNotifyStartupGrace(startedAt+10*60_000, startedAt) {
+		t.Fatalf("expected 10min after start to be outside startup grace")
+	}
+}
