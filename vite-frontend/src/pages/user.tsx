@@ -407,6 +407,9 @@ export default function UserPage() {
   const [billingHistoryLoading, setBillingHistoryLoading] = useState(false);
   const [billingHistoryPage, setBillingHistoryPage] = useState(1);
   const [billingHistoryTotal, setBillingHistoryTotal] = useState(0);
+  const [billingHistoryCategory, setBillingHistoryCategory] = useState<
+    "" | "recharge" | "traffic" | "renewal"
+  >("");
   const [billingHistoryToDelete, setBillingHistoryToDelete] =
     useState<BillingHistoryItem | null>(null);
   const [regOpen, setRegOpen] = useState(true);
@@ -1351,16 +1354,21 @@ export default function UserPage() {
     setSelectedRenewalLogUser(user);
     setIsRenewalLogModalOpen(true);
     setBillingHistoryPage(1);
-    await loadAdminBillingHistory(user, 1);
+    setBillingHistoryCategory("");
+    await loadAdminBillingHistory(user, 1, "");
   };
 
-  const loadAdminBillingHistory = async (user: User, page: number) => {
+  const loadAdminBillingHistory = async (
+    user: User,
+    page: number,
+    category: "" | "recharge" | "traffic" | "renewal" = billingHistoryCategory,
+  ) => {
     const requestID = ++logRequestRef.current;
     setBillingHistoryLoading(true);
     setBillingHistory([]);
 
     try {
-      const result = await getAdminUserBillingHistory(user.id, page, 50);
+      const result = await getAdminUserBillingHistory(user.id, page, 50, category);
 
       if (requestID !== logRequestRef.current) return;
       if (result.code === 0) {
@@ -1375,6 +1383,15 @@ export default function UserPage() {
         setBillingHistoryLoading(false);
       }
     }
+  };
+
+  const handleBillingHistoryCategoryChange = async (
+    category: "" | "recharge" | "traffic" | "renewal",
+  ) => {
+    if (!selectedRenewalLogUser) return;
+    setBillingHistoryCategory(category);
+    setBillingHistoryPage(1);
+    await loadAdminBillingHistory(selectedRenewalLogUser, 1, category);
   };
 
   const handleDeleteBillingHistory = async (item: BillingHistoryItem) => {
@@ -3434,6 +3451,26 @@ export default function UserPage() {
         <ModalContent>
           <ModalHeader>用户 {selectedRenewalLogUser?.user} 的账务记录</ModalHeader>
           <ModalBody>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["", "全部"],
+                  ["recharge", "充值"],
+                  ["traffic", "购流"],
+                  ["renewal", "续费"],
+                ] as const
+              ).map(([category, label]) => (
+                <Button
+                  key={category || "all"}
+                  color={billingHistoryCategory === category ? "primary" : "default"}
+                  size="sm"
+                  variant={billingHistoryCategory === category ? "solid" : "flat"}
+                  onPress={() => void handleBillingHistoryCategoryChange(category)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
             {billingHistoryLoading ? (
               <div className="flex justify-center py-12">
                 <Spinner />

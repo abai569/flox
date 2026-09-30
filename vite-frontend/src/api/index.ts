@@ -568,10 +568,15 @@ export const getUserTrafficBuyLogs = (userId: number, limit: number = 50) =>
 export const deleteUserTrafficBuyLog = (id: number) =>
   Network.post("/user/traffic-buy-log/delete", { id });
 
-export const getAdminUserBillingHistory = (userId: number, page = 1, size = 50) =>
+export const getAdminUserBillingHistory = (
+  userId: number,
+  page = 1,
+  size = 50,
+  category: "" | "recharge" | "traffic" | "renewal" = "",
+) =>
   Network.post<{ list: BillingHistoryItem[]; total: number; page: number; size: number }>(
     "/user/admin/billing-history",
-    { userId, page, size },
+    { userId, page, size, category },
   );
 export const deleteAdminUserBillingHistory = (data: {
   userId: number;
