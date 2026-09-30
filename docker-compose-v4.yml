@@ -24,7 +24,7 @@ services:
       HMAC_SECRET_KEY: ${HMAC_SECRET_KEY:-flox_455f08ea-ce13-46d4-8574-ebd2a9d0e853}
       INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD}
     ports:
-      - "${BACKEND_PORT}:6365"
+      - "${BACKEND_PORT:-63665}:6365"
     volumes:
       - sqlite_data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -74,7 +74,7 @@ services:
         max-size: "20m"
         max-file: "3"
     ports:
-      - "${FRONTEND_PORT}:80"
+      - "${FRONTEND_PORT:-63666}:80"
     depends_on:
       backend:
         condition: service_healthy

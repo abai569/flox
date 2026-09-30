@@ -683,6 +683,32 @@ get_env_var() {
   grep -m1 "^${key}=" "$file" | cut -d= -f2-
 }
 
+# 当安装目录 .env 丢失时，从运行中的后端容器环境变量重建最小可用 .env，
+# 避免升级流程因缺少配置文件直接中止。
+recover_env_file() {
+  local dir="$1"
+  local backend="$2"
+  local env_dump file key val
+
+  [[ -n "$dir" && -n "$backend" ]] || return 1
+  env_dump=$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$backend" 2>/dev/null || true)
+  [[ -n "$env_dump" ]] || return 1
+
+  file="$dir/.env"
+  : > "$file"
+  for key in JWT_SECRET FRONTEND_PORT BACKEND_PORT DB_TYPE DATABASE_URL POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD LICENSE_SERVER_URL LICENSE_KEY SERVER_DOMAIN HMAC_SECRET_KEY INIT_ADMIN_PASSWORD FLOX_VERSION FLUX_VERSION; do
+    val=$(printf '%s\n' "$env_dump" | grep -m1 "^${key}=" | cut -d= -f2-)
+    if [[ -n "$val" ]]; then
+      printf '%s=%s\n' "$key" "$val" >> "$file"
+    fi
+  done
+
+  grep -q '^FRONTEND_PORT=' "$file" || echo 'FRONTEND_PORT=63666' >> "$file"
+  grep -q '^BACKEND_PORT=' "$file" || echo 'BACKEND_PORT=63665' >> "$file"
+
+  [[ -s "$file" ]]
+}
+
 get_current_db_type() {
   local db_type database_url
 
@@ -1018,9 +1044,20 @@ update_panel() {
   
   # 检查配置文件完整性（迁移后或已有安装）
   if [[ ! -f ".env" ]]; then
-    echo "❌ 配置文件 .env 缺失，无法执行更新。"
-    echo "   请检查安装目录 $INSTALL_DIR 是否完整。"
-    return 1
+    echo "⚠️ 未找到 .env，尝试从运行中的后端容器恢复配置..."
+    local env_backend=""
+    if docker ps --format "{{.Names}}" | grep -q "^flox-svc-backend$"; then
+      env_backend="flox-svc-backend"
+    elif docker ps --format "{{.Names}}" | grep -q "^flvx-svc-backend$"; then
+      env_backend="flvx-svc-backend"
+    fi
+    if [[ -n "$env_backend" ]] && recover_env_file "$INSTALL_DIR" "$env_backend"; then
+      echo "✅ 已从容器环境恢复 .env"
+    else
+      echo "❌ 配置文件 .env 缺失且无法自动恢复，无法执行更新。"
+      echo "   请检查安装目录 $INSTALL_DIR 是否完整。"
+      return 1
+    fi
   fi
   
   check_docker
@@ -1088,6 +1125,25 @@ update_panel() {
     configure_docker_ipv6
   fi
 
+  # 记录旧镜像，便于升级失败时回滚（此时旧容器仍在运行）
+  OLD_BACKEND_IMAGE=$(docker inspect -f '{{.Image}}' flox-svc-backend 2>/dev/null || docker inspect -f '{{.Image}}' flvx-svc-backend 2>/dev/null || true)
+  OLD_FRONTEND_IMAGE=$(docker inspect -f '{{.Image}}' flox-svc-frontend 2>/dev/null || docker inspect -f '{{.Image}}' flvx-svc-frontend 2>/dev/null || true)
+
+  # 关键：先拉取新镜像，成功后再停旧服务。
+  # 这样镜像拉取失败时旧服务不受影响，避免升级中断导致网页 502。
+  echo "⬇️ 拉取最新镜像..."
+  PULL_OK=0
+  if [[ "$CURRENT_DB_TYPE" == "postgres" ]]; then
+    if $DOCKER_CMD pull backend frontend postgres; then PULL_OK=1; fi
+  else
+    if $DOCKER_CMD pull backend frontend; then PULL_OK=1; fi
+  fi
+  if [[ "$PULL_OK" != "1" ]]; then
+    echo "❌ 拉取镜像失败，已保留当前运行的服务，升级终止。"
+    echo "   请确认镜像/tag 是否存在后重试。"
+    return 1
+  fi
+
   # 先发送 SIGTERM 信号，让应用优雅关闭
   docker stop -t 30 flox-svc-backend 2>/dev/null || true
   docker stop -t 10 flox-svc-frontend 2>/dev/null || true
@@ -1113,13 +1169,6 @@ update_panel() {
   # 释放端口缓冲
   sleep 2
 
-  echo "⬇️ 拉取最新镜像..."
-  if [[ "$CURRENT_DB_TYPE" == "postgres" ]]; then
-    $DOCKER_CMD pull backend frontend postgres
-  else
-    $DOCKER_CMD pull backend frontend
-  fi
-
   echo "🚀 启动更新后的服务..."
   if [[ "$CURRENT_DB_TYPE" == "postgres" ]]; then
     $DOCKER_CMD up -d postgres
@@ -1133,7 +1182,23 @@ update_panel() {
   echo "⏳ 等待服务启动..."
 
   if ! wait_for_backend_healthy; then
-    echo "🛑 更新终止"
+    echo "❌ 新版本健康检查未通过，尝试回滚到旧镜像..."
+    rollback_backend_tag=$(docker inspect -f '{{.Config.Image}}' flox-svc-backend 2>/dev/null || true)
+    if [[ -z "$rollback_backend_tag" ]]; then
+      rollback_backend_tag=$(grep -m1 -E '^\s*image:.*flox-svc-backend:' docker-compose.yml 2>/dev/null | sed -E 's/^\s*image:\s*//' | tr -d '"')
+    fi
+    rollback_frontend_tag=$(docker inspect -f '{{.Config.Image}}' flox-svc-frontend 2>/dev/null || true)
+    if [[ -z "$rollback_frontend_tag" ]]; then
+      rollback_frontend_tag=$(grep -m1 -E '^\s*image:.*flox-svc-frontend:' docker-compose.yml 2>/dev/null | sed -E 's/^\s*image:\s*//' | tr -d '"')
+    fi
+    [[ -n "$rollback_backend_tag" && -n "$OLD_BACKEND_IMAGE" ]] && docker image tag "$OLD_BACKEND_IMAGE" "$rollback_backend_tag" 2>/dev/null || true
+    [[ -n "$rollback_frontend_tag" && -n "$OLD_FRONTEND_IMAGE" ]] && docker image tag "$OLD_FRONTEND_IMAGE" "$rollback_frontend_tag" 2>/dev/null || true
+    $DOCKER_CMD up -d backend frontend 2>/dev/null || true
+    if wait_for_backend_healthy; then
+      echo "✅ 已回滚到升级前版本，服务已恢复。"
+      return 1
+    fi
+    echo "🛑 自动回滚失败，请手动执行：cd $INSTALL_DIR && docker compose up -d backend frontend"
     return 1
   fi
 
