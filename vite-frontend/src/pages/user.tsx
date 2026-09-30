@@ -227,6 +227,7 @@ const normalizeUserItem = (item: Partial<User>): UserWithHistory => {
         ? undefined
         : Number(item.tunnelGroupId),
     manualTunnelEnabled: item.manualTunnelEnabled === 1 ? 1 : 0,
+    inx: Number(item.inx ?? 0),
     forwardSpeedLimit:
       Number(item.forwardSpeedLimit) > 0 ? Number(item.forwardSpeedLimit) : 0,
     quotaHistory: [],
@@ -820,6 +821,35 @@ export default function UserPage() {
   // 初始化 sortableUserIds
   useEffect(() => {
     if (users.length > 0) {
+      const hasDbOrdering = users.some(
+        (item) => typeof item.inx === "number" && item.inx !== 0,
+      );
+
+      if (hasDbOrdering) {
+        const dbOrder = [...users]
+          .sort((a, b) => {
+            const aInx = typeof a.inx === "number" ? a.inx : 0;
+            const bInx = typeof b.inx === "number" ? b.inx : 0;
+            const aOrdered = aInx > 0;
+            const bOrdered = bInx > 0;
+
+            if (aOrdered !== bOrdered) {
+              return aOrdered ? -1 : 1;
+            }
+            if (aInx !== bInx) {
+              return aInx - bInx;
+            }
+
+            return b.id - a.id;
+          })
+          .map((item) => item.id);
+
+        setSortableUserIds(dbOrder);
+        setUserOrder(dbOrder);
+
+        return;
+      }
+
       if (userOrder && userOrder.length > 0) {
         const orderedIds = users
           .map((u) => u.id)
@@ -837,7 +867,8 @@ export default function UserPage() {
         setSortableUserIds(users.map((u) => u.id));
       }
     }
-  }, [users, userOrder]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users]);
 
   // 排序后的用户列表（用于渲染）
   const displayUsers = useMemo(() => {

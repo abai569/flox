@@ -36,6 +36,7 @@ export interface User {
   forwardSpeedLimit?: number | null; // 用户级规则限速 (Mbps)
   tunnelGroupId?: number; // 分配的隧道分组ID
   manualTunnelEnabled?: 0 | 1;
+  inx?: number;
 }
 
 export interface UserGroup {

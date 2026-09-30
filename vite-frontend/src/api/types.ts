@@ -76,6 +76,7 @@ export interface UserApiItem {
   forwardSpeedLimit?: number | null;
   manualTunnelEnabled?: 0 | 1;
   tunnelGroupId?: number;
+  inx?: number;
   [key: string]: unknown;
 }
 
