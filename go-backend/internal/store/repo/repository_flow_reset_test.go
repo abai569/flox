@@ -91,6 +91,89 @@ func TestMarkExpiredUserAutoRenewFailureSkipsEmptyHistory(t *testing.T) {
 	}
 }
 
+func TestRenewUserWithBalanceHealsSubscriptionExpiryDrift(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repository: %v", err)
+	}
+	defer r.Close()
+
+	now := time.Now().UnixMilli()
+	user := newFlowResetTestUser(7, 0, 0, now, now)
+	user.ExpTime = now
+	user.RenewalAmount = 15000
+	user.Balance = 20000
+	user.AutoRenew = 1
+	if err := r.DB().Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	staleExpireAt := now - 30*24*int64(time.Hour/time.Millisecond)
+	sub := model.PackageSubscription{
+		UserID: user.ID, PackageID: 0, StartAt: staleExpireAt, ExpireAt: staleExpireAt,
+		AutoRenew: 1, RenewalValidityDays: 30, RenewalAmount: 15000, Status: 1,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := r.DB().Create(&sub).Error; err != nil {
+		t.Fatalf("create subscription: %v", err)
+	}
+
+	newExpTime, renewed, err := r.RenewUserWithBalance(user.ID, now)
+	if err != nil {
+		t.Fatalf("renew: %v", err)
+	}
+	if !renewed || newExpTime <= now {
+		t.Fatalf("expected renewal to succeed, renewed=%v newExp=%d", renewed, newExpTime)
+	}
+	var storedUser model.User
+	if err := r.DB().Where("id = ?", user.ID).First(&storedUser).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if storedUser.ExpTime != newExpTime {
+		t.Fatalf("user exp = %d, want %d", storedUser.ExpTime, newExpTime)
+	}
+	var storedSub model.PackageSubscription
+	if err := r.DB().Where("id = ?", sub.ID).First(&storedSub).Error; err != nil {
+		t.Fatalf("load subscription: %v", err)
+	}
+	if storedSub.ExpireAt != newExpTime {
+		t.Fatalf("subscription expire_at = %d, want %d", storedSub.ExpireAt, newExpTime)
+	}
+}
+
+func TestUpdateUserAutoRenewAlignsSubscriptionExpiry(t *testing.T) {
+	r, err := Open(":memory:")
+	if err != nil {
+		t.Fatalf("open repository: %v", err)
+	}
+	defer r.Close()
+
+	now := time.Now().UnixMilli()
+	user := newFlowResetTestUser(8, 0, 0, now, now)
+	user.ExpTime = now + 10*24*int64(time.Hour/time.Millisecond)
+	if err := r.DB().Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	sub := model.PackageSubscription{
+		UserID: user.ID, PackageID: 0, StartAt: now, ExpireAt: now,
+		AutoRenew: 0, RenewalValidityDays: 30, RenewalAmount: 1000, Status: 1,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := r.DB().Create(&sub).Error; err != nil {
+		t.Fatalf("create subscription: %v", err)
+	}
+
+	if err := r.UpdateUserAutoRenew(user.ID, 1); err != nil {
+		t.Fatalf("update auto renew: %v", err)
+	}
+	var storedSub model.PackageSubscription
+	if err := r.DB().Where("id = ?", sub.ID).First(&storedSub).Error; err != nil {
+		t.Fatalf("load subscription: %v", err)
+	}
+	if storedSub.AutoRenew != 1 || storedSub.ExpireAt != user.ExpTime {
+		t.Fatalf("subscription not aligned: auto_renew=%d expire_at=%d want 1/%d", storedSub.AutoRenew, storedSub.ExpireAt, user.ExpTime)
+	}
+}
+
 func TestMonthlyFlowResetCatchesUpAndRestoresBaseFlow(t *testing.T) {
 	r, err := Open(":memory:")
 	if err != nil {
