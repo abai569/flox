@@ -830,12 +830,7 @@ export default function UserPage() {
           .sort((a, b) => {
             const aInx = typeof a.inx === "number" ? a.inx : 0;
             const bInx = typeof b.inx === "number" ? b.inx : 0;
-            const aOrdered = aInx > 0;
-            const bOrdered = bInx > 0;
 
-            if (aOrdered !== bOrdered) {
-              return aOrdered ? -1 : 1;
-            }
             if (aInx !== bInx) {
               return aInx - bInx;
             }
