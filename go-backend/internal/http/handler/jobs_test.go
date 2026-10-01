@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -518,6 +519,42 @@ func TestAutoRenewLegacyUserWithoutSubscriptionSnapshotSucceeds(t *testing.T) {
 	}
 	if tunnelInFlow != 0 || tunnelOutFlow != 0 {
 		t.Fatalf("expected tunnel flow reset at original expiry, got %d/%d", tunnelInFlow, tunnelOutFlow)
+	}
+}
+
+func TestRetryNodeTrafficReset(t *testing.T) {
+	calls := 0
+	if err := retryNodeTrafficReset(3, 0, func() error { calls++; return nil }); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("expected 1 call on success, got %d", calls)
+	}
+
+	calls = 0
+	err := retryNodeTrafficReset(3, 0, func() error {
+		calls++
+
+		if calls < 3 {
+			return errors.New("节点实例不在线")
+		}
+
+		return nil
+	})
+	if err != nil || calls != 3 {
+		t.Fatalf("expected success on 3rd attempt, err=%v calls=%d", err, calls)
+	}
+
+	calls = 0
+	err = retryNodeTrafficReset(3, 0, func() error { calls++; return errors.New("节点实例不在线") })
+	if err == nil || calls != 3 {
+		t.Fatalf("expected failure after 3 attempts, err=%v calls=%d", err, calls)
+	}
+
+	calls = 0
+	_ = retryNodeTrafficReset(0, 0, func() error { calls++; return nil })
+	if calls != 1 {
+		t.Fatalf("expected at least one attempt, got %d", calls)
 	}
 }
 

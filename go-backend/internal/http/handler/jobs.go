@@ -739,9 +739,16 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 	failCount := 0
 	for _, target := range resetTargets {
 		inst := target.inst
-		if err := h.resetNodeInstanceTrafficFromAgent(inst.NodeID, inst.InstanceID, "自动周期归零"); err != nil {
-			log.Printf("WARN: auto-reset node %d instance %s traffic failed: %v", inst.NodeID, inst.InstanceID, err)
+		if err := h.resetNodeInstanceTrafficWithRetry(inst.NodeID, inst.InstanceID); err != nil {
+			log.Printf("WARN: auto-reset node %d instance %s traffic failed after retries: %v", inst.NodeID, inst.InstanceID, err)
 			failCount++
+			resetErr := err
+			resetLabel := nodeInstanceResetLabel(inst)
+			nodeName := inst.NodeName
+			h.sendBotNotification(func(bot *telegram.Bot) {
+				bot.SendCategoryAlert(telegram.GroupNode, telegram.EventNodeTrafficReset, "节点实例归零失败",
+					fmt.Sprintf("节点：%s\n实例：%s\n错误：%s\n下次自动补跑：次日 00:00", nodeName, resetLabel, resetErr.Error()))
+			})
 			continue
 		}
 		successCount++
@@ -796,6 +803,47 @@ func (h *Handler) resetNodeMonthlyTraffic(now time.Time) {
 	}
 
 	log.Printf("[节点实例流量归零] 完成：成功 %d，失败 %d", successCount, failCount)
+}
+
+const (
+	nodeTrafficResetMaxAttempts   = 3
+	nodeTrafficResetRetryInterval = 60 * time.Second
+)
+
+// resetNodeInstanceTrafficWithRetry 对归零做即时重试，覆盖实例在 0 点瞬间掉线的情况。
+func (h *Handler) resetNodeInstanceTrafficWithRetry(nodeID int64, instanceID string) error {
+	return retryNodeTrafficReset(nodeTrafficResetMaxAttempts, nodeTrafficResetRetryInterval, func() error {
+		return h.resetNodeInstanceTrafficFromAgent(nodeID, instanceID, "自动周期归零")
+	})
+}
+
+func retryNodeTrafficReset(attempts int, interval time.Duration, reset func() error) error {
+	if attempts < 1 {
+		attempts = 1
+	}
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if err := reset(); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+		if attempt < attempts {
+			time.Sleep(interval)
+		}
+	}
+	return lastErr
+}
+
+func nodeInstanceResetLabel(inst repo.NodeInstanceTrafficResetDue) string {
+	instanceName := inst.DisplayName
+	if strings.TrimSpace(instanceName) == "" && inst.DisplayIndex > 0 {
+		instanceName = fmt.Sprintf("实例 %d", inst.DisplayIndex)
+	}
+	if strings.TrimSpace(instanceName) == "" {
+		return inst.InstanceID
+	}
+	return instanceName
 }
 
 func nodeInstanceCycleResetDue(anchorMs int64, cycle string, now time.Time) bool {
