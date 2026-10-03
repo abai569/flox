@@ -628,6 +628,16 @@ func (s *Server) processNodeMetric(task nodeMetricTask) {
 	if serviceName != "" {
 		_ = s.repo.UpdateNodeServiceName(nodeID, serviceName)
 	}
+	if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
+		sysInfo.PeriodNetInBytes = periodNet.InBytes
+		sysInfo.PeriodNetOutBytes = periodNet.OutBytes
+	}
+	if !routingEnabled {
+		sysInfo.NetInSpeed = 0
+		sysInfo.NetOutSpeed = 0
+		sysInfo.TCPConns = 0
+		sysInfo.UDPConns = 0
+	}
 	_ = s.repo.UpsertNodeInstance(repo.NodeInstanceUpsert{
 		NodeID:      nodeID,
 		InstanceID:  instanceID,
@@ -659,12 +669,6 @@ func (s *Server) processNodeMetric(task nodeMetricTask) {
 		// instance_id），则把旧实例的配置与累计流量并入本实例并删除旧实例。
 		if _, derr := s.repo.MergeDuplicateNodeInstances(nodeID, instanceID); derr != nil {
 			log.Printf("[ws.metric] merge duplicate instances node=%d instance=%s failed: %v", nodeID, instanceID, derr)
-		}
-	}
-	if routingEnabled {
-		if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
-			sysInfo.PeriodNetInBytes = periodNet.InBytes
-			sysInfo.PeriodNetOutBytes = periodNet.OutBytes
 		}
 	}
 	if normalizedMetricData, err := json.Marshal(sysInfo); err == nil {
@@ -1157,6 +1161,10 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 				if strings.TrimSpace(sysInfo.Hostname) == "" {
 					sysInfo.Hostname = ns.hostname
 				}
+				routingEnabled := true
+				if weight, weightErr := s.repo.GetNodeInstanceWeight(nodeID, sysInfo.InstanceID); weightErr == nil && weight <= 0 {
+					routingEnabled = false
+				}
 				// 缓存服务连接数
 				s.mu.Lock()
 				if s.serviceConnections[nodeID] == nil {
@@ -1188,6 +1196,12 @@ func (s *Server) handleNode(w http.ResponseWriter, r *http.Request, nodeID int64
 				if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
 					sysInfo.PeriodNetInBytes = periodNet.InBytes
 					sysInfo.PeriodNetOutBytes = periodNet.OutBytes
+				}
+				if !routingEnabled {
+					sysInfo.NetInSpeed = 0
+					sysInfo.NetOutSpeed = 0
+					sysInfo.TCPConns = 0
+					sysInfo.UDPConns = 0
 				}
 
 				s.mu.RLock()
