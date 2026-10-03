@@ -578,15 +578,20 @@ func (s *Server) processNodeMetric(task nodeMetricTask) {
 		return
 	}
 	instanceExisted := false
+	routingEnabled := true
 	if exists, existsErr := s.repo.NodeInstanceExists(nodeID, instanceID); existsErr != nil {
 		s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
 		return
 	} else if exists {
 		instanceExisted = true
 		if weight, weightErr := s.repo.GetNodeInstanceWeight(nodeID, instanceID); weightErr == nil && weight <= 0 {
-			s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
-			return
+			routingEnabled = false
 		}
+	}
+	if !routingEnabled {
+		// Disabled instances still report system metrics, but their forwarding
+		// metrics must not remain active in the routing statistics cache.
+		s.clearInstanceMetricCache(nodeID, instanceID, sysInfo.ForwardMetrics)
 	}
 
 	serviceName := strings.TrimSpace(sysInfo.ServiceName)
@@ -596,7 +601,7 @@ func (s *Server) processNodeMetric(task nodeMetricTask) {
 		s.serviceConnections[nodeID] = make(map[string]map[string]int)
 	}
 	s.serviceConnections[nodeID][instanceID] = sysInfo.ServiceConnections
-	if len(sysInfo.ForwardMetrics) > 0 {
+	if routingEnabled && len(sysInfo.ForwardMetrics) > 0 {
 		fmt.Printf("[ws.forward] received %d forward metrics from node %d\n", len(sysInfo.ForwardMetrics), nodeID)
 		s.forwardMetricsMu.Lock()
 		for _, fm := range sysInfo.ForwardMetrics {
@@ -656,9 +661,11 @@ func (s *Server) processNodeMetric(task nodeMetricTask) {
 			log.Printf("[ws.metric] merge duplicate instances node=%d instance=%s failed: %v", nodeID, instanceID, derr)
 		}
 	}
-	if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
-		sysInfo.PeriodNetInBytes = periodNet.InBytes
-		sysInfo.PeriodNetOutBytes = periodNet.OutBytes
+	if routingEnabled {
+		if periodNet, err := s.repo.AccumulateNodeInstancePeriodNetTraffic(nodeID, sysInfo.InstanceID, sysInfo.NetInBytes, sysInfo.NetOutBytes, int64(sysInfo.BootID), sysInfo.NetInterfaceKey, time.Now().UnixMilli()); err == nil && periodNet != nil {
+			sysInfo.PeriodNetInBytes = periodNet.InBytes
+			sysInfo.PeriodNetOutBytes = periodNet.OutBytes
+		}
 	}
 	if normalizedMetricData, err := json.Marshal(sysInfo); err == nil {
 		metricData = normalizedMetricData
