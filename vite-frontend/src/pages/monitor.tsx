@@ -705,15 +705,15 @@ function NodeInstanceGroupsView({
                           </td>
                           <td className="group relative px-1 py-3 text-center align-middle font-mono text-xs">
                             <div className="truncate">
-                              {formatBytes(member.netOutBytes)}↑
+                               {formatBytes(member.periodNetOutBytes)}↑
                             </div>
                             <div className="truncate">
-                              {formatBytes(member.netInBytes)}↓
+                               {formatBytes(member.periodNetInBytes)}↓
                             </div>
                             <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-2 py-1 text-xs text-background opacity-0 shadow-md transition-opacity group-hover:opacity-100">
                               总量:
                               {formatBytes(
-                                member.netOutBytes + member.netInBytes,
+                                 member.periodNetOutBytes + member.periodNetInBytes,
                               )}
                             </div>
                           </td>
